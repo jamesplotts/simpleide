@@ -1,0 +1,416 @@
+' VBCodeParser.vb - Enhanced VB.NET parser with DocumentNode and LineMetadata integration
+Imports System
+Imports System.Collections.Generic
+Imports System.Text.RegularExpressions
+Imports System.Linq
+Imports SimpleIDE.Models
+
+Namespace Utilities
+    Public Class VBCodeParser
+        
+        ' Regular expressions for parsing VB.NET constructs
+        Private Shared ReadOnly pObjectPatterns As Dictionary(Of CodeObjectType, Regex) = New Dictionary(Of CodeObjectType, Regex) From {
+            {CodeObjectType.eClass, New Regex("^\s*(?:(?:Partial|Public|Private|Friend|Protected|NotInheritable|MustInherit)\s+)*Class\s+(\w+)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeObjectType.eModule, New Regex("^\s*(?:(?:Partial|Public|Private|Friend)\s+)*Module\s+(\w+)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeObjectType.eInterface, New Regex("^\s*(?:(?:Partial|Public|Private|Friend|Protected)\s+)*Interface\s+(\w+)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeObjectType.eStructure, New Regex("^\s*(?:(?:Partial|Public|Private|Friend|Protected)\s+)*Structure\s+(\w+)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeObjectType.eEnum, New Regex("^\s*(?:(?:Public|Private|Friend|Protected)\s+)*Enum\s+(\w+)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)}
+        }
+        
+        ' Member patterns
+        Private Shared ReadOnly pMemberPatterns As Dictionary(Of CodeMemberType, Regex) = New Dictionary(Of CodeMemberType, Regex) From {
+            {CodeMemberType.eMethod, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*(?:Shared|Overridable|Overrides|MustOverride|NotOverridable)?\s*Sub\s+(\w+)\s*\((.*?)\)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeMemberType.eFunction, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*(?:Shared|Overridable|Overrides|MustOverride|NotOverridable)?\s*Function\s+(\w+)\s*\((.*?)\)(?:\s+As\s+(\w+(?:\(\)|\.[\w\.]+)?))?" , RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeMemberType.eProperty, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*(?:Shared|Overridable|Overrides|MustOverride|NotOverridable|ReadOnly|WriteOnly)?\s*Property\s+(\w+)(?:\s*\((.*?)\))?\s*(?:As\s+(\w+(?:\(\)|\.[\w\.]+)?))?", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeMemberType.eField, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*(?:Shared|ReadOnly|Const|WithEvents)?\s*(\w+)(?:\s+As\s+(\w+(?:\(\)|\.[\w\.]+)?))?\s*(?:=.*)?$", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeMemberType.eEvent, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*(?:Shared|Custom)?\s*Event\s+(\w+)(?:\s*\((.*?)\))?\s*(?:As\s+(\w+(?:\(\)|\.[\w\.]+)?))?", RegexOptions.IgnoreCase Or RegexOptions.Multiline)},
+            {CodeMemberType.eConstructor, New Regex("^\s*(?:Public|Private|Friend|Protected)?\s*Sub\s+New\s*\((.*?)\)", RegexOptions.IgnoreCase Or RegexOptions.Multiline)}
+        }
+        
+        ' Parse a VB.NET document and create DocumentNodes
+        Public Function ParseDocument(vCode As String) As ParseResult
+            Dim lResult As New ParseResult()
+            
+            Try
+                If String.IsNullOrEmpty(vCode) Then
+                    Return lResult
+                End If
+                
+                ' Split code into lines for line-by-line processing
+                Dim lLines() As String = vCode.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf).Split(CChar(vbLf))
+                
+                ' Parse objects (classes, modules, etc.)
+                ParseCodeObjects(vCode, lLines, lResult)
+                
+                ' Parse members within objects
+                For Each lObject In lResult.Objects
+                    ParseCodeMembers(vCode, lLines, lObject, lResult)
+                Next
+                
+                ' Create DocumentNode graph from parsed objects
+                CreateDocumentNodes(lResult)
+                
+                ' Create LineMetadata with node references
+                CreateLineMetadata(lLines, lResult)
+                
+                Return lResult
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.ParseDocument: error: {ex.Message}")
+                lResult.Errors.Add(New ParseError() With {
+                    .Message = $"Parse error: {ex.Message}",
+                    .Line = 0,
+                    .Column = 0,
+                    .Severity = ParseErrorSeverity.eError
+                })
+                Return lResult
+            End Try
+        End Function
+        
+        ' Parse code objects (classes, modules, interfaces, etc.)
+        Private Sub ParseCodeObjects(vCode As String, vLines() As String, vResult As ParseResult)
+            Try
+                For Each lObjectType In pObjectPatterns.Keys
+                    Dim lRegex As Regex = pObjectPatterns(lObjectType)
+                    Dim lMatches As MatchCollection = lRegex.Matches(vCode)
+                    
+                    For Each lMatch As Match In lMatches
+                        Dim lObject As New CodeObject()
+                        lObject.Name = lMatch.Groups(1).Value
+                        lObject.ObjectType = lObjectType
+                        
+                        ' Calculate line numbers
+                        Dim lPosition As Integer = lMatch.Index
+                        lObject.StartLine = GetLineNumberFromPosition(vCode, lPosition) + 1 ' Convert to 1-based
+                        lObject.StartColumn = GetColumnFromPosition(vCode, lPosition)
+                        
+                        ' Find the end of the object
+                        Dim lEndPattern As String = GetEndPattern(lObjectType)
+                        If Not String.IsNullOrEmpty(lEndPattern) Then
+                            Dim lEndRegex As New Regex($"^\s*End\s+{lEndPattern}\b", RegexOptions.IgnoreCase Or RegexOptions.Multiline)
+                            Dim lEndMatch As Match = lEndRegex.Match(vCode, lPosition)
+                            If lEndMatch.Success Then
+                                lObject.EndLine = GetLineNumberFromPosition(vCode, lEndMatch.Index + lEndMatch.Length) + 1
+                                lObject.EndColumn = GetColumnFromPosition(vCode, lEndMatch.Index + lEndMatch.Length)
+                            Else
+                                lObject.EndLine = vLines.Length
+                                lObject.EndColumn = If(vLines.Length > 0, vLines(vLines.Length - 1).Length, 0)
+                            End If
+                        End If
+                        
+                        vResult.Objects.Add(lObject)
+                    Next
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.ParseCodeObjects: error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' Parse code members within an object
+        Private Sub ParseCodeMembers(vCode As String, vLines() As String, vObject As CodeObject, vResult As ParseResult)
+            Try
+                ' Extract the content of the object
+                Dim lStartPos As Integer = GetPositionFromLineColumn(vCode, vObject.StartLine - 1, 0)
+                Dim lEndPos As Integer = GetPositionFromLineColumn(vCode, vObject.EndLine - 1, 0)
+                If lEndPos > lStartPos AndAlso lEndPos <= vCode.Length Then
+                    Dim lObjectContent As String = vCode.Substring(lStartPos, lEndPos - lStartPos)
+                    
+                    ' Parse each member type
+                    For Each lMemberType In pMemberPatterns.Keys
+                        Dim lRegex As Regex = pMemberPatterns(lMemberType)
+                        Dim lMatches As MatchCollection = lRegex.Matches(lObjectContent)
+                        
+                        For Each lMatch As Match In lMatches
+                            Dim lMember As New CodeMember()
+                            lMember.Name = If(lMemberType = CodeMemberType.eConstructor, "New", lMatch.Groups(1).Value)
+                            lMember.MemberType = lMemberType
+                            lMember.ParentClass = vObject.Name
+                            
+                            ' Calculate absolute position
+                            Dim lAbsolutePosition As Integer = lStartPos + lMatch.Index
+                            lMember.StartLine = GetLineNumberFromPosition(vCode, lAbsolutePosition) + 1
+                            lMember.StartColumn = GetColumnFromPosition(vCode, lAbsolutePosition)
+                            
+                            ' Extract parameters and return type
+                            If lMatch.Groups.Count > 2 Then
+                                lMember.Parameters = lMatch.Groups(2).Value.Trim()
+                            End If
+                            If lMatch.Groups.Count > 3 AndAlso lMemberType = CodeMemberType.eFunction Then
+                                lMember.ReturnType = lMatch.Groups(3).Value.Trim()
+                            End If
+                            
+                            ' Add to object's members and result
+                            vObject.members.Add(lMember)
+                            vResult.members.Add(lMember)
+                        Next
+                    Next
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.ParseCodeMembers: error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' Create DocumentNode graph from parsed objects and members
+        Private Sub CreateDocumentNodes(vResult As ParseResult)
+            Try
+                ' Create nodes for objects
+                For Each lObject In vResult.Objects
+                    Dim lNode As New DocumentNode()
+                    lNode.NodeId = Guid.NewGuid().ToString()
+                    lNode.Name = lObject.Name
+                    lNode.NodeType = ConvertObjectTypeToNodeType(lObject.ObjectType)
+                    lNode.StartLine = lObject.StartLine - 1  ' Convert to 0-based
+                    lNode.EndLine = lObject.EndLine - 1
+                    lNode.StartColumn = lObject.StartColumn
+                    lNode.EndColumn = lObject.EndColumn
+                    
+                    ' Add attributes
+                    If Not String.IsNullOrEmpty(lObject.InheritsFrom) Then
+                        lNode.Attributes("InheritsFrom") = lObject.InheritsFrom
+                    End If
+                    
+                    vResult.DocumentNodes(lNode.NodeId) = lNode
+                    vResult.RootNodes.Add(lNode)
+                    
+                    ' Create nodes for members
+                    For Each lMember In lObject.members
+                        Dim lMemberNode As New DocumentNode()
+                        lMemberNode.NodeId = Guid.NewGuid().ToString()
+                        lMemberNode.Name = lMember.Name
+                        lMemberNode.NodeType = ConvertMemberTypeToNodeType(lMember.MemberType)
+                        lMemberNode.StartLine = lMember.StartLine - 1  ' Convert to 0-based
+                        lMemberNode.EndLine = lMember.EndLine - 1
+                        lMemberNode.StartColumn = lMember.StartColumn
+                        lMemberNode.EndColumn = lMember.EndColumn
+                        lMemberNode.Parent = lNode
+                        
+                        ' Add attributes
+                        If Not String.IsNullOrEmpty(lMember.ReturnType) Then
+                            lMemberNode.Attributes("ReturnType") = lMember.ReturnType
+                        End If
+                        If Not String.IsNullOrEmpty(lMember.Parameters) Then
+                            lMemberNode.Attributes("Parameters") = lMember.Parameters
+                        End If
+                        
+                        lNode.Children.Add(lMemberNode)
+                        vResult.DocumentNodes(lMemberNode.NodeId) = lMemberNode
+                        
+                        ' Parse parameters as child nodes
+                        If Not String.IsNullOrEmpty(lMember.Parameters) Then
+                            ParseParametersForMember(lMember.Parameters, lMemberNode, vResult)
+                        End If
+                    Next
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.CreateDocumentNodes: error: {ex.Message}")
+            End Try
+        End Sub
+        
+        Private Function ConvertObjectTypeToNodeType(vObjectType As CodeObjectType) As CodeNodeType
+            Select Case vObjectType
+                Case CodeObjectType.eClass
+                    Return CodeNodeType.eClass
+                Case CodeObjectType.eModule
+                    Return CodeNodeType.eModule
+                Case CodeObjectType.eInterface
+                    Return CodeNodeType.eInterface
+                Case CodeObjectType.eStructure
+                    Return CodeNodeType.eStructure
+                Case CodeObjectType.eEnum
+                    Return CodeNodeType.eEnum
+                Case Else
+                    Return CodeNodeType.eUnspecified
+            End Select
+        End Function
+        
+        Private Function ConvertMemberTypeToNodeType(vMemberType As CodeMemberType) As CodeNodeType
+            Select Case vMemberType
+                Case CodeMemberType.eMethod
+                    Return CodeNodeType.eMethod
+                Case CodeMemberType.eFunction
+                    Return CodeNodeType.eFunction
+                Case CodeMemberType.eProperty
+                    Return CodeNodeType.eProperty
+                Case CodeMemberType.eField
+                    Return CodeNodeType.eField
+                Case CodeMemberType.eEvent
+                    Return CodeNodeType.eEvent
+                Case CodeMemberType.eConstructor
+                    Return CodeNodeType.eMethod
+                Case Else
+                    Return CodeNodeType.eUnspecified
+            End Select
+        End Function
+        
+        ' Parse parameters and create parameter nodes
+        Private Sub ParseParametersForMember(vParameters As String, vMemberNode As DocumentNode, vResult As ParseResult)
+            Try
+                If String.IsNullOrEmpty(vParameters) Then Return
+                
+                ' Split parameters by comma (simple parsing)
+                Dim lParamParts() As String = vParameters.Split(","c)
+                Dim lColumnOffset As Integer = 0
+                
+                For Each lParamPart In lParamParts
+                    Dim lParam As String = lParamPart.Trim()
+                    If String.IsNullOrEmpty(lParam) Then Continue For
+                    
+                    ' Extract parameter name (simplified)
+                    Dim lParamName As String = ExtractParameterName(lParam)
+                    If String.IsNullOrEmpty(lParamName) Then Continue For
+                    
+                    ' Create parameter node
+                    Dim lParamNode As New DocumentNode()
+                    lParamNode.NodeId = Guid.NewGuid().ToString()
+                    lParamNode.Name = lParamName
+                    lParamNode.NodeType = CodeNodeType.eParameter
+                    lParamNode.StartLine = vMemberNode.StartLine
+                    lParamNode.EndLine = vMemberNode.StartLine
+                    lParamNode.StartColumn = vMemberNode.StartColumn + lColumnOffset
+                    lParamNode.EndColumn = lParamNode.StartColumn + lParamName.Length
+                    lParamNode.Parent = vMemberNode
+                    
+                    ' Add parameter type if available
+                    Dim lParamType As String = ExtractParameterType(lParam)
+                    If Not String.IsNullOrEmpty(lParamType) Then
+                        lParamNode.Attributes("Type") = lParamType
+                    End If
+                    
+                    vMemberNode.Children.Add(lParamNode)
+                    vResult.DocumentNodes(lParamNode.NodeId) = lParamNode
+                    
+                    lColumnOffset += lParam.Length + 2 ' Account for comma and space
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.ParseParametersForMember: error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' Create LineMetadata with NodeReferences
+        Private Sub CreateLineMetadata(vLines() As String, vResult As ParseResult)
+            Try
+                ' Initialize line metadata array
+                vResult.ResizeLineMetadata(vLines.Length - 1)
+               
+                
+                For i As Integer = 0 To vLines.Length - 1
+                    vResult.LineMetadata(i) = New LineMetadata()
+                    vResult.LineMetadata(i).UpdateHash(vLines(i))
+                Next
+                
+                ' Add node references to lines
+                For Each lNodeEntry In vResult.DocumentNodes
+                    Dim lNode As DocumentNode = lNodeEntry.Value
+                    
+                    ' Add reference to the line where the node is defined
+                    If lNode.StartLine >= 0 AndAlso lNode.StartLine < vLines.Length Then
+                        Dim lNodeRef As New NodeReference(
+                            lNode.NodeId,
+                            lNode.NodeType,
+                            lNode.StartColumn,
+                            lNode.EndColumn,
+                            True ' IsDefinition
+                        )
+                        vResult.LineMetadata(lNode.StartLine).NodeReferences.Add(lNodeRef)
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"VBCodeParser.CreateLineMetadata: error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' Helper methods
+        Private Function GetLineNumberFromPosition(vCode As String, vPosition As Integer) As Integer
+            Dim lLineNumber As Integer = 0
+            For i As Integer = 0 To Math.Min(vPosition - 1, vCode.Length - 1)
+                If vCode(i) = CChar(vbLf) Then
+                    lLineNumber += 1
+                End If
+            Next
+            Return lLineNumber
+        End Function
+        
+        Private Function GetColumnFromPosition(vCode As String, vPosition As Integer) As Integer
+            Dim lColumn As Integer = 0
+            For i As Integer = vPosition - 1 To 0 Step -1
+                If i < 0 OrElse vCode(i) = CChar(vbLf) Then
+                    Exit For
+                End If
+                lColumn += 1
+            Next
+            Return lColumn
+        End Function
+        
+        Private Function GetPositionFromLineColumn(vCode As String, vLine As Integer, vColumn As Integer) As Integer
+            Dim lCurrentLine As Integer = 0
+            Dim lPosition As Integer = 0
+            
+            While lPosition < vCode.Length AndAlso lCurrentLine < vLine
+                If vCode(lPosition) = CChar(vbLf) Then
+                    lCurrentLine += 1
+                End If
+                lPosition += 1
+            End While
+            
+            Return Math.Min(lPosition + vColumn, vCode.Length)
+        End Function
+        
+        Private Function GetEndPattern(vObjectType As CodeObjectType) As String
+            Select Case vObjectType
+                Case CodeObjectType.eClass : Return "Class"
+                Case CodeObjectType.eModule : Return "Module"
+                Case CodeObjectType.eInterface : Return "Interface"
+                Case CodeObjectType.eStructure : Return "Structure"
+                Case CodeObjectType.eEnum : Return "Enum"
+                Case Else : Return ""
+            End Select
+        End Function
+        
+        Private Function ExtractParameterName(vParameter As String) As String
+            Try
+                ' Simple extraction - split by spaces and take first non-keyword part
+                Dim lParts() As String = vParameter.Split(" "c)
+                For Each lPart In lParts
+                    If Not String.IsNullOrEmpty(lPart) AndAlso 
+                       Not lPart.Equals("ByVal", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not lPart.Equals("ByRef", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not lPart.Equals("Optional", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not lPart.Equals("ParamArray", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not lPart.Equals("As", StringComparison.OrdinalIgnoreCase) Then
+                        Return lPart
+                    End If
+                Next
+                
+                Return ""
+                
+            Catch ex As Exception
+                Return ""
+            End Try
+        End Function
+        
+        Private Function ExtractParameterType(vParameter As String) As String
+            Try
+                Dim lAsIndex As Integer = vParameter.IndexOf(" As ", StringComparison.OrdinalIgnoreCase)
+                If lAsIndex >= 0 Then
+                    Return vParameter.Substring(lAsIndex + 4).Trim()
+                End If
+                Return ""
+            Catch ex As Exception
+                Return ""
+            End Try
+        End Function
+        
+        ' Legacy method for backwards compatibility
+        Public Function ParseObjects(vCode As String) As List(Of CodeObject)
+            Dim lResult As ParseResult = ParseDocument(vCode)
+            Return lResult.Objects
+        End Function
+        
+    End Class
+    
+End Namespace

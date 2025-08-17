@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resources/Strings.xml - Embedded string resources for SimpleIDE -->
+<Resources>
+  <!-- Project Templates -->
+  <String key="ConsoleProjectTemplate"><![CDATA[' {ProjectName} - Console Application
+Imports System
+
+Module Program
+    Sub Main(args As String())
+        Console.WriteLine("Hello, World!")
+        Console.WriteLine("Press any key to exit...")
+        Console.ReadKey()
+    End Sub
+End Module]]></String>
+
+  <String key="LibraryProjectTemplate"><![CDATA[' {ProjectName} - Class Library
+Imports System
+
+Namespace {ProjectName}
+    ''' <summary>
+    ''' Main class for {ProjectName}
+    ''' </summary>
+    Public Class {ClassName}
+        ' TODO: Add your implementation here
+
+        Public Sub New()
+            ' Constructor
+        End Sub
+
+    End Class
+End Namespace]]></String>
+
+  <String key="GtkProjectTemplate"><![CDATA[' {ProjectName} - GTK# Application
+Imports Gtk
+Imports System
+
+Module Program
+    Sub Main(args As String())
+        Application.Init()
+
+        Dim lWindow As New MainWindow()
+        lWindow.ShowAll()
+
+        Application.Run()
+    End Sub
+End Module
+
+Public Class MainWindow
+    Inherits Window
+
+    Public Sub New()
+        MyBase.New("{ProjectName}")
+
+        SetDefaultSize(800, 600)
+        SetPosition(WindowPosition.Center)
+
+        ' Handle window close event
+        AddHandler DeleteEvent, AddressOf OnDeleteEvent
+
+        BuildUI()
+    End Sub
+
+    Private Sub BuildUI()
+        ' TODO: Build your UI here
+        Dim lLabel As New Label("Welcome to {ProjectName}!")
+        Add(lLabel)
+    End Sub
+
+    Private Sub OnDeleteEvent(sender As Object, args As DeleteEventArgs)
+        Application.Quit()
+    End Sub
+
+End Class]]></String>
+
+  <!-- File Templates -->
+  <String key="AssemblyInfoTemplate"><![CDATA[Imports System.Reflection
+Imports System.Runtime.InteropServices
+
+' General Information about an assembly
+<Assembly: AssemblyTitle("{ProjectName}")>
+<Assembly: AssemblyDescription("{Description}")>
+<Assembly: AssemblyConfiguration("")>
+<Assembly: AssemblyCompany("{Company}")>
+<Assembly: AssemblyProduct("{ProjectName}")>
+<Assembly: AssemblyCopyright("Copyright © {Year}")>
+<Assembly: AssemblyTrademark("")>
+
+' Version information
+<Assembly: AssemblyVersion("1.0.0.0")>
+<Assembly: AssemblyFileVersion("1.0.0.0")>
+
+' COM visibility
+<Assembly: ComVisible(False)>]]></String>
+
+  <String key="VbProjTemplate"><![CDATA[<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>{OutputType}</OutputType>
+    <RootNamespace>{RootNamespace}</RootNamespace>
+    <TargetFramework>net8.0</TargetFramework>
+    <OptionStrict>On</OptionStrict>
+    <OptionExplicit>On</OptionExplicit>
+    <OptionInfer>On</OptionInfer>
+    <OptionCompare>Binary</OptionCompare>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Package References -->
+    {PackageReferences}
+  </ItemGroup>
+</Project>]]></String>
+
+  <String key="ResxTemplate"><![CDATA[<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+</root>]]></String>
+
+  <!-- Code Templates -->
+  <String key="ClassTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Public Class {ClassName}
+
+        ' ===== Private Fields =====
+
+        ' ===== Constructor =====
+        Public Sub New()
+            ' TODO: Initialize class
+        End Sub
+
+        ' ===== Public Properties =====
+
+        ' ===== Public Methods =====
+
+        ' ===== Private Methods =====
+
+        ' ===== Events =====
+
+    End Class
+{EndNamespace}]]></String>
+
+  <String key="ModuleTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Module {ModuleName}
+
+        ' ===== Public Methods =====
+
+        ' ===== Private Methods =====
+
+    End Module
+{EndNamespace}]]></String>
+
+  <String key="InterfaceTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Public Interface {InterfaceName}
+
+        ' ===== Properties =====
+
+        ' ===== Methods =====
+
+        ' ===== Events =====
+
+    End Interface
+{EndNamespace}]]></String>
+
+  <String key="StructureTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Public Structure {StructureName}
+
+        ' ===== Public Fields =====
+
+        ' ===== Properties =====
+
+        ' ===== Constructor =====
+        Public Sub New({Parameters})
+            ' TODO: Initialize structure
+        End Sub
+
+        ' ===== Methods =====
+
+    End Structure
+{EndNamespace}]]></String>
+
+  <String key="EnumTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Public Enum {EnumName}
+        eUnspecified
+        {Values}
+        eLastValue
+    End Enum
+{EndNamespace}]]></String>
+
+  <String key="DelegateTemplate"><![CDATA[' {FileName}
+' Created: {DateTime}
+
+{Imports}
+
+{Namespace}
+    ''' <summary>
+    ''' {Description}
+    ''' </summary>
+    Public Delegate {ReturnType} {DelegateName}({Parameters})
+{EndNamespace}]]></String>
+
+  <!-- UI Messages -->
+  <String key="AboutText"><![CDATA[SimpleIDE - Lightweight VB.NET IDE
+
+Version: {Version}
+Built with GTK# 3 on .NET 8.0
+
+A professional development environment for VB.NET applications on Linux.
+
+Features:
+• Multi-file tabbed editor with syntax highlighting
+• Project Explorer with .vbproj support
+• Integrated build system
+• Context-aware suggestion and code completion
+• Object Explorer
+• Integrated terminal
+• Git integration
+• Claude AI assistance
+
+© 2025 James Duane Plotts
+Licensed under GPL 3.0]]></String>
+
+  <String key="WelcomeMessage"><![CDATA[Welcome to SimpleIDE
+
+Start by:
+• Creating a new project (File → New Project)
+• Opening an existing project (File → Open Project)
+• Opening a folder (File → Open Folder)
+
+Keyboard shortcuts:
+• Ctrl+N - New file
+• Ctrl+O - Open file
+• Ctrl+S - Save file
+• Ctrl+Shift+S - Save all
+• F5 - Build and run
+• F6 - Build project
+• Ctrl+F - Find
+• Ctrl+H - Replace
+
+Recent projects will appear here once you've opened them.]]></String>
+
+  <!-- Error Messages -->
+  <String key="ErrorProjectNotFound">Project file not found: {ProjectPath}</String>
+  <String key="ErrorFileNotFound">File not found: {FilePath}</String>
+  <String key="ErrorBuildFailed">Build failed with {ErrorCount} errors</String>
+  <String key="ErrorSaveFailed">Failed to save file: {Reason}</String>
+  <String key="ErrorInvalidProject">Invalid project file: {ProjectPath}</String>
+  <String key="ErrorNoEditor">No editor is currently active</String>
+  <String key="ErrorParsingFailed">Failed to parse {FileName}: {Error}</String>
+
+  <!-- Info Messages -->
+  <String key="InfoProjectLoaded">Project loaded: {ProjectName}</String>
+  <String key="InfoBuildSucceeded">Build succeeded</String>
+  <String key="InfoFileSaved">File saved: {FileName}</String>
+  <String key="InfoAllFilesSaved">All files saved</String>
+  <String key="InfoProjectCreated">Project created: {ProjectName}</String>
+
+  <!-- Dialog Messages -->
+  <String key="DialogSaveChanges">Do you want to save changes to {FileName}?</String>
+  <String key="DialogOverwriteFile">File {FileName} already exists. Overwrite?</String>
+  <String key="DialogDeleteFile">Are you sure you want to delete {FileName}?</String>
+  <String key="DialogCloseProject">Save changes to project before closing?</String>
+
+  <!-- Status Bar Messages -->
+  <String key="StatusReady">Ready</String>
+  <String key="StatusBuilding">Building...</String>
+  <String key="StatusSaving">Saving...</String>
+  <String key="StatusLoading">Loading...</String>
+  <String key="StatusParsing">Parsing...</String>
+
+  <!-- Package References -->
+  <String key="GtkPackageReference"><![CDATA[<PackageReference Include="GtkSharp" Version="3.24.24.38" />]]></String>
+
+  <String key="NewtonsoftPackageReference"><![CDATA[<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />]]></String>
+
+  <!-- Git Ignore Template -->
+  <String key="GitIgnoreTemplate"><![CDATA[## Ignore Visual Studio temporary files, build results, and
+## files generated by popular Visual Studio add-ons.
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Files built by Visual Studio
+*.obj
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Visual Studio cache files
+.vs/
+
+# Backup files
+*.bak
+*~
+
+# SimpleIDE specific
+.simpleide/
+*.simpleide.user]]></String>
+
+</Resources>
+

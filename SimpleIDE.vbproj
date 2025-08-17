@@ -1,0 +1,262 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SimpleIDE</RootNamespace>
+    <AssemblyName>SimpleIDE</AssemblyName>
+    <StartupObject>SimpleIDE.Program</StartupObject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <PlatformTarget>
+    </PlatformTarget>
+    <LangVersion>Latest</LangVersion>
+    <SignAssembly>false</SignAssembly>
+    <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1605</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="GtkSharp" Version="3.24.24.95" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="WebkitGtkSharp" Version="3.24.24.95" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="4.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
+    <PackageReference Include="CairoSharp" Version="3.24.24.95" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Program Entry Point -->
+    <Compile Include="Program.vb" />
+    <!-- Main Window - Core and Partial Classes -->
+    <Compile Include="MainWindow.vb" />
+    <Compile Include="MainWindow.AI.vb" />
+    <Compile Include="MainWindow.AssemblySettings.vb" />
+    <Compile Include="MainWindow.BottomPanel.vb" />
+    <Compile Include="MainWindow.Build.vb" />
+    <Compile Include="MainWindow.Comment.vb" />
+    <Compile Include="MainWindow.Console.vb" />
+    <Compile Include="MainWindow.Debug.vb" />
+    <Compile Include="MainWindow.Editor.vb" />
+    <Compile Include="MainWindow.Events.vb" />
+    <Compile Include="MainWindow.FileManagement.vb" />
+    <Compile Include="MainWindow.Find.vb" />
+    <Compile Include="MainWindow.Git.vb" />
+    <Compile Include="MainWindow.Help.vb" />
+    <Compile Include="MainWindow.IdentifierSync.vb" />
+    <Compile Include="MainWindow.Indent.vb" />
+    <Compile Include="MainWindow.Integration.vb" />
+    <Compile Include="MainWindow.IntelliSense.vb" />
+    <Compile Include="MainWindow.Keyboard.vb" />
+    <Compile Include="MainWindow.ManifestIntegration.vb" />
+    <Compile Include="MainWindow.Menu.vb" />
+    <Compile Include="MainWindow.Navigation.vb" />
+    <Compile Include="MainWindow.Project.vb" />
+    <Compile Include="MainWindow.ProjectManager.vb" />
+    <Compile Include="MainWindow.References.vb" />
+    <Compile Include="MainWindow.Resources.vb" />
+    <Compile Include="MainWindow.StatusBar.vb" />
+    <Compile Include="MainWindow.Theme.vb" />
+    <Compile Include="MainWindow.Toolbar.vb" />
+    <!-- Editors -->
+    <Compile Include="Editors/AssemblySettingsEditor.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Clipboard.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Comment.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Cursor.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Dispose.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Drawing.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.IdentifierCaseSync.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Intellisense.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.LineTracking.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Mouse.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Navigation.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.NodeAccess.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Parsing.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.ScheduleParse.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.ScrollManual.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Search.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.SetCursorPosition.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Settings.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.TextManipulation.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.UndoRedo.vb" />
+    <Compile Include="Editors/ManifestEditor.vb" />
+    <Compile Include="Editors/PngEditor.vb" />
+    <!-- Interfaces -->
+    <Compile Include="Interfaces/IEditor.vb" />
+    <!-- Models -->
+    <Compile Include="Models/BuildResult.vb" />
+    <Compile Include="Models/CharacterColorInfo.vb" />
+    <Compile Include="Models/CodeTypes.vb" />
+    <Compile Include="Models/DocumentNode.vb" />
+    <Compile Include="Models/EditorTheme.vb" />
+    <Compile Include="Models/FindOptions.vb" />
+    <Compile Include="Models/IntelliSenseContext.vb" />
+    <Compile Include="Models/LineMetadata.vb" />
+    <Compile Include="Models/SyntaxColorSet.vb" />
+    <Compile Include="Models/SyntaxToken.vb" />
+    <Compile Include="Models/TabInfo.vb" />
+    <Compile Include="Models/TODOItem.vb" />
+    <!-- Utilities -->
+    <Compile Include="Utilities/ApplicationSettings.vb" />
+    <Compile Include="Utilities/AssemblyBrowser.vb" />
+    <Compile Include="Utilities/BuildEventArgs.vb" />
+    <Compile Include="Utilities/CssHelper.vb" />
+    <Compile Include="Utilities/EditorFactory.vb" />
+    <Compile Include="Utilities/FileOperations.vb" />
+    <Compile Include="Utilities/FileSystemWatcher.vb" />
+    <Compile Include="Utilities/FontMetrics.vb" />
+    <Compile Include="Utilities/GitIgnoreHelper.vb" />
+    <Compile Include="Utilities/HelpSystem.vb" />
+    <Compile Include="Utilities/InputDialog.vb" />
+    <Compile Include="Utilities/ProjectFileParser.vb" />
+    <Compile Include="Utilities/ReflectionHelper.vb" />
+    <Compile Include="Utilities/SimpleNuGetClient.vb" />
+    <Compile Include="Utilities/StrongNameHelper.vb" />
+    <!-- Widgets -->
+    <Compile Include="Widgets/AIAssistantPanel.vb" />
+    <Compile Include="Widgets/BuildOutputPanel.vb" />
+    <Compile Include="Widgets/FindReplacePanel.vb" />
+    <Compile Include="Widgets/GitPanel.vb" />
+    <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
+    <Compile Include="Widgets/HelpBrowser.vb" />
+    <Compile Include="Widgets/HelpViewerPanel.vb" />
+    <Compile Include="Widgets/NavigationDropdowns.vb" />
+    <Compile Include="Widgets/ProjectExplorer.vb" />
+    <Compile Include="Widgets/ProjectExplorer.Manifest.vb" />
+    <Compile Include="Widgets/ProjectExplorer.References.vb" />
+    <Compile Include="Widgets/ProjectExplorer.Resources.vb" />
+    <Compile Include="Widgets/ThemeEditor.vb" />
+    <Compile Include="Widgets/TODOPanel.vb" />
+    <!-- Dialogs -->
+    <Compile Include="Dialogs/BuildConfigurationDialog.vb" />
+    <Compile Include="Dialogs/NewPngDialog.vb" />
+    <Compile Include="Dialogs/NewProjectDialog.vb" />
+    <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
+    <Compile Include="Dialogs/PreferencesDialog.vb" />
+    <Compile Include="Dialogs/GitCommitDialog.vb" />
+    <Compile Include="Dialogs/AISettingsDialog.vb" />
+    <!-- Syntax and Language Support -->
+    <Compile Include="Syntax/VBSyntaxHighlighter.vb" />
+    <Compile Include="Syntax/SyntaxNode.vb" />
+    <Compile Include="Syntax/IntelliSenseEngine.vb" />
+    <!-- AI Integration -->
+    <Compile Include="AI/AIFileSystemBridge.vb" />
+    <Compile Include="AI/ClaudeAPIClient.vb" />
+    <Compile Include="AI/Mem0Client.vb" />
+    <Compile Include="AI/MemoryManifest.vb" />
+    <!-- My Project Files -->
+    <Compile Include="My Project/AssemblyInfo.vb" />
+    <!-- My Project Files -->
+    <Compile Include="Managers/AssemblyVersionManager.vb" />
+    <Compile Include="Managers/BottomPanelManager.vb" />
+    <Compile Include="Managers/BuildManager.vb" />
+    <Compile Include="Managers/GitManager.vb" />
+    <Compile Include="Managers/ProjectManager.vb" />
+    <Compile Include="Managers/ReferenceManager.vb" />
+    <Compile Include="Managers/SettingsManager.vb" />
+    <Compile Include="Managers/ThemeManager.vb" />
+    <Compile Include="Managers/TODOManager.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.DocumentStructure.vb" />
+    <Compile Include="MainWindow.LeftPanel.vb" />
+    <Compile Include="Editors/AIArtifactEditor.vb" />
+    <Compile Include="Editors/FileComparisonPanel.vb" />
+    <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
+    <Compile Include="Utilities/EnhancedClaudeApiClient.vb" />
+    <Compile Include="Dialogs/PreferencesDialog.AI.vb" />
+    <Compile Include="Dialogs/EnhancedAISettingsDialog.vb" />
+    <Compile Include="MainWindow.Scratchpad.vb" />
+    <Compile Include="Widgets/ScratchpadPanel.vb" />
+    <Compile Include="Managers/ScratchpadManager.vb" />
+    <Compile Include="Models/ScratchpadData.vb" />
+    <Compile Include="MainWindow.ObjectExplorerIntegration.vb" />
+    <Compile Include="MainWindow.InitializationEnhanced.vb" />
+    <Compile Include="Models/SourceFileInfo.vb" />
+    <Compile Include="MainWindow.InitUpdate.vb" />
+    <Compile Include="Models/DocumentModel.vb" />
+    <Compile Include="MainWindow.ProjectLoading.vb" />
+    <Compile Include="MainWindow.Capitalization.vb" />
+    <Compile Include="Managers/IdentifierCapitalizationManager.vb" />
+    <Compile Include="Managers/IdentifierRegistry.vb" />
+    <Compile Include="Managers/IdentifierRegistry.Helpers.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.LineExitedEventArgs.vb" />
+    <Compile Include="Managers/IdentifierRegistry.IndexFile.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Colors.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.ContextMenu.vb" />
+    <Compile Include="Managers/ProjectInfo.vb" />
+    <Compile Include="Models/SourceFileInfo.ParseContent.vb" />
+    <Compile Include="Utilities/StringResources.vb" />
+    <Compile Include="Utilities/ApplicationVersion.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Zoom.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Capitalization.vb" />
+    <Compile Include="Syntax/VBParser.XmlDocumentation.vb" />
+    <Compile Include="Widgets/ProjectExplorer.CentralizedIntegration.vb" />
+    <Compile Include="Syntax/IntelliSenseSuggestion.vb" />
+    <Compile Include="Syntax/VBLanguageDefinition.vb" />
+    <Compile Include="Syntax/VBParser.Unified.vb" />
+    <Compile Include="Syntax/VBParser.FieldParsing.vb" />
+    <Compile Include="MainWindow.WelcomeTab.vb" />
+    <Compile Include="Utilities/ApplicationVersionExtensions.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.vb" />
+    <Compile Include="Interfaces/IObjectExplorer.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.DragDrop.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Drawing.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Events.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.TreeManagement.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Navigation.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.ContextMenu.vb" />
+    <Compile Include="Managers/ProjectManager.Extension.vb" />
+    <Compile Include="Managers/ProjectManager.Extension2.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Settings.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Debug.vb" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Application Icon -->
+    <EmbeddedResource Include="Resources/icon.png" />
+    <EmbeddedResource Include="Resources/build_start.png" />
+    <EmbeddedResource Include="Resources/build_stop.png" />
+    <EmbeddedResource Include="Resources/paste.png" />
+    <EmbeddedResource Include="Resources/copy.png" />
+    <EmbeddedResource Include="Resources/undo.png" />
+    <EmbeddedResource Include="Resources/new.png" />
+    <EmbeddedResource Include="Resources/redo.png" />
+    <EmbeddedResource Include="Resources/cut.png" />
+    <EmbeddedResource Include="Resources/bottom.png" />
+    <EmbeddedResource Include="Resources/find.png" />
+    <EmbeddedResource Include="Resources/disc.png" />
+    <EmbeddedResource Include="Resources/indent.png" />
+    <EmbeddedResource Include="Resources/todo.png" />
+    <EmbeddedResource Include="Resources/outdent.png" />
+    <EmbeddedResource Include="Resources/saveall.png" />
+    <EmbeddedResource Include="Resources/pencil.png" />
+    <EmbeddedResource Include="Resources/Strings.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Folder Structure -->
+    <Folder Include="Editors\" />
+    <Folder Include="Interfaces\" />
+    <Folder Include="Models\" />
+    <Folder Include="Utilities\" />
+    <Folder Include="Widgets\" />
+    <Folder Include="Dialogs\" />
+    <Folder Include="Syntax\" />
+    <Folder Include="AI\" />
+    <Folder Include="My Project\" />
+    <Folder Include="Resources\" />
+    <Folder Include="Resources\Themes\" />
+    <Folder Include="Resources\Help\" />
+    <Folder Include="Resources\Templates\" />
+  </ItemGroup>
+  <!-- Build Events -->
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="echo Building SimplerIDE..." />
+  </Target>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="echo SimplerIDE build completed." />
+  </Target>
+</Project>

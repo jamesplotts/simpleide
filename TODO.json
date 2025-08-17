@@ -1,0 +1,25 @@
+[
+  {
+    "id": "3edff7f5-5946-47f4-aad9-17942a37377c",
+    "title": "Welcome to TODO Panel",
+    "description": "This is your enhanced TODO management system. You can:\n\u2022 Add manual tasks with priorities and categories\n\u2022 Set due dates and track progress\n\u2022 View TODO comments from your codebase\n\u2022 Send tasks to AI Assistant for help\n\u2022 Filter and search your tasks",
+    "priority": 2,
+    "category": 3,
+    "status": 1,
+    "sourceType": 1,
+    "createdDate": "2025-07-25T20:21:38.3190026-05:00",
+    "dueDate": null,
+    "completedDate": null,
+    "progress": 0,
+    "tags": [],
+    "sourceFile": "",
+    "sourceLine": 0,
+    "sourceColumn": 0,
+    "sourceText": "",
+    "gitBranch": "",
+    "gitCommit": "",
+    "assignedTo": "",
+    "estimatedHours": 0,
+    "actualHours": 0
+  }
+]
