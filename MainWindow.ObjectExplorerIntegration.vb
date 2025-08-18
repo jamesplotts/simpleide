@@ -62,21 +62,35 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnEditorDocumentParsed error: {ex.Message}")
         End Try
     End Sub
+
+    Private Sub OnGetThemeManager(vGTMEA as CustomDrawObjectExplorer.GetThemeManagerEventArgs)
+        vGTMEA.ThemeManager = pThemeManager
+    End Sub
     
     ''' <summary>
     ''' Update Object Explorer when tab changes
     ''' </summary>
     Private Sub UpdateObjectExplorerForActiveTab()
         Try
+            Console.WriteLine("=====================================")
+            Console.WriteLine("UpdateObjectExplorerForActiveTab called")
+            Console.WriteLine($"Current notebook page: {If(pNotebook IsNot Nothing, pNotebook.CurrentPage.ToString(), "Nothing")}")
+            
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                Console.WriteLine($"Found current tab: {lCurrentTab.FilePath}")
                 SetupObjectExplorerForEditor(lCurrentTab.Editor)
             Else
+                Console.WriteLine("No current tab found - NOT clearing Object Explorer")
+                ' COMMENTED OUT: Don't clear when switching to Object Explorer tab!
                 ' Clear Object Explorer if no active editor
-                If pObjectExplorer IsNot Nothing Then
-                    pObjectExplorer.ClearStructure()
-                End If
+                'If pObjectExplorer IsNot Nothing Then
+                '    pObjectExplorer.ClearStructure()
+                'End If
             End If
+            
+            Console.WriteLine("=====================================")
             
         Catch ex As Exception
             Console.WriteLine($"UpdateObjectExplorerForActiveTab error: {ex.Message}")
@@ -123,34 +137,34 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Initialize Object Explorer 
-    ''' </summary>
-    Private Sub InitializeObjectExplorer()
-        Try
-            ' Create Object Explorer
-            pObjectExplorer = New CustomDrawObjectExplorer(pSettingsManager)
-            
-            ' Initialize with project manager if available
-            If pProjectManager IsNot Nothing Then
-                pObjectExplorer.InitializeWithProjectManager(pProjectManager)
-            End If
-            
-            ' Create scrolled window for Object Explorer
-            pObjectExplorerScrolled = New ScrolledWindow()
-            pObjectExplorerScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            pObjectExplorerScrolled.Add(pObjectExplorer)
-            
-            ' Add event handlers
-            AddHandler pObjectExplorer.NodeActivated, AddressOf OnObjectExplorerNodeActivated
-            AddHandler pObjectExplorer.NodeSelected, AddressOf OnObjectExplorerNodeSelected
-            
-            Console.WriteLine("Object Explorer initialized")
-            
-        Catch ex As Exception
-            Console.WriteLine($"InitializeObjectExplorer error: {ex.Message}")
-        End Try
-    End Sub
+'    ''' <summary>
+'    ''' Initialize Object Explorer 
+'    ''' </summary>
+'    Private Sub InitializeObjectExplorer()
+'        Try
+'            ' Create Object Explorer
+'            pObjectExplorer = New CustomDrawObjectExplorer(pSettingsManager)
+'            
+'            ' Initialize with project manager if available
+'            If pProjectManager IsNot Nothing Then
+'                pObjectExplorer.InitializeWithProjectManager(pProjectManager)
+'            End If
+'            
+'            ' Create scrolled window for Object Explorer
+'            pObjectExplorerScrolled = New ScrolledWindow()
+'            pObjectExplorerScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+'            pObjectExplorerScrolled.Add(pObjectExplorer)
+'            
+'            ' Add event handlers
+'            AddHandler pObjectExplorer.NodeActivated, AddressOf OnObjectExplorerNodeActivated
+'            AddHandler pObjectExplorer.NodeSelected, AddressOf OnObjectExplorerNodeSelected
+'            
+'            Console.WriteLine("Object Explorer initialized")
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"InitializeObjectExplorer error: {ex.Message}")
+'        End Try
+'    End Sub
     
     ''' <summary>
     ''' Handle file opened from Project Explorer
@@ -233,6 +247,10 @@ Partial Public Class MainWindow
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
                 ' Move cursor to the node's line
                 lCurrentTab.Editor.GoToLine(vNode.StartLine)
+            Else
+                OpenFileWithProjectIntegration(vNode.FilePath)
+                lCurrentTab = GetCurrentTabInfo()
+                lCurrentTab.Editor.GoToLine(vNode.StartLine)
             End If
             
         Catch ex As Exception
@@ -272,6 +290,7 @@ Partial Public Class MainWindow
                         lPage.ShowAll()
                         
                         ' Call OnPageActivated to ensure proper initialization
+Console.WriteLine($"OnPageActivated called from MainWindow.SwitchToObjectExplorerTab")
                         pObjectExplorer.OnPageActivated()
                         
                         Exit For
@@ -303,6 +322,7 @@ Partial Public Class MainWindow
                     lNewPage.ShowAll()
                     
                     ' Call OnPageActivated to ensure proper initialization
+Console.WriteLine($"OnPageActivated called from MainWindow.OnLeftNotebookPageChanged")
                     pObjectExplorer.OnPageActivated()
                 End Sub)
             End If

@@ -33,6 +33,8 @@ Namespace Widgets
                     Console.WriteLine("Attempting to build visual tree...")
                     
                     ' Clear and rebuild with debug output
+Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
+
                     pVisibleNodes.Clear()
                     pNodeCache.Clear()
                     
@@ -205,6 +207,8 @@ Namespace Widgets
                 
                 ' Clear everything
                 pNodeCache.Clear()
+Console.WriteLine($"ForceRefreshWithDebug  pVisibleNodesClear()")
+
                 pVisibleNodes.Clear()
                 pExpandedNodes.Clear()
                 

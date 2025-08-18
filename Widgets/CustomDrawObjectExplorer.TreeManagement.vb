@@ -68,14 +68,14 @@ Namespace Widgets
                     lNode.Y = lY
                     lNode.Height = pRowHeight
                     
-                    ' Calculate width (approximate - will be refined during drawing)
-                    Dim lTextWidth As Integer = EstimateTextWidth(GetNodeDisplayText(lNode.Node))
-                    lNode.Width = pPlusMinusSize + ICON_SPACING + pIconSize + ICON_SPACING + lTextWidth
+                    ' Calculate width (approximate based on text length)
+                    Dim lTextWidth As Integer = lNode.Node.Name.Length * 8 ' Approximate char width
+                    lNode.Width = lNode.X + pIconSize + 4 + lTextWidth
                     
-                    ' Track maximum width
-                    lMaxWidth = Math.Max(lMaxWidth, lNode.X + lNode.Width)
+                    If lNode.Width > lMaxWidth Then
+                        lMaxWidth = lNode.Width
+                    End If
                     
-                    ' Move to next row
                     lY += pRowHeight
                 Next
                 
@@ -292,6 +292,8 @@ Namespace Widgets
                 Next
                 
                 ' Rebuild sorted list
+Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
+
                 pVisibleNodes.Clear()
                 RebuildSortedList(lNodeGroups, Nothing, "root")
                 
@@ -505,14 +507,18 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Updated RebuildVisualTree that preserves nodes properly
+        ''' Simplified RebuildVisualTree that doesn't swap list instances
         ''' </summary>
         Private Sub RebuildVisualTree()
             Try
-                ' Don't clear if we're just refreshing
-                Dim lHadNodes As Boolean = pVisibleNodes.Count > 0
+                Console.WriteLine($"RebuildVisualTree: Starting rebuild, current count = {pVisibleNodes.Count}")
                 
-                ' Clear old data
+                ' Ensure we never have Nothing list
+                If pVisibleNodes Is Nothing Then
+                    pVisibleNodes = New List(Of VisualNode)()
+                End If
+                
+                ' Clear existing nodes
                 pVisibleNodes.Clear()
                 pNodeCache.Clear()
                 
@@ -522,7 +528,7 @@ Namespace Widgets
                     Return
                 End If
                 
-                Console.WriteLine($"RebuildVisualTree: Starting with root '{pRootNode.Name}' ({pRootNode.NodeType})")
+                Console.WriteLine($"RebuildVisualTree: Root '{pRootNode.Name}' ({pRootNode.NodeType})")
                 
                 ' Auto-expand namespace children if root is a document
                 If pRootNode.NodeType = CodeNodeType.eDocument Then
@@ -541,7 +547,7 @@ Namespace Widgets
                     End If
                 End If
                 
-                ' Build visual nodes recursively
+                ' Build visual nodes directly into pVisibleNodes
                 BuildVisualNodes(pRootNode, Nothing, 0, "")
                 
                 ' Apply sorting if needed
@@ -555,7 +561,7 @@ Namespace Widgets
                 ' Update scroll ranges
                 UpdateScrollbars()
                 
-                Console.WriteLine($"RebuildVisualTree: Created {pVisibleNodes.Count} visible nodes")
+                Console.WriteLine($"RebuildVisualTree: Built {pVisibleNodes.Count} visible nodes")
                 
                 ' Force immediate redraw if we have nodes
                 If pVisibleNodes.Count > 0 Then
@@ -564,6 +570,10 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"RebuildVisualTree error: {ex.Message}")
+                ' Ensure pVisibleNodes is never left as Nothing
+                If pVisibleNodes Is Nothing Then
+                    pVisibleNodes = New List(Of VisualNode)()
+                End If
             End Try
         End Sub
 
@@ -615,18 +625,15 @@ Namespace Widgets
                 ' Check if has displayable children
                 lVisualNode.HasChildren = HasDisplayableChildren(vNode)
                 
-                ' Check if expanded (auto-expand root)
-                If vNode Is pRootNode Then
-                    lVisualNode.IsExpanded = True
-                    If Not pExpandedNodes.Contains(lVisualNode.NodePath) Then
-                        pExpandedNodes.Add(lVisualNode.NodePath)
-                    End If
-                Else
-                    lVisualNode.IsExpanded = pExpandedNodes.Contains(lVisualNode.NodePath)
-                End If
+                ' Check if expanded
+                lVisualNode.IsExpanded = pExpandedNodes.Contains(lVisualNode.NodePath)
                 
-                ' Add to visible list
-                pVisibleNodes.Add(lVisualNode)
+                ' Add to visible list (pVisibleNodes should never be Nothing here)
+                If pVisibleNodes IsNot Nothing Then
+                    pVisibleNodes.Add(lVisualNode)
+                Else
+                    Console.WriteLine("ERROR: pVisibleNodes is Nothing in BuildVisualNodes!")
+                End If
                 
                 ' Cache for quick lookup
                 pNodeCache(lVisualNode.NodePath) = lVisualNode
@@ -681,6 +688,11 @@ Namespace Widgets
             Try
                 If pDrawingArea Is Nothing Then Return
                 
+                ' IMPORTANT: Store current state before applying theme
+                Dim lSavedRoot As SyntaxNode = pRootNode
+                Dim lSavedVisibleNodes As List(Of VisualNode) = pVisibleNodes
+                Dim lSavedLastValid As SyntaxNode = pLastValidRootNode
+                
                 ' Get current theme from settings
                 Dim lThemeName As String = ""
                 If pSettingsManager IsNot Nothing Then
@@ -699,10 +711,27 @@ Namespace Widgets
                 
                 CssHelper.ApplyCssToWidget(pDrawingArea, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
                 
-                ' Force redraw
+                ' IMPORTANT: Ensure state is preserved after CSS application
+                If pRootNode Is Nothing AndAlso lSavedRoot IsNot Nothing Then
+                    Console.WriteLine("ApplyTheme: Restoring root after CSS application")
+                    pRootNode = lSavedRoot
+                End If
+                
+                If pVisibleNodes Is Nothing OrElse pVisibleNodes.Count = 0 Then
+                    If lSavedVisibleNodes IsNot Nothing AndAlso lSavedVisibleNodes.Count > 0 Then
+                        Console.WriteLine("ApplyTheme: Restoring visible nodes after CSS application")
+                        pVisibleNodes = lSavedVisibleNodes
+                    End If
+                End If
+                
+                If pLastValidRootNode Is Nothing AndAlso lSavedLastValid IsNot Nothing Then
+                    pLastValidRootNode = lSavedLastValid
+                End If
+                
+                ' Force redraw with the preserved state
                 pDrawingArea.QueueDraw()
                 
-                Console.WriteLine($"Applied theme to Object Explorer: {lThemeName}")
+                Console.WriteLine($"CustomDrawObjectExplorer.ApplyTheme: Applied theme to Object Explorer: {lThemeName}")
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")

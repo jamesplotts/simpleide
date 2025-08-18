@@ -186,125 +186,97 @@ Namespace Widgets
         ''' </remarks>
         Private Sub CreateContextMenu()
             Try
-                pContextMenu = New Menu()
+                If pSelectedNode Is Nothing OrElse pSelectedNode.Node Is Nothing Then Return
                 
-                ' Go to Definition
-                Dim lGoToItem As New MenuItem("Go to Definition")
-                AddHandler lGoToItem.Activated, Sub(s, e)
-                    If pSelectedNode?.Node IsNot Nothing Then
-                        HandleNodeActivation(pSelectedNode)
+                Dim lMenu As New Menu()
+                Dim lNode As SyntaxNode = pSelectedNode.Node
+                
+                ' Navigate to Definition - NOT for namespaces
+                If lNode.NodeType <> CodeNodeType.eNamespace Then
+                    Dim lNavigateItem As New MenuItem("Navigate to Definition")
+                    AddHandler lNavigateItem.Activated, Sub(s, e)
+                        Try
+                            ' Get FilePath from node attributes or FilePath property
+                            Dim lFilePath As String = ""
+                            
+                            ' Try FilePath property first
+                            If Not String.IsNullOrEmpty(lNode.FilePath) Then
+                                lFilePath = lNode.FilePath
+                            ElseIf lNode.Attributes IsNot Nothing AndAlso lNode.Attributes.ContainsKey("FilePath") Then
+                                ' Try Attributes dictionary
+                                lFilePath = lNode.Attributes("FilePath")
+                            End If
+                            
+                            If Not String.IsNullOrEmpty(lFilePath) Then
+                                Console.WriteLine($"NavigateToDefinition: {lNode.Name} at {lFilePath}:{lNode.StartLine}")
+                                RaiseEvent NodeActivated(lNode)
+                            Else
+                                Console.WriteLine($"NavigateToDefinition: No FilePath for {lNode.Name}")
+                                ' Still raise the event with the line number, MainWindow might have the file open
+                                RaiseEvent NodeActivated(lNode)
+                            End If
+                        Catch ex As Exception
+                            Console.WriteLine($"Navigate error: {ex.Message}")
+                        End Try
+                    End Sub
+                    lMenu.Append(lNavigateItem)
+                    
+                    ' Add separator after navigate
+                    lMenu.Append(New SeparatorMenuItem())
+                End If
+                
+                ' Expand/Collapse options - only for nodes with children
+                If HasDisplayableChildren(lNode) Then
+                    If pSelectedNode.IsExpanded Then
+                        Dim lCollapseItem As New MenuItem("Collapse")
+                        AddHandler lCollapseItem.Activated, Sub(s, e) CollapseNode(pSelectedNode)
+                        lMenu.Append(lCollapseItem)
+                    Else
+                        Dim lExpandItem As New MenuItem("Expand")
+                        AddHandler lExpandItem.Activated, Sub(s, e) ExpandNode(pSelectedNode)
+                        lMenu.Append(lExpandItem)
                     End If
-                End Sub
-                pContextMenu.Append(lGoToItem)
+                    
+                    Dim lExpandAllItem As New MenuItem("Expand All")
+                    AddHandler lExpandAllItem.Activated, Sub(s, e) ExpandAll()
+                    lMenu.Append(lExpandAllItem)
+                    
+                    Dim lCollapseAllItem As New MenuItem("Collapse All")
+                    AddHandler lCollapseAllItem.Activated, Sub(s, e) CollapseAll()
+                    lMenu.Append(lCollapseAllItem)
+                    
+                    lMenu.Append(New SeparatorMenuItem())
+                End If
                 
-                ' Separator
-                pContextMenu.Append(New SeparatorMenuItem())
-                
-                ' Expand/Collapse
-                Dim lExpandItem As New MenuItem("Expand")
-                AddHandler lExpandItem.Activated, Sub(s, e)
-                    If pSelectedNode IsNot Nothing AndAlso pSelectedNode.HasChildren Then
-                        If Not pSelectedNode.IsExpanded Then
-                            ToggleNodeExpansion(pSelectedNode)
-                        End If
-                    End If
-                End Sub
-                pContextMenu.Append(lExpandItem)
-                
-                Dim lCollapseItem As New MenuItem("Collapse")
-                AddHandler lCollapseItem.Activated, Sub(s, e)
-                    If pSelectedNode IsNot Nothing AndAlso pSelectedNode.HasChildren Then
-                        If pSelectedNode.IsExpanded Then
-                            ToggleNodeExpansion(pSelectedNode)
-                        End If
-                    End If
-                End Sub
-                pContextMenu.Append(lCollapseItem)
-                
-                ' Separator
-                pContextMenu.Append(New SeparatorMenuItem())
-                
-                ' Expand All / Collapse All
-                Dim lExpandAllItem As New MenuItem("Expand All")
-                AddHandler lExpandAllItem.Activated, Sub(s, e)
-                    ExpandAll()
-                End Sub
-                pContextMenu.Append(lExpandAllItem)
-                
-                Dim lCollapseAllItem As New MenuItem("Collapse All")
-                AddHandler lCollapseAllItem.Activated, Sub(s, e)
-                    CollapseAll()
-                End Sub
-                pContextMenu.Append(lCollapseAllItem)
-                
-                ' Separator
-                pContextMenu.Append(New SeparatorMenuItem())
+                ' View options
+                If Not pShowPrivateMembers Then
+                    Dim lShowPrivateItem As New MenuItem("Show Private Members")
+                    AddHandler lShowPrivateItem.Activated, Sub(s, e) SetShowPrivateMembers(True)
+                    lMenu.Append(lShowPrivateItem)
+                Else
+                    Dim lHidePrivateItem As New MenuItem("Hide Private Members")
+                    AddHandler lHidePrivateItem.Activated, Sub(s, e) SetShowPrivateMembers(False)
+                    lMenu.Append(lHidePrivateItem)
+                End If
                 
                 ' Sort options
-                Dim lSortMenu As New Menu()
-                Dim lSortItem As New MenuItem("Sort By")
-                lSortItem.Submenu = lSortMenu
+                lMenu.Append(New SeparatorMenuItem())
                 
-                Dim lSortDefaultItem As New RadioMenuItem("Default Order")
-                AddHandler lSortDefaultItem.Activated, Sub(s, e)
-                    SortMode = ObjectExplorerSortMode.eDefault
-                End Sub
-                lSortMenu.Append(lSortDefaultItem)
+                Dim lSortDefaultItem As New MenuItem("Sort by Declaration Order")
+                AddHandler lSortDefaultItem.Activated, Sub(s, e) SetSortMode(ObjectExplorerSortMode.eDefault)
+                lMenu.Append(lSortDefaultItem)
                 
-                Dim lSortAlphaItem As New RadioMenuItem(lSortDefaultItem.Group, "Alphabetical")
-                AddHandler lSortAlphaItem.Activated, Sub(s, e)
-                    SortMode = ObjectExplorerSortMode.eAlphabetic
-                End Sub
-                lSortMenu.Append(lSortAlphaItem)
+                Dim lSortAlphaItem As New MenuItem("Sort Alphabetically")
+                AddHandler lSortAlphaItem.Activated, Sub(s, e) SetSortMode(ObjectExplorerSortMode.eAlphabetic)
+                lMenu.Append(lSortAlphaItem)
                 
-                Dim lSortTypeItem As New RadioMenuItem(lSortDefaultItem.Group, "By Type")
-                AddHandler lSortTypeItem.Activated, Sub(s, e)
-                    SortMode = ObjectExplorerSortMode.eByType
-                End Sub
-                lSortMenu.Append(lSortTypeItem)
+                Dim lSortTypeItem As New MenuItem("Sort by Type")
+                AddHandler lSortTypeItem.Activated, Sub(s, e) SetSortMode(ObjectExplorerSortMode.eByType)
+                lMenu.Append(lSortTypeItem)
                 
-                Dim lSortVisibilityItem As New RadioMenuItem(lSortDefaultItem.Group, "By Visibility")
-                AddHandler lSortVisibilityItem.Activated, Sub(s, e)
-                    SortMode = ObjectExplorerSortMode.eByVisibility
-                End Sub
-                lSortMenu.Append(lSortVisibilityItem)
-                
-                pContextMenu.Append(lSortItem)
-                
-                ' Separator
-                pContextMenu.Append(New SeparatorMenuItem())
-                
-                ' Filter options
-                Dim lShowPrivateItem As New CheckMenuItem("Show Private Members")
-                lShowPrivateItem.Active = pShowPrivateMembers
-                AddHandler lShowPrivateItem.Toggled, Sub(s, e)
-                    pShowPrivateMembers = lShowPrivateItem.Active
-                    RebuildVisualTree()
-                    pDrawingArea?.QueueDraw()
-                End Sub
-                pContextMenu.Append(lShowPrivateItem)
-                
-                Dim lShowRegionsItem As New CheckMenuItem("Show Regions")
-                lShowRegionsItem.Active = pShowRegions
-                AddHandler lShowRegionsItem.Toggled, Sub(s, e)
-                    pShowRegions = lShowRegionsItem.Active
-                    RebuildVisualTree()
-                    pDrawingArea?.QueueDraw()
-                End Sub
-                pContextMenu.Append(lShowRegionsItem)
-                
-                ' Separator
-                pContextMenu.Append(New SeparatorMenuItem())
-                
-                ' Refresh
-                Dim lRefreshItem As New MenuItem("Refresh")
-                AddHandler lRefreshItem.Activated, Sub(s, e)
-                    RefreshStructure()
-                End Sub
-                pContextMenu.Append(lRefreshItem)
-                
-                ' Show all items
-                pContextMenu.ShowAll()
+                ' Show all and popup
+                lMenu.ShowAll()
+                lMenu.PopupAtPointer(Nothing)
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateContextMenu error: {ex.Message}")
@@ -352,6 +324,74 @@ Namespace Widgets
                 Console.WriteLine($"ShowContextMenu error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Handles mouse move events for tooltip display
+        ''' </summary>
+        ''' <param name="vSender">The sender object</param>
+        ''' <param name="vArgs">The motion notify event arguments</param>
+        ''' <returns>False to allow event propagation</returns>
+        Private Function OnMouseMove(vSender As Object, vArgs As MotionNotifyEventArgs) As Boolean
+            Try
+                ' CRITICAL FIX: Use vArgs.Event.X and vArgs.Event.Y instead of vArgs.X and vArgs.Y
+                pMouseX = CInt(vArgs.Event.X)
+                pMouseY = CInt(vArgs.Event.Y)
+                
+                ' Find node under mouse
+                Dim lOldHovered As VisualNode = pHoveredNode
+                pHoveredNode = GetNodeAtPosition(pMouseX, pMouseY + pScrollY)
+                
+                ' If hover changed
+                If lOldHovered IsNot pHoveredNode Then
+                    ' Cancel any existing tooltip timer
+                    If pTooltipTimer <> 0 Then
+                        GLib.Source.Remove(pTooltipTimer)
+                        pTooltipTimer = 0
+                    End If
+                    
+                    ' Hide existing tooltip if showing
+                    HideTooltip()
+                    
+                    ' Start new timer if hovering over a node
+                    If pHoveredNode IsNot Nothing Then
+                        ' CRITICAL FIX: Use AddressOf ShowTooltip instead of AddressOf ShowTooltipCallback
+                        pTooltipTimer = GLib.Timeout.Add(HOVER_TOOLTIP_DELAY, AddressOf ShowTooltip)
+                    End If
+                    
+                    ' Redraw for hover highlight
+                    pDrawingArea?.QueueDraw()
+                End If
+                
+                Return False
+            Catch ex As Exception
+                Console.WriteLine($"OnMouseMove error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        Private Function OnMouseLeave(vSender As Object, vArgs As EventArgs) As Boolean
+            Try
+                ' Clear hover state
+                pHoveredNode = Nothing
+                
+                ' Cancel tooltip timer
+                If pTooltipTimer <> 0 Then
+                    GLib.Source.Remove(pTooltipTimer)
+                    pTooltipTimer = 0
+                End If
+                
+                ' Hide tooltip
+                HideTooltip()
+                
+                ' Redraw to remove hover highlight
+                pDrawingArea?.QueueDraw()
+                
+                Return False
+            Catch ex As Exception
+                Console.WriteLine($"OnMouseLeave error: {ex.Message}")
+                Return False
+            End Try
+        End Function
 
     End Class
 

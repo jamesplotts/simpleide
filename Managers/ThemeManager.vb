@@ -123,7 +123,7 @@ Namespace Managers
                     CUInt(StyleProviderPriority.User)  ' Use USER priority (800) for highest precedence
                 )
                 
-                Console.WriteLine($"Applied theme: {pCurrentTheme.Name}")
+                Console.WriteLine($"ThemeManager.ApplyCurrentTheme: Applied theme: {pCurrentTheme.Name}")
                 
                 ' Force GTK to refresh all widgets
                 ForceGlobalRefresh()
@@ -805,7 +805,7 @@ Namespace Managers
         End Sub
         
         ' Theme data class for JSON serialization
-        Private Class ThemeData
+        Public Class ThemeData
             Public Property Name As String
             Public Property Description As String
             Public Property IsDarkTheme As Boolean

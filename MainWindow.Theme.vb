@@ -129,6 +129,16 @@ Partial Public Class MainWindow
                 End If
             Next
             
+            ' UPDATE: Apply theme to Object Explorer
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.OnThemeChanged()
+            End If
+            
+            ' UPDATE: Apply theme to Project Explorer if it has a refresh method
+            If pProjectExplorer IsNot Nothing Then
+                pProjectExplorer.QueueDraw()
+            End If
+            
             ' Force refresh of all widgets by queuing draw
             QueueDraw()
             
@@ -178,42 +188,15 @@ Partial Public Class MainWindow
                 pProjectExplorer.QueueDraw()
             End If
             
-            ' Refresh the left notebook (if using tabbed left panel)
-            If pLeftNotebook IsNot Nothing Then
-                pLeftNotebook.QueueDraw()
-            End If
-            
-            ' Refresh the object explorer
+            ' UPDATE: Refresh the Object Explorer
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.QueueDraw()
             End If
             
-            ' Refresh the bottom panel manager
-            If pBottomPanelManager IsNot Nothing Then
-                Dim lBottomNotebook As Widget = pBottomPanelManager.GetWidget()
-                If lBottomNotebook IsNot Nothing Then
-                    lBottomNotebook.QueueDraw()
-                End If
+            ' UPDATE: Refresh the left notebook containing both explorers
+            If pLeftNotebook IsNot Nothing Then
+                pLeftNotebook.QueueDraw()
             End If
-            
-            ' Refresh all paned widgets
-            If pMainHPaned IsNot Nothing Then
-                pMainHPaned.QueueDraw()
-            End If
-            
-            If pCenterVPaned IsNot Nothing Then
-                pCenterVPaned.QueueDraw()
-            End If
-            
-            ' If theme editor is open, refresh it too
-            If pThemeEditor IsNot Nothing Then
-                pThemeEditor.QueueDraw()
-            End If
-            
-            ' Force GTK to process all pending events to ensure UI updates
-            While Application.EventsPending()
-                Application.RunIteration(False)
-            End While
             
         Catch ex As Exception
             Console.WriteLine($"RefreshWidgetThemes error: {ex.Message}")
@@ -281,6 +264,11 @@ Partial Public Class MainWindow
             ' Apply theme to all editors and refresh widgets
             ApplyThemeToAllEditors()
             
+            ' UPDATE: Notify Object Explorer of theme change
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.OnThemeChanged()
+            End If
+            
             ' Update status bar
             If vTheme IsNot Nothing Then
                 UpdateStatusBar($"Theme changed to: {vTheme.Name}")
@@ -290,6 +278,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnThemeManagerThemeChanged error: {ex.Message}")
         End Try
     End Sub
+
 
     
     ' Theme applied event handler
@@ -330,6 +319,11 @@ Partial Public Class MainWindow
             ' Apply to all editors and refresh widgets
             ApplyThemeToAllEditors()
             
+            ' UPDATE: Ensure Object Explorer gets the theme change
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.OnThemeChanged()
+            End If
+            
             ' Update status bar
             UpdateStatusBar($"Theme changed to: {lThemeName}")
             
@@ -343,7 +337,12 @@ Partial Public Class MainWindow
         Try
             ' Apply theme to all open editors
             ApplyThemeToAllEditors()
-    
+            
+            ' UPDATE: Apply to Object Explorer
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.OnThemeChanged()
+            End If
+            
             UpdateStatusBar($"Theme changed to: {vTheme.Name}")
             
         Catch ex As Exception

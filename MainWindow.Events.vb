@@ -389,7 +389,7 @@ Partial Public Class MainWindow
             lAboutDialog.Version = ApplicationVersion.VersionString  ' Shows Major.Minor.Build from actual AssemblyInfo
             lAboutDialog.Copyright = ApplicationVersion.Copyright
             lAboutDialog.Comments = StringResources.Instance.GetString(StringResources.KEY_ABOUT_TEXT)
-            lAboutDialog.Website = "https://github.com/jamesplotts/vb-pro-ide-for-linux-dotnet"
+            lAboutDialog.Website = "https://github.com/jamesplotts/simpleide"
             lAboutDialog.WebsiteLabel = "Project Website"
             lAboutDialog.License = "GPL-3.0 license"
             lAboutDialog.Authors = {"James Duane Plotts"}
@@ -457,7 +457,8 @@ Partial Public Class MainWindow
                     If pProjectManager IsNot Nothing Then
                         pProjectManager.AddFileToProject(lDialog.Filename)
                         ' Refresh project explorer
-                        pProjectExplorer?.LoadProject(pCurrentProject)
+                        Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.OnAddExistingItem")
+                        pProjectExplorer?.LoadProjectFromManager
                     End If
                 End If
                 

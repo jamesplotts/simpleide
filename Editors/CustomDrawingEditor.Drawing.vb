@@ -282,26 +282,31 @@ Namespace Editors
         
         ' ===== Corner Box Drawing =====
         
-        Private Function OnCornerBoxDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
+
+        ''' <summary>
+        ''' Helper function to convert hex color string to Cairo.Color
+        ''' </summary>
+        ''' <param name="vHex">Hex color string (e.g., "#FF0000")</param>
+        ''' <returns>Cairo.Color structure</returns>
+        Private Function HexToCairoColor(vHex As String) As Cairo.Color
             Try
-                Dim lContext As Cairo.Context = vArgs.Cr
+                ' Remove the '#' prefix if present
+                Dim lHex As String = vHex.TrimStart("#"c)
                 
-                ' Draw background matching scrollbar style
-                Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                Dim lTextColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberBackgroundColor)
-                Dim Pattern As Cairo.SolidPattern = New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
-                lContext.SetSource(Pattern)
-                lContext.Rectangle(0, 0, pCornerBox.AllocatedWidth, pCornerBox.AllocatedHeight)
-                lContext.Fill()
+                ' Parse hex components
+                Dim lR As Byte = Convert.ToByte(lHex.Substring(0, 2), 16)
+                Dim lG As Byte = Convert.ToByte(lHex.Substring(2, 2), 16)
+                Dim lB As Byte = Convert.ToByte(lHex.Substring(4, 2), 16)
                 
-                Return True
+                ' Convert to Cairo's [0.0, 1.0] range
+                Return New Cairo.Color(lR / 255.0, lG / 255.0, lB / 255.0)
                 
             Catch ex As Exception
-                Console.WriteLine($"OnCornerBoxDraw error: {ex.Message}")
-                Return True
+                Console.WriteLine($"HexToCairoColor error: {ex.Message}")
+                ' Return default color on error
+                Return New Cairo.Color(0.5, 0.5, 0.5)
             End Try
         End Function
-
         
         ' ===== Helper method to invalidate cursor area =====
         

@@ -880,33 +880,51 @@ Namespace Syntax
             End Try
         End Function
         
-        Private Function FindChildByNameAndType(vParentNode As SyntaxNode, vName As String, vNodeType As CodeNodeType) As SyntaxNode
-            Try
-                If vParentNode Is Nothing OrElse String.IsNullOrEmpty(vName) Then Return Nothing
-                
-                For Each lChild In vParentNode.Children
-                    If String.Equals(lChild.Name, vName, StringComparison.OrdinalIgnoreCase) AndAlso 
-                       lChild.NodeType = vNodeType Then
-                        Return lChild
-                    End If
-                Next
-                
+        ''' <summary>
+        ''' Helper method to find a child node by name and type
+        ''' </summary>
+        ''' <param name="vParent">Parent node to search in</param>
+        ''' <param name="vName">Name to search for</param>
+        ''' <param name="vNodeType">Type to search for</param>
+        ''' <returns>The found node or Nothing</returns>
+        Private Function FindChildByNameAndType(vParent As SyntaxNode, vName As String, vNodeType As CodeNodeType) As SyntaxNode
+            If vParent Is Nothing OrElse String.IsNullOrEmpty(vName) Then
                 Return Nothing
-                
-            Catch ex As Exception
-                Console.WriteLine($"FindChildByNameAndType error: {ex.Message}")
-                Return Nothing
-            End Try
+            End If
+            
+            For Each lChild In vParent.Children
+                If lChild.Name = vName AndAlso lChild.NodeType = vNodeType Then
+                    Return lChild
+                End If
+            Next
+            
+            Return Nothing
         End Function
         
+        ''' <summary>
+        ''' Store file information in the node's attributes including full file path
+        ''' </summary>
         Private Sub StoreFileInfo(vNode As SyntaxNode)
             Try
+                If vNode Is Nothing Then Return
+                
+                ' Initialize Attributes dictionary if needed
                 If vNode.Attributes Is Nothing Then
                     vNode.Attributes = New Dictionary(Of String, String)()
                 End If
                 
-                vNode.Attributes("FilePath") = pCurrentFilePath
-                vNode.Attributes("FileName") = pCurrentFileName
+                ' Store the full file path - this is critical for NavigateToDefinition
+                If Not String.IsNullOrEmpty(pCurrentFilePath) Then
+                    vNode.Attributes("FilePath") = pCurrentFilePath
+                    vNode.FilePath = pCurrentFilePath  ' Also set the FilePath property directly
+                End If
+                
+                ' Store the file name for display purposes
+                If Not String.IsNullOrEmpty(pCurrentFileName) Then
+                    vNode.Attributes("FileName") = pCurrentFileName
+                End If
+                
+                Console.WriteLine($"StoreFileInfo: Set FilePath={pCurrentFilePath} for node {vNode.Name}")
                 
             Catch ex As Exception
                 Console.WriteLine($"StoreFileInfo error: {ex.Message}")

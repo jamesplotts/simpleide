@@ -127,10 +127,6 @@
     <Compile Include="Widgets/HelpBrowser.vb" />
     <Compile Include="Widgets/HelpViewerPanel.vb" />
     <Compile Include="Widgets/NavigationDropdowns.vb" />
-    <Compile Include="Widgets/ProjectExplorer.vb" />
-    <Compile Include="Widgets/ProjectExplorer.Manifest.vb" />
-    <Compile Include="Widgets/ProjectExplorer.References.vb" />
-    <Compile Include="Widgets/ProjectExplorer.Resources.vb" />
     <Compile Include="Widgets/ThemeEditor.vb" />
     <Compile Include="Widgets/TODOPanel.vb" />
     <!-- Dialogs -->
@@ -195,7 +191,6 @@
     <Compile Include="Editors/CustomDrawingEditor.Zoom.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Capitalization.vb" />
     <Compile Include="Syntax/VBParser.XmlDocumentation.vb" />
-    <Compile Include="Widgets/ProjectExplorer.CentralizedIntegration.vb" />
     <Compile Include="Syntax/IntelliSenseSuggestion.vb" />
     <Compile Include="Syntax/VBLanguageDefinition.vb" />
     <Compile Include="Syntax/VBParser.Unified.vb" />
@@ -214,6 +209,21 @@
     <Compile Include="Managers/ProjectManager.Extension2.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Settings.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Debug.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Toolbar.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Drawing.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Events.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Project.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Navigation.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Settings.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.ContextMenu.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Tooltip.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.Scale.vb" />
+    <Compile Include="Managers/ProjectManager.Extension3.vb" />
+    <Compile Include="Models/ProjectNode.vb" />
+    <Compile Include="Models/VisualProjectNode.vb" />
+    <Compile Include="Models/ProjectNodeType.vb" />
+    <Compile Include="Widgets/CustomDrawObjectExplorer.Toolbar.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

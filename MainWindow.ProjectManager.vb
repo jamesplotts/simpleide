@@ -232,7 +232,7 @@ Partial Public Class MainWindow
                 pCurrentProject = vProjectFile
                 
                 ' Load project in explorer
-                pProjectExplorer.LoadProject(vProjectFile)
+                pProjectExplorer.LoadProjectFromManager
 
 ' After loading the project structure, call:
 pObjectExplorer.ForceRefreshWithDebug()
@@ -426,11 +426,14 @@ pObjectExplorer.ForceRefreshWithDebug()
                 ' Set project root for all components
                 SetProjectRoot(vProjectPath)
                 
-                ' Update UI
-                pProjectExplorer.LoadProject(vProjectPath)
+                ' Update UI - Use the new method!
+                ' pProjectExplorer.LoadProject(vPropProjectExplorer.LoadProjectFromManagerjectPath)  ' OLD WAY
+                Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.LoadProjectEnhanced")
+                pProjectExplorer.LoadProjectFromManager
+                
                 UpdateWindowTitle()
                 UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
-                
+               
                 ' Enable project-related menu items and toolbar buttons
                 UpdateProjectRelatedUIState(True)
                 
@@ -819,9 +822,11 @@ pObjectExplorer.ForceRefreshWithDebug()
             If pProjectManager IsNot Nothing Then
                 RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
                 AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
+
                 Console.WriteLine("ProjectStructureLoaded event handler connected")
             End If
-            
+            AddHandler pObjectExplorer.NodeActivated, AddressOf OnObjectExplorerNodeActivated
+
         Catch ex As Exception
             Console.WriteLine($"CompleteObjectExplorerSetup error: {ex.Message}")
         End Try

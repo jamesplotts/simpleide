@@ -5,9 +5,11 @@ Imports Gdk
 Imports Cairo
 Imports Pango
 Imports System
+Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
     
@@ -20,7 +22,7 @@ Namespace Widgets
         
         ' ===== Main Drawing Method =====
         
-
+        Private pThemeManager as ThemeManager
         
         ''' <summary>
         ''' Converts a pixbuf to grayscale for private members
@@ -264,18 +266,6 @@ Namespace Widgets
             End Try
         End Sub
 
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
         ' ===== Zoom Constants =====
         Private Const ZOOM_STEP As Integer = 10  ' Percentage step for zoom in/out
         
@@ -729,63 +719,66 @@ Namespace Widgets
         ''' <param name="vX">X position to draw at</param>
         ''' <param name="vY">Y position to draw at</param>
         ''' <param name="vNode">The visual node containing the text to draw</param>
-        ''' <remarks>
-        ''' This overrides the existing DrawNodeText to use theme colors
-        ''' </remarks>
-        Private Shadows Sub DrawNodeText(vContext As Cairo.Context, vX As Integer, vY As Integer, vNode As VisualNode)
+        ''' <summary>
+        ''' Draws node text with proper theme foreground color
+        ''' </summary>
+        Private Sub DrawNodeText(vContext As Cairo.Context, vX As Integer, vY As Integer, vNode As VisualNode)
             Try
-                ' Create layout for text
-                Dim lLayout As New Pango.Layout(pDrawingArea.PangoContext)
-                lLayout.FontDescription = pFontDescription
+                If vNode Is Nothing OrElse vNode.Node Is Nothing Then Return
                 
-                ' Build display text
-                Dim lText As String = vNode.Node.Name
-                
-                ' Add modifiers if applicable
-                If vNode.Node.IsShared Then
-                    lText = lText & " (Shared)"
-                End If
-                
-                ' Add overload/shadow indicators for methods
-                If vNode.Node.NodeType = CodeNodeType.eMethod OrElse vNode.Node.NodeType = CodeNodeType.eFunction Then
-                    If vNode.Node.IsOverrides Then
-                        lText = lText & " (Overrides)"
-                    ElseIf vNode.Node.Attributes.ContainsKey("Shadows") Then
-                        lText = lText & " (Shadows)"
-                    ElseIf vNode.Node.Attributes.ContainsKey("Overloads") Then
-                        lText = lText & " (Overloads)"
-                    End If
-                End If
-                
-                lLayout.SetText(lText)
-                
-                ' Get theme information
-                Dim lThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
-                Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
-                
-                ' Set color based on visibility and theme
+                ' Get theme colors
                 Dim lTextColor As Cairo.Color
-                If vNode.Node.IsPublic Then
-                    ' Public members - full contrast
-                    lTextColor = If(lIsDark, HexToCairoColor("#D4D4D4"), HexToCairoColor("#000000"))
-                ElseIf vNode.Node.IsProtected Then
-                    ' Protected members - slightly dimmed
-                    lTextColor = If(lIsDark, HexToCairoColor("#B0B0B0"), HexToCairoColor("#404040"))
-                ElseIf vNode.Node.IsFriend Then
-                    ' Friend members - medium contrast
-                    lTextColor = If(lIsDark, HexToCairoColor("#909090"), HexToCairoColor("#606060"))
+                
+                If pSettingsManager IsNot Nothing Then
+                    Dim lThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
+                    
+                    ' Get the actual theme colors from ThemeManager
+                    Dim lTheme As EditorTheme = pThemeManager?.GetTheme(lThemeName)
+                    If lTheme IsNot Nothing Then
+                        ' Use the theme's foreground color
+                        lTextColor = HexToCairoColor(lTheme.ForegroundColor)
+                    Else
+                        ' Fallback based on dark/light
+                        Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
+                        If lIsDark Then
+                            lTextColor = HexToCairoColor("#D4D4D4")  ' Light gray for dark theme
+                        Else
+                            lTextColor = HexToCairoColor("#000000")  ' Black for light theme
+                        End If
+                    End If
                 Else
-                    ' Private members - dimmed
-                    lTextColor = If(lIsDark, HexToCairoColor("#707070"), HexToCairoColor("#808080"))
+                    ' Default to light text
+                    lTextColor = HexToCairoColor("#D4D4D4")
                 End If
                 
+                ' Set text color
                 vContext.SetSourceRGB(lTextColor.R, lTextColor.G, lTextColor.B)
                 
-                ' Draw text aligned vertically
-                vContext.MoveTo(vX, vY + (pRowHeight - pFontSize) / 2)
-                Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                ' Create text to display
+                Dim lText As String = vNode.Node.Name
                 
-                lLayout.Dispose()
+                ' Add type info for certain nodes
+                If vNode.Node.NodeType = CodeNodeType.eProperty AndAlso Not String.IsNullOrEmpty(vNode.Node.NodeType) Then
+                    lText &= " As " & vNode.Node.NodeType
+                ElseIf vNode.Node.NodeType = CodeNodeType.eField AndAlso Not String.IsNullOrEmpty(vNode.Node.NodeType) Then
+                    lText &= " As " & vNode.Node.NodeType
+                End If
+                
+                ' Add modifiers
+                If vNode.Node.IsShared Then lText &= " (Shared)"
+                If vNode.Node.IsPartial Then lText &= " (Partial)"
+                
+                ' Set font
+                vContext.SelectFontFace("monospace", Cairo.FontSlant.Normal, Cairo.FontWeight.Normal)
+                vContext.SetFontSize(pFontSize)
+                
+                ' Calculate Y position for text (vertically centered)
+                Dim lTextExtents As Cairo.TextExtents = vContext.TextExtents(lText)
+                Dim lTextY As Integer = vY + (pRowHeight + lTextExtents.Height) \ 2
+                
+                ' Draw text
+                vContext.MoveTo(vX, lTextY)
+                vContext.ShowText(lText)
                 
             Catch ex As Exception
                 Console.WriteLine($"DrawNodeText error: {ex.Message}")
@@ -821,7 +814,7 @@ Namespace Widgets
 
         
         ''' <summary>
-        ''' Updated DrawBackground method with proper theme colors
+        ''' Draws the background with proper theme colors
         ''' </summary>
         Private Sub DrawBackground(vContext As Cairo.Context)
             Try
@@ -830,14 +823,20 @@ Namespace Widgets
                 
                 If pSettingsManager IsNot Nothing Then
                     Dim lThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
-                    Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
                     
-                    If lIsDark Then
-                        ' Dark theme background - VS Code dark
-                        lBackgroundColor = HexToCairoColor("#252526")
+                    ' Get the actual theme colors from ThemeManager
+                    Dim lTheme As EditorTheme = pThemeManager?.GetTheme(lThemeName)
+                    If lTheme IsNot Nothing Then
+                        ' Use the theme's background color
+                        lBackgroundColor = HexToCairoColor(lTheme.BackgroundColor)
                     Else
-                        ' Light theme background
-                        lBackgroundColor = HexToCairoColor("#FFFFFF")
+                        ' Fallback based on dark/light
+                        Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
+                        If lIsDark Then
+                            lBackgroundColor = HexToCairoColor("#252526")  ' VS Code dark
+                        Else
+                            lBackgroundColor = HexToCairoColor("#FFFFFF")  ' Light
+                        End If
                     End If
                 Else
                     ' Default to dark theme
@@ -854,28 +853,111 @@ Namespace Widgets
             End Try
         End Sub
 
-        
+        ''' <summary>
+        ''' Initialize ThemeManager reference if not set
+        ''' </summary>
+        Private Sub EnsureThemeManager()
+            Try
+                If pThemeManager Is Nothing Then
+                    Dim lGTMEA as New GetThemeManagerEventArgs
+                    RaiseEvent GetThemeManager(lGTMEA)
+                    pThemeManager = lGTMEA.ThemeManager
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"EnsureThemeManager error: {ex.Message}")
+            End Try
+        End Sub        
 
+        Public Event GetThemeManager(vGetThemeManagerEventArgs as GetThemeManagerEventArgs)
+
+        Public Class GetThemeManagerEventArgs
+            Public ThemeManager As ThemeManager
+        End Class
+
+        ''' <summary>
+        ''' Expands a specific node in the tree
+        ''' </summary>
+        Private Sub ExpandNode(vNode As VisualNode)
+            Try
+                If vNode Is Nothing OrElse Not vNode.HasChildren Then Return
+                
+                vNode.IsExpanded = True
+                pExpandedNodes.Add(vNode.NodePath)
+                
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ExpandNode error: {ex.Message}")
+            End Try
+        End Sub
         
+        ''' <summary>
+        ''' Collapses a specific node in the tree
+        ''' </summary>
+        Private Sub CollapseNode(vNode As VisualNode)
+            Try
+                If vNode Is Nothing Then Return
+                
+                vNode.IsExpanded = False
+                pExpandedNodes.Remove(vNode.NodePath)
+                
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"CollapseNode error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Sets whether private members are shown
+        ''' </summary>
+        Private Sub SetShowPrivateMembers(vShow As Boolean)
+            Try
+                pShowPrivateMembers = vShow
+                pSettingsManager.SetBoolean("ObjectExplorer.ShowPrivateMembers", vShow)
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetShowPrivateMembers error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Sets the sort mode for the object explorer
+        ''' </summary>
+        Private Sub SetSortMode(vMode As ObjectExplorerSortMode)
+            Try
+                pSortMode = vMode
+                SaveSortModeSetting()
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetSortMode error: {ex.Message}")
+            End Try
+        End Sub
 
 
         ''' <summary>
-        ''' Updated OnDrawingAreaDraw with better debugging
+        ''' Main drawing handler with auto-recovery
         ''' </summary>
         Private Function OnDrawingAreaDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
                 Dim lContext As Cairo.Context = vArgs.Cr
-                
+                'Console.WriteLine($"OnDrawingAreaDraw is ONLY called from the handler event.")
                 ' Always draw background
                 DrawBackground(lContext)
                 
-                ' Debug output
+                ' CRITICAL: pVisibleNodes should NEVER be Nothing since it's initialized with New
                 If pVisibleNodes Is Nothing Then
-                    Console.WriteLine("OnDrawingAreaDraw: pVisibleNodes is Nothing!")
+                    Console.WriteLine("ERROR: pVisibleNodes is Nothing! This should never happen!")
                     pVisibleNodes = New List(Of VisualNode)()
                 End If
                 
-                Console.WriteLine($"OnDrawingAreaDraw: Drawing {pVisibleNodes.Count} nodes, Root={If(pRootNode IsNot Nothing, pRootNode.Name, "Nothing")}")
+                'Console.WriteLine($"OnDrawingAreaDraw: Drawing {pVisibleNodes.Count} nodes, Root={If(pRootNode IsNot Nothing, pRootNode.Name, "Nothing")}")
                 
                 ' Check if we have nodes to draw
                 If pVisibleNodes.Count = 0 Then
@@ -890,22 +972,30 @@ Namespace Widgets
                     End If
                     
                     lContext.MoveTo(10, 30)
-                    lContext.ShowText("No items to display")
+                    lContext.ShowText("No items to display Now")
                     
-                    ' Check if we should have nodes
+                    ' IMPROVED: Try to recover if we should have nodes
                     If pRootNode IsNot Nothing Then
                         lContext.MoveTo(10, 50)
                         lContext.ShowText($"(Root exists: {pRootNode.Name})")
                         
-                        ' Try to rebuild if we have a root but no visible nodes
-                        Console.WriteLine("Have root but no visible nodes - attempting rebuild...")
+                        'Console.WriteLine("Have root but no visible nodes - flagging for rebuild...")
+                        pNeedsRebuild = True
+                    ElseIf pLastValidRootNode IsNot Nothing AndAlso pIsProjectLoaded Then
+                        ' No root but we have a last valid root - attempt recovery
+                        lContext.MoveTo(10, 50)
+                        lContext.ShowText("(Attempting recovery...)")
+                        
+                        'Console.WriteLine("No root but have last valid root - attempting recovery...")
                         Application.Invoke(Sub()
-                            RebuildVisualTree()
+                            AttemptStructureRecovery()
                         End Sub)
+                    Else 
+                        Console.WriteLine("OnDrawingAreaDraw: pRootNode is Nothing, pLastValidRootNode is " + Iif((pLastValidRootNode Is Nothing), "Nothing", "Set") + ", pIsProjectLoaded = " + pIsProjectLoaded.ToString)
                     End If
                 Else
                     ' We have nodes - draw them
-                    Console.WriteLine($"Drawing {pVisibleNodes.Count} nodes...")
+                    'Console.WriteLine($"Drawing {pVisibleNodes.Count} nodes...")
                     
                     ' Setup clipping for viewport
                     lContext.Rectangle(0, 0, Math.Max(pViewportWidth, 100), Math.Max(pViewportHeight, 100))
@@ -917,33 +1007,95 @@ Namespace Widgets
                     ' Draw all visible nodes
                     DrawVisibleNodes(lContext)
                     
-                    ' Draw selection highlight if needed
-                    If pSelectedNode IsNot Nothing Then
-                        DrawSelectionHighlight(lContext, pSelectedNode)
+                    ' Draw hover highlight if needed
+                    If pHoveredNode IsNot Nothing Then
+                        DrawNodeHover(lContext, pHoveredNode)
                     End If
                     
-                    ' Draw hover highlight if needed
-                    If pHoveredNode IsNot Nothing AndAlso pHoveredNode IsNot pSelectedNode Then
-                        DrawHoverHighlight(lContext, pHoveredNode)
+                    ' Draw selection highlight if needed
+                    If pSelectedNode IsNot Nothing Then
+                        DrawNodeSelection(lContext, pSelectedNode)
                     End If
+                End If
+                
+                ' Process rebuild flag after drawing completes
+                If pNeedsRebuild AndAlso pRootNode IsNot Nothing Then
+                    Application.Invoke(Sub()
+                        pNeedsRebuild = False
+                        'Console.WriteLine("Executing deferred rebuild...")
+                        RebuildVisualTree()
+                    End Sub)
                 End If
                 
                 Return True
                 
             Catch ex As Exception
                 Console.WriteLine($"OnDrawingAreaDraw error: {ex.Message}")
-                ' Draw error message
-                Try
-                    Dim lContext As Cairo.Context = vArgs.Cr
-                    lContext.SetSourceRGB(1.0, 0.0, 0.0)
-                    lContext.MoveTo(10, 30)
-                    lContext.ShowText($"Error: {ex.Message}")
-                Catch
-                    ' Ignore errors in error handler
-                End Try
                 Return False
             End Try
         End Function
+
+        ''' <summary>
+        ''' Draws selection highlight for selected node
+        ''' </summary>
+        Private Sub DrawNodeSelection(vContext As Cairo.Context, vNode As VisualNode)
+            Try
+                ' Get theme colors
+                Dim lThemeName As String = If(pSettingsManager IsNot Nothing, pSettingsManager.GetString("CurrentTheme", "Default Dark"), "Default Dark")
+                Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
+                
+                ' Selection color
+                If lIsDark Then
+                    vContext.SetSourceRGBA(0.094, 0.447, 0.729, 0.3) ' Blue selection
+                Else
+                    vContext.SetSourceRGBA(0.0, 0.478, 1.0, 0.2)
+                End If
+                
+                ' Draw selection rectangle
+                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
+                vContext.Fill()
+                
+                ' Draw selection border
+                If lIsDark Then
+                    vContext.SetSourceRGB(0.094, 0.447, 0.729)
+                Else
+                    vContext.SetSourceRGB(0.0, 0.478, 1.0)
+                End If
+                vContext.LineWidth = 1
+                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
+                vContext.Stroke()
+                
+            Catch ex As Exception
+                Console.WriteLine($"DrawNodeSelection error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Draws hover highlight for hovered node
+        ''' </summary>
+        Private Sub DrawNodeHover(vContext As Cairo.Context, vNode As VisualNode)
+            Try
+                If vNode Is pSelectedNode Then Return ' Don't draw hover on selected
+                
+                ' Get theme colors
+                Dim lThemeName As String = If(pSettingsManager IsNot Nothing, pSettingsManager.GetString("CurrentTheme", "Default Dark"), "Default Dark")
+                Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
+                
+                ' Hover color
+                If lIsDark Then
+                    vContext.SetSourceRGBA(1.0, 1.0, 1.0, 0.05)
+                Else
+                    vContext.SetSourceRGBA(0.0, 0.0, 0.0, 0.05)
+                End If
+                
+                ' Draw hover rectangle
+                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
+                vContext.Fill()
+                
+            Catch ex As Exception
+                Console.WriteLine($"DrawNodeHover error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     

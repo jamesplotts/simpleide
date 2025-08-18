@@ -23,8 +23,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub LoadSettings()
             Try
-                ' Load scale setting
-                pCurrentScale = pSettingsManager.GetInteger("ObjectExplorer.Scale", DEFAULT_SCALE)
+                ' Load unified scale setting (shared with Project Explorer)
+                pCurrentScale = pSettingsManager.GetInteger("Explorer.TextScale", DEFAULT_SCALE)
                 pCurrentScale = Math.Max(MIN_SCALE, Math.Min(MAX_SCALE, pCurrentScale))
                 
                 ' Load sort mode
@@ -48,8 +48,7 @@ Namespace Widgets
                 ' Load expanded nodes
                 LoadExpandedNodes()
                 
-                ' Load member order preferences
-                LoadMemberOrderPreferences()
+                Console.WriteLine($"Settings loaded with unified scale: {pCurrentScale}%")
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadSettings error: {ex.Message}")

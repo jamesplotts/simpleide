@@ -36,6 +36,7 @@ Namespace Managers
         Private pProjectWatcher As System.IO.FileSystemWatcher
         Private pIsProjectOpen As Boolean = False
         Private pIsDirty As Boolean = False
+        Private pRootNode as SyntaxNode
         
         ' ===== Properties =====
         Public ReadOnly Property IsProjectOpen As Boolean
@@ -887,7 +888,7 @@ Namespace Managers
         End Sub
 
         ''' <summary>
-        ''' Load and parse all project source files with correct namespace organization
+        ''' Load and parse all project source files with correct namespace organization and sorting
         ''' </summary>
         Public Function LoadProjectStructure() As Boolean
             Try
@@ -908,53 +909,33 @@ Namespace Managers
                     lRootNamespaceName = lProjectInfo.GetEffectiveRootNamespace()
                 Else
                     ' Fallback to project name
-                    lRootNamespaceName = If(Not String.IsNullOrEmpty(pCurrentProjectInfo?.RootNamespace), 
-                                           pCurrentProjectInfo.RootNamespace, 
-                                           pCurrentProjectInfo?.ProjectName)
+                    lRootNamespaceName = Path.GetFileNameWithoutExtension(pCurrentProjectInfo.ProjectPath)
                 End If
                 
-                ' Ensure we have a valid namespace name
-                If String.IsNullOrEmpty(lRootNamespaceName) Then
-                    lRootNamespaceName = "Project"
-                End If
+                Console.WriteLine($"Loading project structure with root namespace: {lRootNamespaceName}")
                 
-                Console.WriteLine($"Using root namespace: {lRootNamespaceName}")
-                
-                ' Create root node for entire project
+                ' Create root document node and namespace
                 pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, pCurrentProjectInfo.ProjectName)
-                
-                ' Create main namespace node using actual project root namespace
                 Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
+                lRootNamespace.IsImplicit = True
                 pProjectSyntaxTree.AddChild(lRootNamespace)
                 
-                ' Dictionary to organize by namespace
-                Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)()
+                ' Dictionary to track namespace nodes
+                Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
                 lNamespaceNodes(lRootNamespaceName) = lRootNamespace
                 
-                ' Get all VB source files from compile items
-                Dim lSourceFiles As New List(Of String)()
-                For Each lCompileItem In pCurrentProjectInfo.CompileItems
-                    Dim lFullPath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, lCompileItem)
-                    If File.Exists(lFullPath) AndAlso lFullPath.EndsWith(".vb", StringComparison.OrdinalIgnoreCase) Then
-                        lSourceFiles.Add(lFullPath)
-                    End If
-                Next
+                ' Get all source files
+                Dim lSourceFiles As List(Of String) = GetProjectSourceFiles()
+                Console.WriteLine($"Found {lSourceFiles.Count} source files")
                 
-                Console.WriteLine($"Loading structure for {lSourceFiles.Count} source files...")
-                
-                ' Parse each file
-                Dim lCurrent As Integer = 0
+                ' Parse and process each file
                 For Each lFilePath In lSourceFiles
-                    lCurrent += 1
-                    
                     ' Create SourceFileInfo
                     Dim lFileInfo As New SourceFileInfo(lFilePath, pCurrentProjectInfo.ProjectDirectory)
-                    
-                    ' Set the project root namespace for proper parsing
-                    lFileInfo.SetProjectRootNamespace(lRootNamespaceName)
+                    lFileInfo.ProjectRootNamespace = lRootNamespaceName
                     
                     ' Raise progress event
-                    RaiseEvent ParsingProgress(lCurrent, lSourceFiles.Count, lFileInfo.FileName)
+                    RaiseEvent ParsingProgress(pSourceFiles.Count + 1, lSourceFiles.Count, lFileInfo.FileName)
                     
                     ' Load and parse the file
                     If lFileInfo.LoadAndParse() Then
@@ -974,6 +955,10 @@ Namespace Managers
                 ' Build final namespace tree structure
                 BuildNamespaceHierarchy(lNamespaceNodes, lRootNamespace)
                 
+                ' CRITICAL FIX: Sort the entire project tree recursively
+                Console.WriteLine("Sorting project structure...")
+                SortNodeChildrenRecursively(pProjectSyntaxTree)
+                
                 pIsLoadingStructure = False
                 
                 ' Raise project structure loaded event
@@ -989,11 +974,84 @@ Namespace Managers
             End Try
         End Function
 
-    End Class
-
-
-' ===== Supporting Classes =====
+        ' ===== Supporting Classes =====
     
+        ''' <summary>
+        ''' Recursively sort all children of a syntax node with namespaces first, then alphabetically
+        ''' </summary>
+        ''' <param name="vNode">The node whose children to sort</param>
+        Private Sub SortNodeChildrenRecursively(vNode As SyntaxNode)
+            Try
+                If vNode Is Nothing OrElse vNode.Children.Count = 0 Then Return
+                
+                ' Sort this node's children: namespaces first, then by name
+                Dim lSortedChildren = vNode.Children.OrderBy(Function(n) GetNodeTypeSortPriority(n.NodeType)) _
+                                                   .ThenBy(Function(n) n.Name, StringComparer.OrdinalIgnoreCase) _
+                                                   .ToList()
+                
+                vNode.Children.Clear()
+                vNode.Children.AddRange(lSortedChildren)
+                
+                ' Recursively sort each child's children
+                For Each lChild In vNode.Children
+                    SortNodeChildrenRecursively(lChild)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"SortNodeChildrenRecursively error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Get sort priority for node types (namespaces first, then other types)
+        ''' </summary>
+        ''' <param name="vNodeType">The node type</param>
+        ''' <returns>Sort priority (lower = higher priority)</returns>
+        Private Function GetNodeTypeSortPriority(vNodeType As CodeNodeType) As Integer
+            Select Case vNodeType
+                ' Namespaces always come first
+                Case CodeNodeType.eNamespace
+                    Return 0
+                    
+                ' Then type definitions in logical order
+                Case CodeNodeType.eInterface
+                    Return 10
+                Case CodeNodeType.eClass
+                    Return 11
+                Case CodeNodeType.eModule
+                    Return 12
+                Case CodeNodeType.eStructure
+                    Return 13
+                Case CodeNodeType.eEnum
+                    Return 14
+                Case CodeNodeType.eDelegate
+                    Return 15
+                    
+                ' Then members grouped by type
+                Case CodeNodeType.eConstructor
+                    Return 20
+                Case CodeNodeType.eProperty
+                    Return 21
+                Case CodeNodeType.eMethod
+                    Return 22
+                Case CodeNodeType.eFunction
+                    Return 23
+                Case CodeNodeType.eEvent
+                    Return 24
+                Case CodeNodeType.eField
+                    Return 25
+                Case CodeNodeType.eConstant
+                    Return 26
+                Case CodeNodeType.eOperator
+                    Return 27
+                    
+                ' Everything else at the end
+                Case Else
+                    Return 99
+            End Select
+        End Function
+
+    End Class
     
     ' Project metadata stored separately from project file
     Public Class ProjectMetadata

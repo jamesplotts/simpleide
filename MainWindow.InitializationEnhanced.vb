@@ -71,8 +71,11 @@ Partial Public Class MainWindow
             ' This assumes Object Explorer has a SetupRefreshButton method
             ' pObjectExplorer.SetupRefreshButton()
             
-            ' Ensure Object Explorer starts with no content
-            pObjectExplorer.ClearStructure()
+            ' REMOVED: Don't clear structure on initialization!
+            ' This was causing the Object Explorer to lose its content
+            ' pObjectExplorer.ClearStructure()
+            
+            Console.WriteLine("EnsureObjectExplorerIntegration: Completed without clearing structure")
             
         Catch ex As Exception
             Console.WriteLine($"EnsureObjectExplorerIntegration error: {ex.Message}")

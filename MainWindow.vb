@@ -39,7 +39,7 @@ Partial Public Class MainWindow
     Private pToolbar As Toolbar
     Private pMainHPaned As Paned
     Private pCenterVPaned As Paned
-    Private pProjectExplorer As ProjectExplorer
+    Private pProjectExplorer As CustomDrawProjectExplorer
     Private pNotebook As Notebook
     Private pStatusBar As Statusbar
     
@@ -66,14 +66,27 @@ Partial Public Class MainWindow
         MyBase.New(WINDOW_TITLE)
         
         Try
-            ' Initialize settings
+            ' Initialize settings FIRST
             pSettingsManager = New SettingsManager()
             pThemeManager = New ThemeManager(pSettingsManager)
             pMemoryManifest = New MemoryManifest(pSettingsManager)
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
             InitializeScratchpad()
             
-            ' Initialize project manager
+            ' Setup window
+            SetupWindow()
+            
+            ' Build UI (creates the structure but NOT ObjectExplorer)
+            BuildUI()
+            AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
+            
+            ' CRITICAL: Initialize left panel BEFORE project manager
+            ' This creates the ObjectExplorer instance
+            InitializeLeftPanel()
+
+            InitializeLeftPanelWidth()
+            
+            ' NOW safe to create project manager
             pProjectManager = New ProjectManager()
             AddHandler pProjectManager.ProjectLoaded, AddressOf OnProjectManagerProjectLoaded
             AddHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
@@ -82,19 +95,24 @@ Partial Public Class MainWindow
             AddHandler pProjectManager.FileRemoved, AddressOf OnProjectManagerFileRemoved
             AddHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
             
-            ' Setup window
-            SetupWindow()
-            
-            ' Build UI
-            BuildUI()
-            AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
+            ' FIX: Now set the ProjectManager in ProjectExplorer since it was created before ProjectManager existed
+            If pProjectExplorer IsNot Nothing Then
+                pProjectExplorer.SetProjectManager(pProjectManager)
+                Console.WriteLine("ProjectManager set in ProjectExplorer after creation")
+            End If
 
-        ' After creating pObjectExplorer and pProjectManager
-        CompleteObjectExplorerSetup()
+            ' Now initialize ObjectExplorer with ProjectManager
+            If pObjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                pObjectExplorer.InitializeWithProjectManager(pProjectManager)
+                AddHandler pObjectExplorer.GetThemeManager, AddressOf OnGetThemeManager
+            End If
+            
+            ' Complete Object Explorer setup
+            CompleteObjectExplorerSetup()
             
             ' Initialize IntelliSense engine
             pIntelliSenseEngine = New IntelliSenseEngine()
-    
+            
             ' Initialize build system
             InitializeBuildSystem()
             
@@ -104,26 +122,20 @@ Partial Public Class MainWindow
             ' Apply settings
             ApplySettings()
             
-            ' DO NOT call RestoreWindowSize here - Program.vb will handle it after ShowAll()
-            ' DO NOT call ShowAll here - let Program.vb handle it
-            
             ' Initialize panel visibility
             UpdatePanelVisibility()
             
             ' Setup file system watcher
             SetupFileSystemWatcher()
-
+            
             pEditorFactory = New EditorFactory()
             EditorFactory.Initialize(pSyntaxColorSet, pSettingsManager, pProjectManager)
-
+            
             InitializeWithObjectExplorerIntegration()
-
             InitializeCapitalizationManager()
-            InitializeLeftPanel
-            pObjectExplorer.InitializeWithProjectManager(pProjectManager)
+            
             ' Show welcome tab on startup
             ShowWelcomeTab()
-
             
             ' Hide bottom panel on startup - use idle handler to ensure proper initialization
             GLib.Idle.Add(Function()
@@ -182,7 +194,7 @@ Partial Public Class MainWindow
             pMainHPaned.Position = LEFT_PANEL_WIDTH
             
             ' Create project explorer
-            pProjectExplorer = New ProjectExplorer(pSettingsManager)
+            pProjectExplorer = New CustomDrawProjectExplorer(pSettingsManager, pProjectManager)
             AddHandler pProjectExplorer.FileSelected, AddressOf OnProjectFileSelected
             AddHandler pProjectExplorer.ProjectFileSelected, AddressOf OnProjectFileDoubleClicked
             AddHandler pProjectExplorer.ProjectModified, AddressOf OnProjectModified
@@ -190,50 +202,6 @@ Partial Public Class MainWindow
             AddHandler pProjectExplorer.ReferencesChanged, AddressOf OnReferencesChanged
             AddHandler pProjectExplorer.ManifestSelected, AddressOf OnManifestSelected
             
-            ' Create the notebook for the left panel
-            pLeftNotebook = New Notebook()
-            pLeftNotebook.TabPos = PositionType.Top
-            pLeftNotebook.Scrollable = False
-            
-            ' Add Project Explorer tab
-            Dim lProjectLabel As New Label("Project")
-            pLeftNotebook.AppendPage(pProjectExplorer, lProjectLabel)
-            
-            ' Create and add Object Explorer tab
-            pObjectExplorer = New CustomDrawObjectExplorer(pSettingsManager)
-            AddHandler pObjectExplorer.NodeDoubleClicked, AddressOf OnObjectExplorerNodeDoubleClicked
-            AddHandler pObjectExplorer.CloseRequested, AddressOf OnObjectExplorerCloseRequested
-
-
-            
-            Dim lObjectLabel As New Label("Objects")
-            pLeftNotebook.AppendPage(pObjectExplorer, lObjectLabel)
-            
-            ' Pack the notebook into the left pane
-            pMainHPaned.Pack1(pLeftNotebook, False, False)
-            
-            ' Set the initial tab based on user preference
-            Try
-                Dim lStartupTab As Integer = pSettingsManager.LeftPanelStartupTab
-                ' Ensure the tab index is valid
-                If lStartupTab >= 0 AndAlso lStartupTab < pLeftNotebook.NPages Then
-                    pLeftNotebook.CurrentPage = lStartupTab
-                Else
-                    pLeftNotebook.CurrentPage = 0 ' Default to Project tab
-                End If
-                
-                ' Ensure the selected tab's content is visible
-                Dim lCurrentPage As Widget = pLeftNotebook.GetNthPage(pLeftNotebook.CurrentPage)
-                If lCurrentPage IsNot Nothing Then
-                    lCurrentPage.ShowAll()
-                End If
-                
-                Console.WriteLine($"Left panel initialized with tab {pLeftNotebook.CurrentPage}")
-            Catch ex As Exception
-                Console.WriteLine($"Error setting startup tab: {ex.Message}")
-                pLeftNotebook.CurrentPage = 0 ' Fallback to Project tab
-            End Try
-
             ' Create center vertical paned for editor and bottom panel
             pCenterVPaned = New Paned(Orientation.Vertical)
             

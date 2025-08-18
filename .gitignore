@@ -11,3 +11,4 @@ ud.sh
 bin
 obj
  
+debug_output.log

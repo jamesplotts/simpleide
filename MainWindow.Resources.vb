@@ -442,7 +442,8 @@ Partial Public Class MainWindow
             End If
             
             ' Reload the project in the explorer
-            pProjectExplorer.LoadProject(pCurrentProject)
+            Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.RefreshProjectExplorer")
+            pProjectExplorer.LoadProjectFromManager
             
             ' Update status bar
             Dim lStatusContext As UInteger = pStatusBar.GetContextId("Main")

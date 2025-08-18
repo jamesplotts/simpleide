@@ -301,47 +301,6 @@ Partial Public Class MainWindow
         End Try
     End Function
     
-'    ' Show about dialog
-'    Private Sub ShowAboutDialog()
-'        Try
-'            Dim lDialog As New AboutDialog()
-'            lDialog.TransientFor = Me
-'            
-'            ' Set basic information
-'            lDialog.ProgramName = "SimpleIDE"
-'            lDialog.Version = "1.0.0"
-'            lDialog.Comments = "A lightweight VB.NET IDE for Linux"
-'            lDialog.Copyright = "Copyright © 2025"
-'            lDialog.Website = "https://github.com/yourusername/simpleide"
-'            lDialog.WebsiteLabel = "Visit project Page"
-'            lDialog.License = "this Program is free software: you can redistribute it and/or modify " &
-'                             "it under the terms of the GNU General Public License as published by " &
-'                             "the Free Software Foundation, either Version 3 of the License, or " &
-'                             "(at your option) any later Version."
-'            
-'            ' Set authors
-'            lDialog.Authors = {"Your Name"}
-'            
-'            ' Load icon if available
-'            Try
-'                Dim lIconResource As String = "SimpleIDE.icon.png"
-'                Using lStream As System.IO.Stream = GetType(MainWindow).Assembly.GetManifestResourceStream(lIconResource)
-'                    If lStream IsNot Nothing Then
-'                        lDialog.Logo = New Gdk.Pixbuf(lStream)
-'                    End If
-'                End Using
-'            Catch
-'                ' Icon loading failed, continue without icon
-'            End Try
-'            
-'            ' Show dialog
-'            lDialog.Run()
-'            lDialog.Destroy()
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"ShowAboutDialog error: {ex.Message}")
-'        End Try
-'    End Sub
     
     ' Open URL in default browser
     Private Sub OpenUrl(vUrl As String)

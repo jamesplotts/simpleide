@@ -35,6 +35,11 @@ Namespace Widgets
         Private Const INDENT_WIDTH_RATIO As Double = 1.25
         Private Const ROW_PADDING As Integer = 4
         Private Const HOVER_TOOLTIP_DELAY As Integer = 500 ' milliseconds
+        Private pNeedsRebuild As Boolean = False  
+
+        ' ===== Private Fields - State Preservation =====
+        Private pLastValidRootNode As SyntaxNode  ' Store last valid root to recover from clears
+        Private pIsProjectLoaded As Boolean = False  ' Track if a project is loaded
         
         ' ===== Events =====
         
@@ -161,6 +166,8 @@ Namespace Widgets
             eIcon
             eText
         End Enum
+
+
         
         ' ===== Constructor =====
         
@@ -168,14 +175,19 @@ Namespace Widgets
         ''' Initializes a new instance of the CustomDrawObjectExplorer class
         ''' </summary>
         ''' <param name="vSettingsManager">Settings manager for persistence</param>
-        Public Sub New(vSettingsManager As SettingsManager)
-            MyBase.New(Orientation.Horizontal, 0)
+        ''' <param name="vThemeManager">Theme manager for visual styling (optional)</param>
+        Public Sub New(vSettingsManager As SettingsManager, Optional vThemeManager As ThemeManager = Nothing)
+            MyBase.New(Orientation.Vertical, 0)  ' Changed to Vertical to accommodate toolbar
             
             Try
                 pSettingsManager = vSettingsManager
+                pThemeManager = vThemeManager
                 
-                ' Load settings
+                ' Load settings including unified scale
                 LoadSettings()
+                
+                ' Create toolbar FIRST (new)
+                CreateToolbar()
                 
                 ' Create UI components
                 CreateUIComponents()
@@ -190,6 +202,8 @@ Namespace Widgets
                 CreateContextMenu()
                 
                 ShowAll()
+                
+                Console.WriteLine($"CustomDrawObjectExplorer initialized with unified scale: {pCurrentScale}%")
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawObjectExplorer constructor error: {ex.Message}")
@@ -253,11 +267,14 @@ Namespace Widgets
         ''' </summary>
         Private Sub InitializeDrawing()
             Try
-                ' Apply scale settings
+                ' Apply scale settings (already loaded from unified Explorer.TextScale)
                 ApplyScale(pCurrentScale)
                 
-                ' Initialize font
+                ' Initialize font with unified settings
                 UpdateFontSettings()
+                
+                ' Update toolbar scale display
+                UpdateScaleDisplay()
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeDrawing error: {ex.Message}")
@@ -267,25 +284,47 @@ Namespace Widgets
         ' ===== IObjectExplorer Implementation =====
         
         ''' <summary>
-        ''' Updated UpdateStructure to ensure nodes persist
+        ''' Updates the complete object hierarchy displayed in the explorer
         ''' </summary>
+        ''' <param name="vRootNode">Root syntax node containing the complete hierarchy</param>
         Public Sub UpdateStructure(vRootNode As SyntaxNode) Implements IObjectExplorer.UpdateStructure
             Try
-                Console.WriteLine($"UpdateStructure called with root: {If(vRootNode IsNot Nothing, vRootNode.Name, "Nothing")}")
+                Console.WriteLine($"UpdateStructure called with root: {If(vRootNode?.Name, "Nothing")}")
                 
-                pRootNode = vRootNode
-                
-                ' Only rebuild if we have a valid root
-                If pRootNode IsNot Nothing Then
-                    RebuildVisualTree()
-                    
-                    ' Verify nodes exist after rebuild
-                    Console.WriteLine($"UpdateStructure: After rebuild, have {pVisibleNodes.Count} visible nodes")
+                If vRootNode Is Nothing Then
+                    Console.WriteLine("UpdateStructure: Received Nothing root - clearing")
+                    ClearStructure()
+                    Return
                 End If
                 
-                ' Always update display
+                ' Store the new root
+                pRootNode = vRootNode
+                
+                ' IMPORTANT: Also update the last valid root and project loaded flag
+                pLastValidRootNode = vRootNode
+                pIsProjectLoaded = True
+                
+                Console.WriteLine($"UpdateStructure: Set pRootNode, pLastValidRootNode, and pIsProjectLoaded=True")
+                
+                ' Auto-expand root namespace if it's the only child
+                If vRootNode.NodeType = CodeNodeType.eDocument AndAlso vRootNode.Children.Count = 1 Then
+                    Dim lFirstChild As SyntaxNode = vRootNode.Children(0)
+                    If lFirstChild.NodeType = CodeNodeType.eNamespace Then
+                        pExpandedNodes.Add(lFirstChild.Name)
+                        Console.WriteLine($"Auto-expanded single root namespace: {lFirstChild.Name}")
+                    End If
+                End If
+                
+                ' Rebuild the visual tree
+                RebuildVisualTree()
+                
+                ' Update scrollbars
                 UpdateScrollbars()
+                
+                ' Queue redraw
                 pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"UpdateStructure complete: {pVisibleNodes.Count} visible nodes")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateStructure error: {ex.Message}")
@@ -321,7 +360,9 @@ Namespace Widgets
         ''' </summary>
         Public Sub ForceCompleteRefresh()
             Try
-                ' Clear caches
+                
+Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
+' Clear caches
                 pNodeCache.Clear()
                 pVisibleNodes.Clear()
                 
@@ -354,22 +395,66 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Clears the structure completely, removing all nodes from the tree
+        ''' Updated ClearStructure to allow recovery and show caller
         ''' </summary>
         Public Sub ClearStructure() Implements IObjectExplorer.ClearStructure
             Try
+                ' DEBUG: Show stack trace to find who's calling this
+                Console.WriteLine("=====================================")
+                Console.WriteLine("ClearStructure called - STACK TRACE:")
+                Console.WriteLine(Environment.StackTrace)
+                Console.WriteLine("=====================================")
+                
+                Console.WriteLine("ClearStructure called - preserving last valid root for recovery")
+                
+                ' Save state before clearing
+                If pRootNode IsNot Nothing Then
+                    pLastValidRootNode = pRootNode
+                    pIsProjectLoaded = True
+                    Console.WriteLine($"ClearStructure: Saved root node with {pRootNode.Children.Count} children")
+                End If
+                
+                ' Clear current display but keep last valid root for recovery
                 pRootNode = Nothing
+                Console.WriteLine($"ClearStructure  pVisibleNodesClear()")
+                
                 pVisibleNodes.Clear()
                 pExpandedNodes.Clear()
                 pNodeCache.Clear()
                 pSelectedNode = Nothing
                 pHoveredNode = Nothing
                 
+                ' Don't clear pLastValidRootNode or pIsProjectLoaded
+                ' This allows recovery if needed
+                
                 UpdateScrollbars()
                 pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"ClearStructure error: {ex.Message}")
+            End Try
+        End Sub
+
+
+        ''' <summary>
+        ''' Attempts to recover structure if it was cleared inappropriately
+        ''' </summary>
+        Private Sub AttemptStructureRecovery()
+            Try
+                If pRootNode Is Nothing AndAlso pLastValidRootNode IsNot Nothing AndAlso pIsProjectLoaded Then
+                    Console.WriteLine("Attempting to recover Object Explorer structure...")
+                    
+                    ' Restore the root
+                    pRootNode = pLastValidRootNode
+                    
+                    ' Rebuild the visual tree
+                    RebuildVisualTree()
+                    
+                    Console.WriteLine($"Structure recovered with {pVisibleNodes.Count} nodes")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"AttemptStructureRecovery error: {ex.Message}")
             End Try
         End Sub
         
@@ -466,56 +551,70 @@ Namespace Widgets
         
         
         ''' <summary>
-        ''' Updated OnPageActivated to ensure proper viewport size
+        ''' Called when the Object Explorer page is activated in the notebook
         ''' </summary>
         Public Sub OnPageActivated() Implements IObjectExplorer.OnPageActivated
+
             Try
-                Console.WriteLine("OnPageActivated called")
+                Console.WriteLine("CustomDrawObjectExplorer.OnPageActivated called")
+                Console.WriteLine($"  Initial state: Root={If(pRootNode IsNot Nothing, "Present", "Nothing")}, LastValid={If(pLastValidRootNode IsNot Nothing, "Present", "Nothing")}, IsProjectLoaded={pIsProjectLoaded}")
                 
-                ' Ensure drawing area is realized and visible
-                If pDrawingArea IsNot Nothing Then
-                    If Not pDrawingArea.IsRealized Then
-                        pDrawingArea.ShowAll()
-                        pDrawingArea.Realize()
-                    End If
-                    
-                    ' Force size allocation update if viewport is 0x0
-                    If pViewportWidth = 0 OrElse pViewportHeight = 0 Then
-                        Dim lAllocation As Gdk.Rectangle = pDrawingArea.Allocation
-                        If lAllocation.Width > 0 AndAlso lAllocation.Height > 0 Then
-                            pViewportWidth = lAllocation.Width
-                            pViewportHeight = lAllocation.Height
-                            Console.WriteLine($"Updated viewport from allocation: {pViewportWidth}x{pViewportHeight}")
-                        Else
-                            ' Set default size if allocation is not ready
-                            pViewportWidth = 400
-                            pViewportHeight = 600
-                            Console.WriteLine($"Using default viewport: {pViewportWidth}x{pViewportHeight}")
-                        End If
+                ' Ensure drawing area is realized
+                If pDrawingArea IsNot Nothing AndAlso Not pDrawingArea.IsRealized Then
+                    pDrawingArea.Realize()
+                End If
+                
+                ' Apply theme (should not affect tree structure)
+                ApplyTheme()
+                
+                ' Check if we need to restore or rebuild
+                If pRootNode Is Nothing Then
+                    ' Try to recover from last valid state
+                    If pLastValidRootNode IsNot Nothing Then
+                        Console.WriteLine("OnPageActivated: Restoring from last valid root")
+                        pRootNode = pLastValidRootNode
+                        pIsProjectLoaded = True
+                    Else
+                        Console.WriteLine("OnPageActivated: No structure to display")
+                        pDrawingArea?.QueueDraw()
+                        Return
                     End If
                 End If
                 
-                ' Initialize rendering if needed
-                InitializeRendering()
-                
-                ' Force a complete refresh of the tree
-                If pRootNode IsNot Nothing AndAlso pVisibleNodes.Count > 0 Then
-                    ' Recalculate node positions with proper viewport
+                ' Ensure visual tree is built
+                If pRootNode IsNot Nothing Then
+                    ' Always rebuild to ensure consistency
+                    Console.WriteLine("OnPageActivated: Ensuring visual tree is built...")
+                    
+                    ' Save current state
+                    Dim lSavedRoot As SyntaxNode = pRootNode
+                    Dim lSavedLastValid As SyntaxNode = pLastValidRootNode
+                    Dim lSavedIsLoaded As Boolean = pIsProjectLoaded
+                    
+                    ' Rebuild the tree
+                    RebuildVisualTree()
+                    
+                    ' Restore state if it was lost during rebuild
+                    If pRootNode Is Nothing Then
+                        pRootNode = lSavedRoot
+                    End If
+                    If pLastValidRootNode Is Nothing Then
+                        pLastValidRootNode = lSavedLastValid
+                    End If
+                    If Not pIsProjectLoaded Then
+                        pIsProjectLoaded = lSavedIsLoaded
+                    End If
+                    
+                    ' Update positions
                     CalculateNodePositions()
                     UpdateScrollbars()
-                    
-                    ' Force immediate redraw
-                    If pDrawingArea IsNot Nothing Then
-                        pDrawingArea.QueueDraw()
-                        
-                        ' Process pending events to ensure draw happens
-                        While Gtk.Application.EventsPending()
-                            Gtk.Application.RunIteration()
-                        End While
-                    End If
-                    
-                    Console.WriteLine($"OnPageActivated: Refreshed with {pVisibleNodes.Count} nodes, viewport {pViewportWidth}x{pViewportHeight}")
                 End If
+                
+                ' Force a redraw
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"OnPageActivated: Complete with {pVisibleNodes.Count} nodes")
+                Console.WriteLine($"  Final state: Root={If(pRootNode IsNot Nothing, "Present", "Nothing")}, LastValid={If(pLastValidRootNode IsNot Nothing, "Present", "Nothing")}, IsProjectLoaded={pIsProjectLoaded}")
                 
             Catch ex As Exception
                 Console.WriteLine($"OnPageActivated error: {ex.Message}")
@@ -626,11 +725,17 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Updated LoadProjectStructure with state verification
+        ''' Updated LoadProjectStructure to preserve state
         ''' </summary>
         Public Sub LoadProjectStructure(vProjectSyntaxTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
             Try
                 Console.WriteLine($"LoadProjectStructure called with tree: {If(vProjectSyntaxTree IsNot Nothing, vProjectSyntaxTree.Name, "Nothing")}")
+                
+                ' Store as last valid root for recovery
+                If vProjectSyntaxTree IsNot Nothing Then
+                    pLastValidRootNode = vProjectSyntaxTree
+                    pIsProjectLoaded = True
+                End If
                 
                 ' Ensure list exists
                 EnsureVisibleNodesList()
@@ -644,7 +749,39 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectStructure error: {ex.Message}")
             End Try
-        End Sub 
+        End Sub
+
+        ''' <summary>
+        ''' Sets the theme manager for the Object Explorer
+        ''' </summary>
+        ''' <param name="vThemeManager">The theme manager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                pThemeManager = vThemeManager
+                
+                ' Refresh display with new theme
+                RefreshTheme()
+                
+                Console.WriteLine("ObjectExplorer ThemeManager set")
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Refreshes the Object Explorer with current theme
+        ''' </summary>
+        Public Sub RefreshTheme()
+            Try
+                ' Force a complete redraw with current theme
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"RefreshTheme error: {ex.Message}")
+            End Try
+        End Sub
+
        
     End Class
     

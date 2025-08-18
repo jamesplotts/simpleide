@@ -236,7 +236,8 @@ Partial Public Class MainWindow
         Try
             ' Populate project explorer
             If pProjectExplorer IsNot Nothing Then
-                pProjectExplorer.LoadProject(pProjectManager.CurrentProjectPath)
+                Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.UpdateUIForLoadedProject")
+                pProjectExplorer.LoadProjectFromManager
             End If
             
             ' Get namespace tree

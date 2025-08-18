@@ -787,7 +787,7 @@ Module Program
         Console.WriteLine()
         Console.WriteLine("Copyright (C) 2025 VbIDE Contributors")
         Console.WriteLine("Licensed under GPL v3.0 - See --license for details")
-        Console.WriteLine("For more information, visit: https://github.com/jamesplotts/vb-pro-ide-for-linux-dotnet")
+        Console.WriteLine("For more information, visit: https://github.com/jamesplotts/simpleide")
     End Sub
     
     ''' <summary>
@@ -796,7 +796,7 @@ Module Program
     Private Sub ShowLicense()
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
         Console.WriteLine("Copyright (C) 2025 VbIDE Contributors")
-        Console.WriteLine("Repository: https://github.com/jamesplotts/vb-pro-ide-for-linux-dotnet")
+        Console.WriteLine("Repository: https://github.com/jamesplotts/simpleide")
         Console.WriteLine()
         Console.WriteLine("This program is free software: you can redistribute it and/or modify")
         Console.WriteLine("it under the terms of the GNU General Public License as published by")
@@ -826,7 +826,7 @@ Module Program
         Console.WriteLine("https://www.gnu.org/licenses/gpl-3.0.txt")
         Console.WriteLine()
         Console.WriteLine("To contribute to this project, visit:")
-        Console.WriteLine("https://github.com/jamesplotts/vb-pro-ide-for-linux-dotnet")
+        Console.WriteLine("https://github.com/jamesplotts/simpleide")
     End Sub
     
     ''' <summary>

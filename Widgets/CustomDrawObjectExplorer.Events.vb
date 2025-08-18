@@ -149,12 +149,17 @@ Namespace Widgets
                         pTooltipTimer = 0
                     End If
                     
+                    ' Hide tooltip if no longer hovering over a node
+                    If lNode Is Nothing Then
+                        HideTooltip()
+                    End If
+                    
                     ' Start new tooltip timer if hovering over a node
                     If lNode IsNot Nothing Then
                         pTooltipTimer = GLib.Timeout.Add(HOVER_TOOLTIP_DELAY, AddressOf ShowTooltip)
                     End If
-                End If
-                
+                End If     
+           
                 ' Update cursor based on zone
                 If lNode IsNot Nothing Then
                     Dim lZone As ClickZone = GetClickZone(lX, lY, lNode)
@@ -200,7 +205,10 @@ Namespace Widgets
                     GLib.Source.Remove(pTooltipTimer)
                     pTooltipTimer = 0
                 End If
-                
+        
+                ' CRITICAL: Hide the tooltip!
+                HideTooltip()
+                 
                 ' Reset cursor
                 pDrawingArea.Window.Cursor = Nothing
                 
@@ -479,7 +487,23 @@ Namespace Widgets
                 Return ClickZone.eNone
             End Try
         End Function
-        
+
+
+        ''' <summary>
+        ''' Handles theme changes from the theme manager
+        ''' </summary>
+        Public Sub OnThemeChanged()
+            Try
+                ' Simply redraw with new theme colors
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine("ObjectExplorer theme updated")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnThemeChanged error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
     
 End Namespace

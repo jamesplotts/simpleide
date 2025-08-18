@@ -20,72 +20,66 @@ Namespace Managers
 
 
         
+
+
         ''' <summary>
-        ''' Process a file's structure and merge into namespace tree with proper hierarchy
+        ''' Find or create a namespace child node, preventing duplicates
         ''' </summary>
-        Private Sub ProcessFileStructure(vFileInfo As SourceFileInfo, 
-                                        vRootNamespace As SyntaxNode,
-                                        vNamespaceNodes As Dictionary(Of String, SyntaxNode),
-                                        vRootNamespaceName As String)
+        Private Function FindOrCreateNamespaceChild(vParent As SyntaxNode, 
+                                                   vNamespaceName As String,
+                                                   vNamespaceNodes As Dictionary(Of String, SyntaxNode),
+                                                   vFullNamespaceName As String) As SyntaxNode
             Try
-                If vFileInfo.SyntaxTree Is Nothing Then Return
-                
-                Console.WriteLine($"Processing file: {vFileInfo.FileName}")
-                Console.WriteLine($"  SyntaxTree has {vFileInfo.SyntaxTree.Children.Count} children")
-                
-                ' Track current namespace context as we process nodes
-                Dim lCurrentNamespaceContext As SyntaxNode = vRootNamespace
-                Dim lCurrentNamespaceName As String = vRootNamespaceName
-                
-                ' Process the file's syntax tree
-                For Each lTopNode In vFileInfo.SyntaxTree.Children
-                    Console.WriteLine($"  Top node: {lTopNode.Name} (Type: {lTopNode.NodeType})")
-                    
-                    If lTopNode.NodeType = CodeNodeType.eNamespace Then
-                        If lTopNode.Name = vRootNamespaceName Then
-                            ' This is the implicit root namespace - process its children
-                            Console.WriteLine($"    Found implicit namespace with {lTopNode.Children.Count} children")
-                            For Each lChild In lTopNode.Children
-                                ProcessNodeInContext(lChild, vRootNamespace, vNamespaceNodes, vRootNamespaceName, vFileInfo.RelativePath)
-                            Next
-                        Else
-                            ' This is an explicit namespace declaration (like "Widgets" or "Syntax")
-                            ' Create or get the full namespace
-                            Dim lFullNamespaceName As String = vRootNamespaceName & "." & lTopNode.Name
-                            Console.WriteLine($"    Found explicit namespace: {lTopNode.Name} -> {lFullNamespaceName}")
-                            
-                            ' Get or create this namespace node
-                            Dim lNamespaceNode As SyntaxNode
-                            If vNamespaceNodes.ContainsKey(lFullNamespaceName) Then
-                                lNamespaceNode = vNamespaceNodes(lFullNamespaceName)
-                            Else
-                                lNamespaceNode = New SyntaxNode(CodeNodeType.eNamespace, lTopNode.Name)
-                                vNamespaceNodes(lFullNamespaceName) = lNamespaceNode
-                                ' Add to root namespace
-                                vRootNamespace.AddChild(lNamespaceNode)
-                            End If
-                            
-                            ' FIXED: Process ALL children through ProcessNodeInContext
-                            ' This ensures classes/modules/structures are added with their complete child hierarchy
-                            For Each lChild In lTopNode.Children
-                                Console.WriteLine($"      Processing child: {lChild.Name} ({lChild.NodeType})")
-                                ProcessNodeInContext(lChild, lNamespaceNode, vNamespaceNodes, lFullNamespaceName, vFileInfo.RelativePath)
-                            Next
+                ' First check if it already exists as a child of the parent
+                For Each lChild In vParent.Children
+                    If lChild.NodeType = CodeNodeType.eNamespace AndAlso 
+                       String.Equals(lChild.Name, vNamespaceName, StringComparison.OrdinalIgnoreCase) Then
+                        Console.WriteLine($"    Found existing namespace child: {vNamespaceName}")
+                        ' Update dictionary if not already there
+                        If Not vNamespaceNodes.ContainsKey(vFullNamespaceName) Then
+                            vNamespaceNodes(vFullNamespaceName) = lChild
                         End If
-                    Else
-                        ' Regular node - add to current namespace context
-                        ProcessNodeInContext(lTopNode, lCurrentNamespaceContext, vNamespaceNodes, lCurrentNamespaceName, vFileInfo.RelativePath)
+                        Return lChild
                     End If
                 Next
                 
+                ' Check if it exists in the dictionary but not as a child (shouldn't happen but defensive)
+                If vNamespaceNodes.ContainsKey(vFullNamespaceName) Then
+                    Dim lExisting As SyntaxNode = vNamespaceNodes(vFullNamespaceName)
+                    Console.WriteLine($"    WARNING: Namespace in dictionary but not as child: {vNamespaceName}")
+                    Return lExisting
+                End If
+                
+                ' Create new namespace node
+                Console.WriteLine($"    Creating new namespace: {vNamespaceName}")
+                Dim lNewNamespace As New SyntaxNode(CodeNodeType.eNamespace, vNamespaceName)
+                
+                ' Initialize attributes and set FilePath
+                If lNewNamespace.Attributes Is Nothing Then
+                    lNewNamespace.Attributes = New Dictionary(Of String, String)()
+                End If
+                lNewNamespace.Attributes("FilePath") = "" ' Namespaces don't have specific file paths
+                
+                ' Add to parent and dictionary
+                vParent.AddChild(lNewNamespace)
+                vNamespaceNodes(vFullNamespaceName) = lNewNamespace
+                
+                Return lNewNamespace
+                
             Catch ex As Exception
-                Console.WriteLine($"ProcessFileStructure error: {ex.Message}")
+                Console.WriteLine($"FindOrCreateNamespaceChild error: {ex.Message}")
+                Return Nothing
             End Try
-        End Sub
+        End Function
 
         ''' <summary>
-        ''' Process a node in the current namespace context
+        ''' Process a node in the current namespace context with proper partial class and namespace merging
         ''' </summary>
+        ''' <param name="vNode">The node to process</param>
+        ''' <param name="vCurrentNamespace">The current namespace to add to</param>
+        ''' <param name="vNamespaceNodes">Dictionary of namespace nodes</param>
+        ''' <param name="vCurrentNamespaceName">Current namespace name</param>
+        ''' <param name="vFilePath">File path for tracking</param>
         Private Sub ProcessNodeInContext(vNode As SyntaxNode,
                                         vCurrentNamespace As SyntaxNode,
                                         vNamespaceNodes As Dictionary(Of String, SyntaxNode),
@@ -94,16 +88,29 @@ Namespace Managers
             Try
                 Select Case vNode.NodeType
                     Case CodeNodeType.eNamespace
-                        ' Handle nested namespace
+                        ' Handle nested namespace with merging
                         Dim lFullNamespaceName As String = vCurrentNamespaceName & "." & vNode.Name
                         
                         Dim lNamespaceNode As SyntaxNode
                         If vNamespaceNodes.ContainsKey(lFullNamespaceName) Then
+                            ' Namespace already exists, use it
                             lNamespaceNode = vNamespaceNodes(lFullNamespaceName)
+                            Console.WriteLine($"      Using existing namespace: {vNode.Name}")
                         Else
-                            lNamespaceNode = New SyntaxNode(CodeNodeType.eNamespace, vNode.Name)
+                            ' CRITICAL FIX: Check if namespace already exists as a child
+                            lNamespaceNode = FindChildByNameAndType(vCurrentNamespace, vNode.Name, CodeNodeType.eNamespace)
+                            
+                            If lNamespaceNode Is Nothing Then
+                                ' Create new namespace
+                                lNamespaceNode = New SyntaxNode(CodeNodeType.eNamespace, vNode.Name)
+                                vCurrentNamespace.AddChild(lNamespaceNode)
+                                Console.WriteLine($"      Creating new namespace: {vNode.Name}")
+                            Else
+                                Console.WriteLine($"      Found existing namespace child: {vNode.Name}")
+                            End If
+                            
+                            ' Add to dictionary for tracking
                             vNamespaceNodes(lFullNamespaceName) = lNamespaceNode
-                            vCurrentNamespace.AddChild(lNamespaceNode)
                         End If
                         
                         ' Process children in this namespace context
@@ -111,32 +118,170 @@ Namespace Managers
                             ProcessNodeInContext(lChild, lNamespaceNode, vNamespaceNodes, lFullNamespaceName, vFilePath)
                         Next
                         
-                    Case CodeNodeType.eClass, CodeNodeType.eModule, CodeNodeType.eInterface, 
+                    Case CodeNodeType.eClass
+                        ' Check for partial classes and merge them
+                        If vNode.IsPartial Then
+                            ' Look for existing class with same name
+                            Dim lExistingClass As SyntaxNode = FindChildByNameAndType(vCurrentNamespace, vNode.Name, CodeNodeType.eClass)
+                            
+                            If lExistingClass IsNot Nothing Then
+                                ' Merge into existing partial class
+                                Console.WriteLine($"      Merging partial class: {vNode.Name} from {vFilePath}")
+                                lExistingClass.IsPartial = True
+                                
+                                ' Initialize Attributes if needed
+                                If lExistingClass.Attributes Is Nothing Then
+                                    lExistingClass.Attributes = New Dictionary(Of String, String)()
+                                End If
+                                
+                                ' Track file paths
+                                If Not lExistingClass.Attributes.ContainsKey("FilePaths") Then
+                                    lExistingClass.Attributes("FilePaths") = vFilePath
+                                Else
+                                    Dim lPaths As String = lExistingClass.Attributes("FilePaths")
+                                    If Not lPaths.Contains(vFilePath) Then
+                                        lExistingClass.Attributes("FilePaths") = lPaths & ";" & vFilePath
+                                    End If
+                                End If
+                                
+                                ' Merge all members from this partial definition
+                                For Each lMember In vNode.Children
+                                    ' Check if member already exists to avoid duplicates
+                                    Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingClass, lMember.Name, lMember.NodeType)
+                                    If lExistingMember Is Nothing Then
+                                        ' Create new member node
+                                        Dim lNewMember As New SyntaxNode(lMember.NodeType, lMember.Name)
+                                        lMember.CopyNodeAttributesTo(lNewMember)
+                                        
+                                        ' Set file path for this member
+                                        If lNewMember.Attributes Is Nothing Then
+                                            lNewMember.Attributes = New Dictionary(Of String, String)()
+                                        End If
+                                        lNewMember.Attributes("FilePath") = vFilePath
+                                        
+                                        ' Add all children of the member (like parameters)
+                                        For Each lChild In lMember.Children
+                                            lNewMember.AddChild(lChild)
+                                        Next
+                                        
+                                        lExistingClass.AddChild(lNewMember)
+                                    Else
+                                        ' Member already exists - could update file path info
+                                        Console.WriteLine($"        Member already exists: {lMember.Name}")
+                                    End If
+                                Next
+                            Else
+                                ' First occurrence of this partial class
+                                Console.WriteLine($"      Creating new partial class: {vNode.Name}")
+                                Dim lNewClass As New SyntaxNode(CodeNodeType.eClass, vNode.Name)
+                                vNode.CopyNodeAttributesTo(lNewClass)
+                                lNewClass.IsPartial = True
+                                
+                                ' Initialize and set file paths
+                                If lNewClass.Attributes Is Nothing Then
+                                    lNewClass.Attributes = New Dictionary(Of String, String)()
+                                End If
+                                lNewClass.Attributes("FilePath") = vFilePath
+                                lNewClass.Attributes("FilePaths") = vFilePath
+                                
+                                ' Add complete node with all children
+                                vCurrentNamespace.AddChild(lNewClass)
+                                
+                                ' Add all members
+                                For Each lChild In vNode.Children
+                                    Dim lNewMember As New SyntaxNode(lChild.NodeType, lChild.Name)
+                                    lChild.CopyNodeAttributesTo(lNewMember)
+                                    
+                                    If lNewMember.Attributes Is Nothing Then
+                                        lNewMember.Attributes = New Dictionary(Of String, String)()
+                                    End If
+                                    lNewMember.Attributes("FilePath") = vFilePath
+                                    
+                                    ' Add all children of the member
+                                    For Each lGrandChild In lChild.Children
+                                        lNewMember.AddChild(lGrandChild)
+                                    Next
+                                    
+                                    lNewClass.AddChild(lNewMember)
+                                Next
+                            End If
+                        Else
+                            ' Non-partial class - check if it already exists
+                            Dim lExistingClass As SyntaxNode = FindChildByNameAndType(vCurrentNamespace, vNode.Name, CodeNodeType.eClass)
+                            
+                            If lExistingClass Is Nothing Then
+                                ' Add the complete class with all its children
+                                vNode.Metadata = New Dictionary(Of String, Object) From {{"FilePath", vFilePath}}
+                                vCurrentNamespace.AddChild(vNode)
+                            Else
+                                Console.WriteLine($"      WARNING: Non-partial class {vNode.Name} already exists!")
+                            End If
+                        End If
+                        
+                    Case CodeNodeType.eModule, CodeNodeType.eInterface, 
                          CodeNodeType.eStructure, CodeNodeType.eEnum, CodeNodeType.eDelegate
-                        ' FIXED: Add the complete type with ALL its children to the namespace
-                        ' Don't process children separately - they should stay as children of the type
-                        vNode.Metadata = New Dictionary(Of String, Object) From {{"FilePath", vFilePath}}
+                        ' Check if these types already exist too
+                        Dim lExistingNode As SyntaxNode = FindChildByNameAndType(vCurrentNamespace, vNode.Name, vNode.NodeType)
                         
-                        ' The node already has its complete child hierarchy from the parser
-                        ' Just add it as-is to preserve nested types, methods, properties, etc.
-                        vCurrentNamespace.AddChild(vNode)
-                        
-                        ' DO NOT recursively process children of types - they should remain nested!
-                        ' This was the bug - it was flattening the hierarchy
-                        
-                    Case CodeNodeType.eImport
-                        ' Skip imports
-                        
-                    Case Else
-                        ' Skip other nodes or add as needed
-                        If ShouldIncludeInNamespaceTree(vNode) Then
+                        If lExistingNode Is Nothing Then
+                            ' Add the complete type with ALL its children to the namespace
                             vNode.Metadata = New Dictionary(Of String, Object) From {{"FilePath", vFilePath}}
                             vCurrentNamespace.AddChild(vNode)
+                            Console.WriteLine($"      Adding {vNode.NodeType}: {vNode.Name}")
+                        Else
+                            ' CRITICAL FIX: For modules, check if they should be merged
+                            If vNode.NodeType = CodeNodeType.eModule AndAlso vNode.IsPartial Then
+                                Console.WriteLine($"      Merging partial module: {vNode.Name}")
+                                lExistingNode.IsPartial = True
+                                
+                                ' Track file paths
+                                If lExistingNode.Attributes Is Nothing Then
+                                    lExistingNode.Attributes = New Dictionary(Of String, String)()
+                                End If
+                                
+                                If Not lExistingNode.Attributes.ContainsKey("FilePaths") Then
+                                    lExistingNode.Attributes("FilePaths") = vFilePath
+                                Else
+                                    Dim lPaths As String = lExistingNode.Attributes("FilePaths")
+                                    If Not lPaths.Contains(vFilePath) Then
+                                        lExistingNode.Attributes("FilePaths") = lPaths & ";" & vFilePath
+                                    End If
+                                End If
+                                
+                                ' Merge members
+                                For Each lMember In vNode.Children
+                                    Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingNode, lMember.Name, lMember.NodeType)
+                                    If lExistingMember Is Nothing Then
+                                        Dim lNewMember As New SyntaxNode(lMember.NodeType, lMember.Name)
+                                        lMember.CopyNodeAttributesTo(lNewMember)
+                                        
+                                        If lNewMember.Attributes Is Nothing Then
+                                            lNewMember.Attributes = New Dictionary(Of String, String)()
+                                        End If
+                                        lNewMember.Attributes("FilePath") = vFilePath
+                                        
+                                        For Each lChild In lMember.Children
+                                            lNewMember.AddChild(lChild)
+                                        Next
+                                        
+                                        lExistingNode.AddChild(lNewMember)
+                                    End If
+                                Next
+                            Else
+                                Console.WriteLine($"      WARNING: {vNode.NodeType} {vNode.Name} already exists!")
+                            End If
                         End If
+                        
+                    Case Else
+                        ' Other node types (shouldn't normally appear at namespace level)
+                        Console.WriteLine($"      Unexpected node type at namespace level: {vNode.NodeType} - {vNode.Name}")
+                        vCurrentNamespace.AddChild(vNode)
                 End Select
                 
             Catch ex As Exception
                 Console.WriteLine($"ProcessNodeInContext error: {ex.Message}")
+                Console.WriteLine($"  Node: {vNode?.Name} ({vNode?.NodeType})")
+                Console.WriteLine($"  Stack: {ex.StackTrace}")
             End Try
         End Sub
         
@@ -928,22 +1073,24 @@ Namespace Managers
         ' ===== Private Helper Methods =====
         
         ''' <summary>
-        ''' Find a child node by name and type
+        ''' Helper method to find a child node by name and type
         ''' </summary>
-        Private Function FindChildByNameAndType(vParent As SyntaxNode, vName As String, vType As CodeNodeType) As SyntaxNode
-            Try
-                For Each lChild In vParent.Children
-                    If lChild.Name = vName AndAlso lChild.NodeType = vType Then
-                        Return lChild
-                    End If
-                Next
-                
+        ''' <param name="vParent">Parent node to search in</param>
+        ''' <param name="vName">Name to search for</param>
+        ''' <param name="vNodeType">Type to search for</param>
+        ''' <returns>The found node or Nothing</returns>
+        Private Function FindChildByNameAndType(vParent As SyntaxNode, vName As String, vNodeType As CodeNodeType) As SyntaxNode
+            If vParent Is Nothing OrElse String.IsNullOrEmpty(vName) Then
                 Return Nothing
-                
-            Catch ex As Exception
-                Console.WriteLine($"ProjectManager.FindChildByNameAndType error: {ex.Message}")
-                Return Nothing
-            End Try
+            End If
+            
+            For Each lChild In vParent.Children
+                If lChild.Name = vName AndAlso lChild.NodeType = vNodeType Then
+                    Return lChild
+                End If
+            Next
+            
+            Return Nothing
         End Function
         
         ''' <summary>
