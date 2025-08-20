@@ -7,6 +7,9 @@ A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red)
 
+https://github.com/user-attachments/assets/b74028c2-6e44-418d-9212-b4afb08bb992
+https://github.com/user-attachments/assets/40a51b61-c40a-4e65-a78b-0608e1b78fff
+
 ## Features
 
 ### Code Editor
