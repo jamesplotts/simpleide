@@ -2,6 +2,8 @@
 
 A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0. SimpleIDE provides a modern development environment specifically designed for VB.NET projects on Linux systems.
 
+![SimpleIDE Screenshot](docs/images/simpleide-screenshot.png)
+
 ![SimpleIDE Version](https://img.shields.io/badge/version-1.0.3033.0-blue)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
@@ -21,7 +23,7 @@ https://github.com/user-attachments/assets/40a51b61-c40a-4e65-a78b-0608e1b78fff
 - **Smart indentation** and automatic bracket matching
 - **Undo/Redo system** (Ctrl+Z, Ctrl+R) with per-character tracking
 - **Code folding** for regions and block structures
-- **IntelliSense** with hover tooltips and parameter hints
+- **Intelligent code completion** with hover tooltips and parameter hints
 - **Real-time syntax error detection** with squiggly underlines
 
 ### Project Management
@@ -293,6 +295,8 @@ You should have received a copy of the GNU General Public License along with thi
 - GTK# team for the excellent .NET bindings
 - Microsoft for .NET 8.0 and VB.NET
 - The open source community for inspiration and support
+
+*Note: IntelliSense is a registered trademark of Microsoft Corporation. SimpleIDE's code completion features are independently developed.*
 
 ## Contact
 
