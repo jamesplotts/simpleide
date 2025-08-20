@@ -2,8 +2,6 @@
 
 A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0. SimpleIDE provides a modern development environment specifically designed for VB.NET projects on Linux systems.
 
-![SimpleIDE Screenshot](docs/images/simpleide-screenshot.png)
-
 ![SimpleIDE Version](https://img.shields.io/badge/version-1.0.3033.0-blue)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
