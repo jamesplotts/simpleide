@@ -2,15 +2,12 @@
 
 A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0. SimpleIDE provides a modern development environment specifically designed for VB.NET projects on Linux systems.
 
+![SimpleIDE Screenshot](screenshots/screenshot1.png)
+
 ![SimpleIDE Version](https://img.shields.io/badge/version-1.0.3033.0-blue)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red)
-
-## Screenshots
-
-https://github.com/user-attachments/assets/b74028c2-6e44-418d-9212-b4afb08bb992
-https://github.com/user-attachments/assets/40a51b61-c40a-4e65-a78b-0608e1b78fff
 
 ## Features
 
@@ -196,6 +193,11 @@ SimpleIDE/
     └── *.png                  # Embedded icons and images
 ```
 
+## Screenshots
+
+### Main Editor View
+![SimpleIDE Editor](screenshots/screenshot2.png)
+
 ## Configuration
 
 ### Settings File Location
@@ -298,7 +300,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 ## Contact
 
-- **Author**: James Plotts
+- **Author**: James Duane Plotts
 - **Repository**: [https://github.com/jamesplotts/simpleide](https://github.com/jamesplotts/simpleide)
 - **Issues**: [https://github.com/jamesplotts/simpleide/issues](https://github.com/jamesplotts/simpleide/issues)
 
