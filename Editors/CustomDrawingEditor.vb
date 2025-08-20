@@ -313,6 +313,9 @@ Namespace Editors
                 End If
 
                 InitializeDragDrop()
+                EnsureCursorsCreated()
+                pKeyPressHandler = New KeyPressEventHandler(AddressOf OnKeyPress)
+
 
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")

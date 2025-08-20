@@ -136,6 +136,8 @@ Partial Public Class MainWindow
             
             ' Show welcome tab on startup
             ShowWelcomeTab()
+
+            SetupKeyboardShortcuts()
             
             ' Hide bottom panel on startup - use idle handler to ensure proper initialization
             GLib.Idle.Add(Function()
@@ -454,79 +456,6 @@ Partial Public Class MainWindow
         End Get
     End Property
 
-' Step 1: Add this to your MainWindow constructor or initialization
-Private Sub DebugF5Issue()
-    Try
-        Console.WriteLine("=== F5 DEBUG SETUP ===")
-        
-        ' Test 1: Verify AccelGroup is working
-        Console.WriteLine("Test 1: Setting up simple F12 test")
-        Dim lTestAccelGroup As New AccelGroup()
-        AddAccelGroup(lTestAccelGroup)
-        
-        ' F12 should show a message - this tests if accelerators work at all
-        Dim lF12Keyval As UInteger = gdk.Keyval.FromName("F12")
-        If lF12Keyval <> 0 Then
-            AddHandler lTestAccelGroup.AccelActivate, Sub()
-                Console.WriteLine("F12 ACCELERATOR WORKED!")
-                Dim lDialog As New MessageDialog(Me, DialogFlags.Modal, MessageType.Info, ButtonsType.Ok, "Accelerator Test")
-                lDialog.SecondaryText = "F12 accelerator is working! Now testing F5..."
-                lDialog.Run()
-                lDialog.Destroy()
-            End Sub
-            lTestAccelGroup.Connect(lF12Keyval, gdk.ModifierType.None, AccelFlags.Visible, Nothing)
-            Console.WriteLine("F12 test accelerator connected")
-        End If
-        
-        ' Test 2: Try F5 with simple handler
-        Console.WriteLine("Test 2: Setting up F5 test")
-        Dim lF5Keyval As UInteger = gdk.Keyval.FromName("F5")
-        If lF5Keyval <> 0 Then
-            AddHandler lTestAccelGroup.AccelActivate, Sub()
-                Console.WriteLine("F5 ACCELERATOR WORKED!")
-                Dim lDialog As New MessageDialog(Me, DialogFlags.Modal, MessageType.Info, ButtonsType.Ok, "F5 Test")
-                lDialog.SecondaryText = "F5 accelerator is working!"
-                lDialog.Run()
-                lDialog.Destroy()
-            End Sub
-            lTestAccelGroup.Connect(lF5Keyval, Gdk.ModifierType.None, AccelFlags.Visible, Nothing)
-            Console.WriteLine("F5 test accelerator connected")
-        End If
-        
-        ' Test 3: Check window focus properties
-        Console.WriteLine($"Window CanFocus: {CanFocus}")
-        Console.WriteLine($"Window HasFocus: {HasFocus}")
-        
-        ' Test 4: Add key press handler to window itself
-        AddHandler KeyPressEvent, AddressOf OnDebugKeyPress
-        
-        Console.WriteLine("=== F5 DEBUG SETUP COMPLETE ===")
-        
-    Catch ex As Exception
-        Console.WriteLine($"DebugF5Issue error: {ex.Message}")
-    End Try
-End Sub
-
-' Add this key press handler to catch all key events
-Private Function OnDebugKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
-    Try
-        Dim lKey As Gdk.Key = vArgs.Event.Key
-        Console.WriteLine($"DEBUG: Key pressed: {lKey} (KeyVal: {vArgs.Event.KeyValue})")
-        
-        ' Specifically watch for F5
-        If lKey = Gdk.Key.F5 Then
-            Console.WriteLine("DEBUG: F5 detected in window key press handler!")
-           BuildProject
-            ' Don't consume it - let it bubble to accelerators
-            Return False
-        End If
-        
-        Return False ' Don't consume any keys
-        
-    Catch ex As Exception
-        Console.WriteLine($"OnDebugKeyPress error: {ex.Message}")
-        Return False
-    End Try
-End Function    
+ 
     
 End Class

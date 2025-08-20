@@ -125,7 +125,7 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Handles mouse motion events
+        ''' Handles mouse motion events with proper timer management
         ''' </summary>
         Private Function OnDrawingAreaMotionNotify(vSender As Object, vArgs As MotionNotifyEventArgs) As Boolean
             Try
@@ -143,31 +143,36 @@ Namespace Widgets
                     pHoveredNode = lNode
                     pDrawingArea.QueueDraw()
                     
-                    ' Reset tooltip timer
+                    ' CRITICAL FIX: Reset tooltip timer with proper cleanup
                     If pTooltipTimer <> 0 Then
-                        GLib.Source.Remove(pTooltipTimer)
-                        pTooltipTimer = 0
+                        Dim lTimerId As UInteger = pTooltipTimer
+                        pTooltipTimer = 0  ' Clear BEFORE removing
+                        Try
+                            GLib.Source.Remove(lTimerId)
+                        Catch
+                            ' Timer may have already expired - this is OK
+                        End Try
                     End If
                     
                     ' Hide tooltip if no longer hovering over a node
                     If lNode Is Nothing Then
                         HideTooltip()
-                    End If
-                    
-                    ' Start new tooltip timer if hovering over a node
-                    If lNode IsNot Nothing Then
+                    Else
+                        ' Start new tooltip timer if hovering over a node
                         pTooltipTimer = GLib.Timeout.Add(HOVER_TOOLTIP_DELAY, AddressOf ShowTooltip)
                     End If
-                End If     
-           
+                End If
+                
                 ' Update cursor based on zone
                 If lNode IsNot Nothing Then
                     Dim lZone As ClickZone = GetClickZone(lX, lY, lNode)
                     Select Case lZone
                         Case ClickZone.ePlusMinus
-                            pDrawingArea.Window.Cursor = New Cursor(CursorType.Hand1)
+                            Dim lDisplay As Gdk.Display = Gdk.Display.Default
+                            pDrawingArea.Window.Cursor = New Cursor(lDisplay, CursorType.Hand1)
                         Case ClickZone.eIcon, ClickZone.eText
-                            pDrawingArea.Window.Cursor = New Cursor(CursorType.Hand2)
+                            Dim lDisplay As Gdk.Display = Gdk.Display.Default
+                            pDrawingArea.Window.Cursor = New Cursor(lDisplay, CursorType.Hand2)
                         Case Else
                             pDrawingArea.Window.Cursor = Nothing
                     End Select
@@ -192,7 +197,7 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Handles mouse leave events
+        ''' Handles mouse leave events with proper timer management
         ''' </summary>
         Private Function OnDrawingAreaLeave(vSender As Object, vArgs As LeaveNotifyEventArgs) As Boolean
             Try
@@ -200,15 +205,20 @@ Namespace Widgets
                 pHoveredNode = Nothing
                 pDrawingArea.QueueDraw()
                 
-                ' Cancel tooltip timer
+                ' CRITICAL FIX: Cancel tooltip timer with proper cleanup
                 If pTooltipTimer <> 0 Then
-                    GLib.Source.Remove(pTooltipTimer)
-                    pTooltipTimer = 0
+                    Dim lTimerId As UInteger = pTooltipTimer
+                    pTooltipTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
         
-                ' CRITICAL: Hide the tooltip!
+                ' Hide the tooltip
                 HideTooltip()
-                 
+                
                 ' Reset cursor
                 pDrawingArea.Window.Cursor = Nothing
                 

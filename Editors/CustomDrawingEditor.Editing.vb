@@ -622,67 +622,29 @@ Namespace Editors
                 Console.WriteLine($"AddNewLine error: {ex.Message}")
             End Try
         End Sub
-        
-        Public Sub DeleteSelection() 
+
+        Private Sub UpdateAfterDeleteSelection(lStartLine As Integer, lStartColumn As Integer, lEndLine As Integer, lEndColumn As Integer)
             Try
-                If Not pHasSelection OrElse pIsReadOnly Then Return
+                ' Create the new combined line
+                Dim lStartLineText As String = pTextLines(lStartLine).Substring(0, lStartColumn)
+                Dim lEndLineText As String = If(lEndLine < pLineCount, pTextLines(lEndLine).Substring(lEndColumn), "")
+                Dim lCombinedLine As String = lStartLineText & lEndLineText
                 
-                ' Normalize selection
-                Dim lStartLine As Integer = pSelectionStartLine
-                Dim lStartColumn As Integer = pSelectionStartColumn
-                Dim lEndLine As Integer = pSelectionEndLine
-                Dim lEndColumn As Integer = pSelectionEndColumn
-                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
+                ' Update the start line with combined text
+                pTextLines(lStartLine) = lCombinedLine
+                pLineMetadata(lStartLine).MarkChanged()
                 
-                ' Record for undo
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
+                ' Remove the lines between start and end (if any)
+                If lEndLine > lStartLine Then
+                    ' Use RemoveLines helper which properly handles metadata arrays
+                    RemoveLines(lStartLine + 1, lEndLine - lStartLine)
                 End If
                 
-                If lStartLine = lEndLine Then
-                    ' Single line deletion
-                    Dim lLine As String = pTextLines(lStartLine)
-                    Dim lDeletedText As String = lLine.Substring(lStartColumn, lEndColumn - lStartColumn)
-                    
-                    If pUndoRedoManager IsNot Nothing Then
-                        pUndoRedoManager.RecordDeleteText(lStartLine, lStartColumn, lDeletedText, lStartLine, lStartColumn)
-                    End If
-                    
-                    pTextLines(lStartLine) = lLine.Remove(lStartColumn, lEndColumn - lStartColumn)
-                    pLineMetadata(lStartLine).MarkChanged()
-                Else
-                    ' Multi-line deletion
-                    Dim lFirstLine As String = pTextLines(lStartLine)
-                    Dim lLastLine As String = pTextLines(lEndLine)
-                    
-                    ' Combine first and last line parts
-                    Dim lNewLine As String = lFirstLine.Substring(0, lStartColumn) & 
-                                           If(lEndColumn < lLastLine.Length, lLastLine.Substring(lEndColumn), "")
-                    
-                    ' Update first line
-                    pTextLines(lStartLine) = lNewLine
-                    pLineMetadata(lStartLine).MarkChanged()
-                    
-                    ' Remove intermediate lines
-                    If lEndLine - lStartLine > 0 Then
-                        RemoveLines(lStartLine + 1, lEndLine - lStartLine)
-                    End If
-                End If
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                ' Clear selection and position cursor
-                ClearSelection()
-                SetCursorPosition(lStartLine, lStartColumn)
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
+                ' Update line count
+                pLineCount = pTextLines.Count
                 
             Catch ex As Exception
-                Console.WriteLine($"DeleteSelection error: {ex.Message}")
+                Console.WriteLine($"UpdateAfterDeleteSelection error: {ex.Message}")
             End Try
         End Sub
         

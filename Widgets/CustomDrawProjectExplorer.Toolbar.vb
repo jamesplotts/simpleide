@@ -60,7 +60,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub CreateRefreshButton()
             Try
-                pRefreshButton = New ToolButton(Stock.Refresh)
+                pRefreshButton = New ToolButton(Nothing, "Refresh")
+                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
                 pRefreshButton.TooltipText = "Refresh project tree"
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefreshButtonClicked
                 pToolbar.Add(pRefreshButton)
@@ -84,6 +85,7 @@ Namespace Widgets
                 
                 ' Expand all button  
                 pExpandAllButton = New ToolButton(Nothing, "Expand All")
+                pExpandAllButton.IconWidget = Image.NewFromIconName("list-add", IconSize.SmallToolbar)
                 pExpandAllButton.IconName = "list-add"
                 pExpandAllButton.TooltipText = "Expand all nodes"
                 AddHandler pExpandAllButton.Clicked, AddressOf OnExpandAllButtonClicked
@@ -153,7 +155,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub CreateCloseButton()
             Try
-                pCloseButton = New ToolButton(Stock.Close)
+                pCloseButton = New ToolButton(Nothing, "Close Project Explorer")
+                pCloseButton.Add(Image.NewFromIconName("window-close", IconSize.Menu))
                 pCloseButton.TooltipText = "Close Project Explorer"
                 AddHandler pCloseButton.Clicked, AddressOf OnCloseButtonClicked
                 pToolbar.Add(pCloseButton)

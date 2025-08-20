@@ -96,12 +96,45 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    Public Sub OnFindPrevious(vSender As Object, vArgs As EventArgs)
+        Try
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab IsNot Nothing Then
+                lCurrentTab.Editor.FindPrevious()
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnFindPrevious error: {ex.Message}")
+            ShowError("OnFindPrevious Error", ex.Message)
+        End Try
+    End Sub
+
+    Public Sub OnFindNext(vSender As Object, vArgs As EventArgs)
+        Try
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab IsNot Nothing Then
+                lCurrentTab.Editor.FindNext()
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnFindNext error: {ex.Message}")
+            ShowError("OnFindNext Error", ex.Message)
+        End Try
+    End Sub
+
     Public Sub OnSaveAs()
         Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
         If lCurrentTab IsNot Nothing Then
             SaveFileAs(lCurrentTab)
         End If
     End Sub 
+
+    Public Sub OnSaveFileAs(vSender As Object, vArgs As EventArgs)
+        Try
+            OnSaveAs()
+        Catch ex As Exception
+            Console.WriteLine($"OnSaveFileAs error: {ex.Message}")
+            ShowError("Save File As Error", ex.Message)
+        End Try
+    End Sub
     
     Public Sub OnSaveAllFiles(vSender As Object, vArgs As EventArgs)
         Try

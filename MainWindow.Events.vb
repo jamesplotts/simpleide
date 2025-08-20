@@ -244,37 +244,16 @@ Partial Public Class MainWindow
     End Sub
     
     ' ===== Build Menu Events =====
-    Public Sub OnBuildProject(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Implemented in MainWindow.Build.vb
-            BuildProject()
-        Catch ex As Exception
-            Console.WriteLine($"OnBuildProject error: {ex.Message}")
-        End Try
-    End Sub
     
-    Public Sub OnRebuildProject(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Implemented in MainWindow.Build.vb
-            RebuildProject()
-        Catch ex As Exception
-            Console.WriteLine($"OnRebuildProject error: {ex.Message}")
-        End Try
-    End Sub
     
-    Public Sub OnCleanProject(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Implemented in MainWindow.Build.vb
-            CleanProject()
-        Catch ex As Exception
-            Console.WriteLine($"OnCleanProject error: {ex.Message}")
-        End Try
-    End Sub
     
     Public Sub OnRunProject(vSender As Object, vArgs As EventArgs)
         Try
             ' Implemented in MainWindow.Build.vb
-            RunProject()
+            Task.Run(Async Function()
+                Await RunProject()
+                Return Nothing
+            End Function)
         Catch ex As Exception
             Console.WriteLine($"OnRunProject error: {ex.Message}")
         End Try

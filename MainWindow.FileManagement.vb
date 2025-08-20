@@ -217,6 +217,56 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnQuit error: {ex.Message}")
         End Try
     End Sub
+
+    ' Navigate to next build error
+    Private Sub OnNavigateToNextError(vSender As Object, vArgs As EventArgs)
+        Try
+            NavigateToNextError()
+        Catch ex As Exception
+            Console.WriteLine($"OnNavigateToNextError error: {ex.Message}")
+        End Try
+    End Sub
+
+    ' Navigate to previous build error
+    Private Sub OnNavigateToPreviousError(vSender As Object, vArgs As EventArgs)
+        Try
+            NavigateToPreviousError()
+        Catch ex As Exception
+            Console.WriteLine($"NavigateToPreviousError error: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub NavigateToNextError()
+        Try
+            If pBuildOutputPanel IsNot Nothing Then
+                ' Get current error position
+                Dim lErrors = pBuildOutputPanel.GetErrors()
+                If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
+                    ' Navigate to next error
+                    ' This would need implementation in BuildOutputPanel
+                    Console.WriteLine("Navigate to next error")
+                End If
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"NavigateToNextError error: {ex.Message}")
+        End Try
+    End Sub
+    
+    Private Sub NavigateToPreviousError()
+        Try
+            If pBuildOutputPanel IsNot Nothing Then
+                ' Get current error position
+                Dim lErrors = pBuildOutputPanel.GetErrors()
+                If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
+                    ' Navigate to previous error
+                    ' This would need implementation in BuildOutputPanel
+                    Console.WriteLine("Navigate to previous error")
+                End If
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"NavigateToPreviousError error: {ex.Message}")
+        End Try
+    End Sub
     
     ' Open specific file at line/column
     Private Sub OpenSpecificFile(vFilePath As String, vLine As Integer, vColumn As Integer)

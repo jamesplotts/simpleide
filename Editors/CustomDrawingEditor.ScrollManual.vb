@@ -1,4 +1,4 @@
-' Editors/CustomDrawingEditor.ScrollManual.vb - Manual scrollbar implementation
+' Editors/CustomDrawingEditor.ScrollManual.vb - Manual scrollbar implementation (FIXED)
 Imports Gtk
 Imports Gdk
 Imports Cairo
@@ -17,6 +17,9 @@ Namespace Editors
         Private Const PAGE_SCROLL_FACTOR As Double = 0.9
         
         ' ===== Scrollbar Value Changed Handlers =====
+        ''' <summary>
+        ''' Handles vertical scrollbar value changes
+        ''' </summary>
         Private Sub OnVScrollbarValueChanged(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lNewFirstLine As Integer = CInt(pVScrollbar.Value)
@@ -30,6 +33,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles horizontal scrollbar value changes
+        ''' </summary>
         Private Sub OnHScrollbarValueChanged(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lNewFirstColumn As Integer = CInt(pHScrollbar.Value)
@@ -43,17 +49,20 @@ Namespace Editors
         End Sub
         
         ' ===== Update Visible Metrics =====
+        ''' <summary>
+        ''' Updates visible line and column counts based on viewport size
+        ''' </summary>
         Private Sub UpdateVisibleMetrics()
             Try
                 ' Calculate visible lines
-                If pLineHeight > 0 Then
+                If pLineHeight > 0 AndAlso pViewportHeight > 0 Then
                     pTotalVisibleLines = pViewportHeight \ pLineHeight
                 Else
                     pTotalVisibleLines = 1
                 End If
                 
                 ' Calculate visible columns
-                If pCharWidth > 0 Then
+                If pCharWidth > 0 AndAlso pViewportWidth > 0 Then
                     pTotalVisibleColumns = (pViewportWidth - pLeftPadding - pRightPadding) \ pCharWidth
                 Else
                     pTotalVisibleColumns = 80
@@ -69,8 +78,16 @@ Namespace Editors
         End Sub
         
         ' ===== Update Scrollbars =====
+        ''' <summary>
+        ''' Updates scrollbar ranges and visibility
+        ''' </summary>
         Public Sub UpdateScrollbars()
             Try
+                ' Don't update scrollbars if viewport is not yet initialized
+                If pViewportHeight <= 0 OrElse pViewportWidth <= 0 Then
+                    Return
+                End If
+                
                 ' Update maximum line width
                 UpdateMaxLineWidth()
                 
@@ -88,8 +105,16 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Updates vertical scrollbar adjustment values
+        ''' </summary>
         Private Sub UpdateVerticalScrollbar()
             Try
+                ' FIXED: Check for valid viewport height to prevent infinity
+                If pViewportHeight <= 0 Then
+                    Return
+                End If
+                
                 Dim lAdjustment As Adjustment = pVScrollbar.Adjustment
                 
                 ' Calculate values
@@ -100,6 +125,11 @@ Namespace Editors
                 ' Ensure minimum thumb size
                 If lThumbSize * pViewportHeight < MINIMUM_THUMB_SIZE AndAlso pLineCount > pTotalVisibleLines Then
                     lPageSize = CDbl(MINIMUM_THUMB_SIZE * pLineCount) / pViewportHeight
+                End If
+                
+                ' FIXED: Ensure page size is not infinity or NaN
+                If Double.IsInfinity(lPageSize) OrElse Double.IsNaN(lPageSize) Then
+                    lPageSize = 1.0
                 End If
                 
                 ' Temporarily remove handler to prevent recursive calls
@@ -129,12 +159,22 @@ Namespace Editors
             End Try
         End Sub
             
+        ''' <summary>
+        ''' Updates horizontal scrollbar adjustment values
+        ''' </summary>
         Private Sub UpdateHorizontalScrollbar()
             Try
+                ' FIXED: Check for valid viewport width to prevent infinity
+                If pViewportWidth <= 0 Then
+                    Return
+                End If
+                
                 Dim lAdjustment As Adjustment = pHScrollbar.Adjustment
                 
                 ' Calculate values
-                Dim lMaxColumns As Integer = CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth))
+                Dim lMaxColumns As Integer = If(pCharWidth > 0, 
+                                               CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth)), 
+                                               80)
                 Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
                 Dim lPageSize As Double = pTotalVisibleColumns
                 Dim lThumbSize As Double = If(lMaxColumns > 0, CDbl(pTotalVisibleColumns) / lMaxColumns, 1.0)
@@ -142,6 +182,11 @@ Namespace Editors
                 ' Ensure minimum thumb size
                 If lThumbSize * pViewportWidth < MINIMUM_THUMB_SIZE AndAlso lMaxColumns > pTotalVisibleColumns Then
                     lPageSize = CDbl(MINIMUM_THUMB_SIZE * lMaxColumns) / pViewportWidth
+                End If
+                
+                ' FIXED: Ensure page size is not infinity or NaN
+                If Double.IsInfinity(lPageSize) OrElse Double.IsNaN(lPageSize) Then
+                    lPageSize = 1.0
                 End If
                 
                 ' Temporarily remove handler to prevent recursive calls
@@ -171,82 +216,34 @@ Namespace Editors
             End Try
         End Sub
         
-'        Private Sub UpdateMaxLineWidth()
-'            Try
-'                pMaxLineWidth = 0
-'                For Each lLine In pTextLines
-'                    Dim lWidth As Integer = lLine.Length * pCharWidth + pLeftPadding + pRightPadding
-'                    If lWidth > pMaxLineWidth Then
-'                        pMaxLineWidth = lWidth
-'                    End If
-'                Next
-'            Catch ex As Exception
-'                Console.WriteLine($"UpdateMaxLineWidth error: {ex.Message}")
-'            End Try
-'        End Sub
-        
-        ' ===== Update Maximum Line Width =====
-        Private Sub UpdateMaxLineWidth()
+        ' ===== Scroll Event =====
+        ''' <summary>
+        ''' Handles mouse scroll wheel events
+        ''' </summary>
+        Public Shadows Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
-                pMaxLineWidth = 0
-                For i As Integer = 0 To pLineCount - 1
-                    If pTextLines(i) IsNot Nothing Then
-                        pMaxLineWidth = Math.Max(pMaxLineWidth, pTextLines(i).Length)
-                    End If
-                Next
-            Catch ex As Exception
-                Console.WriteLine($"UpdateMaxLineWidth error: {ex.Message}")
-            End Try
-        End Sub
-
-
-        ' ===== Mouse Wheel Scrolling =====
-        Private Shadows Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
-            Try
-                Select Case vArgs.Event.Direction
-                    Case ScrollDirection.Up
-                        ScrollUp(SCROLL_WHEEL_LINES)
-                        vArgs.RetVal = True
-                        
-                    Case ScrollDirection.Down
-                        ScrollDown(SCROLL_WHEEL_LINES)
-                        vArgs.RetVal = True
-                        
-                    Case ScrollDirection.Left
-                        ScrollLeft(SCROLL_WHEEL_LINES)
-                        vArgs.RetVal = True
-                        
-                    Case ScrollDirection.Right
-                        ScrollRight(SCROLL_WHEEL_LINES)
-                        vArgs.RetVal = True
-                        
-                    Case ScrollDirection.Smooth
-                        ' Handle smooth scrolling (touchpad)
-                        Dim lDeltaX As Double = 0
-                        Dim lDeltaY As Double = 0
-                        
-                        ' GTK# 3 doesn't have GetScrollDeltas method, use DeltaX and DeltaY properties
-                        lDeltaX = vArgs.Event.DeltaX
-                        lDeltaY = vArgs.Event.DeltaY
-                        
-                        If Math.Abs(lDeltaY) > Math.Abs(lDeltaX) Then
-                            ' Vertical scrolling
-                            If lDeltaY < 0 Then
-                                ScrollUp(Math.Max(1, CInt(Math.Abs(lDeltaY))))
-                            Else
-                                ScrollDown(Math.Max(1, CInt(Math.Abs(lDeltaY))))
-                            End If
-                        Else
-                            ' Horizontal scrolling
-                            If lDeltaX < 0 Then
-                                ScrollLeft(Math.Max(1, CInt(Math.Abs(lDeltaX))))
-                            Else
-                                ScrollRight(Math.Max(1, CInt(Math.Abs(lDeltaX))))
-                            End If
-                        End If
-                        vArgs.RetVal = True
-                End Select
+                Dim lLines As Integer = SCROLL_WHEEL_LINES
                 
+                ' Check for horizontal scrolling (Shift+Scroll)
+                If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                    ' Horizontal scroll
+                    Select Case vArgs.Event.Direction
+                        Case ScrollDirection.Up, ScrollDirection.Left
+                            ScrollLeft(lLines * pCharWidth)
+                        Case ScrollDirection.Down, ScrollDirection.Right
+                            ScrollRight(lLines * pCharWidth)
+                    End Select
+                Else
+                    ' Vertical scroll
+                    Select Case vArgs.Event.Direction
+                        Case ScrollDirection.Up
+                            ScrollUp(lLines)
+                        Case ScrollDirection.Down
+                            ScrollDown(lLines)
+                    End Select
+                End If
+                
+                vArgs.RetVal = True
                 Return True
                 
             Catch ex As Exception
@@ -255,47 +252,15 @@ Namespace Editors
             End Try
         End Function
 
-'        ' ===== Scroll Event =====
-'        Private Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
-'            Try
-'                Dim lLines As Integer = 3 ' Lines to scroll
-'                
-'                ' Check for horizontal scrolling (Shift+Scroll)
-'                If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-'                    ' Horizontal scroll
-'                    Select Case vArgs.Event.Direction
-'                        Case ScrollDirection.Up, ScrollDirection.Left
-'                            pHScrollbar.Value = Math.Max(0, pHScrollbar.Value - (lLines * pCharWidth))
-'                        Case ScrollDirection.Down, ScrollDirection.Right
-'                            pHScrollbar.Value = Math.Min(pHScrollbar.Adjustment.Upper - pHScrollbar.Adjustment.PageSize, 
-'                                                        pHScrollbar.Value + (lLines * pCharWidth))
-'                    End Select
-'                Else
-'                    ' Vertical scroll
-'                    Select Case vArgs.Event.Direction
-'                        Case ScrollDirection.Up
-'                            pVScrollbar.Value = Math.Max(0, pVScrollbar.Value - lLines)
-'                        Case ScrollDirection.Down
-'                            pVScrollbar.Value = Math.Min(pVScrollbar.Adjustment.Upper - pVScrollbar.Adjustment.PageSize, 
-'                                                        pVScrollbar.Value + lLines)
-'                    End Select
-'                End If
-'                
-'                vArgs.RetVal = True
-'                Return True
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"OnScrollEvent error: {ex.Message}")
-'                Return False
-'            End Try
-'        End Function
-        
         ' ===== Scrolling Methods =====
+        ''' <summary>
+        ''' Scrolls the editor up by the specified number of lines
+        ''' </summary>
         Private Sub ScrollUp(vLines As Integer)
             Try
                 If pFirstVisibleLine > 0 Then
                     pFirstVisibleLine = Math.Max(0, pFirstVisibleLine - vLines)
-                    pVScrollbar.Value = pFirstVisibleLine
+                    UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                     pLineNumberArea.QueueDraw()
                 End If
@@ -304,12 +269,15 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Scrolls the editor down by the specified number of lines
+        ''' </summary>
         Private Sub ScrollDown(vLines As Integer)
             Try
                 Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
                 If pFirstVisibleLine < lMaxFirstLine Then
                     pFirstVisibleLine = Math.Min(lMaxFirstLine, pFirstVisibleLine + vLines)
-                    pVScrollbar.Value = pFirstVisibleLine
+                    UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                     pLineNumberArea.QueueDraw()
                 End If
@@ -318,11 +286,14 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Scrolls the editor left by the specified number of columns
+        ''' </summary>
         Private Sub ScrollLeft(vColumns As Integer)
             Try
                 If pFirstVisibleColumn > 0 Then
                     pFirstVisibleColumn = Math.Max(0, pFirstVisibleColumn - vColumns)
-                    pHScrollbar.Value = pFirstVisibleColumn
+                    UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                 End If
             Catch ex As Exception
@@ -330,13 +301,18 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Scrolls the editor right by the specified number of columns
+        ''' </summary>
         Private Sub ScrollRight(vColumns As Integer)
             Try
-                Dim lMaxColumns As Integer = CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth))
+                Dim lMaxColumns As Integer = If(pCharWidth > 0, 
+                                               CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth)), 
+                                               80)
                 Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
                 If pFirstVisibleColumn < lMaxFirstColumn Then
                     pFirstVisibleColumn = Math.Min(lMaxFirstColumn, pFirstVisibleColumn + vColumns)
-                    pHScrollbar.Value = pFirstVisibleColumn
+                    UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                 End If
             Catch ex As Exception
@@ -344,6 +320,91 @@ Namespace Editors
             End Try
         End Sub
         
+        ' ===== Helper methods =====
+        ''' <summary>
+        ''' Gets the first visible line index
+        ''' </summary>
+        Public Function GetFirstVisibleLine() As Integer
+            Return pFirstVisibleLine
+        End Function
+        
+        ''' <summary>
+        ''' Gets the last visible line index
+        ''' </summary>
+        Public Function GetLastVisibleLine() As Integer
+            Return Math.Min(pFirstVisibleLine + pTotalVisibleLines - 1, pLineCount - 1)
+        End Function
+        
+        ''' <summary>
+        ''' Gets the first visible column index
+        ''' </summary>
+        Public Function GetFirstVisibleColumn() As Integer
+            Return pFirstVisibleColumn
+        End Function
+        
+        ''' <summary>
+        ''' Gets the last visible column index
+        ''' </summary>
+        Public Function GetLastVisibleColumn() As Integer
+            Return pFirstVisibleColumn + pTotalVisibleColumns - 1
+        End Function
+        
+        ' ===== Auto-scroll during selection =====
+        ''' <summary>
+        ''' Automatically scrolls the editor if the mouse is near the edge during selection
+        ''' </summary>
+        Public Sub AutoScrollIfNearEdge(vMouseX As Double, vMouseY As Double)
+            Try
+                Const SCROLL_MARGIN As Integer = 20
+                Const SCROLL_SPEED As Integer = 1
+                
+                Dim lNeedsRedraw As Boolean = False
+                
+                ' Check vertical scrolling
+                If vMouseY < SCROLL_MARGIN Then
+                    ' Near top edge
+                    If pFirstVisibleLine > 0 Then
+                        ScrollUp(SCROLL_SPEED)
+                        lNeedsRedraw = True
+                    End If
+                ElseIf vMouseY > pViewportHeight - SCROLL_MARGIN Then
+                    ' Near bottom edge
+                    Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                    If pFirstVisibleLine < lMaxFirstLine Then
+                        ScrollDown(SCROLL_SPEED)
+                        lNeedsRedraw = True
+                    End If
+                End If
+                
+                ' Check horizontal scrolling
+                If vMouseX < pLineNumberWidth + SCROLL_MARGIN Then
+                    ' Near left edge
+                    If pFirstVisibleColumn > 0 Then
+                        ScrollLeft(SCROLL_SPEED * 3)
+                        lNeedsRedraw = True
+                    End If
+                ElseIf vMouseX > pViewportWidth - SCROLL_MARGIN Then
+                    ' Near right edge
+                    Dim lMaxColumns As Integer = If(pCharWidth > 0, 
+                                                   CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth)), 
+                                                   80)
+                    Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
+                    If pFirstVisibleColumn < lMaxFirstColumn Then
+                        ScrollRight(SCROLL_SPEED * 3)
+                        lNeedsRedraw = True
+                    End If
+                End If
+                
+                If lNeedsRedraw Then
+                    pDrawingArea.QueueDraw()
+                    pLineNumberArea.QueueDraw()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"AutoScrollIfNearEdge error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Page Up/Down =====
         Public Sub PageUp() Implements IEditor.PageUp
             Try
@@ -406,107 +467,7 @@ Namespace Editors
                 Console.WriteLine($"EnsureCursorVisible error: {ex.Message}")
             End Try
         End Sub
-        
-        ' ===== Calculate Visible Range =====
-        Public Function GetFirstVisibleLine() As Integer
-            Return pFirstVisibleLine
-        End Function
-        
-        Public Function GetLastVisibleLine() As Integer
-            Return Math.Min(pFirstVisibleLine + pTotalVisibleLines - 1, pLineCount - 1)
-        End Function
-        
-        Public Function GetFirstVisibleColumn() As Integer
-            Return pFirstVisibleColumn
-        End Function
-        
-        Public Function GetLastVisibleColumn() As Integer
-            Return pFirstVisibleColumn + pTotalVisibleColumns - 1
-        End Function
-        
-        ' ===== Auto-scroll during selection =====
-        Public Sub AutoScrollIfNearEdge(vMouseX As Double, vMouseY As Double)
-            Try
-                Const SCROLL_MARGIN As Integer = 20
-                Const SCROLL_SPEED As Integer = 1
-                
-                Dim lNeedsRedraw As Boolean = False
-                
-                ' Check vertical scrolling
-                If vMouseY < SCROLL_MARGIN Then
-                    ' Near top edge
-                    If pFirstVisibleLine > 0 Then
-                        ScrollUp(SCROLL_SPEED)
-                        lNeedsRedraw = True
-                    End If
-                ElseIf vMouseY > pViewportHeight - SCROLL_MARGIN Then
-                    ' Near bottom edge
-                    Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
-                    If pFirstVisibleLine < lMaxFirstLine Then
-                        ScrollDown(SCROLL_SPEED)
-                        lNeedsRedraw = True
-                    End If
-                End If
-                
-                ' Check horizontal scrolling
-                If vMouseX < pLineNumberWidth + SCROLL_MARGIN Then
-                    ' Near left edge
-                    If pFirstVisibleColumn > 0 Then
-                        ScrollLeft(SCROLL_SPEED * 3)
-                        lNeedsRedraw = True
-                    End If
-                ElseIf vMouseX > pViewportWidth - SCROLL_MARGIN Then
-                    ' Near right edge
-                    Dim lMaxColumns As Integer = CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth))
-                    Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
-                    If pFirstVisibleColumn < lMaxFirstColumn Then
-                        ScrollRight(SCROLL_SPEED * 3)
-                        lNeedsRedraw = True
-                    End If
-                End If
-                
-                If lNeedsRedraw Then
-                    pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"AutoScrollIfNearEdge error: {ex.Message}")
-            End Try
-        End Sub
 
-'        ' ===== Auto-scroll when dragging near edges =====
-'        Private Sub AutoScrollIfNearEdge(vX As Double, vY As Double)
-'            Try
-'                Dim lScrollMargin As Integer = 30
-'                Dim lScrollSpeed As Integer = 3
-'                
-'                ' Check vertical scrolling
-'                If vY < lScrollMargin Then
-'                    ' Scroll up
-'                    pVScrollbar.Value = Math.Max(0, pVScrollbar.Value - 1)
-'                ElseIf vY > pViewportHeight - lScrollMargin Then
-'                    ' Scroll down
-'                    pVScrollbar.Value = Math.Min(pVScrollbar.Adjustment.Upper - pVScrollbar.Adjustment.PageSize, 
-'                                                pVScrollbar.Value + 1)
-'                End If
-'                
-'                ' Check horizontal scrolling
-'                If vX < pLeftPadding + lScrollMargin Then
-'                    ' Scroll left
-'                    pHScrollbar.Value = Math.Max(0, pHScrollbar.Value - lScrollSpeed)
-'                ElseIf vX > pViewportWidth - lScrollMargin Then
-'                    ' Scroll right
-'                    pHScrollbar.Value = Math.Min(pHScrollbar.Adjustment.Upper - pHScrollbar.Adjustment.PageSize, 
-'                                                pHScrollbar.Value + lScrollSpeed)
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"AutoScrollIfNearEdge error: {ex.Message}")
-'            End Try
-'        End Sub
-
-        
         ' ===== Scroll to specific line =====
         Public Sub ScrollToLine(vLine As Integer)
             Try
@@ -529,7 +490,22 @@ Namespace Editors
                 Console.WriteLine($"ScrollToLine error: {ex.Message}")
             End Try
         End Sub
+
+        ' ===== Update Maximum Line Width =====
+        Private Sub UpdateMaxLineWidth()
+            Try
+                pMaxLineWidth = 0
+                For i As Integer = 0 To pLineCount - 1
+                    If pTextLines(i) IsNot Nothing Then
+                        pMaxLineWidth = Math.Max(pMaxLineWidth, pTextLines(i).Length)
+                    End If
+                Next
+            Catch ex As Exception
+                Console.WriteLine($"UpdateMaxLineWidth error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
-
+    
 End Namespace
+

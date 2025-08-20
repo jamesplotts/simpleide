@@ -23,14 +23,23 @@ Namespace Editors
         
         ' ===== ScheduleParse Implementation =====
         
-        ' Schedule parsing for a specific line (called when leaving the line)
+        ''' <summary>
+        ''' Schedule parsing for the current or last edited line
+        ''' </summary>
         Private Sub ScheduleParse()
             Try
+                ' CRITICAL FIX: Validate state before processing
+                If Not ValidateEditorState() Then
+                    Console.WriteLine("ScheduleParse: Editor state invalid, skipping parse")
+                    Return
+                End If
+                
                 ' If we have a line that was being edited, process it
                 If pLastEditedLine >= 0 AndAlso pLastEditedLine < pLineCount Then
                     ProcessLineFormatting(pLastEditedLine)
                 Else
-                    For i As Integer = 0 To pLineCount -1
+                    ' Process all lines
+                    For i As Integer = 0 To pLineCount - 1
                         ProcessLineFormatting(i)
                     Next
                 End If
@@ -40,11 +49,22 @@ Namespace Editors
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Schedule a full document parse with proper timer management
+        ''' </summary>
         Public Sub ScheduleFullDocumentParse()
             Try
-                ' Cancel any existing timer
+                ' CRITICAL FIX: Only try to remove timer if it's valid
+                ' Set to 0 immediately after removal to prevent double-removal
                 If pParseTimer <> 0 Then
-                    GLib.Source.Remove(pParseTimer)
+                    Dim lTimerId As UInteger = pParseTimer
+                    pParseTimer = 0  ' Clear BEFORE removing to prevent race conditions
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch ex As Exception
+                        ' Timer may have already been removed - this is OK
+                        Console.WriteLine($"Timer {lTimerId} already removed (this is normal)")
+                    End Try
                 End If
                 
                 ' Schedule parse after a short delay
@@ -52,11 +72,20 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"ScheduleFullDocumentParse error: {ex.Message}")
+                pParseTimer = 0  ' Ensure it's cleared on error
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Perform full document parsing
+        ''' </summary>
+        ''' <returns>False to stop the timer</returns>
         Private Function PerformFullDocumentParsing() As Boolean
             Try
+                ' CRITICAL FIX: Clear timer ID immediately since we're returning False
+                ' This prevents any other code from trying to remove it
+                pParseTimer = 0
+                
                 ' Get all text
                 Dim lCode As String = GetAllText()
                 
@@ -87,14 +116,11 @@ Namespace Editors
                 ' Update identifier case map
                 UpdateIdentifierCaseMap()
                 
-                ' Clear the timer
-                pParseTimer = 0
-                
-                Return False ' Don't repeat
+                Return False ' Don't repeat - timer is automatically removed
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformFullDocumentParsing error: {ex.Message}")
-                pParseTimer = 0
+                ' Timer is already cleared at the top
                 Return False
             End Try
         End Function
@@ -113,15 +139,62 @@ Namespace Editors
         End Function
         
         ''' <summary>
-        ''' Override ProcessLineFormatting to pass line index
+        ''' Process line formatting with proper null checks
         ''' </summary>
+        ''' <param name="vLineIndex">The line index to format</param>
         Private Sub ProcessLineFormatting(vLineIndex As Integer)
             Try
-                If vLineIndex < 0 OrElse vLineIndex >= pLineCount Then Return
-                Dim lOriginalText As String = pTextLines(vLineIndex)
+                ' CRITICAL FIX: Add null checks for pSourceFileInfo and TextLines
+                If pSourceFileInfo Is Nothing Then
+                    Console.WriteLine("ProcessLineFormatting: pSourceFileInfo is Nothing")
+                    Return
+                End If
+                
+                If pSourceFileInfo.TextLines Is Nothing Then
+                    Console.WriteLine("ProcessLineFormatting: pSourceFileInfo.TextLines is Nothing")
+                    Return
+                End If
+                
+                ' Validate line index
+                If vLineIndex < 0 OrElse vLineIndex >= pLineCount Then
+                    Console.WriteLine($"ProcessLineFormatting: Invalid line index {vLineIndex}, pLineCount={pLineCount}")
+                    Return
+                End If
+                
+                ' Additional safety check against TextLines count
+                If vLineIndex >= pSourceFileInfo.TextLines.Count Then
+                    Console.WriteLine($"ProcessLineFormatting: Line index {vLineIndex} >= TextLines.Count {pSourceFileInfo.TextLines.Count}")
+                    Return
+                End If
+                
+                ' CRITICAL FIX: Ensure metadata arrays are properly initialized
+                If pLineMetadata Is Nothing OrElse vLineIndex >= pLineMetadata.Length Then
+                    Console.WriteLine($"ProcessLineFormatting: Resizing pLineMetadata from {If(pLineMetadata IsNot Nothing, pLineMetadata.Length.ToString(), "null")} to {Math.Max(vLineIndex + 1, pLineCount)}")
+                    ReDim Preserve pLineMetadata(Math.Max(vLineIndex, pLineCount - 1))
+                    
+                    ' Initialize any new metadata entries
+                    For i As Integer = 0 To pLineMetadata.Length - 1
+                        If pLineMetadata(i) Is Nothing Then
+                            pLineMetadata(i) = New LineMetadata()
+                        End If
+                    Next
+                End If
+                
+                ' Ensure character colors array is properly initialized
+                If pCharacterColors Is Nothing OrElse vLineIndex >= pCharacterColors.Length Then
+                    Console.WriteLine($"ProcessLineFormatting: Resizing pCharacterColors from {If(pCharacterColors IsNot Nothing, pCharacterColors.Length.ToString(), "null")} to {Math.Max(vLineIndex + 1, pLineCount)}")
+                    ReDim Preserve pCharacterColors(Math.Max(vLineIndex, pLineCount - 1))
+                End If
+                
+                ' Get the line text safely
+                Dim lOriginalText As String = pSourceFileInfo.TextLines(vLineIndex)
+                
+                ' Handle empty lines
                 If String.IsNullOrEmpty(lOriginalText.Trim()) Then 
                     ' Mark empty lines as having highlighting too
-                    pLineMetadata(vLineIndex).HasHighlighting = True
+                    If pLineMetadata(vLineIndex) IsNot Nothing Then
+                        pLineMetadata(vLineIndex).HasHighlighting = True
+                    End If
                     Return
                 End If
                 
@@ -130,30 +203,79 @@ Namespace Editors
                 
                 ' Update the line if it changed
                 If lFormattedText <> lOriginalText Then
-                    ' Update text
-                    pTextLines(vLineIndex) = lFormattedText
+                    ' Update text in SourceFileInfo
+                    pSourceFileInfo.TextLines(vLineIndex) = lFormattedText
                     
                     ' Mark as modified
                     IsModified = True
                     
                     ' Mark line metadata as changed
-                    pLineMetadata(vLineIndex).MarkChanged()
+                    If pLineMetadata(vLineIndex) IsNot Nothing Then
+                        pLineMetadata(vLineIndex).MarkChanged()
+                    End If
                 End If
                 
-               ' Step 2: Apply syntax highlighting
+                ' Step 2: Apply syntax highlighting
                 ApplySyntaxHighlightingToLine(vLineIndex)
                 
                 ' Mark line as having highlighting
-                pLineMetadata(vLineIndex).HasHighlighting = True
+                If pLineMetadata(vLineIndex) IsNot Nothing Then
+                    pLineMetadata(vLineIndex).HasHighlighting = True
+                End If
                 
                 ' Step 3: Schedule redraw for this line
                 InvalidateLine(vLineIndex)
                 
             Catch ex As Exception
                 Console.WriteLine($"ProcessLineFormatting error: {ex.Message}")
+                Console.WriteLine($"  Stack: {ex.StackTrace}")
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Validates that the editor is in a consistent state
+        ''' </summary>
+        ''' <returns>True if the editor state is valid</returns>
+        Private Function ValidateEditorState() As Boolean
+            Try
+                If pSourceFileInfo Is Nothing Then
+                    Console.WriteLine("ValidateEditorState: pSourceFileInfo is Nothing")
+                    Return False
+                End If
+                
+                If pSourceFileInfo.TextLines Is Nothing Then
+                    Console.WriteLine("ValidateEditorState: TextLines is Nothing")
+                    Return False
+                End If
+                
+                ' Sync line count with actual text lines
+                Dim lActualLineCount As Integer = pSourceFileInfo.TextLines.Count
+                If pLineCount <> lActualLineCount Then
+                    Console.WriteLine($"ValidateEditorState: Line count mismatch - pLineCount={pLineCount}, actual={lActualLineCount}")
+                    pLineCount = lActualLineCount
+                    
+                    ' Resize metadata arrays to match
+                    ReDim Preserve pLineMetadata(Math.Max(0, pLineCount - 1))
+                    ReDim Preserve pCharacterColors(Math.Max(0, pLineCount - 1))
+                    
+                    ' Initialize any null entries
+                    For i As Integer = 0 To pLineCount - 1
+                        If pLineMetadata(i) Is Nothing Then
+                            pLineMetadata(i) = New LineMetadata()
+                        End If
+                        If pCharacterColors(i) Is Nothing Then
+                            pCharacterColors(i) = New CharacterColorInfo() {}
+                        End If
+                    Next
+                End If
+                
+                Return True
+                
+            Catch ex As Exception
+                Console.WriteLine($"ValidateEditorState error: {ex.Message}")
+                Return False
+            End Try
+        End Function
         
         ''' <summary>
         ''' Format a line with case correction but preserve string contents

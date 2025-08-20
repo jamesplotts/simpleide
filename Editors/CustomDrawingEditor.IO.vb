@@ -20,7 +20,7 @@ Namespace Editors
         
         
         ' Set text content directly (helper method for backward compatibility)
-        Private Sub SetText(vText As String)
+        Public Sub SetText(vText As String)
             Try
                 ' Clear undo/redo stacks when setting new content
                 

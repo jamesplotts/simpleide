@@ -332,7 +332,7 @@ Private Sub CreateViewMenu()
         
         ' Full Screen
         Dim lFullScreen As New CheckMenuItem("_Full Screen")
-        ' TODO: AddHandler lFullScreen.Toggled, AddressOf OnToggleFullScreen
+        AddHandler lFullScreen.Toggled, AddressOf OnToggleFullScreen
         lViewMenu.Append(lFullScreen)
         
         lViewMenu.Append(New SeparatorMenuItem())

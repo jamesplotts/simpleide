@@ -66,7 +66,15 @@ Partial Public Class MainWindow
     ''' Build the current project - Main entry point for F5
     ''' </summary>
     Public Sub BuildProject()
+        Static bolIsBuilding as Boolean
+        If Not bolIsBuilding then
+            bolIsBuilding = true
+        Else
+            Exit Sub
+        End If
+
         Try
+
             ' DEBUG: Simple console output to verify method is called
             Console.WriteLine("===============================================")
             Console.WriteLine("BUILD PROJECT CALLED!")
@@ -143,6 +151,7 @@ Partial Public Class MainWindow
             ShowError("Build error", ex.Message)
             SetBuildButtonsEnabled(True)
         End Try
+        bolIsBuilding = false
     End Sub
 
     ''' <summary>
@@ -249,63 +258,59 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Run the current project
-    Public Sub RunProject()
+'    ' Run the current project
+'    Public Sub RunProject()
+'        Try
+'            If String.IsNullOrEmpty(pCurrentProject) Then
+'                ShowError("No project", "Please open a project before running.")
+'                Return
+'            End If
+'            
+'            ' Check if executable exists
+'            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+'            Dim lBinDir As String = System.IO.Path.Combine(lProjectDir, "bin", "Debug", "net8.0")
+'            Dim lProjectName As String = System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)
+'            Dim lExecutable As String = System.IO.Path.Combine(lBinDir, lProjectName)
+'            
+'            If Not File.Exists(lExecutable) Then
+'                ShowError("Executable Not Found", "Please build the project first.")
+'                Return
+'            End If
+'            
+'            ' Run the executable
+'            StartProcess(lExecutable, "")
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"RunProject error: {ex.Message}")
+'            ShowError("Run error", ex.Message)
+'        End Try
+'    End Sub
+
+    Private Sub OnCleanProject(vSender As Object, vArgs As EventArgs)
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No project", "Please open a project before running.")
-                Return
-            End If
-            
-            ' Check if executable exists
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            Dim lBinDir As String = System.IO.Path.Combine(lProjectDir, "bin", "Debug", "net8.0")
-            Dim lProjectName As String = System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)
-            Dim lExecutable As String = System.IO.Path.Combine(lBinDir, lProjectName)
-            
-            If Not File.Exists(lExecutable) Then
-                ShowError("Executable Not Found", "Please build the project first.")
-                Return
-            End If
-            
-            ' Run the executable
-            StartProcess(lExecutable, "")
-            
+            CleanProject()  ' Call the existing CleanProjectFixed method
         Catch ex As Exception
-            Console.WriteLine($"RunProject error: {ex.Message}")
-            ShowError("Run error", ex.Message)
+            Console.WriteLine($"OnCleanProject error: {ex.Message}")
         End Try
-    End Sub
-    
-    ' Build and run the current project
-    Public Sub BuildAndRun()
-        Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No project", "Please open a project before building and running.")
-                Return
-            End If
-            
-            ' Wire up build completed event to run after build
-            AddHandler BuildCompleted, AddressOf OnBuildCompletedForRun
-            
-            ' Start the build
-            BuildProject()
-            
-        Catch ex As Exception
-            Console.WriteLine($"BuildAndRun error: {ex.Message}")
-            ShowError("Build and run error", ex.Message)
-        End Try
-    End Sub
+    End Sub 
     
     ' Handle build completion when building for run
     Private Sub OnBuildCompletedForRun(vSuccess As Boolean)
         Try
-            ' Remove the handler
-            RemoveHandler BuildCompleted, AddressOf OnBuildCompletedForRun
-            
-            If vSuccess Then
-                ' Run the project
-                Application.Invoke(Sub() RunProject())
+            ' Check if we should run after build
+            If pRunAfterBuild Then
+                pRunAfterBuild = False
+                
+                ' Check if build was successful
+                If vSuccess Then
+                    ' Run the project after successful build
+                    Task.Run(Async Function() 
+                        Await RunProject()
+                        Return Nothing  ' Add this return statement
+                    End Function)
+                Else
+                    UpdateStatusBar("Build failed - run cancelled")
+                End If
             End If
             
         Catch ex As Exception
@@ -547,100 +552,100 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Fixed BuildProject method
-    Public Sub BuildProjectFixed()
-        Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No project", "Please open a project before building.")
-                Return
-            End If
-
-            ' Initialize build system if needed
-            If pBuildManager Is Nothing Then
-                InitializeBuildSystemFixed()
-            End If
-
-            If pBuildManager.IsBuilding Then
-                ShowInfo("Build in Progress", "A build is already in progress.")
-                Return
-            End If
-            
-            ' Save all modified files
-            SaveAllFiles()
-            
-            ' Set project path for build manager
-            pBuildManager.ProjectPath = pCurrentProject
-            
-            ' Start build async
-            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
-            
-        Catch ex As Exception
-            Console.WriteLine($"BuildProjectFixed error: {ex.Message}")
-            ShowError("Build error", ex.Message)
-        End Try
-    End Sub
-    
-    ' Fixed RebuildProject method
-    Public Sub RebuildProjectFixed()
-        Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No project", "Please open a project before rebuilding.")
-                Return
-            End If
-            
-            ' Initialize build system if needed
-            If pBuildManager Is Nothing Then
-                InitializeBuildSystemFixed()
-            End If
-            
-            If pBuildManager.IsBuilding Then
-                ShowInfo("Build in progress", "A build is already in progress.")
-                Return
-            End If
-            
-            ' Save all modified files
-            SaveAllFiles()
-            
-            ' Set project path for build manager
-            pBuildManager.ProjectPath = pCurrentProject
-            
-            ' Start rebuild async
-            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
-            
-        Catch ex As Exception
-            Console.WriteLine($"RebuildProjectFixed error: {ex.Message}")
-            ShowError("Rebuild error", ex.Message)
-        End Try
-    End Sub
-    
-    ' Fixed CleanProject method
-    Public Sub CleanProjectFixed()
-        Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No project", "Please open a project before cleaning.")
-                Return
-            End If
-            
-            ' Initialize build system if needed
-            If pBuildManager Is Nothing Then
-                InitializeBuildSystemFixed()
-            End If
-            
-            If pBuildManager.IsBuilding Then
-                ShowInfo("Build in progress", "A build is already in progress.")
-                Return
-            End If
-            
-            ' Set project path for build manager
-            pBuildManager.ProjectPath = pCurrentProject
-            
-            ' Start clean async
-            Task.Run(Async Function() Await pBuildManager.CleanProjectAsync())
-            
-        Catch ex As Exception
-            Console.WriteLine($"CleanProjectFixed error: {ex.Message}")
-            ShowError("Clean error", ex.Message)
-        End Try
-    End Sub
+'    ' Fixed BuildProject method
+'    Public Sub BuildProjectFixed()
+'        Try
+'            If String.IsNullOrEmpty(pCurrentProject) Then
+'                ShowError("No project", "Please open a project before building.")
+'                Return
+'            End If
+'
+'            ' Initialize build system if needed
+'            If pBuildManager Is Nothing Then
+'                InitializeBuildSystemFixed()
+'            End If
+'
+'            If pBuildManager.IsBuilding Then
+'                ShowInfo("Build in Progress", "A build is already in progress.")
+'                Return
+'            End If
+'            
+'            ' Save all modified files
+'            SaveAllFiles()
+'            
+'            ' Set project path for build manager
+'            pBuildManager.ProjectPath = pCurrentProject
+'            
+'            ' Start build async
+'            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"BuildProjectFixed error: {ex.Message}")
+'            ShowError("Build error", ex.Message)
+'        End Try
+'    End Sub
+'    
+'    ' Fixed RebuildProject method
+'    Public Sub RebuildProjectFixed()
+'        Try
+'            If String.IsNullOrEmpty(pCurrentProject) Then
+'                ShowError("No project", "Please open a project before rebuilding.")
+'                Return
+'            End If
+'            
+'            ' Initialize build system if needed
+'            If pBuildManager Is Nothing Then
+'                InitializeBuildSystemFixed()
+'            End If
+'            
+'            If pBuildManager.IsBuilding Then
+'                ShowInfo("Build in progress", "A build is already in progress.")
+'                Return
+'            End If
+'            
+'            ' Save all modified files
+'            SaveAllFiles()
+'            
+'            ' Set project path for build manager
+'            pBuildManager.ProjectPath = pCurrentProject
+'            
+'            ' Start rebuild async
+'            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"RebuildProjectFixed error: {ex.Message}")
+'            ShowError("Rebuild error", ex.Message)
+'        End Try
+'    End Sub
+'    
+'    ' Fixed CleanProject method
+'    Public Sub CleanProjectFixed()
+'        Try
+'            If String.IsNullOrEmpty(pCurrentProject) Then
+'                ShowError("No project", "Please open a project before cleaning.")
+'                Return
+'            End If
+'            
+'            ' Initialize build system if needed
+'            If pBuildManager Is Nothing Then
+'                InitializeBuildSystemFixed()
+'            End If
+'            
+'            If pBuildManager.IsBuilding Then
+'                ShowInfo("Build in progress", "A build is already in progress.")
+'                Return
+'            End If
+'            
+'            ' Set project path for build manager
+'            pBuildManager.ProjectPath = pCurrentProject
+'            
+'            ' Start clean async
+'            Task.Run(Async Function() Await pBuildManager.CleanProjectAsync())
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"CleanProjectFixed error: {ex.Message}")
+'            ShowError("Clean error", ex.Message)
+'        End Try
+'    End Sub
     
 End Class

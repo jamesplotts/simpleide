@@ -19,19 +19,19 @@ Namespace Editors
                 pCursorBlink = True
                 pCursorVisible = True
                 InvalidateCursor()
-                
+                Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
                 Dim lKey As Gdk.key = CType(vArgs.Event.key, Gdk.key)
                 Dim lModifiers As ModifierType = vArgs.Event.State
                 
-                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow for accelerators
-                ' F1-F12 keys should not be consumed by the editor
-                Select Case lKey
-                    Case Gdk.key.F1, Gdk.key.F2, Gdk.key.F3, Gdk.key.F4, Gdk.key.F5, Gdk.key.F6,
-                         Gdk.key.F7, Gdk.key.F8, Gdk.key.F9, Gdk.key.F10, Gdk.key.F11, Gdk.key.F12
-                        ' Let function keys pass through to MainWindow accelerators
-                        vArgs.RetVal = False
-                        Return False
-                End Select
+'                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow for accelerators
+'                ' F1-F12 keys should not be consumed by the editor
+'                Select Case lKey
+'                    Case Gdk.key.F1, Gdk.key.F2, Gdk.key.F3, Gdk.key.F4, Gdk.key.F5, Gdk.key.F6,
+'                         Gdk.key.F7, Gdk.key.F8, Gdk.key.F9, Gdk.key.F10, Gdk.key.F11, Gdk.key.F12
+'                        ' Let function keys pass through to MainWindow accelerators
+'                        vArgs.RetVal = False
+'                        Return False
+'                End Select
                 
                 ' Check for Control key combinations first (shortcuts)
                 If (lModifiers And ModifierType.ControlMask) = ModifierType.ControlMask Then

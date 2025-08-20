@@ -292,7 +292,7 @@ Namespace Models
         ' ===== Line Editing =====
         
         ''' <summary>
-        ''' Mark a line as being edited (defer parsing)
+        ''' Begin editing on a line, deferring parsing until editing completes
         ''' </summary>
         Public Sub BeginLineEdit(vLineIndex As Integer)
             Try
@@ -302,10 +302,15 @@ Namespace Models
                 lLine.IsBeingEdited = True
                 lLine.ParseState = LineParseState.eBeingEdited
                 
-                ' Clear any existing parse timer
+                ' CRITICAL FIX: Clear any existing parse timer with proper cleanup
                 If pParseTimer <> 0 Then
-                    GLib.Source.Remove(pParseTimer)
-                    pParseTimer = 0
+                    Dim lTimerId As UInteger = pParseTimer
+                    pParseTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
                 
                 ' Store the line to parse when editing ends
@@ -318,6 +323,7 @@ Namespace Models
                 Console.WriteLine($"DocumentModel.BeginLineEdit error: {ex.Message}")
             End Try
         End Sub
+
         
         ''' <summary>
         ''' End editing on a line and trigger deferred parsing
@@ -329,16 +335,23 @@ Namespace Models
                 Dim lLine As DocumentLine = pDocumentLines(vLineIndex)
                 lLine.IsBeingEdited = False
                 
-                ' Schedule parsing after a short delay
+                ' CRITICAL FIX: Schedule parsing after a short delay with proper cleanup
                 If pParseTimer <> 0 Then
-                    GLib.Source.Remove(pParseTimer)
+                    Dim lTimerId As UInteger = pParseTimer
+                    pParseTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
                 
                 pParseTimer = GLib.Timeout.Add(300, Function()
+                    ' Clear timer ID immediately since we're returning False
+                    pParseTimer = 0
                     ParseLine(vLineIndex)
                     UpdateIncrementalStructure(vLineIndex)
-                    pParseTimer = 0
-                    Return False
+                    Return False  ' Timer is auto-removed
                 End Function)
                 
             Catch ex As Exception

@@ -271,9 +271,10 @@ Partial Public Class MainWindow
             lText.AppendLine()
             
             lText.AppendLine("Build Operations:")
-            lText.AppendLine("  F5              Build and Run")
-            lText.AppendLine("  Shift+F5        Build")
-            lText.AppendLine("  F6              Build Solution")
+            lText.AppendLine("  F5              Build Project")           ' CHANGED: Was "Build and Run"
+            lText.AppendLine("  Ctrl+F5         Build and Run")          ' CHANGED: Added new shortcut
+            lText.AppendLine("  F6              Rebuild Project")        ' CHANGED: Was "Build Solution"
+            lText.AppendLine("  Shift+F5        Stop Debugging")         ' Future feature
             lText.AppendLine()
             
             lText.AppendLine("Debug Operations:")

@@ -577,6 +577,22 @@ Namespace Editors
                 Return 0
             End Try
         End Function
+
+        Private Sub EnsureCursorsCreated()
+            If pPointerCursor Is Nothing Then
+                pPointerCursor = New Cursor(Display.Default, CursorType.Arrow)
+            End If
+            
+            If pTextCursor Is Nothing Then
+                pTextCursor = New Cursor(Display.Default, CursorType.Xterm)
+            End If
+            If pDragCursor Is Nothing Then
+                pDragCursor = New Cursor(Display.Default, CursorType.Crosshair)
+            End If
+            pLineNumberArea.Window.Cursor = pPointerCursor
+            pDrawingArea.Window.Cursor = pTextCursor
+        End Sub
+            
         
     End Class
     

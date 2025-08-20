@@ -96,13 +96,23 @@ Namespace Editors
             Try
                 ' Stop timers
                 If pCursorBlinkTimer <> 0 Then
-                    GLib.Source.Remove(pCursorBlinkTimer)
-                    pCursorBlinkTimer = 0
+                    Dim lTimerId As UInteger = pCursorBlinkTimer
+                    pCursorBlinkTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
                 
                 If pParseTimer <> 0 Then
-                    GLib.Source.Remove(pParseTimer)
-                    pParseTimer = 0
+                    Dim lTimerId As UInteger = pParseTimer
+                    pParseTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
                 
                 ' Unhook event handlers using stored delegates

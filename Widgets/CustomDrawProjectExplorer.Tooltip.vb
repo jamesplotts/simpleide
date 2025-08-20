@@ -16,11 +16,14 @@ Namespace Widgets
         ' ===== Tooltip Management =====
         
         ''' <summary>
-        ''' Starts the tooltip timer for hover tooltips
+        ''' Starts the tooltip timer for hover tooltips with proper cleanup
         ''' </summary>
         Private Sub StartTooltipTimer()
             Try
+                ' Stop any existing timer first
                 StopTooltipTimer()
+                
+                ' Start new timer
                 pTooltipTimer = GLib.Timeout.Add(HOVER_TOOLTIP_DELAY, AddressOf ShowTooltip)
                 
             Catch ex As Exception
@@ -29,15 +32,22 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Stops the tooltip timer and hides any visible tooltip
+        ''' Stops the tooltip timer and hides any visible tooltip with proper cleanup
         ''' </summary>
         Private Sub StopTooltipTimer()
             Try
+                ' CRITICAL FIX: Clear timer ID BEFORE attempting removal
                 If pTooltipTimer > 0 Then
-                    GLib.Source.Remove(pTooltipTimer)
-                    pTooltipTimer = 0
+                    Dim lTimerId As UInteger = pTooltipTimer
+                    pTooltipTimer = 0  ' Clear BEFORE removing to prevent double-removal
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK and expected
+                    End Try
                 End If
                 
+                ' Hide the tooltip
                 HideTooltip()
                 
             Catch ex As Exception
@@ -46,11 +56,19 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Shows tooltip for the currently hovered node
+        ''' Shows tooltip for the currently hovered node with proper timer management
         ''' </summary>
+        ''' <returns>False to stop the timer</returns>
         Private Function ShowTooltip() As Boolean
             Try
-                If pHoveredNode Is Nothing Then Return False
+                ' CRITICAL FIX: Clear timer ID immediately since we're returning False
+                ' This prevents other code from trying to remove an already-removed timer
+                pTooltipTimer = 0
+                
+                ' Check if we still have a hovered node
+                If pHoveredNode Is Nothing Then 
+                    Return False  ' Timer is auto-removed when returning False
+                End If
                 
                 ' Create tooltip window if needed
                 If pTooltipWindow Is Nothing Then
@@ -72,6 +90,10 @@ Namespace Widgets
                 
                 ' Set tooltip content
                 Dim lTooltipText As String = BuildTooltipText(pHoveredNode)
+                If String.IsNullOrEmpty(lTooltipText) Then
+                    Return False  ' Timer is auto-removed when returning False
+                End If
+                
                 pTooltipLabel.Markup = lTooltipText
                 
                 ' Position tooltip near the mouse
@@ -83,8 +105,25 @@ Namespace Widgets
                 Dim lTooltipY As Integer = lRootY + pMouseY + 20
                 
                 ' Ensure tooltip stays on screen
-                Dim lScreenWidth As Integer = lScreen.Width
-                Dim lScreenHeight As Integer = lScreen.Height
+                Dim lDisplay As Gdk.Display = lScreen.Display
+                Dim lMonitor As Gdk.Monitor = Nothing
+                
+                If lDisplay IsNot Nothing AndAlso pDrawingArea.Window IsNot Nothing Then
+                    lMonitor = lDisplay.GetMonitorAtWindow(pDrawingArea.Window)
+                End If
+                
+                If lMonitor Is Nothing Then
+                    lMonitor = lDisplay.GetMonitor(0)
+                End If
+                
+                Dim lMonitorGeometry As Rectangle = lMonitor.Geometry
+                
+                ' FIXED: Account for monitor position in multi-monitor setups
+                ' Calculate actual screen boundaries using monitor position + dimensions
+                Dim lMonitorLeft As Integer = lMonitorGeometry.X
+                Dim lMonitorTop As Integer = lMonitorGeometry.Y
+                Dim lMonitorRight As Integer = lMonitorGeometry.X + lMonitorGeometry.Width
+                Dim lMonitorBottom As Integer = lMonitorGeometry.Y + lMonitorGeometry.Height
                 
                 pTooltipWindow.ShowAll()
                 
@@ -92,30 +131,44 @@ Namespace Widgets
                 Dim lRequisition As Requisition = Nothing
                 pTooltipWindow.GetPreferredSize(lRequisition, lRequisition)
                 
-                If lTooltipX + lRequisition.Width > lScreenWidth Then
-                    lTooltipX = lScreenWidth - lRequisition.Width - 10
+                ' Ensure tooltip stays within the monitor boundaries
+                If lTooltipX + lRequisition.Width > lMonitorRight Then
+                    lTooltipX = lMonitorRight - lRequisition.Width - 10
                 End If
                 
-                If lTooltipY + lRequisition.Height > lScreenHeight Then
+                ' Keep tooltip on the same monitor (don't let it go too far left)
+                If lTooltipX < lMonitorLeft Then
+                    lTooltipX = lMonitorLeft + 10
+                End If
+                
+                If lTooltipY + lRequisition.Height > lMonitorBottom Then
                     lTooltipY = lRootY + pMouseY - lRequisition.Height - 5
+                End If
+                
+                ' Keep tooltip on the same monitor (don't let it go too far up)
+                If lTooltipY < lMonitorTop Then
+                    lTooltipY = lMonitorTop + 10
                 End If
                 
                 pTooltipWindow.Move(lTooltipX, lTooltipY)
                 
-                Return False ' Don't repeat the timer
+                Return False  ' Don't repeat - timer is auto-removed
                 
             Catch ex As Exception
                 Console.WriteLine($"ShowTooltip error: {ex.Message}")
+                ' Timer ID already cleared at the top
                 Return False
             End Try
         End Function
         
         ''' <summary>
-        ''' Hides the tooltip window
+        ''' Hides the tooltip window without touching the timer
         ''' </summary>
         Private Sub HideTooltip()
             Try
-                If pTooltipWindow IsNot Nothing Then
+                ' Just hide the window - don't touch the timer here
+                ' Timer management should be done in StopTooltipTimer
+                If pTooltipWindow IsNot Nothing AndAlso pTooltipWindow.Visible Then
                     pTooltipWindow.Hide()
                 End If
                 

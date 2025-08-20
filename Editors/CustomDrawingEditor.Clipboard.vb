@@ -268,73 +268,76 @@ Namespace Editors
 '            End Try
 '        End Sub
         
-'        Private Sub DeleteSelection()
-'            Try
-'                If Not pHasSelection OrElse pIsReadOnly Then Return
-'                
-'                ' Record for undo
-'                If pUndoRedoManager IsNot Nothing Then
-'                    pUndoRedoManager.RecordDelete(GetSelectedText(), 
-'                                                  GetSelectionStartOffset(), 
-'                                                  GetSelectionEndOffset())
-'                End If
-'                
-'                ' Normalize selection
-'                Dim lStartLine As Integer = pSelectionStartLine
-'                Dim lStartColumn As Integer = pSelectionStartColumn
-'                Dim lEndLine As Integer = pSelectionEndLine
-'                Dim lEndColumn As Integer = pSelectionEndColumn
-'                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
-'                
-'                If lStartLine = lEndLine Then
-'                    ' Single line deletion
-'                    If lStartLine < pLineCount Then
-'                        Dim lLine As String = pTextLines(lStartLine)
-'                        If lStartColumn < lLine.Length Then
-'                            pTextLines(lStartLine) = lLine.Remove(lStartColumn, Math.Min(lEndColumn - lStartColumn, lLine.Length - lStartColumn))
-'                            pLineMetadata(lStartLine).MarkChanged()
-'                        End If
-'                    End If
-'                Else
-'                    ' Multi-line deletion
-'                    ' Combine first and last line
-'                    Dim lNewLine As String = ""
-'                    If lStartLine < pLineCount Then
-'                        lNewLine = pTextLines(lStartLine).Substring(0, Math.Min(lStartColumn, pTextLines(lStartLine).Length))
-'                    End If
-'                    If lEndLine < pLineCount AndAlso lEndColumn < pTextLines(lEndLine).Length Then
-'                        lNewLine &= pTextLines(lEndLine).Substring(lEndColumn)
-'                    End If
-'                    
-'                    ' Set the combined line
-'                    If lStartLine < pLineCount Then
-'                        pTextLines(lStartLine) = lNewLine
-'                        pLineMetadata(lStartLine).MarkChanged()
-'                    End If
-'                    
-'                    ' Remove lines in between
-'                    Dim lLinesToRemove As Integer = lEndLine - lStartLine
-'                    If lLinesToRemove > 0 Then
-'                        RemoveLines(lStartLine + 1, lLinesToRemove)
-'                    End If
-'                End If
-'                
-'                ' Clear selection and move cursor
-'                ClearSelection()
-'                SetCursorPosition(lStartLine, lStartColumn)
-'                
-'                ' Update UI
-'                UpdateLineNumberWidth()
-'                UpdateScrollbars()
-'                pDrawingArea.QueueDraw()
-'                
-'                IsModified = True
-'                RaiseEvent TextChanged(Me, New EventArgs)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"DeleteSelection error: {ex.Message}")
-'            End Try
-'        End Sub
+        ''' <summary>
+        ''' Deletes the currently selected text
+        ''' </summary>
+        Private Sub DeleteSelection()
+            Try
+                If Not pHasSelection OrElse pIsReadOnly Then Return
+                
+                ' Record for undo
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordDelete(GetSelectedText(), 
+                                                  GetSelectionStartOffset(), 
+                                                  GetSelectionEndOffset())
+                End If
+                
+                ' Normalize selection
+                Dim lStartLine As Integer = pSelectionStartLine
+                Dim lStartColumn As Integer = pSelectionStartColumn
+                Dim lEndLine As Integer = pSelectionEndLine
+                Dim lEndColumn As Integer = pSelectionEndColumn
+                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
+                
+                If lStartLine = lEndLine Then
+                    ' Single line deletion
+                    If lStartLine < pLineCount Then
+                        Dim lLine As String = pTextLines(lStartLine)
+                        If lStartColumn < lLine.Length Then
+                            pTextLines(lStartLine) = lLine.Remove(lStartColumn, Math.Min(lEndColumn - lStartColumn, lLine.Length - lStartColumn))
+                            pLineMetadata(lStartLine).MarkChanged()
+                        End If
+                    End If
+                Else
+                    ' Multi-line deletion
+                    ' Combine first and last line
+                    Dim lNewLine As String = ""
+                    If lStartLine < pLineCount Then
+                        lNewLine = pTextLines(lStartLine).Substring(0, Math.Min(lStartColumn, pTextLines(lStartLine).Length))
+                    End If
+                    If lEndLine < pLineCount AndAlso lEndColumn < pTextLines(lEndLine).Length Then
+                        lNewLine &= pTextLines(lEndLine).Substring(lEndColumn)
+                    End If
+                    
+                    ' Set the combined line
+                    If lStartLine < pLineCount Then
+                        pTextLines(lStartLine) = lNewLine
+                        pLineMetadata(lStartLine).MarkChanged()
+                    End If
+                    
+                    ' Remove lines in between
+                    Dim lLinesToRemove As Integer = lEndLine - lStartLine
+                    If lLinesToRemove > 0 Then
+                        RemoveLines(lStartLine + 1, lLinesToRemove)
+                    End If
+                End If
+                
+                ' Clear selection and move cursor
+                ClearSelection()
+                SetCursorPosition(lStartLine, lStartColumn)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                pDrawingArea.QueueDraw()
+                
+                IsModified = True
+                RaiseEvent TextChanged(Me, New EventArgs)
+                
+            Catch ex As Exception
+                Console.WriteLine($"DeleteSelection error: {ex.Message}")
+            End Try
+        End Sub
         
 '        Private Function GetSelectionStartOffset() As Integer
 '            Try

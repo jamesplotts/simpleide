@@ -11,7 +11,7 @@ Imports SimpleIDE.Dialogs
 Partial Public Class MainWindow
 
     Public Sub StopDebugging()
-        ' TODO: Implement
+        ' TODO: Imp lement
     End Sub
 
     Private Sub OnStopDebugging(vSender As Object, vArgs As EventArgs)

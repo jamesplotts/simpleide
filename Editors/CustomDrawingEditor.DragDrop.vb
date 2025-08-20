@@ -1,4 +1,7 @@
-' Editors/CustomDrawingEditor.DragDrop.vb - Drag and Drop implementation for selected code
+' PARTIAL FILE: CustomDrawingEditor.DragDrop.vb
+' This is a COMPLETE REPLACEMENT for the existing CustomDrawingEditor.DragDrop.vb file
+' However, it requires other partial class files to compile (Mouse.vb, Drawing.vb, etc.)
+
 Imports Gtk
 Imports Gdk
 Imports System
@@ -24,6 +27,8 @@ Namespace Editors
         Private pShowDropIndicator As Boolean = False
         Private pIsDragSource As Boolean = False
         Private pDragWasMove As Boolean = False
+        Private pWasDragSourceForDrop As Boolean = False 
+
         
         ' ===== Drag and Drop Configuration =====
         Private Shared ReadOnly TEXT_TARGET As String = "text/plain"
@@ -61,7 +66,7 @@ Namespace Editors
                 AddHandler pDrawingArea.DragDataReceived, AddressOf HandleDragDataReceived
                 
                 ' Then connect drag source events
-                AddHandler pDrawingArea.DragBegin, AddressOf HandleDragBegin
+                AddHandler pDrawingArea.DragBegin, AddressOf HandleDragBegin      
                 AddHandler pDrawingArea.DragDataGet, AddressOf HandleDragDataGet
                 AddHandler pDrawingArea.DragEnd, AddressOf HandleDragEnd
                 AddHandler pDrawingArea.DragFailed, AddressOf HandleDragFailed
@@ -84,19 +89,25 @@ Namespace Editors
             Try
                 Console.WriteLine($"HandleDragBegin: Drag started with {If(pDragData IsNot Nothing, pDragData.Length, 0)} characters")
                 
-                ' Check if we have data to drag (set by CheckStartDrag)
+                ' Check if we have data to drag (set by OnMotionNotify in Mouse.vb)
                 If String.IsNullOrEmpty(pDragData) Then
-                    ' If no data was set by CheckStartDrag, try to get it now
+                    ' If no data was set, try to get it now
                     If pHasSelection Then
                         pDragData = GetSelectedText()
                         pDragStarted = True
                         pIsDragSource = True
+                        pWasDragSourceForDrop = True  ' CRITICAL FIX: Remember we're the source
                         pDragStartLine = pSelectionStartLine
                         pDragStartColumn = pSelectionStartColumn
                         pDragEndLine = pSelectionEndLine
                         pDragEndColumn = pSelectionEndColumn
                         NormalizeSelection(pDragStartLine, pDragStartColumn, pDragEndLine, pDragEndColumn)
                     End If
+                Else
+                    ' Data was already set by OnMotionNotify
+                    pDragStarted = True
+                    pIsDragSource = True
+                    pWasDragSourceForDrop = True  ' CRITICAL FIX: Remember we're the source
                 End If
                 
                 If String.IsNullOrEmpty(pDragData) Then
@@ -109,6 +120,7 @@ Namespace Editors
                 ' For now, use default drag icon
                 
                 Console.WriteLine($"Drag started: {pDragData.Length} characters")
+                Console.WriteLine($"Source selection: ({pDragStartLine},{pDragStartColumn}) to ({pDragEndLine},{pDragEndColumn})")
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragBegin error: {ex.Message}")
@@ -143,9 +155,7 @@ Namespace Editors
         Private Sub HandleDragEnd(vSender As Object, vArgs As DragEndArgs)
             Try
                 ' Check if this was a move operation
-                ' Note: GTK# 3 doesn't have DeleteData property, we track this through drag context action
                 If pIsDragSource AndAlso pDragWasMove Then
-                    ' The deletion is handled in HandleDragDataReceived for move operations
                     Console.WriteLine("Drag move operation completed")
                 End If
                 
@@ -155,6 +165,7 @@ Namespace Editors
                 pDragData = ""
                 pDragWasMove = False
                 pShowDropIndicator = False
+                ' NOTE: Don't reset pWasDragSourceForDrop here - it's needed for HandleDragDataReceived
                 
                 ' Redraw to remove any drop indicators
                 pDrawingArea.QueueDraw()
@@ -196,10 +207,9 @@ Namespace Editors
         ''' </summary>
         Private Function HandleDragMotion(vSender As Object, vArgs As DragMotionArgs) As Boolean
             Try
-                Console.WriteLine($"HandleDragMotion called at ({vArgs.X}, {vArgs.Y})")
-                
                 ' Calculate drop position from coordinates
                 Dim lPos As EditorPosition = GetPositionFromCoordinates(vArgs.X, vArgs.Y)
+                pDrawingArea.Window.Cursor = pDragCursor
                 
                 ' Update drop target position
                 pDropTargetLine = lPos.Line
@@ -208,13 +218,24 @@ Namespace Editors
                 
                 ' Check if this is a valid drop location
                 Dim lIsValidDrop As Boolean = IsValidDropLocation(lPos.Line, lPos.Column)
-                Console.WriteLine($"Drop location ({lPos.Line}, {lPos.Column}) is {If(lIsValidDrop, "valid", "invalid")}")
                 
                 If lIsValidDrop Then
-                    ' Indicate that we can accept the drop
-                    Gdk.Drag.Status(vArgs.Context, vArgs.Context.SuggestedAction, vArgs.Time)
+                    ' FIXED: Determine the action based on whether this is internal
+                    Dim lDesiredAction As DragAction
+                    
+                    If pIsDragSource Then
+                        ' Dragging within the same editor - prefer Move
+                        ' The user can hold Ctrl to force a copy
+                        lDesiredAction = DragAction.Move
+                    Else
+                        ' Dragging from external source - always copy
+                        lDesiredAction = DragAction.Copy
+                    End If
+                    
+                    ' Set the action we want
+                    Gdk.Drag.Status(vArgs.Context, lDesiredAction, vArgs.Time)
                 Else
-                    ' Indicate that we cannot accept the drop here
+                    ' Cannot accept the drop here
                     Gdk.Drag.Status(vArgs.Context, 0, vArgs.Time) ' 0 = no action
                 End If
                 
@@ -237,15 +258,18 @@ Namespace Editors
         ''' </summary>
         Private Sub HandleDragLeave(vSender As Object, vArgs As DragLeaveArgs)
             Try
-                ' Hide drop indicator
+                ' Hide drop indicator but DON'T reset the position
+                ' The position might still be needed if the drag re-enters
                 pShowDropIndicator = False
-                pDropTargetLine = -1
-                pDropTargetColumn = -1
+                
+                ' DON'T reset these - keep the last valid position
+                ' pDropTargetLine = -1
+                ' pDropTargetColumn = -1
                 
                 ' Queue redraw to remove drop indicator
                 pDrawingArea.QueueDraw()
                 
-                Console.WriteLine("Drag left editor area")
+                Console.WriteLine($"Drag left editor area (keeping position: {pDropTargetLine}, {pDropTargetColumn})")
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragLeave error: {ex.Message}")
@@ -253,7 +277,7 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Handles the actual drop operation
+        ''' Handles the actual drop operation  
         ''' </summary>
         Private Function HandleDragDrop(vSender As Object, vArgs As DragDropArgs) As Boolean
             Try
@@ -262,13 +286,15 @@ Namespace Editors
                 ' Calculate drop position
                 Dim lPos As EditorPosition = GetPositionFromCoordinates(vArgs.X, vArgs.Y)
                 
-                ' Request the data - use Gtk.Drag to avoid ambiguity
-                Dim lAtom As Atom = Atom.Intern(TEXT_TARGET, False)
-                Gtk.Drag.GetData(pDrawingArea, vArgs.Context, lAtom, vArgs.Time)
+                Console.WriteLine($"Calculated drop position: Line={lPos.Line}, Column={lPos.Column}")
                 
                 ' Store drop position for use in HandleDragDataReceived
                 pDropTargetLine = lPos.Line
                 pDropTargetColumn = lPos.Column
+                
+                ' Request the data - use Gtk.Drag to avoid ambiguity
+                Dim lAtom As Atom = Atom.Intern(TEXT_TARGET, False)
+                Gtk.Drag.GetData(pDrawingArea, vArgs.Context, lAtom, vArgs.Time)
                 
                 ' Track if this is a move operation
                 pDragWasMove = (vArgs.Context.SelectedAction = DragAction.Move)
@@ -280,6 +306,7 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragDrop error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
                 vArgs.RetVal = False
                 Return False
             End Try
@@ -295,14 +322,19 @@ Namespace Editors
                 Console.WriteLine($"HandleDragDataReceived: Dropped text = '{lDroppedText}'")
                 
                 If String.IsNullOrEmpty(lDroppedText) Then
-                    ' Signal failed drop - use Gtk.Drag to avoid ambiguity
+                    ' Signal failed drop
                     Gtk.Drag.Finish(vArgs.Context, False, False, vArgs.Time)
+                    pWasDragSourceForDrop = False  ' Reset here on failure
                     Return
                 End If
                 
+                ' CRITICAL FIX: Use pWasDragSourceForDrop instead of pIsDragSource
+                ' because HandleDragEnd may have already reset pIsDragSource
+                Dim lIsFromSameEditor As Boolean = pWasDragSourceForDrop
+                
                 ' Log drop target position
                 Console.WriteLine($"Drop target: Line={pDropTargetLine}, Column={pDropTargetColumn}")
-                Console.WriteLine($"Is drag source: {pIsDragSource}, Action: {vArgs.Context.SelectedAction}")
+                Console.WriteLine($"Is drag source: {lIsFromSameEditor}, Action: {vArgs.Context.SelectedAction}")
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -313,13 +345,20 @@ Namespace Editors
                 Dim lIsMove As Boolean = (vArgs.Context.SelectedAction = DragAction.Move)
                 
                 ' Handle the drop based on whether it's from the same editor
-                If pIsDragSource AndAlso lIsMove Then
-                    Console.WriteLine("Performing drag MOVE operation")
-                    ' Moving within the same editor
-                    PerformDragMove(lDroppedText, pDropTargetLine, pDropTargetColumn)
+                If lIsFromSameEditor Then
+                    ' From the same editor
+                    If lIsMove Then
+                        Console.WriteLine("Performing drag MOVE operation")
+                        ' Moving within the same editor - delete source after insert
+                        PerformDragMoveFixed(lDroppedText, pDropTargetLine, pDropTargetColumn)
+                    Else
+                        Console.WriteLine("Performing drag COPY operation (Ctrl was held)")
+                        ' Copying within the same editor
+                        PerformDragCopy(lDroppedText, pDropTargetLine, pDropTargetColumn)
+                    End If
                 Else
-                    Console.WriteLine("Performing drag COPY operation")
-                    ' Copying or dropping from external source
+                    ' From external source - always copy
+                    Console.WriteLine("Performing drag COPY operation (external source)")
                     PerformDragCopy(lDroppedText, pDropTargetLine, pDropTargetColumn)
                 End If
                 
@@ -338,16 +377,21 @@ Namespace Editors
                 ' Queue redraw
                 pDrawingArea.QueueDraw()
                 
-                ' Signal successful drop - use Gtk.Drag to avoid ambiguity
-                Gtk.Drag.Finish(vArgs.Context, True, lIsMove, vArgs.Time)
+                ' Signal successful drop
+                ' IMPORTANT: For MOVE operations, we must pass True for the delete_source parameter
+                Gtk.Drag.Finish(vArgs.Context, True, lIsMove AndAlso lIsFromSameEditor, vArgs.Time)
                 
-                Console.WriteLine($"Drop completed successfully")
+                Console.WriteLine($"Drop completed successfully (delete source: {lIsMove AndAlso lIsFromSameEditor})")
+                
+                ' CRITICAL FIX: Reset the flag here after we're done using it
+                pWasDragSourceForDrop = False
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragDataReceived error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
-                ' Signal failed drop - use Gtk.Drag to avoid ambiguity
+                ' Signal failed drop
                 Gtk.Drag.Finish(vArgs.Context, False, False, vArgs.Time)
+                pWasDragSourceForDrop = False  ' Reset on error too
             End Try
         End Sub
         
@@ -405,146 +449,108 @@ Namespace Editors
         End Function
         
         ''' <summary>
-        ''' Performs a drag move operation (delete from source, insert at target)
+        ''' FIXED implementation of drag move operation with correct position adjustment
         ''' </summary>
-        Private Sub PerformDragMove(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
+        Private Sub PerformDragMoveFixed(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
             Try
-                Console.WriteLine($"PerformDragMove: Moving '{vText}' from ({pDragStartLine},{pDragStartColumn})-({pDragEndLine},{pDragEndColumn}) to ({vTargetLine},{vTargetColumn})")
+                Console.WriteLine("=== PerformDragMoveFixed START ===")
                 
-                ' CRITICAL FIX: Store the text BEFORE any modifications
-                Dim lTextToMove As String = vText
+                ' Store original source positions
+                Dim lSourceStartLine As Integer = pDragStartLine
+                Dim lSourceStartColumn As Integer = pDragStartColumn
+                Dim lSourceEndLine As Integer = pDragEndLine
+                Dim lSourceEndColumn As Integer = pDragEndColumn
                 
-                ' Store original selection bounds 
-                Dim lOrigStartLine As Integer = pDragStartLine
-                Dim lOrigStartColumn As Integer = pDragStartColumn
-                Dim lOrigEndLine As Integer = pDragEndLine
-                Dim lOrigEndColumn As Integer = pDragEndColumn
+                ' Normalize source selection
+                NormalizeSelection(lSourceStartLine, lSourceStartColumn, lSourceEndLine, lSourceEndColumn)
                 
-                ' Determine if we're moving forward or backward
-                Dim lMovingForward As Boolean = False
-                If vTargetLine > lOrigEndLine Then
-                    lMovingForward = True
-                ElseIf vTargetLine = lOrigEndLine AndAlso vTargetColumn > lOrigEndColumn Then
-                    lMovingForward = True
+                Console.WriteLine($"Source: ({lSourceStartLine},{lSourceStartColumn}) to ({lSourceEndLine},{lSourceEndColumn})")
+                Console.WriteLine($"Target: ({vTargetLine},{vTargetColumn})")
+                Console.WriteLine($"Text to move: '{vText}'")
+                
+                ' Check if target is within source selection - shouldn't happen but be safe
+                If IsPositionInSelection(vTargetLine, vTargetColumn) Then
+                    Console.WriteLine("Target is within source selection - aborting")
+                    Return
                 End If
                 
-                Console.WriteLine($"Moving direction: {If(lMovingForward, "Forward", "Backward")}")
+                ' Begin undo group if not already started
+                Dim lStartedUndo As Boolean = False
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.BeginUserAction()
+                    lStartedUndo = True
+                End If
                 
-                If lMovingForward Then
-                    ' Moving forward - delete first, then insert at adjusted position
-                    
-                    ' Calculate how the deletion will affect the target position
+                Try
+                    ' Calculate if we need to adjust the target position
+                    ' This is needed when deleting text before the target
                     Dim lAdjustedLine As Integer = vTargetLine
                     Dim lAdjustedColumn As Integer = vTargetColumn
                     
-                    If lOrigStartLine = lOrigEndLine Then
-                        ' Single line selection
-                        If vTargetLine = lOrigEndLine Then
-                            ' Same line - adjust column
-                            lAdjustedColumn = vTargetColumn - (lOrigEndColumn - lOrigStartColumn)
-                        End If
-                    Else
-                        ' Multi-line selection - adjust line
-                        lAdjustedLine = vTargetLine - (lOrigEndLine - lOrigStartLine)
-                        If vTargetLine = lOrigEndLine Then
-                            ' Target is on the last line of selection
-                            lAdjustedColumn = vTargetColumn - lOrigEndColumn
-                        End If
-                    End If
-                    
-                    Console.WriteLine($"Forward move - Adjusted target: ({lAdjustedLine},{lAdjustedColumn})")
-                    
-                    ' Delete the original selection
-                    Console.WriteLine($"Deleting selection at ({lOrigStartLine},{lOrigStartColumn})-({lOrigEndLine},{lOrigEndColumn})")
-                    SetSelection(lOrigStartLine, lOrigStartColumn, lOrigEndLine, lOrigEndColumn)
-                    DeleteSelection()
-                    
-                    ' Insert at adjusted position
-                    Console.WriteLine($"Inserting at ({lAdjustedLine},{lAdjustedColumn})")
-                    SetCursorPosition(lAdjustedLine, lAdjustedColumn)
-                    Me.InsertText(lTextToMove)
-                    
-                    ' Select the newly inserted text
-                    Dim lLines() As String = lTextToMove.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                    Dim lEndLine As Integer = lAdjustedLine
-                    Dim lEndColumn As Integer = lAdjustedColumn
-                    
-                    If lLines.Length = 1 Then
-                        ' Single line - end column is start + length
-                        lEndColumn = lAdjustedColumn + lTextToMove.Length
-                    Else
-                        ' Multi-line - end line is start + line count - 1
-                        lEndLine = lAdjustedLine + lLines.Length - 1
-                        lEndColumn = lLines(lLines.Length - 1).Length
-                    End If
-                    
-                    Console.WriteLine($"Setting selection to ({lAdjustedLine},{lAdjustedColumn})-({lEndLine},{lEndColumn})")
-                    SetSelection(lAdjustedLine, lAdjustedColumn, lEndLine, lEndColumn)
-                    
-                Else
-                    ' Moving backward - insert first at target, then delete adjusted source
-                    Console.WriteLine("Backward move")
-                    
-                    ' Insert at target position first
-                    Console.WriteLine($"Inserting at target ({vTargetLine},{vTargetColumn})")
-                    SetCursorPosition(vTargetLine, vTargetColumn)
-                    Me.InsertText(lTextToMove)
-                    
-                    ' Calculate how the insertion affects the original selection position
-                    Dim lLines() As String = lTextToMove.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                    Dim lLinesAdded As Integer = lLines.Length - 1
-                    
-                    Dim lAdjustedStartLine As Integer = lOrigStartLine
-                    Dim lAdjustedStartColumn As Integer = lOrigStartColumn
-                    Dim lAdjustedEndLine As Integer = lOrigEndLine
-                    Dim lAdjustedEndColumn As Integer = lOrigEndColumn
-                    
-                    If vTargetLine < lOrigStartLine Then
-                        ' Inserted before selection - adjust line numbers
-                        lAdjustedStartLine += lLinesAdded
-                        lAdjustedEndLine += lLinesAdded
-                    ElseIf vTargetLine = lOrigStartLine AndAlso vTargetColumn <= lOrigStartColumn Then
-                        ' Inserted on same line before selection
-                        If lLinesAdded = 0 Then
-                            ' Single line insert - adjust columns
-                            lAdjustedStartColumn += lTextToMove.Length
-                            If lOrigStartLine = lOrigEndLine Then
-                                lAdjustedEndColumn += lTextToMove.Length
-                            End If
+                    If vTargetLine > lSourceEndLine Then
+                        ' Target is after source - adjust for lines that will be deleted
+                        Dim lLinesDeleted As Integer = lSourceEndLine - lSourceStartLine
+                        lAdjustedLine = vTargetLine - lLinesDeleted
+                        Console.WriteLine($"Target after source: adjusting line {vTargetLine} -> {lAdjustedLine}")
+                    ElseIf vTargetLine = lSourceEndLine AndAlso vTargetColumn > lSourceEndColumn Then
+                        ' Target is on same line but after source
+                        If lSourceStartLine = lSourceEndLine Then
+                            ' Single line: adjust column
+                            lAdjustedColumn = vTargetColumn - (lSourceEndColumn - lSourceStartColumn)
+                            Console.WriteLine($"Target on same line: adjusting column {vTargetColumn} -> {lAdjustedColumn}")
                         Else
-                            ' Multi-line insert - adjust lines and columns
-                            lAdjustedStartLine += lLinesAdded
-                            lAdjustedEndLine += lLinesAdded
+                            ' Multi-line: more complex adjustment
+                            lAdjustedLine = lSourceStartLine
+                            lAdjustedColumn = lSourceStartColumn + (vTargetColumn - lSourceEndColumn)
+                            Console.WriteLine($"Target at end of multi-line: adjusting to ({lAdjustedLine},{lAdjustedColumn})")
                         End If
                     End If
                     
-                    Console.WriteLine($"Deleting adjusted selection at ({lAdjustedStartLine},{lAdjustedStartColumn})-({lAdjustedEndLine},{lAdjustedEndColumn})")
+                    ' CRITICAL FIX: Use the proper deletion method instead of DeleteSelection
+                    ' Step 1: Delete the source selection using DeleteRange (which is the IEditor interface method)
+                    Console.WriteLine("Step 1: Deleting source selection")
                     
-                    ' Delete the adjusted original selection
-                    SetSelection(lAdjustedStartLine, lAdjustedStartColumn, lAdjustedEndLine, lAdjustedEndColumn)
-                    DeleteSelection()
+                    ' First clear any existing selection to avoid confusion
+                    pHasSelection = False
+                    pSelectionActive = False
                     
-                    ' Select the inserted text at target
-                    Dim lEndLine As Integer = vTargetLine
-                    Dim lEndColumn As Integer = vTargetColumn
+                    ' Use DeleteRange to delete the source text
+                    DeleteRange(lSourceStartLine, lSourceStartColumn, lSourceEndLine, lSourceEndColumn)
                     
+                    ' Step 2: Insert at the (possibly adjusted) target position
+                    Console.WriteLine($"Step 2: Inserting at ({lAdjustedLine},{lAdjustedColumn})")
+                    InsertTextAtPosition(lAdjustedLine, lAdjustedColumn, vText)
+                    
+                    ' Step 3: Select the newly inserted text
+                    Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
                     If lLines.Length = 1 Then
-                        ' Single line - end column is start + length
-                        lEndColumn = vTargetColumn + lTextToMove.Length
+                        SetSelection(lAdjustedLine, lAdjustedColumn, 
+                                   lAdjustedLine, lAdjustedColumn + vText.Length)
                     Else
-                        ' Multi-line - end line is start + line count - 1
-                        lEndLine = vTargetLine + lLines.Length - 1
-                        lEndColumn = lLines(lLines.Length - 1).Length
+                        Dim lLastLineLength As Integer = lLines(lLines.Length - 1).Length
+                        SetSelection(lAdjustedLine, lAdjustedColumn,
+                                   lAdjustedLine + lLines.Length - 1, lLastLineLength)
                     End If
                     
-                    Console.WriteLine($"Final selection: ({vTargetLine},{vTargetColumn})-({lEndLine},{lEndColumn})")
-                    SetSelection(vTargetLine, vTargetColumn, lEndLine, lEndColumn)
-                End If
+                    Console.WriteLine("Move operation completed successfully")
+                    
+                Finally
+                    ' End undo group if we started it
+                    If lStartedUndo AndAlso pUndoRedoManager IsNot Nothing Then
+                        pUndoRedoManager.EndUserAction()
+                    End If
+                End Try
                 
-                Console.WriteLine("PerformDragMove completed")
+                ' Clear drag state
+                pDragStartLine = -1
+                pDragStartColumn = -1
+                pDragEndLine = -1
+                pDragEndColumn = -1
+                
+                Console.WriteLine("=== PerformDragMoveFixed END ===")
                 
             Catch ex As Exception
-                Console.WriteLine($"PerformDragMove error: {ex.Message}")
+                Console.WriteLine($"PerformDragMoveFixed error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub
@@ -554,27 +560,27 @@ Namespace Editors
         ''' </summary>
         Private Sub PerformDragCopy(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
             Try
+                Console.WriteLine("=== PerformDragCopy START ===")
+                Console.WriteLine($"Copying to ({vTargetLine},{vTargetColumn})")
+                
                 ' Move cursor to drop position
                 SetCursorPosition(vTargetLine, vTargetColumn)
                 
-                ' Insert the text using the existing public method
-                Me.InsertText(vText)
+                ' Insert the text
+                InsertText(vText)
                 
-                ' Select the newly inserted text
-                Dim lLines() As String = vText.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                Dim lEndLine As Integer = vTargetLine
-                Dim lEndColumn As Integer = vTargetColumn
-                
+                ' Select the inserted text
+                Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
                 If lLines.Length = 1 Then
-                    ' Single line - end column is start + length
-                    lEndColumn = vTargetColumn + vText.Length
+                    SetSelection(vTargetLine, vTargetColumn, 
+                               vTargetLine, vTargetColumn + vText.Length)
                 Else
-                    ' Multi-line - end line is start + line count - 1
-                    lEndLine = vTargetLine + lLines.Length - 1
-                    lEndColumn = lLines(lLines.Length - 1).Length
+                    SetSelection(vTargetLine, vTargetColumn,
+                               vTargetLine + lLines.Length - 1, lLines(lLines.Length - 1).Length)
                 End If
                 
-                SetSelection(vTargetLine, vTargetColumn, lEndLine, lEndColumn)
+                Console.WriteLine("Copy operation completed successfully")
+                Console.WriteLine("=== PerformDragCopy END ===")
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformDragCopy error: {ex.Message}")
@@ -621,19 +627,9 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return 0
                 
-                ' Get the line text from SourceFileInfo
-                Dim lLineText As String = ""
-                If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.TextLines IsNot Nothing Then
-                    If vLine < pSourceFileInfo.TextLines.Count Then
-                        lLineText = If(vColumn > 0, 
-                                      pSourceFileInfo.TextLines(vLine).Substring(0, Math.Min(vColumn, pSourceFileInfo.TextLines(vLine).Length)), 
-                                      "")
-                    End If
-                End If
-                
                 ' Calculate width based on character width
                 ' Adjust for horizontal scrolling
-                Return pLeftPadding + (lLineText.Length * pCharWidth) - (pFirstVisibleColumn * pCharWidth)
+                Return pLeftPadding + (vColumn * pCharWidth) - (pFirstVisibleColumn * pCharWidth)
                 
             Catch ex As Exception
                 Console.WriteLine($"GetXFromColumn error: {ex.Message}")

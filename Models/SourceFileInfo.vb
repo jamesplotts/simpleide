@@ -28,6 +28,9 @@ Namespace Models
         Public Property Editor As CustomDrawingEditor
         Public Property RelativePath As String = ""  
         Public Property NeedsParsing As Boolean = True
+
+        ' Demo Mode is used when you want to display a fictional file's content without having any file IO.
+        Private IsDemoMode as Boolean = False
         
         ' ===== Constructor =====
         Public Sub New(vFilePath As String, vProjectDirectory As String)
@@ -53,6 +56,11 @@ Namespace Models
                 RelativePath = FileName
             End Try
         End Sub
+
+        Public Sub New(vContent as String)
+            IsDemoMode = True
+            Content = vContent
+        End Sub
         
         ' ===== Public Methods =====
         
@@ -61,6 +69,9 @@ Namespace Models
         ''' </summary>
         Public Function LoadContent() As Boolean
             Try
+                If IsDemoMode Then 
+                    return true
+                End if
                 If Not File.Exists(FilePath) Then
                     Console.WriteLine($"File not found: {FilePath}")
                     Return False
@@ -89,7 +100,7 @@ Namespace Models
         ''' </summary>
         Public Function ParseContent() As Boolean
             Try
-                If Not IsLoaded Then
+                If Not IsLoaded AndAlso Not IsDemoMode Then
                     Console.WriteLine($"Cannot parse {FileName}: content not loaded")
                     Return False
                 End If
@@ -98,7 +109,12 @@ Namespace Models
                 Dim lParser As New VBParser()
                 
                 ' Parse the content using the Parse method with proper parameters
-                Dim lParseResult As VBParser.ParseResult = lParser.Parse(Content, ProjectRootNamespace, FilePath)
+                Dim lParseResult As VBParser.ParseResult
+                If Not IsDemoMode Then
+                   lParseResult = lParser.Parse(Content, ProjectRootNamespace, FilePath)
+                Else
+                   lParseResult = lParser.Parse(Content, "", "")
+                End If
                 
                 If lParseResult IsNot Nothing Then
                     ' The parse result already has a SyntaxNode tree
@@ -164,6 +180,7 @@ Namespace Models
         ''' </summary>
         Public Function ParseFile() As Boolean
             Try
+                If IsDemoMode then Return ParseContent()
                 ' Ensure content is loaded
                 If Not IsLoaded Then
                     If Not LoadContent() Then
@@ -200,6 +217,7 @@ Namespace Models
         ''' </summary>
         Public Sub UpdateFromEditor()
             Try
+                'If IsDemoMode Then Exit Sub
                 If Editor IsNot Nothing Then
                     Content = Editor.GetAllText()
                     TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
@@ -278,6 +296,7 @@ Namespace Models
         ''' </summary>
         Public Sub MergeIntoProjectTree(vRootNamespace As SyntaxNode)
             Try
+                If IsDemoMode then Exit Sub
                 If SyntaxTree Is Nothing OrElse vRootNamespace Is Nothing Then
                     Console.WriteLine($"Cannot merge {FileName}: no syntax tree or root namespace")
                     Return
@@ -325,6 +344,7 @@ Namespace Models
         ''' Set the project root namespace for parsing
         ''' </summary>
         Public Sub SetProjectRootNamespace(vRootNamespace As String)
+            If IsDemoMode then Exit Sub
             If Not String.IsNullOrEmpty(vRootNamespace) Then
                 ProjectRootNamespace = vRootNamespace
             End If
@@ -333,6 +353,7 @@ Namespace Models
         ' Helper method to merge a node into the project tree
         Private Sub MergeNodeIntoProject(vNode As SyntaxNode, vParentNode As SyntaxNode)
             Try
+                If IsDemoMode then Exit Sub
                 If vNode Is Nothing OrElse vParentNode Is Nothing Then Return
                 
                 ' Check if a similar node already exists
@@ -390,6 +411,7 @@ Namespace Models
         ''' </summary>
         Public Function SaveContent() As Boolean
             Try
+                If IsDemoMode then Return True
                 If String.IsNullOrEmpty(FilePath) Then
                     Console.WriteLine($"Cannot save {FileName}: no file path")
                     Return False
@@ -423,6 +445,7 @@ Namespace Models
         ''' </summary>
         Public Sub LoadFromStream(vStream As Stream, vEncoding As Encoding)
             Try
+                If IsDemoMode then Exit Sub
                 Using lReader As New StreamReader(vStream, vEncoding)
                     Content = lReader.ReadToEnd()
                     TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))

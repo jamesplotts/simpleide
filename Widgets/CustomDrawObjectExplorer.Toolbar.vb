@@ -84,7 +84,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub CreateExpandButton()
             Try
-                pExpandButton = New ToolButton(Stock.Add)
+                pExpandButton = New ToolButton(Nothing, "Expand All")
+                pExpandButton.IconWidget = Image.NewFromIconName("list-add", IconSize.SmallToolbar)
                 pExpandButton.TooltipText = "Expand All"
                 AddHandler pExpandButton.Clicked, AddressOf OnExpandAllClicked
                 pToolbar.Add(pExpandButton)
@@ -99,7 +100,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub CreateCollapseButton()
             Try
-                pCollapseButton = New ToolButton(Stock.Remove)
+                pCollapseButton = New ToolButton(Nothing, "Collapse All")
+                pCollapseButton.IconWidget = Image.NewFromIconName("list-remove", IconSize.SmallToolbar)
                 pCollapseButton.TooltipText = "Collapse All"
                 AddHandler pCollapseButton.Clicked, AddressOf OnCollapseAllClicked
                 pToolbar.Add(pCollapseButton)
@@ -109,13 +111,12 @@ Namespace Widgets
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Creates the refresh button
-        ''' </summary>
+
         Private Sub CreateRefreshButton()
             Try
-                pRefreshButton = New ToolButton(Stock.Refresh)
-                pRefreshButton.TooltipText = "Refresh Structure"
+                pRefreshButton = New ToolButton(Nothing, "Refresh")
+                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
+                pRefreshButton.TooltipText = "Refresh project tree"
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
                 pToolbar.Add(pRefreshButton)
                 

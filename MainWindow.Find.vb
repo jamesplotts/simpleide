@@ -256,6 +256,19 @@ Partial Public Class MainWindow
             Console.WriteLine($"FindPreviousOccurrence error: {ex.Message}")
         End Try
     End Sub
+
+    Private Sub HideFindPanel()
+        Try
+            If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                ' Hide the find panel
+                If pFindPanel.Visible Then
+                    pBottomPanelManager.HidePanel()
+                End If
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"HideFindPanel error: {ex.Message}")
+        End Try
+    End Sub
     
     ' ===== Update Menu States =====
     

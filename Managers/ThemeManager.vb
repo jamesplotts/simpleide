@@ -70,6 +70,22 @@ Namespace Managers
             
             Return Nothing
         End Function
+
+        ''' <summary>
+        ''' Determines if a theme is a custom (user-created) theme
+        ''' </summary>
+        ''' <param name="vThemeName">Name of the theme to check</param>
+        ''' <returns>True if the theme is custom, False if it's built-in</returns>
+        Public Function IsCustomTheme(vThemeName As String) As Boolean
+            Try
+                ' Check if the theme exists in the custom themes list
+                Return pCustomThemes.Any(Function(t) t.Name = vThemeName)
+                
+            Catch ex As Exception
+                Console.WriteLine($"IsCustomTheme error: {ex.Message}")
+                Return False
+            End Try
+        End Function
         
         ' Set current theme
         Public Sub SetTheme(vThemeName As String)

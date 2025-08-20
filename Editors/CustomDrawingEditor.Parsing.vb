@@ -120,15 +120,29 @@ Namespace Editors
                 Dim lLineText As String = pTextLines(vLineIndex)
                 Dim lMetadata As LineMetadata = pLineMetadata(vLineIndex)
                 
+                ' FIXED: Ensure metadata is not null
+                If lMetadata Is Nothing Then
+                    lMetadata = New LineMetadata()
+                    pLineMetadata(vLineIndex) = lMetadata
+                End If
+                
                 ' Clear existing tokens
                 lMetadata.SyntaxTokens.Clear()
         
-                ' Initialize character colors array for this line
-                ReDim pCharacterColors(vLineIndex)(Math.Max(0, lLineText.Length - 1))
+                ' FIXED: Initialize character colors array for this line with proper null checking
+                If pCharacterColors(vLineIndex) Is Nothing OrElse 
+                   pCharacterColors(vLineIndex).Length <> lLineText.Length Then
+                    ReDim pCharacterColors(vLineIndex)(Math.Max(0, lLineText.Length - 1))
+                End If
                 
                 ' Set default color for all characters
                 For i As Integer = 0 To lLineText.Length - 1
-                    pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(pForegroundColor)
+                    If pCharacterColors(vLineIndex)(i) Is Nothing Then
+                        pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(If(pForegroundColor, "#000000"))
+                    Else
+                        ' Update existing color info
+                        pCharacterColors(vLineIndex)(i).Color = If(pForegroundColor, "#000000")
+                    End If
                 Next
         
                 ' Apply VB.NET syntax highlighting
@@ -385,10 +399,15 @@ Namespace Editors
         
         Private Sub ScheduleParsing()
             Try
-                ' Cancel any existing parse timer
+                ' CRITICAL FIX: Cancel any existing parse timer with proper cleanup
                 If pParseTimer <> 0 Then
-                    GLib.Source.Remove(pParseTimer)
-                    pParseTimer = 0
+                    Dim lTimerId As UInteger = pParseTimer
+                    pParseTimer = 0  ' Clear BEFORE removing
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK
+                    End Try
                 End If
                 
                 ' Schedule new parse in 500ms
@@ -397,11 +416,15 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"ScheduleParsing error: {ex.Message}")
+                pParseTimer = 0  ' Ensure it's cleared on error
             End Try
         End Sub
         
         Private Function PerformParsing() As Boolean
             Try
+                ' CRITICAL FIX: Clear timer ID immediately since we're returning False
+                pParseTimer = 0
+                
                 If Not pNeedsParse Then Return False
                 
                 ' Parse the document - create parser as needed
@@ -427,16 +450,23 @@ Namespace Editors
                     End If
                 End If
                 
-                ' Update metadata with parse results
-                UpdateMetadataFromParse()
-                
+                ' Clear parse flag
                 pNeedsParse = False
-                pParseTimer = 0
                 
-                Return False ' Don't repeat
+                ' Update display
+                UpdateLineNumberWidth()
+                pDrawingArea?.QueueDraw()
+                
+                ' Raise document parsed event
+                If pRootNode IsNot Nothing Then
+                    RaiseEvent DocumentParsed(pRootNode)
+                End If
+                
+                Return False  ' Don't repeat - timer is auto-removed
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformParsing error: {ex.Message}")
+                ' Timer is already cleared at the top
                 Return False
             End Try
         End Function

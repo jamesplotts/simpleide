@@ -47,9 +47,15 @@ Namespace Editors
         
         ' ===== Unified Drawing Method =====
         
+        ''' <summary>
+        ''' Main content drawing method with drag-drop indicator support
+        ''' </summary>
+        ''' <summary>
+        ''' Main content drawing method with drag-drop indicator support
+        ''' </summary>
         Private Sub DrawContent(vContext As Cairo.Context)
             Try
-                Dim lTopOffset As Integer =  -3
+                Dim lTopOffset As Integer = -3
                 Dim lBarLengthHalf As Integer = 4
 
                 ' Create a layout for text rendering
@@ -69,7 +75,7 @@ Namespace Editors
                 Dim Color As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eBackgroundColor)
                 Dim Pattern As New Cairo.SolidPattern(Color.r, Color.g, Color.b)
                 vContext.SetSource(Pattern)
-                vContext.Rectangle(0, 0, pDrawingArea.AllocatedWidth , pDrawingArea.AllocatedHeight)
+                vContext.Rectangle(0, 0, pDrawingArea.AllocatedWidth, pDrawingArea.AllocatedHeight)
                 vContext.Fill()
                 Pattern.Dispose()
                 
@@ -92,12 +98,14 @@ Namespace Editors
                 For lLineIndex As Integer = lFirstLine To lLastLine
                     If lLineIndex >= pLineCount Then Exit For
                     
-                    ' FIXED: Get line text from SourceFileInfo instead of pTextLines
+                    ' Get line text from SourceFileInfo if available, otherwise from pTextLines
                     Dim lLineText As String = ""
                     If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.TextLines IsNot Nothing Then
                         If lLineIndex < pSourceFileInfo.TextLines.Count Then
                             lLineText = pSourceFileInfo.TextLines(lLineIndex)
                         End If
+                    ElseIf pTextLines IsNot Nothing AndAlso lLineIndex < pTextLines.Count Then
+                        lLineText = pTextLines(lLineIndex)
                     End If
                     
                     Dim lY As Integer = (lLineIndex - lFirstLine) * pLineHeight + pTopPadding + lAscent - pLineHeight
@@ -144,7 +152,7 @@ Namespace Editors
                             lSelPattern.Dispose()
                         End If
                         
-                        ' Determine text color - FIXED: Initialize with default color
+                        ' Determine text color
                         Dim lTextColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eForegroundColor)
                         
                         ' Check for syntax highlighting color
@@ -170,6 +178,7 @@ Namespace Editors
                     Next
                 Next
 
+                ' CRITICAL FIX: Draw drag-drop indicators if active
                 DrawDragDropIndicators(vContext)
                 
                 ' Draw cursor if visible

@@ -224,6 +224,12 @@
     <Compile Include="Models/VisualProjectNode.vb" />
     <Compile Include="Models/ProjectNodeType.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Toolbar.vb" />
+    <Compile Include="Widgets/ColorPicker.vb" />
+    <Compile Include="Widgets/CustomDrawListBox.vb" />
+    <Compile Include="Utilities/ListBoxItem.vb" />
+    <Compile Include="Utilities/TimerHelper.vb" />
+    <Compile Include="Utilities/KeyboardHelper.vb" />
+    <Compile Include="MainWindow.Run.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

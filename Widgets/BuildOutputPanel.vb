@@ -205,6 +205,13 @@ Namespace Widgets
             AppendOutput(vText & Environment.NewLine)
         End Sub
 
+        Public Function GetErrors() As List(Of BuildError)
+            Return pBuildErrors
+        End Function
+        
+        Public Function GetWarnings() As List(Of BuildWarning)
+            Return pBuildWarnings
+        End Function
         
         ' Public method to append output with tag
         Public Sub AppendOutput(vText As String, vTag As String)
