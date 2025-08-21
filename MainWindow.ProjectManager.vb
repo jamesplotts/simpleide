@@ -58,34 +58,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    Private Sub OnProjectManagerFileAdded(vFilePath As String)
-        Try
-            ' Refresh project explorer
-            If pProjectExplorer IsNot Nothing Then
-                pProjectExplorer.RefreshTree()
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnProjectManagerFileAdded error: {ex.Message}")
-        End Try
-    End Sub
+
     
-    Private Sub OnProjectManagerFileRemoved(vFilePath As String)
-        Try
-            ' Close tab if file is open
-            If pOpenTabs.ContainsKey(vFilePath) Then
-                CloseTab(pOpenTabs(vFilePath))
-            End If
-            
-            ' Refresh project explorer
-            If pProjectExplorer IsNot Nothing Then
-                pProjectExplorer.RefreshTree()
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnProjectManagerFileRemoved error: {ex.Message}")
-        End Try
-    End Sub
+
     
     Private Sub OnProjectManagerIdentifierMapUpdated()
         Try
@@ -511,8 +486,9 @@ pObjectExplorer.ForceRefreshWithDebug()
             If pProjectManager.IsProjectOpen Then
                 lSourceFileInfo = pProjectManager.GetSourceFileInfo(vFilePath)
             End If
-            UpdateStatusBar("Loading: " + vFilePath)
-
+            ' Don't update status here - let the caller handle status messages
+            ' UpdateStatusBar("Loading: " + vFilePath)
+    
             ' Open the file normally
             OpenFile(vFilePath)
             
@@ -525,15 +501,18 @@ pObjectExplorer.ForceRefreshWithDebug()
                 'lSourceFileInfo.IsLoaded = True
                 lSourceFileInfo.Editor = lTab.Editor
                 
-                ' If the file has a parsed structure, provide it to the editor
-                If lSourceFileInfo.SyntaxTree IsNot Nothing Then
-                    ' For CustomDrawingEditor, we can set the initial structure
-                    Dim lCustomEditor As CustomDrawingEditor = TryCast(lTab.Editor, CustomDrawingEditor)
-                    If lCustomEditor IsNot Nothing Then
-                        ' The editor will parse on its own, but we can use the project structure
-                        ' for immediate Object Explorer population
-                        pObjectExplorer?.UpdateStructure(lSourceFileInfo.SyntaxTree)
+                ' FIXED: Don't update Object Explorer with single file structure
+                ' Always maintain the full project structure when a project is open
+                If pProjectManager.IsProjectOpen Then
+                    ' Get the full project structure
+                    Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                    If lProjectTree IsNot Nothing Then
+                        pObjectExplorer?.UpdateStructure(lProjectTree)
+                        Console.WriteLine("Object Explorer maintained with full project structure after file open")
                     End If
+                ElseIf lSourceFileInfo.SyntaxTree IsNot Nothing Then
+                    ' Only update with single file if no project is open
+                    pObjectExplorer?.UpdateStructure(lSourceFileInfo.SyntaxTree)
                 End If
             End If
             

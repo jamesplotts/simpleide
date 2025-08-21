@@ -110,26 +110,37 @@ Namespace Managers
                 pCurrentProjectInfo.PackageReferences = lProjectInfo.PackageReferences
                 pCurrentProjectInfo.SourceFiles = New List(Of String)()
                 
-                ' Don't initialize pCodeParser - create parsers as needed
-                ' If pCodeParser Is Nothing Then
-                '     pCodeParser = New VBCodeParser()  ' REMOVED
-                ' End If
-                
                 ' Clear existing models
                 ClearDocumentModels()
                 
-                ' Get list of all VB source files
+                ' Get list of all VB source files from CompileItems
+                Console.WriteLine("Collecting source files from project...")
                 Dim lSourceFiles As New List(Of String)()
-                For Each lCompileItem In lProjectInfo.CompileItems
-                    If lCompileItem.EndsWith(".vb", StringComparison.OrdinalIgnoreCase) Then
-                        Dim lFullPath As String = Path.Combine(lProjectInfo.ProjectDirectory, lCompileItem)
-                        If File.Exists(lFullPath) Then
-                            lSourceFiles.Add(lFullPath)
-                            pCurrentProjectInfo.SourceFiles.Add(lFullPath)
-                        End If
-                    End If
-                Next
                 
+                ' FIXED: Use CompileItems from the project file instead of scanning all .vb files
+                ' This ensures we only parse files that are actually part of the compilation
+                If lProjectInfo.CompileItems IsNot Nothing Then
+                    For Each lCompileItem In lProjectInfo.CompileItems
+                        ' Convert relative path to absolute path
+                        Dim lFullPath As String = Path.Combine(lProjectInfo.ProjectDirectory, lCompileItem)
+                        
+                        ' Normalize the path
+                        lFullPath = Path.GetFullPath(lFullPath)
+                        
+                        ' Only add if the file exists and has .vb extension
+                        If File.Exists(lFullPath) AndAlso Path.GetExtension(lFullPath).ToLower() = ".vb" Then
+                            lSourceFiles.Add(lFullPath)
+                            Console.WriteLine($"  Source file: {lCompileItem}")
+                        ElseIf Not File.Exists(lFullPath) Then
+                            Console.WriteLine($"  Warning: Source file not found: {lCompileItem}")
+                        End If
+                    Next
+                Else
+                    Console.WriteLine("  Warning: No CompileItems found in project file")
+                End If
+                
+                Console.WriteLine($"Found {lSourceFiles.Count} source files to load")
+                                
                 ' Set counts for progress
                 pTotalFilesToLoad = lSourceFiles.Count
                 pFilesLoaded = 0

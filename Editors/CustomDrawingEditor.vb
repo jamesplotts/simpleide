@@ -204,9 +204,25 @@ Namespace Editors
                     ProcessLineFormatting(i)
                 Next
                 
-                ' Schedule initial parsing
-                ScheduleParse()
-                ScheduleFullDocumentParse()
+                ' FIXED: Check if SourceFileInfo already has a parsed SyntaxTree
+                If vSourceFileInfo.SyntaxTree IsNot Nothing AndAlso vSourceFileInfo.IsParsed Then
+                    ' Use the existing parsed structure
+                    pRootNode = vSourceFileInfo.SyntaxTree
+                    Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
+                    
+                    ' Apply syntax highlighting based on existing parse
+                    For i As Integer = 0 To pLineCount - 1
+                        ApplySyntaxHighlightingToLine(i)
+                    Next
+                    
+                    ' Raise document parsed event with existing structure
+                    RaiseEvent DocumentParsed(pRootNode)
+                Else
+                    ' Only parse if we don't have existing parse data
+                    Console.WriteLine($"Scheduling initial parse for {vSourceFileInfo.FileName}")
+                    ScheduleParse()
+                    ScheduleFullDocumentParse()
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawingEditor.New error: {ex.Message}")

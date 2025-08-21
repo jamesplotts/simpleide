@@ -105,6 +105,11 @@ Partial Public Class MainWindow
             If pObjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
                 pObjectExplorer.InitializeWithProjectManager(pProjectManager)
                 AddHandler pObjectExplorer.GetThemeManager, AddressOf OnGetThemeManager
+                ' Single-click selection
+                AddHandler pObjectExplorer.NodeSelected, AddressOf OnObjectExplorerNodeSelected
+                
+                ' Navigation (handles double-click and Enter key)
+                AddHandler pObjectExplorer.NavigateToFile, AddressOf OnObjectExplorerNavigateToFile
             End If
             
             ' Complete Object Explorer setup
@@ -115,6 +120,9 @@ Partial Public Class MainWindow
             
             ' Initialize build system
             InitializeBuildSystem()
+            
+            ' Wire up ProjectExplorer with ProjectManager
+            InitializeProjectExplorerWithManager()
             
             ' Apply theme
             ApplyTheme()

@@ -52,18 +52,29 @@ Namespace Managers
                     Return lSourceFiles
                 End If
                 
-                ' Get all VB files in project directory and subdirectories
-                Dim lFiles As String() = Directory.GetFiles(lProjectDir, "*.vb", SearchOption.AllDirectories)
+                ' FIXED: Use CompileItems from the project file instead of scanning all .vb files
+                ' This ensures we only parse files that are actually part of the compilation
+                If pCurrentProjectInfo.CompileItems IsNot Nothing Then
+                    For Each lCompileItem In pCurrentProjectInfo.CompileItems
+                        ' Convert relative path to absolute path
+                        Dim lFullPath As String = Path.Combine(lProjectDir, lCompileItem)
+                        
+                        ' Normalize the path
+                        lFullPath = Path.GetFullPath(lFullPath)
+                        
+                        ' Only add if the file exists
+                        If File.Exists(lFullPath) Then
+                            lSourceFiles.Add(lFullPath)
+                            Console.WriteLine($"  Adding source file: {lCompileItem}")
+                        Else
+                            Console.WriteLine($"  Warning: Source file not found: {lCompileItem}")
+                        End If
+                    Next
+                Else
+                    Console.WriteLine("  Warning: No CompileItems found in project info")
+                End If
                 
-                For Each lFile In lFiles
-                    ' Skip files in bin and obj directories
-                    Dim lRelativePath As String = GetRelativePath(lFile)
-                    If Not lRelativePath.StartsWith("bin" & Path.DirectorySeparatorChar) AndAlso
-                       Not lRelativePath.StartsWith("obj" & Path.DirectorySeparatorChar) Then
-                        lSourceFiles.Add(lFile)
-                    End If
-                Next
-                
+                Console.WriteLine($"GetProjectSourceFiles: Found {lSourceFiles.Count} source files")
                 Return lSourceFiles
                 
             Catch ex As Exception

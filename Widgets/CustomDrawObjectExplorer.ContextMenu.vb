@@ -136,55 +136,41 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Builds the tooltip text for a node
+        ''' Builds the tooltip text for a node with proper formatting
         ''' </summary>
         ''' <param name="vNode">The syntax node to build tooltip for</param>
-        ''' <returns>Formatted tooltip text with markup</returns>
+        ''' <returns>Formatted tooltip text without markup</returns>
         Private Function BuildTooltipText(vNode As SyntaxNode) As String
             Try
                 Dim lText As New System.Text.StringBuilder()
                 
-                ' Node type and name
-                lText.Append($"<b>{vNode.NodeType.ToString().Substring(1)}: {vNode.Name}</b>")
-                lText.AppendLine()
-                
-                ' Visibility
-                If vNode.IsPublic Then
-                    lText.AppendLine("Visibility: Public")
-                ElseIf vNode.IsProtected Then
-                    lText.AppendLine("Visibility: Protected")
-                ElseIf vNode.IsFriend Then
-                    lText.AppendLine("Visibility: Friend")
+                ' First line: Get the full declaration (method already exists in SyntaxNode)
+                Dim lDeclaration As String = vNode.GetFullDeclaration()
+                If Not String.IsNullOrEmpty(lDeclaration) Then
+                    lText.Append(lDeclaration)
                 Else
-                    lText.AppendLine("Visibility: Private")
+                    ' Fallback if no declaration available
+                    lText.Append($"{vNode.NodeType.ToString().Substring(1)}: {vNode.Name}")
                 End If
                 
-                ' Modifiers
-                If vNode.IsShared Then
-                    lText.AppendLine("Modifier: Shared")
-                End If
-                If vNode.IsOverrides Then
-                    lText.AppendLine("Modifier: Overrides")
-                End If
-                
-                ' Location
+                ' Second line: File and line info (StartLine is already 1-based from parser)
                 If Not String.IsNullOrEmpty(vNode.FilePath) Then
+                    lText.AppendLine()
                     Dim lFileName As String = System.IO.Path.GetFileName(vNode.FilePath)
-                    lText.AppendLine($"File: {lFileName}")
-                    lText.AppendLine($"Line: {vNode.StartLine + 1}")
+                    lText.Append($"File: {lFileName}, Line: {vNode.StartLine + 1}")
                 End If
                 
-                ' XML documentation if available
-                If vNode.Attributes.ContainsKey("XmlDoc") Then
+                ' Third line: XML documentation summary if available
+                If Not String.IsNullOrEmpty(vNode.Summary) Then
                     lText.AppendLine()
-                    lText.AppendLine("<i>" & vNode.Attributes("XmlDoc") & "</i>")
+                    lText.Append(vNode.Summary)
                 End If
                 
                 Return lText.ToString()
                 
             Catch ex As Exception
                 Console.WriteLine($"BuildTooltipText error: {ex.Message}")
-                Return ""
+                Return $"{vNode.NodeType.ToString().Substring(1)}: {vNode.Name}"
             End Try
         End Function
         

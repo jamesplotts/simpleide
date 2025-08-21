@@ -7,8 +7,7 @@
     <AssemblyName>SimpleIDE</AssemblyName>
     <StartupObject>SimpleIDE.Program</StartupObject>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <PlatformTarget>
-    </PlatformTarget>
+    <PlatformTarget></PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
     <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
@@ -231,6 +230,8 @@
     <Compile Include="Managers/CredentialManager.vb" />
     <Compile Include="Widgets/PreferencesTab.vb" />
     <Compile Include="MainWindow.Preferences.vb" />
+    <Compile Include="Widgets/CustomDrawProjectExplorer.AddNewItem.vb" />
+    <Compile Include="MainWindow.ProjectExplorerIntegration.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

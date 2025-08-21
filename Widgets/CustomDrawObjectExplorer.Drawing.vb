@@ -480,7 +480,7 @@ Namespace Widgets
                 lX += pIconSize + ICON_SPACING
                 
                 ' Draw text
-                DrawNodeText(vContext, lX, lY, vNode)
+                DrawNodeText(vContext, vNode, lX, lY)
                 
             Catch ex As Exception
                 Console.WriteLine($"DrawNode error: {ex.Message}")
@@ -712,9 +712,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Overridden DrawNodeText method with theme color support
-        ''' </summary>
         ''' <param name="vContext">Cairo context to draw with</param>
         ''' <param name="vX">X position to draw at</param>
         ''' <param name="vY">Y position to draw at</param>
@@ -722,49 +719,34 @@ Namespace Widgets
         ''' <summary>
         ''' Draws node text with proper theme foreground color
         ''' </summary>
-        Private Sub DrawNodeText(vContext As Cairo.Context, vX As Integer, vY As Integer, vNode As VisualNode)
+        Private Sub DrawNodeText(vContext As Cairo.Context, vNode As VisualNode, vX As Integer, vY As Integer)
             Try
                 If vNode Is Nothing OrElse vNode.Node Is Nothing Then Return
                 
-                ' Get theme colors
+                ' Determine text color based on visibility and hover state
                 Dim lTextColor As Cairo.Color
                 
-                If pSettingsManager IsNot Nothing Then
-                    Dim lThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
-                    
-                    ' Get the actual theme colors from ThemeManager
-                    Dim lTheme As EditorTheme = pThemeManager?.GetTheme(lThemeName)
-                    If lTheme IsNot Nothing Then
-                        ' Use the theme's foreground color
-                        lTextColor = HexToCairoColor(lTheme.ForegroundColor)
-                    Else
-                        ' Fallback based on dark/light
-                        Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
-                        If lIsDark Then
-                            lTextColor = HexToCairoColor("#D4D4D4")  ' Light gray for dark theme
-                        Else
-                            lTextColor = HexToCairoColor("#000000")  ' Black for light theme
-                        End If
-                    End If
+                If vNode Is pHoveredNode Then
+                    ' Hover color
+                    lTextColor = HexToCairoColor("#FFFFFF")
+                ElseIf vNode Is pSelectedNode Then
+                    ' Selected color
+                    lTextColor = HexToCairoColor("#FFFFFF")
+                ElseIf vNode.Node.IsPrivate Then
+                    ' Private member - grayed out
+                    lTextColor = HexToCairoColor("#808080")
                 Else
-                    ' Default to light text
+                    ' Normal text
                     lTextColor = HexToCairoColor("#D4D4D4")
                 End If
                 
                 ' Set text color
                 vContext.SetSourceRGB(lTextColor.R, lTextColor.G, lTextColor.B)
                 
-                ' Create text to display
+                ' Create text to display - just the name, no type info
                 Dim lText As String = vNode.Node.Name
                 
-                ' Add type info for certain nodes
-                If vNode.Node.NodeType = CodeNodeType.eProperty AndAlso Not String.IsNullOrEmpty(vNode.Node.NodeType) Then
-                    lText &= " As " & vNode.Node.NodeType
-                ElseIf vNode.Node.NodeType = CodeNodeType.eField AndAlso Not String.IsNullOrEmpty(vNode.Node.NodeType) Then
-                    lText &= " As " & vNode.Node.NodeType
-                End If
-                
-                ' Add modifiers
+                ' Add modifiers only (no type information - that goes in tooltips)
                 If vNode.Node.IsShared Then lText &= " (Shared)"
                 If vNode.Node.IsPartial Then lText &= " (Partial)"
                 

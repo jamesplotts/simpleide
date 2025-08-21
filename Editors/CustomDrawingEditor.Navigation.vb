@@ -193,8 +193,75 @@ Namespace Editors
             End Try
         End Sub
         
-
-'        
+        ''' <summary>
+        ''' Navigates to a line number and positions it as the second visible line from top when possible
+        ''' </summary>
+        ''' <param name="vLineNumber">Target line number (1-based)</param>
+        Public Sub NavigateToLineNumberForPresentment(vLineNumber As Integer) Implements IEditor.NavigateToLineNumberForPresentment
+            Try
+                ' Convert to 0-based index
+                Dim lTargetLine As Integer = vLineNumber - 1
+                
+                ' Validate line number
+                If lTargetLine < 0 Then
+                    lTargetLine = 0
+                ElseIf lTargetLine >= pLineCount Then
+                    lTargetLine = pLineCount - 1
+                End If
+                
+                ' Clear any existing selection
+                ClearSelection()
+                
+                ' Position cursor at beginning of the target line
+                SetCursorPosition(lTargetLine, 0)
+                
+                ' Calculate viewport height in lines
+                Dim lViewportHeightPixels As Integer = If(pDrawingArea?.AllocatedHeight, 400)
+                Dim lViewportLines As Integer = lViewportHeightPixels \ pLineHeight
+                
+                ' Calculate the scroll position
+                ' We want the target line to be the second line from top (index 1)
+                Dim lDesiredScrollLine As Integer = lTargetLine - 1
+                
+                ' Check if we have enough lines after the target to fill the viewport
+                Dim lLinesAfterTarget As Integer = pLineCount - lTargetLine
+                
+                If lLinesAfterTarget < lViewportLines Then
+                    ' Not enough lines after target - scroll so end of file is at bottom
+                    lDesiredScrollLine = Math.Max(0, pLineCount - lViewportLines)
+                Else
+                    ' Enough lines - position target as second line from top
+                    lDesiredScrollLine = Math.Max(0, lTargetLine - 1)
+                End If
+                
+                ' Set the scroll position
+                If pVAdjustment IsNot Nothing Then
+                    Dim lNewScrollY As Integer = lDesiredScrollLine * pLineHeight
+                    
+                    ' Clamp to valid range
+                    lNewScrollY = Math.Max(CInt(pVAdjustment.Lower), 
+                                          Math.Min(lNewScrollY, 
+                                                  CInt(pVAdjustment.Upper - pVAdjustment.PageSize)))
+                    
+                    pVAdjustment.Value = lNewScrollY
+                End If
+                
+                ' Ensure cursor is visible (might adjust scroll slightly if needed)
+                EnsureCursorVisible()
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
+                
+                ' Grab focus
+                pDrawingArea?.GrabFocus()
+                
+            Catch ex As Exception
+                Console.WriteLine($"NavigateToLineNumberForPresentment error: {ex.Message}")
+                ' Fallback to standard navigation
+                GoToLine(vLineNumber)
+            End Try
+        End Sub
+       
     End Class
     
 End Namespace

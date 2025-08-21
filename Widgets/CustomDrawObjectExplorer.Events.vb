@@ -237,33 +237,59 @@ Namespace Widgets
         ''' </summary>
         Private Function OnDrawingAreaScroll(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
-                ' Check for Ctrl+Scroll (zoom)
-                If (vArgs.Event.State And ModifierType.ControlMask) = ModifierType.ControlMask Then
-                    ' Zoom in/out
+                ' Debug output to verify scroll events are received
+                Console.WriteLine($"OnDrawingAreaScroll: Direction={vArgs.Event.Direction}, Ctrl={vArgs.Event.State And ModifierType.ControlMask}")
+                
+                ' Check for Ctrl key for zoom
+                If vArgs.Event.State And ModifierType.ControlMask Then
+                    ' Ctrl+Scroll: Zoom in/out
                     If vArgs.Event.Direction = ScrollDirection.Up Then
-                        ZoomIn()
+                        ' Zoom in
+                        Dim lNewScale As Integer = Math.Min(pCurrentScale + 10, MAX_SCALE)
+                        If lNewScale <> pCurrentScale Then
+                            ApplyScale(lNewScale)
+                            SaveUnifiedTextScale(lNewScale)
+                        End If
                     ElseIf vArgs.Event.Direction = ScrollDirection.Down Then
-                        ZoomOut()
+                        ' Zoom out
+                        Dim lNewScale As Integer = Math.Max(pCurrentScale - 10, MIN_SCALE)
+                        If lNewScale <> pCurrentScale Then
+                            ApplyScale(lNewScale)
+                            SaveUnifiedTextScale(lNewScale)
+                        End If
                     End If
                     Return True
                 End If
                 
-                ' Regular scrolling
+                ' Regular scrolling (without Ctrl)
                 Select Case vArgs.Event.Direction
                     Case ScrollDirection.Up
-                        pVScrollBar.Value = Math.Max(pVScrollBar.Adjustment.Lower, 
-                                                     pVScrollBar.Value - pRowHeight * 3)
+                        ' Scroll up by 3 rows
+                        Dim lNewValue As Double = Math.Max(pVScrollBar.Adjustment.Lower, 
+                                                          pVScrollBar.Value - (pRowHeight * 3))
+                        pVScrollBar.Value = lNewValue
+                        Console.WriteLine($"Scrolled up to {lNewValue}")
+                        
                     Case ScrollDirection.Down
-                        pVScrollBar.Value = Math.Min(pVScrollBar.Adjustment.Upper - pVScrollBar.Adjustment.PageSize,
-                                                     pVScrollBar.Value + pRowHeight * 3)
+                        ' Scroll down by 3 rows
+                        Dim lMaxValue As Double = pVScrollBar.Adjustment.Upper - pVScrollBar.Adjustment.PageSize
+                        Dim lNewValue As Double = Math.Min(lMaxValue, 
+                                                          pVScrollBar.Value + (pRowHeight * 3))
+                        pVScrollBar.Value = lNewValue
+                        Console.WriteLine($"Scrolled down to {lNewValue}")
+                        
                     Case ScrollDirection.Left
+                        ' Horizontal scroll left
                         pHScrollBar.Value = Math.Max(pHScrollBar.Adjustment.Lower,
-                                                     pHScrollBar.Value - 20)
+                                                    pHScrollBar.Value - 20)
+                        
                     Case ScrollDirection.Right
+                        ' Horizontal scroll right
                         pHScrollBar.Value = Math.Min(pHScrollBar.Adjustment.Upper - pHScrollBar.Adjustment.PageSize,
-                                                     pHScrollBar.Value + 20)
+                                                    pHScrollBar.Value + 20)
                 End Select
                 
+                ' Return True to indicate we handled the event
                 Return True
                 
             Catch ex As Exception
@@ -401,16 +427,13 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles node double-click
+        ''' Simplified node double-click handler - only calls HandleNodeActivation
         ''' </summary>
         Private Sub HandleNodeDoubleClick(vNode As VisualNode)
             Try
                 If vNode?.Node Is Nothing Then Return
                 
-                ' Raise double-click event
-                RaiseEvent NodeDoubleClicked(vNode.Node)
-                
-                ' Also handle as activation
+                ' Just handle as activation - don't fire NodeDoubleClicked event
                 HandleNodeActivation(vNode)
                 
             Catch ex As Exception
@@ -419,21 +442,21 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles node activation (Enter key or double-click)
+        ''' Simplified node activation - only fires NavigateToFile
         ''' </summary>
         Private Sub HandleNodeActivation(vNode As VisualNode)
             Try
                 If vNode?.Node Is Nothing Then Return
                 
-                ' Navigate to the node's declaration
+                ' Only navigate if we have a file path
                 If Not String.IsNullOrEmpty(vNode.Node.FilePath) Then
+                    ' StartLine is already 1-based from the parser
                     RaiseEvent NavigateToFile(vNode.Node.FilePath, 
-                                             vNode.Node.StartLine + 1, 
+                                             vNode.Node.StartLine,
                                              vNode.Node.StartColumn + 1)
                 End If
                 
-                ' Raise activation event
-                RaiseEvent NodeActivated(vNode.Node)
+                ' Don't fire NodeActivated - NavigateToFile is enough
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleNodeActivation error: {ex.Message}")

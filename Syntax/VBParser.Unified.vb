@@ -1017,6 +1017,11 @@ Namespace Syntax
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Parse method parameters and populate the Parameters collection
+        ''' </summary>
+        ''' <param name="vNode">The method/function node to add parameters to</param>
+        ''' <param name="vLine">The line containing the method declaration</param>
         Private Sub ParseMethodParameters(vNode As SyntaxNode, vLine As String)
             Try
                 ' Extract parameters from between parentheses
@@ -1033,11 +1038,71 @@ Namespace Syntax
                         For Each lParam In lParams
                             Dim lTrimmedParam As String = lParam.Trim()
                             If Not String.IsNullOrEmpty(lTrimmedParam) Then
-                                Dim lParamNode As New SyntaxNode(CodeNodeType.eParameter, ExtractParameterName(lTrimmedParam))
+                                ' Create ParameterInfo object
+                                Dim lParamInfo As New ParameterInfo()
+                                
+                                ' Parse parameter modifiers and name
+                                Dim lParamParts As String = lTrimmedParam
+                                
+                                ' Check for ByRef
+                                If lParamParts.StartsWith("ByRef ", StringComparison.OrdinalIgnoreCase) Then
+                                    lParamInfo.IsByRef = True
+                                    lParamInfo.IsByVal = False
+                                    lParamParts = lParamParts.Substring(6).Trim()
+                                ElseIf lParamParts.StartsWith("ByVal ", StringComparison.OrdinalIgnoreCase) Then
+                                    lParamInfo.IsByVal = True
+                                    lParamInfo.IsByRef = False
+                                    lParamParts = lParamParts.Substring(6).Trim()
+                                End If
+                                
+                                ' Check for Optional
+                                If lParamParts.StartsWith("Optional ", StringComparison.OrdinalIgnoreCase) Then
+                                    lParamInfo.IsOptional = True
+                                    lParamParts = lParamParts.Substring(9).Trim()
+                                End If
+                                
+                                ' Check for ParamArray
+                                If lParamParts.StartsWith("ParamArray ", StringComparison.OrdinalIgnoreCase) Then
+                                    lParamInfo.IsParamArray = True
+                                    lParamParts = lParamParts.Substring(11).Trim()
+                                End If
+                                
+                                ' Extract name and type
+                                Dim lAsIndex As Integer = lParamParts.IndexOf(" As ", StringComparison.OrdinalIgnoreCase)
+                                Dim lEqualsIndex As Integer = lParamParts.IndexOf("="c)
+                                
+                                If lAsIndex > 0 Then
+                                    ' Has type specification
+                                    lParamInfo.Name = lParamParts.Substring(0, lAsIndex).Trim()
+                                    
+                                    ' Extract type (and default value if present)
+                                    If lEqualsIndex > lAsIndex Then
+                                        ' Has default value
+                                        lParamInfo.ParameterType = lParamParts.Substring(lAsIndex + 4, lEqualsIndex - lAsIndex - 4).Trim()
+                                        lParamInfo.DefaultValue = lParamParts.Substring(lEqualsIndex + 1).Trim()
+                                    Else
+                                        ' Just type, no default
+                                        lParamInfo.ParameterType = lParamParts.Substring(lAsIndex + 4).Trim()
+                                    End If
+                                ElseIf lEqualsIndex > 0 Then
+                                    ' Has default value but no type
+                                    lParamInfo.Name = lParamParts.Substring(0, lEqualsIndex).Trim()
+                                    lParamInfo.DefaultValue = lParamParts.Substring(lEqualsIndex + 1).Trim()
+                                Else
+                                    ' Just name, no type or default
+                                    lParamInfo.Name = lParamParts.Trim()
+                                End If
+                                
+                                ' Add to Parameters collection
+                                vNode.Parameters.Add(lParamInfo)
+                                
+                                ' Also create child node for backward compatibility
+                                Dim lParamNode As New SyntaxNode(CodeNodeType.eParameter, lParamInfo.Name)
                                 lParamNode.StartLine = vNode.StartLine
                                 lParamNode.EndLine = vNode.StartLine
+                                lParamNode.ReturnType = lParamInfo.ParameterType
                                 
-                                ' Store full parameter declaration
+                                ' Store full parameter declaration in attributes
                                 If lParamNode.Attributes Is Nothing Then
                                     lParamNode.Attributes = New Dictionary(Of String, String)()
                                 End If
@@ -1285,6 +1350,8 @@ Namespace Syntax
         ''' </summary>
         Private Function FindBlockEnd(vStartLine As Integer, vBlockType As String) As Integer
             Try
+                Console.WriteLine($"  FindBlockEnd: Looking for END {vBlockType} starting from line {vStartLine}")
+                
                 ' Build the END statement we're looking for
                 Dim lEndKeyword As String = "END " & vBlockType.ToUpper()
                 
@@ -1296,6 +1363,7 @@ Namespace Syntax
                 
                 ' Track nesting level for nested blocks
                 Dim lNestLevel As Integer = 1
+                Console.WriteLine($"    Starting with nest level: {lNestLevel}")
                 
                 ' Look for the matching END statement
                 For i As Integer = vStartLine + 1 To pLines.Length - 1
@@ -1306,11 +1374,85 @@ Namespace Syntax
                         Continue For
                     End If
                     
-                    ' Check for nested block of same type
-                    If lLine.StartsWith(vBlockType.ToUpper() & " ") OrElse
-                       (vBlockType = "SUB" AndAlso lLine.StartsWith("FUNCTION ")) OrElse
-                       (vBlockType = "FUNCTION" AndAlso lLine.StartsWith("SUB ")) Then
-                        lNestLevel += 1
+                    ' FIXED: Check for nested block of same type - now includes CLASS, MODULE, etc.
+                    ' First check for nested blocks that would increase nesting
+                    Dim lUpperLine As String = lLine
+                    Dim lWords As String() = lUpperLine.Split({" "c, vbTab}, StringSplitOptions.RemoveEmptyEntries)
+                    
+                    If lWords.Length > 0 Then
+                        Select Case vBlockType.ToUpper()
+                            Case "CLASS"
+                                ' Check if this line starts a new class (not END CLASS)
+                                If lWords(0) = "CLASS" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "CLASS" AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested CLASS, nest level now {lNestLevel}")
+                                End If
+                            
+                            Case "MODULE"
+                                ' Check if this line starts a new module (not END MODULE)
+                                If lWords(0) = "MODULE" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "MODULE" AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested MODULE, nest level now {lNestLevel}")
+                                End If
+                                
+                            Case "STRUCTURE"
+                                ' Check if this line starts a new structure (not END STRUCTURE)
+                                If lWords(0) = "STRUCTURE" OrElse lWords(0) = "STRUCT" OrElse
+                                   (lWords.Length > 1 AndAlso (lWords(1) = "STRUCTURE" OrElse lWords(1) = "STRUCT") AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested STRUCTURE, nest level now {lNestLevel}")
+                                End If
+                                
+                            Case "INTERFACE"
+                                ' Check if this line starts a new interface (not END INTERFACE)
+                                If lWords(0) = "INTERFACE" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "INTERFACE" AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested INTERFACE, nest level now {lNestLevel}")
+                                End If
+                            
+                            Case "SUB", "FUNCTION"
+                                ' For methods, check for both SUB and FUNCTION as they can be interleaved
+                                If (lWords(0) = "SUB" OrElse lWords(0) = "FUNCTION") OrElse
+                                   (lWords.Length > 1 AndAlso (lWords(1) = "SUB" OrElse lWords(1) = "FUNCTION") AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested method, nest level now {lNestLevel}")
+                                End If
+                                
+                            Case "PROPERTY"
+                                ' Check if this line starts a new property (not END PROPERTY)
+                                If lWords(0) = "PROPERTY" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "PROPERTY" AndAlso 
+                                    lWords(0) <> "END" AndAlso lWords(0) <> "GET" AndAlso lWords(0) <> "SET") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested PROPERTY, nest level now {lNestLevel}")
+                                End If
+                                
+                            Case "ENUM"
+                                ' Check if this line starts a new enum (not END ENUM)
+                                If lWords(0) = "ENUM" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "ENUM" AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested ENUM, nest level now {lNestLevel}")
+                                End If
+                                
+                            Case "NAMESPACE"
+                                ' Check if this line starts a new namespace (not END NAMESPACE)
+                                If lWords(0) = "NAMESPACE" OrElse 
+                                   (lWords.Length > 1 AndAlso lWords(1) = "NAMESPACE" AndAlso 
+                                    lWords(0) <> "END") Then
+                                    lNestLevel += 1
+                                    Console.WriteLine($"    Line {i}: Found nested NAMESPACE, nest level now {lNestLevel}")
+                                End If
+                        End Select
                     End If
                     
                     ' Check for END statement - handle both formats
@@ -1320,10 +1462,19 @@ Namespace Syntax
                         (lLine = lAlternateEndKeyword OrElse lLine.StartsWith(lAlternateEndKeyword & " "))) Then
                         
                         lNestLevel -= 1
+                        Console.WriteLine($"    Line {i}: Found {lEndKeyword}, nest level now {lNestLevel}")
+                        
                         If lNestLevel = 0 Then
-                            Console.WriteLine($"  Found {lEndKeyword} at line {i}")
+                            Console.WriteLine($"  Found matching {lEndKeyword} at line {i} for block starting at line {vStartLine}")
                             Return i
                         End If
+                    End If
+                    
+                    ' FIXED: Also handle special case for methods with both END SUB and END FUNCTION
+                    If (vBlockType.ToUpper() = "SUB" AndAlso lLine.StartsWith("END FUNCTION")) OrElse
+                       (vBlockType.ToUpper() = "FUNCTION" AndAlso lLine.StartsWith("END SUB")) Then
+                        ' This shouldn't happen in valid code, but handle it gracefully
+                        Console.WriteLine($"  Warning: Found mismatched END statement at line {i}")
                     End If
                 Next
                 
@@ -1333,12 +1484,12 @@ Namespace Syntax
                     Console.WriteLine($"  Namespace extends to end of file (line {pLines.Length - 1})")
                     Return pLines.Length - 1
                 Else
-                    Console.WriteLine($"Warning: No END {vBlockType} found for block starting at line {vStartLine}")
+                    Console.WriteLine($"  Warning: No END {vBlockType} found for block starting at line {vStartLine}")
                     Return pLines.Length - 1
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"FindBlockEndFixed error: {ex.Message}")
+                Console.WriteLine($"FindBlockEnd error: {ex.Message}")
                 Return pLines.Length - 1
             End Try
         End Function

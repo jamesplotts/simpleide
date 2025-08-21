@@ -226,7 +226,21 @@ Namespace Widgets
                 ' Create drawing area
                 pDrawingArea = New DrawingArea()
                 pDrawingArea.CanFocus = True
-                pDrawingArea.Events = EventMask.AllEventsMask
+                
+                ' FIXED: Set events explicitly including scroll mask
+                pDrawingArea.Events = EventMask.ExposureMask Or 
+                                     EventMask.ButtonPressMask Or 
+                                     EventMask.ButtonReleaseMask Or 
+                                     EventMask.PointerMotionMask Or 
+                                     EventMask.ScrollMask Or 
+                                     EventMask.KeyPressMask Or 
+                                     EventMask.KeyReleaseMask Or
+                                     EventMask.EnterNotifyMask Or
+                                     EventMask.LeaveNotifyMask
+                
+                ' CRITICAL: Add scroll events explicitly after setting Events property
+                pDrawingArea.AddEvents(CInt(EventMask.ScrollMask))
+                
                 pDrawingArea.Expand = True
                 
                 ' Create vertical scrollbar
@@ -259,6 +273,50 @@ Namespace Widgets
                 Console.WriteLine($"CreateUIComponents error: {ex.Message}")
             End Try
         End Sub
+'        Private Sub CreateUIComponents()
+'            Try
+'                ' Create main container box (vertical)
+'                Dim lMainBox As New Box(Orientation.Vertical, 0)
+'                
+'                ' Create horizontal container for drawing area and vertical scrollbar
+'                Dim lHorizontalBox As New Box(Orientation.Horizontal, 0)
+'                
+'                ' Create drawing area
+'                pDrawingArea = New DrawingArea()
+'                pDrawingArea.CanFocus = True
+'                pDrawingArea.Events = EventMask.AllEventsMask
+'                pDrawingArea.Expand = True
+'                
+'                ' Create vertical scrollbar
+'                pVScrollBar = New Scrollbar(Orientation.Vertical, Nothing)
+'                
+'                ' Create horizontal scrollbar
+'                pHScrollBar = New Scrollbar(Orientation.Horizontal, Nothing)
+'                
+'                ' Create corner box
+'                pCornerBox = New DrawingArea()
+'                pCornerBox.SetSizeRequest(20, 20) ' Match scrollbar width/height
+'                
+'                ' Pack horizontal box
+'                lHorizontalBox.PackStart(pDrawingArea, True, True, 0)
+'                lHorizontalBox.PackStart(pVScrollBar, False, False, 0)
+'                
+'                ' Create bottom box for horizontal scrollbar and corner
+'                Dim lBottomBox As New Box(Orientation.Horizontal, 0)
+'                lBottomBox.PackStart(pHScrollBar, True, True, 0)
+'                lBottomBox.PackStart(pCornerBox, False, False, 0)
+'                
+'                ' Pack main box
+'                lMainBox.PackStart(lHorizontalBox, True, True, 0)
+'                lMainBox.PackStart(lBottomBox, False, False, 0)
+'                
+'                ' Add to main container
+'                PackStart(lMainBox, True, True, 0)
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"CreateUIComponents error: {ex.Message}")
+'            End Try
+'        End Sub
         
         ' ===== Drawing Initialization =====
         

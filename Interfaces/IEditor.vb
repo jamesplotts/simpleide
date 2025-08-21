@@ -161,6 +161,17 @@ Namespace Interfaces
         ''' </summary>
         Sub SetCursorPosition(vLine As Integer, vColumn As Integer)
 
+        ''' <summary>
+        ''' Navigates to a line number and positions it as the second visible line from top when possible
+        ''' </summary>
+        ''' <param name="vLineNumber">Target line number (1-based)</param>
+        ''' <remarks>
+        ''' This method scrolls the editor so the target line appears as the second visible line
+        ''' from the top of the viewport. If there aren't enough lines after the target to fill
+        ''' the viewport, it scrolls so the end of the file is at the bottom of the editor.
+        ''' </remarks>
+        Sub NavigateToLineNumberForPresentment(vLineNumber As Integer)
+
 
     End Interface
     

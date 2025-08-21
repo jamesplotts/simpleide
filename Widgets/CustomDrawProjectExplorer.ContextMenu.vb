@@ -427,87 +427,9 @@ Namespace Widgets
             End Try
         End Sub
         
-        ' ===== Add New Item Handlers =====
         
-        Private Sub OnContextMenuAddNewItem(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement new item dialog
-                Console.WriteLine("Add new item not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddNewItem error: {ex.Message}")
-            End Try
-        End Sub
         
-        Private Sub OnContextMenuAddExistingItem(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add existing item dialog
-                Console.WriteLine("Add existing item not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddExistingItem error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddNewFolder(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement new folder creation
-                Console.WriteLine("Add new folder not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddNewFolder error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddClass(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add class dialog
-                Console.WriteLine("Add class not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddClass error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddModule(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add module dialog
-                Console.WriteLine("Add module not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddModule error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddInterface(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add interface dialog
-                Console.WriteLine("Add interface not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddInterface error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddForm(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add form dialog
-                Console.WriteLine("Add form not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddForm error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnContextMenuAddUserControl(vSender As Object, vArgs As EventArgs)
-            Try
-                ' TODO: Implement add user control dialog
-                Console.WriteLine("Add user control not yet implemented")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuAddUserControl error: {ex.Message}")
-            End Try
-        End Sub
+
         
     End Class
     

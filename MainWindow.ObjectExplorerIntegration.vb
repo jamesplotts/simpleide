@@ -52,11 +52,27 @@ Partial Public Class MainWindow
         Try
             If pObjectExplorer Is Nothing OrElse vRootNode Is Nothing Then Return
             
-            ' Update Object Explorer with new structure
-            pObjectExplorer.UpdateStructure(vRootNode)
-            
-            ' Debug output
-            Console.WriteLine($"Object Explorer updated with structure: {vRootNode.Children.Count} root nodes")
+            ' FIXED: Don't replace the entire Object Explorer with single file structure
+            ' Instead, check if we have a project open and maintain the project structure
+            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+                ' Get the full project structure, not just the single file
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                
+                If lProjectTree IsNot Nothing Then
+                    ' Update Object Explorer with the complete project structure
+                    pObjectExplorer.UpdateStructure(lProjectTree)
+                    Console.WriteLine($"Object Explorer updated with full project structure: {lProjectTree.Children.Count} root nodes")
+                Else
+                    ' If no project tree available, fall back to single file
+                    ' (This should only happen for files opened outside of a project)
+                    pObjectExplorer.UpdateStructure(vRootNode)
+                    Console.WriteLine($"Object Explorer updated with single file structure: {vRootNode.Children.Count} root nodes")
+                End If
+            Else
+                ' No project open, show just the current file's structure
+                pObjectExplorer.UpdateStructure(vRootNode)
+                Console.WriteLine($"Object Explorer updated with file structure (no project): {vRootNode.Children.Count} root nodes")
+            End If
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorDocumentParsed error: {ex.Message}")
@@ -68,29 +84,46 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Update Object Explorer when tab changes
+    ''' Update Object Explorer for the currently active tab
     ''' </summary>
     Private Sub UpdateObjectExplorerForActiveTab()
         Try
-            Console.WriteLine("=====================================")
-            Console.WriteLine("UpdateObjectExplorerForActiveTab called")
-            Console.WriteLine($"Current notebook page: {If(pNotebook IsNot Nothing, pNotebook.CurrentPage.ToString(), "Nothing")}")
+            If pObjectExplorer Is Nothing Then Return
             
+            ' Get current tab
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then Return
             
-            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                Console.WriteLine($"Found current tab: {lCurrentTab.FilePath}")
-                SetupObjectExplorerForEditor(lCurrentTab.Editor)
+            ' Set the current editor
+            pObjectExplorer.SetCurrentEditor(lCurrentTab.Editor)
+            
+            ' FIXED: If a project is open, always show the full project structure
+            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+                ' Get and display the full project structure
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                
+                If lProjectTree IsNot Nothing Then
+                    pObjectExplorer.UpdateStructure(lProjectTree)
+                    Console.WriteLine("Object Explorer updated with project structure for active tab")
+                Else
+                    ' Fall back to file structure if project tree not available
+                    Dim lStructure As SyntaxNode = lCurrentTab.Editor.GetDocumentStructure()
+                    If lStructure IsNot Nothing Then
+                        pObjectExplorer.UpdateStructure(lStructure)
+                        Console.WriteLine("Object Explorer updated with file structure (project tree unavailable)")
+                    End If
+                End If
             Else
-                Console.WriteLine("No current tab found - NOT clearing Object Explorer")
-                ' COMMENTED OUT: Don't clear when switching to Object Explorer tab!
-                ' Clear Object Explorer if no active editor
-                'If pObjectExplorer IsNot Nothing Then
-                '    pObjectExplorer.ClearStructure()
-                'End If
+                ' No project open, show just the current file's structure
+                Dim lStructure As SyntaxNode = lCurrentTab.Editor.GetDocumentStructure()
+                If lStructure IsNot Nothing Then
+                    pObjectExplorer.UpdateStructure(lStructure)
+                    Console.WriteLine("Object Explorer updated with file structure (no project)")
+                End If
             End If
             
-            Console.WriteLine("=====================================")
+            ' Update toolbar state
+            UpdateObjectExplorerToolbarState()
             
         Catch ex As Exception
             Console.WriteLine($"UpdateObjectExplorerForActiveTab error: {ex.Message}")
@@ -98,20 +131,41 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Set up editor for Object Explorer integration
+    ''' Set up editor for Object Explorer integration without redundant parsing
     ''' </summary>
     Private Sub SetupEditorForObjectExplorer(vEditor As IEditor)
         Try
             If vEditor Is Nothing Then Return
             
-            ' Set up Object Explorer integration - FIXED: Call SetupObjectExplorerForEditor instead of recursive call
+            ' Set up Object Explorer integration
             SetupObjectExplorerForEditor(vEditor)
             
-            ' If this is a CustomDrawingEditor, trigger initial parsing
+            ' FIXED: Only trigger parsing if we don't already have structure
             Dim lCustomEditor As CustomDrawingEditor = TryCast(vEditor, CustomDrawingEditor)
             If lCustomEditor IsNot Nothing Then
-                ' Request initial parse if content exists
-                lCustomEditor.RefreshSyntaxHighlighting()
+                ' Check if the editor already has parsed structure
+                Dim lStructure As SyntaxNode = lCustomEditor.GetDocumentStructure()
+                
+                If lStructure Is Nothing Then
+                    ' No existing structure, request initial parse
+                    Console.WriteLine("No existing structure, requesting parse")
+                    lCustomEditor.RefreshSyntaxHighlighting()
+                Else
+                    ' Already has structure, just update Object Explorer
+                    Console.WriteLine("Editor already has parsed structure, updating Object Explorer")
+                    If pObjectExplorer IsNot Nothing Then
+                        ' If project is open, show full project structure
+                        If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+                            Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                            If lProjectTree IsNot Nothing Then
+                                pObjectExplorer.UpdateStructure(lProjectTree)
+                            End If
+                        Else
+                            ' No project, show file structure
+                            pObjectExplorer.UpdateStructure(lStructure)
+                        End If
+                    End If
+                End If
             End If
             
         Catch ex As Exception
@@ -136,35 +190,62 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateObjectExplorerToolbarState error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Enhanced NavigateToFile handler in MainWindow with pre-load status
+    ''' </summary>
+    Private Sub OnObjectExplorerNavigateToFile(vFilePath As String, vLine As Integer, vColumn As Integer)
+        Try
+            Console.WriteLine($"NavigateToFile: {vFilePath} at line {vLine }")
+            
+            ' Check if we need to open a different file
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            Dim lNeedToOpenFile As Boolean = True
+            
+            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                If Not String.IsNullOrEmpty(lCurrentTab.FilePath) Then
+                    If vFilePath.Equals(lCurrentTab.FilePath, StringComparison.OrdinalIgnoreCase) Then
+                        lNeedToOpenFile = False
+                    End If
+                End If
+            End If
+            
+            Dim lFileName As String = System.IO.Path.GetFileName(vFilePath)
+            
+            ' Show loading status ONLY if we need to open the file
+            If lNeedToOpenFile Then
+                UpdateStatusBar($"Loading {lFileName}...")
+                
+                ' Force immediate update and add tiny delay to ensure visibility
+                While Gtk.Application.EventsPending()
+                    Gtk.Application.RunIteration()
+                End While
+                System.Threading.Thread.Sleep(50) ' 50ms delay to ensure status is visible
+            End If
+            
+            ' Open the file if needed
+            If lNeedToOpenFile Then
+                OpenFileWithProjectIntegration(vFilePath)
+                lCurrentTab = GetCurrentTabInfo()
+            End If
+            
+            ' Navigate to the line
+            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                ' vLine is 1-based from the event, NavigateToLineNumberForPresentment expects 0-based
+                lCurrentTab.Editor.NavigateToLineNumberForPresentment(vLine - 1)
+                lCurrentTab.Editor.SelectLine(vLine)
+                lCurrentTab.Editor.Widget.GrabFocus()
+                
+                UpdateStatusBar($"Ready - {lFileName} at line {vLine + 1}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnObjectExplorerNavigateToFile error: {ex.Message}")
+            UpdateStatusBar("Ready")
+        End Try
+    End Sub
+
     
-'    ''' <summary>
-'    ''' Initialize Object Explorer 
-'    ''' </summary>
-'    Private Sub InitializeObjectExplorer()
-'        Try
-'            ' Create Object Explorer
-'            pObjectExplorer = New CustomDrawObjectExplorer(pSettingsManager)
-'            
-'            ' Initialize with project manager if available
-'            If pProjectManager IsNot Nothing Then
-'                pObjectExplorer.InitializeWithProjectManager(pProjectManager)
-'            End If
-'            
-'            ' Create scrolled window for Object Explorer
-'            pObjectExplorerScrolled = New ScrolledWindow()
-'            pObjectExplorerScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-'            pObjectExplorerScrolled.Add(pObjectExplorer)
-'            
-'            ' Add event handlers
-'            AddHandler pObjectExplorer.NodeActivated, AddressOf OnObjectExplorerNodeActivated
-'            AddHandler pObjectExplorer.NodeSelected, AddressOf OnObjectExplorerNodeSelected
-'            
-'            Console.WriteLine("Object Explorer initialized")
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"InitializeObjectExplorer error: {ex.Message}")
-'        End Try
-'    End Sub
     
     ''' <summary>
     ''' Handle file opened from Project Explorer
@@ -242,22 +323,60 @@ Partial Public Class MainWindow
             
             Console.WriteLine($"Object Explorer node activated: {vNode.Name} at line {vNode.StartLine}")
             
-            ' Navigate to the node location in the current editor
+            ' Provide immediate feedback
+            Dim lNodeDescription As String = $"{vNode.NodeType.ToString().Substring(1)} '{vNode.Name}'"
+            Dim lFileName As String = If(Not String.IsNullOrEmpty(vNode.FilePath), 
+                                         System.IO.Path.GetFileName(vNode.FilePath), 
+                                         "current file")
+            
+            ' Use Application.Invoke to ensure UI thread update
+            Application.Invoke(Sub()
+                UpdateStatusBar($"Opening {lNodeDescription} in {lFileName}...")
+                Console.WriteLine($"ApplicationInvoke UpdateStatusBar")
+            End Sub)
+            
+            ' Check if we need to open a different file
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            Dim lNeedToOpenFile As Boolean = True
+            
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' Move cursor to the node's line
-                lCurrentTab.Editor.GoToLine(vNode.StartLine)
-            Else
+                ' Check if the node is in the current file
+                If Not String.IsNullOrEmpty(vNode.FilePath) AndAlso 
+                   Not String.IsNullOrEmpty(lCurrentTab.FilePath) Then
+                    If vNode.FilePath.Equals(lCurrentTab.FilePath, StringComparison.OrdinalIgnoreCase) Then
+                        lNeedToOpenFile = False
+                    End If
+                End If
+            End If
+            
+            ' Open the file if needed
+            If lNeedToOpenFile AndAlso Not String.IsNullOrEmpty(vNode.FilePath) Then
+                Console.WriteLine($"OpenFileWithProjectIntegration Called")
                 OpenFileWithProjectIntegration(vNode.FilePath)
                 lCurrentTab = GetCurrentTabInfo()
-                lCurrentTab.Editor.GoToLine(vNode.StartLine)
             End If
+            
+            ' Navigate to the line with enhanced presentment scrolling
+            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                ' The StartLine is already 1-based from the parser
+                Dim lTargetLine As Integer = vNode.StartLine - 1
+                
+                ' Use the new presentment navigation method
+                lCurrentTab.Editor.NavigateToLineNumberForPresentment(lTargetLine)
+                lCurrentTab.Editor.SelectLine(vNode.StartLine)
+                ' Ensure the editor has focus
+                lCurrentTab.Editor.Widget.GrabFocus()
+            End If
+            Console.WriteLine($"End of OnObjectExplorerNodeActivated")
+            ' Always show final status (moved outside the If block)
+            UpdateStatusBar($"Ready - {lNodeDescription} at line {vNode.StartLine}")
             
         Catch ex As Exception
             Console.WriteLine($"OnObjectExplorerNodeActivated error: {ex.Message}")
+            UpdateStatusBar($"Error navigating to node: {ex.Message}")
         End Try
     End Sub
-    
+
     ''' <summary>
     ''' Handle node selection in Object Explorer (single-click)
     ''' </summary>
