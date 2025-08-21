@@ -71,9 +71,9 @@ Namespace Managers
                     lSettings.TabWidth = 4
                 End If
                 
-                ' Validate IntelliSense delay
-                If lSettings.IntelliSenseDelay < 100 OrElse lSettings.IntelliSenseDelay > 5000 Then
-                    lSettings.IntelliSenseDelay = 500
+                ' Validate CodeSense delay
+                If lSettings.CodeSenseDelay < 100 OrElse lSettings.CodeSenseDelay > 5000 Then
+                    lSettings.CodeSenseDelay = 500
                 End If
                 
             Catch ex As Exception
@@ -182,7 +182,7 @@ Namespace Managers
                     Case "ClearOutputOnBuild" : Return ClearOutputOnBuild
                     Case "ShowBuildOutput" : Return ShowBuildOutput
                     Case "AIAssistantEnabled" : Return AIAssistantEnabled
-                    Case "IntelliSenseEnabled" : Return IntelliSenseEnabled
+                    Case "CodeSenseEnabled" : Return CodeSenseEnabled
                     Case "FindCaseSensitive" : Return FindCaseSensitive
                     Case "FindWholeWord" : Return FindWholeWord
                     Case "FindUseRegex" : Return FindUseRegex
@@ -214,7 +214,7 @@ Namespace Managers
                     Case "LeftPanelWidth" : Return LeftPanelWidth
                     Case "BottomPanelHeight" : Return BottomPanelHeight
                     Case "TabWidth" : Return TabWidth
-                    Case "IntelliSenseDelay" : Return IntelliSenseDelay
+                    Case "CodeSenseDelay" : Return CodeSenseDelay
                     Case Else
                         ' Generic integer setting
                         Dim lStringValue As String = GetCustomSetting(vKey, vDefaultValue.ToString())
@@ -288,7 +288,7 @@ Namespace Managers
                     Case "LeftPanelWidth" : LeftPanelWidth = vValue
                     Case "BottomPanelHeight" : BottomPanelHeight = vValue
                     Case "TabWidth" : TabWidth = vValue
-                    Case "IntelliSenseDelay" : IntelliSenseDelay = vValue
+                    Case "CodeSenseDelay" : CodeSenseDelay = vValue
                     Case Else
                         ' Generic setting - store as string
                         SetCustomSetting(vKey, vValue.ToString())
@@ -336,7 +336,7 @@ Namespace Managers
                     Case "ClearOutputOnBuild" : ClearOutputOnBuild = vValue
                     Case "ShowBuildOutput" : ShowBuildOutput = vValue
                     Case "AIAssistantEnabled" : AIAssistantEnabled = vValue
-                    Case "IntelliSenseEnabled" : IntelliSenseEnabled = vValue
+                    Case "CodeSenseEnabled" : CodeSenseEnabled = vValue
                     Case "FindCaseSensitive" : FindCaseSensitive = vValue
                     Case "FindWholeWord" : FindWholeWord = vValue
                     Case "FindUseRegex" : FindUseRegex = vValue
@@ -790,27 +790,27 @@ Namespace Managers
             End Set
         End Property
         
-        ' ===== IntelliSense Settings =====
+        ' ===== CodeSense Settings =====
         
-        Public Property IntelliSenseEnabled As Boolean
+        Public Property CodeSenseEnabled As Boolean
             Get
-                Return ApplicationSettings.Instance.IntelliSenseEnabled
+                Return ApplicationSettings.Instance.CodeSenseEnabled
             End Get
             Set(Value As Boolean)
-                Dim lOldValue As Boolean = ApplicationSettings.Instance.IntelliSenseEnabled
-                ApplicationSettings.Instance.IntelliSenseEnabled = Value
-                RaiseEvent SettingsChanged("IntelliSenseEnabled", lOldValue, Value)
+                Dim lOldValue As Boolean = ApplicationSettings.Instance.CodeSenseEnabled
+                ApplicationSettings.Instance.CodeSenseEnabled = Value
+                RaiseEvent SettingsChanged("CodeSenseEnabled", lOldValue, Value)
             End Set
         End Property
         
-        Public Property IntelliSenseDelay As Integer
+        Public Property CodeSenseDelay As Integer
             Get
-                Return ApplicationSettings.Instance.IntelliSenseDelay
+                Return ApplicationSettings.Instance.CodeSenseDelay
             End Get
             Set(Value As Integer)
-                Dim lOldValue As Integer = ApplicationSettings.Instance.IntelliSenseDelay
-                ApplicationSettings.Instance.IntelliSenseDelay = Math.Max(100, Math.Min(5000, Value))
-                RaiseEvent SettingsChanged("IntelliSenseDelay", lOldValue, Value)
+                Dim lOldValue As Integer = ApplicationSettings.Instance.CodeSenseDelay
+                ApplicationSettings.Instance.CodeSenseDelay = Math.Max(100, Math.Min(5000, Value))
+                RaiseEvent SettingsChanged("CodeSenseDelay", lOldValue, Value)
             End Set
         End Property
         

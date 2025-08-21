@@ -27,7 +27,7 @@ Partial Public Class MainWindow
     ' ===== Private Fields =====
     Private pSettingsManager As SettingsManager
     Private pThemeManager As ThemeManager
-    Private pIntelliSenseEngine As IntelliSenseEngine
+    Private pCodeSenseEngine As CodeSenseEngine
     Private pFileSystemWatcher As Utilities.FileSystemWatcher
     Private pMemoryManifest As MemoryManifest
     Private pProjectManager As ProjectManager
@@ -110,8 +110,8 @@ Partial Public Class MainWindow
             ' Complete Object Explorer setup
             CompleteObjectExplorerSetup()
             
-            ' Initialize IntelliSense engine
-            pIntelliSenseEngine = New IntelliSenseEngine()
+            ' Initialize CodeSense engine
+            pCodeSenseEngine = New CodeSenseEngine()
             
             ' Initialize build system
             InitializeBuildSystem()
@@ -133,6 +133,8 @@ Partial Public Class MainWindow
             
             InitializeWithObjectExplorerIntegration()
             InitializeCapitalizationManager()
+            InitializeCodeSense()
+
             
             ' Show welcome tab on startup
             ShowWelcomeTab()
@@ -407,7 +409,7 @@ Partial Public Class MainWindow
             ' Dispose of resources
             SaveAllScratchpads()
             pFileSystemWatcher?.Dispose()
-            pIntelliSenseEngine?.Dispose()
+            pCodeSenseEngine?.Dispose()
             
             ' Close all tabs
             CloseAllTabs()

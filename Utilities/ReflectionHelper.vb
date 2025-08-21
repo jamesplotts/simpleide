@@ -177,7 +177,7 @@ Namespace Utilities
             End Try
         End Function
         
-        ' Get all available types for IntelliSense
+        ' Get all available types for CodeSense
         Public Shared Function GetAvailableTypes(Optional vFilter As String = "") As List(Of String)
             Dim lTypes As New List(Of String)
             

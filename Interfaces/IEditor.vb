@@ -119,8 +119,8 @@ Namespace Interfaces
         
         ' Advanced Features
         Sub RefreshSyntaxHighlighting()
-        Sub StartIntelliSense(vContext As Models.IntelliSenseContext)
-        Sub CancelIntelliSense()
+        Sub StartCodeSense(vContext As Models.CodeSenseContext)
+        Sub CancelCodeSense()
         Function GetWordAtCursor() As String
         Function GetLineText(vLine As Integer) As String
         Function GetCursorPosition() As EditorPosition
@@ -151,7 +151,7 @@ Namespace Interfaces
 
         Sub GrabFocus()
 
-        ReadOnly Property SupportsIntellisense As Boolean
+        ReadOnly Property SupportsCodeSense As Boolean
         Property Encoding As Encoding
         Property ShowLineNumbers As Boolean
         Property WordWrap As Boolean

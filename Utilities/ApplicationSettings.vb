@@ -336,22 +336,22 @@ Namespace Utilities
             End Set
         End Property
         
-        ' IntelliSense Settings
-        Public Property IntelliSenseEnabled As Boolean
+        ' CodeSense Settings
+        Public Property CodeSenseEnabled As Boolean
             Get
-                Return GetValue("IntelliSenseEnabled", True)
+                Return GetValue("CodeSenseEnabled", True)
             End Get
             Set(Value As Boolean)
-                SetValue("IntelliSenseEnabled", Value)
+                SetValue("CodeSenseEnabled", Value)
             End Set
         End Property
         
-        Public Property IntelliSenseDelay As Integer
+        Public Property CodeSenseDelay As Integer
             Get
-                Return GetValue("IntelliSenseDelay", 300)
+                Return GetValue("CodeSenseDelay", 300)
             End Get
             Set(Value As Integer)
-                SetValue("IntelliSenseDelay", Value)
+                SetValue("CodeSenseDelay", Value)
             End Set
         End Property
         

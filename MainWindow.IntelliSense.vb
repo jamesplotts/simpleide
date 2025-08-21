@@ -1,4 +1,4 @@
-' MainWindow.IntelliSense.vb - Complete fixed implementation
+' MainWindow.CodeSense.vb - Complete fixed implementation
 Imports Gtk
 Imports System
 Imports System.Collections.Generic
@@ -10,49 +10,49 @@ Imports SimpleIDE.Syntax
 
 Partial Public Class MainWindow
     
-    ' IntelliSense components
-    'Private pIntelliSenseEngine As IntelliSenseEngine
-    Private pIntelliSenseWindow As Window
-    Private pIntelliSenseTreeView As TreeView
-    Private pIntelliSenseListStore As ListStore
-    Private pIntelliSenseTimer As UInteger = 0
+    ' CodeSense components
+    'Private pCodeSenseEngine As CodeSenseEngine
+    Private pCodeSenseWindow As Window
+    Private pCodeSenseTreeView As TreeView
+    Private pCodeSenseListStore As ListStore
+    Private pCodeSenseTimer As UInteger = 0
     
-    ' Initialize IntelliSense system
-    Private Sub InitializeIntelliSense()
+    ' Initialize CodeSense system
+    Private Sub InitializeCodeSense()
         Try
-            ' Create IntelliSense engine
-            pIntelliSenseEngine = New IntelliSenseEngine()
+            ' Create CodeSense engine
+            pCodeSenseEngine = New CodeSenseEngine()
             
             ' Update references when project changes
-            AddHandler Me.ProjectChanged, AddressOf OnProjectChangedForIntelliSense
+            AddHandler Me.ProjectChanged, AddressOf OnProjectChangedForCodeSense
             
         Catch ex As Exception
-            Console.WriteLine($"InitializeIntelliSense error: {ex.Message}")
+            Console.WriteLine($"InitializeCodeSense error: {ex.Message}")
         End Try
     End Sub
     
-    ' Handle project change for IntelliSense
-    Private Sub OnProjectChangedForIntelliSense(vProjectFile As String)
+    ' Handle project change for CodeSense
+    Private Sub OnProjectChangedForCodeSense(vProjectFile As String)
         Try
             HideBottomPanel()
-            UpdateIntelliSenseReferences()
+            UpdateCodeSenseReferences()
         Catch ex As Exception
-            Console.WriteLine($"OnProjectChangedForIntelliSense error: {ex.Message}")
+            Console.WriteLine($"OnProjectChangedForCodeSense error: {ex.Message}")
         End Try
     End Sub
     
-    ' Update IntelliSense references from project
-    Private Sub UpdateIntelliSenseReferences()
+    ' Update CodeSense references from project
+    Private Sub UpdateCodeSenseReferences()
         Try
-            If pIntelliSenseEngine Is Nothing Then Return
+            If pCodeSenseEngine Is Nothing Then Return
             
             ' Clear existing references
-            pIntelliSenseEngine.ClearReferences()
+            pCodeSenseEngine.ClearReferences()
             
             ' Add core references
-            pIntelliSenseEngine.AddReference("System")
-            pIntelliSenseEngine.AddReference("System.Core")
-            pIntelliSenseEngine.AddReference("Microsoft.VisualBasic")
+            pCodeSenseEngine.AddReference("System")
+            pCodeSenseEngine.AddReference("System.Core")
+            pCodeSenseEngine.AddReference("Microsoft.VisualBasic")
             
             ' Add project references
             If Not String.IsNullOrEmpty(pCurrentProject) Then
@@ -62,7 +62,7 @@ Partial Public Class MainWindow
                 ' Add assembly references
                 For Each lRef In lProjectInfo.References
                     Try
-                        pIntelliSenseEngine.AddReference(lRef.Name)
+                        pCodeSenseEngine.AddReference(lRef.Name)
                     Catch ex As Exception
                         Console.WriteLine($"Failed to add Reference {lRef.Name}: {ex.Message}")
                     End Try
@@ -71,7 +71,7 @@ Partial Public Class MainWindow
                 ' Add package references
                 For Each lPackage In lProjectInfo.PackageReferences
                     Try
-                        pIntelliSenseEngine.AddReference(lPackage.Name)
+                        pCodeSenseEngine.AddReference(lPackage.Name)
                     Catch ex As Exception
                         Console.WriteLine($"Failed to add Package Reference {lPackage.Name}: {ex.Message}")
                     End Try
@@ -79,19 +79,19 @@ Partial Public Class MainWindow
             End If
             
         Catch ex As Exception
-            Console.WriteLine($"UpdateIntelliSenseReferences error: {ex.Message}")
+            Console.WriteLine($"UpdateCodeSenseReferences error: {ex.Message}")
         End Try
     End Sub
     
-'    ' Handle text changed in editor for IntelliSense
+'    ' Handle text changed in editor for CodeSense
 '    Public Sub OnEditorTextChanged(vSender As Object, vArgs As EventArgs)
 '        OnEditorTextChangedEnhanced(vSender, vArgs)
 '    End Sub
     
-    ' Get IntelliSense context from editor
-    Private Function GetIntelliSenseContext(vEditor As IEditor) As IntelliSenseContext
+    ' Get CodeSense context from editor
+    Private Function GetCodeSenseContext(vEditor As IEditor) As CodeSenseContext
         Try
-            Dim lContext As New IntelliSenseContext()
+            Dim lContext As New CodeSenseContext()
             
             ' Get basic context
             lContext.TriggerPosition = vEditor.GetCursorPosition()
@@ -144,13 +144,13 @@ Partial Public Class MainWindow
             Dim lTabInfo As TabInfo = GetCurrentTabInfo()
             If lTabInfo IsNot Nothing AndAlso TypeOf lTabInfo.Editor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(lTabInfo.Editor, CustomDrawingEditor)
-                pIntelliSenseEngine.UpdateDocumentNodes(lCustomEditor.GetDocumentNodes(), lCustomEditor.GetRootNodes())
+                pCodeSenseEngine.UpdateDocumentNodes(lCustomEditor.GetDocumentNodes(), lCustomEditor.GetRootNodes())
             End If
             
             Return lContext
             
         Catch ex As Exception
-            Console.WriteLine($"GetIntelliSenseContext error: {ex.Message}")
+            Console.WriteLine($"GetCodeSenseContext error: {ex.Message}")
             Return Nothing
         End Try
     End Function
@@ -194,27 +194,27 @@ Partial Public Class MainWindow
         Return New EditorPosition(lLines.Length - 1, If(lLines.Length > 0, lLines(lLines.Length - 1).Length, 0))
     End Function
     
-    ' Show IntelliSense for given context
-    Private Sub ShowIntelliSenseForContext(vEditor As IEditor, vContext As IntelliSenseContext)
+    ' Show CodeSense for given context
+    Private Sub ShowCodeSenseForContext(vEditor As IEditor, vContext As CodeSenseContext)
         Try
             ' Get suggestions
-            Dim lSuggestions As List(Of IntelliSenseSuggestion) = pIntelliSenseEngine.GetSuggestions(vContext)
+            Dim lSuggestions As List(Of CodeSenseSuggestion) = pCodeSenseEngine.GetSuggestions(vContext)
             
             If lSuggestions Is Nothing OrElse lSuggestions.Count = 0 Then
-                HideIntelliSense()
+                HideCodeSense()
                 Return
             End If
             
-            ' Create or update IntelliSense window
-            If pIntelliSenseWindow Is Nothing Then
-                CreateIntelliSenseWindow()
+            ' Create or update CodeSense window
+            If pCodeSenseWindow Is Nothing Then
+                CreateCodeSenseWindow()
             End If
             
             ' Update list store
-            pIntelliSenseListStore.Clear()
+            pCodeSenseListStore.Clear()
             
             For Each lSuggestion In lSuggestions
-                pIntelliSenseListStore.AppendValues(
+                pCodeSenseListStore.AppendValues(
                     lSuggestion.Icon,
                     lSuggestion.Text,           ' Use Text instead of Name
                     lSuggestion.Description     ' Use Description instead of TypeName
@@ -222,24 +222,24 @@ Partial Public Class MainWindow
             Next
             
             ' Position and show window
-            Dim lPosition As Gdk.Point = CalculateIntelliSensePosition(vContext)
-            pIntelliSenseWindow.Move(lPosition.x, lPosition.y)
-            pIntelliSenseWindow.ShowAll()
+            Dim lPosition As Gdk.Point = CalculateCodeSensePosition(vContext)
+            pCodeSenseWindow.Move(lPosition.x, lPosition.y)
+            pCodeSenseWindow.ShowAll()
             
         Catch ex As Exception
-            Console.WriteLine($"ShowIntelliSenseForContext error: {ex.Message}")
+            Console.WriteLine($"ShowCodeSenseForContext error: {ex.Message}")
         End Try
     End Sub
     
-    ' Create IntelliSense window
-    Private Sub CreateIntelliSenseWindow()
+    ' Create CodeSense window
+    Private Sub CreateCodeSenseWindow()
         Try
             ' Create window
-            pIntelliSenseWindow = New Window(WindowType.Popup)
-            pIntelliSenseWindow.TypeHint = Gdk.WindowTypeHint.PopupMenu
-            pIntelliSenseWindow.Decorated = False
-            pIntelliSenseWindow.SkipTaskbarHint = True
-            pIntelliSenseWindow.SkipPagerHint = True
+            pCodeSenseWindow = New Window(WindowType.Popup)
+            pCodeSenseWindow.TypeHint = Gdk.WindowTypeHint.PopupMenu
+            pCodeSenseWindow.Decorated = False
+            pCodeSenseWindow.SkipTaskbarHint = True
+            pCodeSenseWindow.SkipPagerHint = True
             
             ' Create scrolled window
             Dim lScrolled As New ScrolledWindow()
@@ -247,40 +247,40 @@ Partial Public Class MainWindow
             lScrolled.SetSizeRequest(300, 200)
             
             ' Create list store and tree view
-            pIntelliSenseListStore = New ListStore(GetType(String), GetType(String), GetType(String))
-            pIntelliSenseTreeView = New TreeView(pIntelliSenseListStore)
-            pIntelliSenseTreeView.HeadersVisible = False
+            pCodeSenseListStore = New ListStore(GetType(String), GetType(String), GetType(String))
+            pCodeSenseTreeView = New TreeView(pCodeSenseListStore)
+            pCodeSenseTreeView.HeadersVisible = False
             
             ' Add columns
             Dim lIconColumn As New TreeViewColumn()
             Dim lIconRenderer As New CellRendererText()
             lIconColumn.PackStart(lIconRenderer, False)
             lIconColumn.AddAttribute(lIconRenderer, "text", 0)
-            pIntelliSenseTreeView.AppendColumn(lIconColumn)
+            pCodeSenseTreeView.AppendColumn(lIconColumn)
             
             Dim lTextColumn As New TreeViewColumn()
             Dim lTextRenderer As New CellRendererText()
             lTextColumn.PackStart(lTextRenderer, True)
             lTextColumn.AddAttribute(lTextRenderer, "text", 1)
-            pIntelliSenseTreeView.AppendColumn(lTextColumn)
+            pCodeSenseTreeView.AppendColumn(lTextColumn)
             
             ' Handle selection
-            AddHandler pIntelliSenseTreeView.RowActivated, AddressOf OnIntelliSenseItemActivated
+            AddHandler pCodeSenseTreeView.RowActivated, AddressOf OnCodeSenseItemActivated
             
             ' Handle key press
-            AddHandler pIntelliSenseWindow.KeyPressEvent, AddressOf OnIntelliSenseKeyPress
+            AddHandler pCodeSenseWindow.KeyPressEvent, AddressOf OnCodeSenseKeyPress
             
             ' Add to window
-            lScrolled.Add(pIntelliSenseTreeView)
-            pIntelliSenseWindow.Add(lScrolled)
+            lScrolled.Add(pCodeSenseTreeView)
+            pCodeSenseWindow.Add(lScrolled)
             
         Catch ex As Exception
-            Console.WriteLine($"CreateIntelliSenseWindow error: {ex.Message}")
+            Console.WriteLine($"CreateCodeSenseWindow error: {ex.Message}")
         End Try
     End Sub
     
-    ' Calculate IntelliSense window position
-    Private Function CalculateIntelliSensePosition(vContext As IntelliSenseContext) As Gdk.Point
+    ' Calculate CodeSense window position
+    Private Function CalculateCodeSensePosition(vContext As CodeSenseContext) As Gdk.Point
         Try
             ' Get window position
             Dim lWindowX, lWindowY As Integer
@@ -296,57 +296,57 @@ Partial Public Class MainWindow
             Return New Gdk.Point(lX, lY)
             
         Catch ex As Exception
-            Console.WriteLine($"CalculateIntelliSensePosition error: {ex.Message}")
+            Console.WriteLine($"CalculateCodeSensePosition error: {ex.Message}")
             Return New Gdk.Point(100, 100) ' Default position
         End Try
     End Function
     
-    ' Hide IntelliSense window
-    Private Sub HideIntelliSense()
+    ' Hide CodeSense window
+    Private Sub HideCodeSense()
         Try
-            If pIntelliSenseWindow IsNot Nothing AndAlso pIntelliSenseWindow.Visible Then
-                pIntelliSenseWindow.Hide()
+            If pCodeSenseWindow IsNot Nothing AndAlso pCodeSenseWindow.Visible Then
+                pCodeSenseWindow.Hide()
             End If
             
         Catch ex As Exception
-            Console.WriteLine($"HideIntelliSense error: {ex.Message}")
+            Console.WriteLine($"HideCodeSense error: {ex.Message}")
         End Try
     End Sub
     
-    ' Handle IntelliSense item activation
-    Private Sub OnIntelliSenseItemActivated(vSender As Object, vArgs As RowActivatedArgs)
+    ' Handle CodeSense item activation
+    Private Sub OnCodeSenseItemActivated(vSender As Object, vArgs As RowActivatedArgs)
         Try
             Dim lIter As TreeIter
-            If pIntelliSenseListStore.GetIter(lIter, vArgs.Path) Then
-                Dim lItemName As String = CStr(pIntelliSenseListStore.GetValue(lIter, 1))
-                InsertIntelliSenseItem(lItemName)
+            If pCodeSenseListStore.GetIter(lIter, vArgs.Path) Then
+                Dim lItemName As String = CStr(pCodeSenseListStore.GetValue(lIter, 1))
+                InsertCodeSenseItem(lItemName)
             End If
             
         Catch ex As Exception
-            Console.WriteLine($"OnIntelliSenseItemActivated error: {ex.Message}")
+            Console.WriteLine($"OnCodeSenseItemActivated error: {ex.Message}")
         End Try
     End Sub
     
-    ' Handle IntelliSense window key press
-    Private Sub OnIntelliSenseKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+    ' Handle CodeSense window key press
+    Private Sub OnCodeSenseKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
         Try
             Select Case vArgs.Event.key
                 Case Gdk.key.Escape
-                    ' Hide IntelliSense
-                    HideIntelliSense()
+                    ' Hide CodeSense
+                    HideCodeSense()
                     vArgs.RetVal = True
                     
                 Case Gdk.key.Return, Gdk.key.Tab
                     ' Insert selected item
-                    Dim lSelection As TreeSelection = pIntelliSenseTreeView.Selection
+                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
                     Dim lIter As TreeIter
                     If lSelection.GetSelected(lIter) Then
-                        Dim lItemName As String = CStr(pIntelliSenseListStore.GetValue(lIter, 1))
-                        InsertIntelliSenseItem(lItemName)
+                        Dim lItemName As String = CStr(pCodeSenseListStore.GetValue(lIter, 1))
+                        InsertCodeSenseItem(lItemName)
                     End If
                     
-                    ' Hide IntelliSense
-                    HideIntelliSense()
+                    ' Hide CodeSense
+                    HideCodeSense()
                     vArgs.RetVal = True
                     
                 Case Gdk.key.Up, Gdk.key.Down, Gdk.key.Page_Up, Gdk.key.Page_Down
@@ -355,17 +355,17 @@ Partial Public Class MainWindow
                     
                 Case Else
                     ' Pass other keys to editor
-                    HideIntelliSense()
+                    HideCodeSense()
                     vArgs.RetVal = False
             End Select
             
         Catch ex As Exception
-            Console.WriteLine($"OnIntelliSenseKeyPress error: {ex.Message}")
+            Console.WriteLine($"OnCodeSenseKeyPress error: {ex.Message}")
         End Try
     End Sub
     
-    ' Insert IntelliSense item into editor
-    Private Sub InsertIntelliSenseItem(vItemName As String)
+    ' Insert CodeSense item into editor
+    Private Sub InsertCodeSenseItem(vItemName As String)
         Try
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab?.Editor Is Nothing Then Return
@@ -374,7 +374,7 @@ Partial Public Class MainWindow
                 Dim lEditor As IEditor = DirectCast(lCurrentTab.Editor, IEditor)
                 
                 ' Get current context
-                Dim lContext As IntelliSenseContext = GetIntelliSenseContext(lEditor)
+                Dim lContext As CodeSenseContext = GetCodeSenseContext(lEditor)
                 If lContext Is Nothing Then Return
                 
                 ' Calculate word boundaries
@@ -403,8 +403,8 @@ Partial Public Class MainWindow
                 ' Insert the new text (this will replace the selection)
                 lEditor.InsertText(vItemName)
                 
-                ' Hide IntelliSense
-                HideIntelliSense()
+                ' Hide CodeSense
+                HideCodeSense()
                 
                 ' Mark as modified
                 If lCurrentTab.Modified = False Then
@@ -414,23 +414,23 @@ Partial Public Class MainWindow
             End If
             
         Catch ex As Exception
-            Console.WriteLine($"InsertIntelliSenseItem error: {ex.Message}")
+            Console.WriteLine($"InsertCodeSenseItem error: {ex.Message}")
         End Try
     End Sub
     
-    ' Cleanup IntelliSense resources
-    Private Sub CleanupIntelliSense()
+    ' Cleanup CodeSense resources
+    Private Sub CleanupCodeSense()
         Try
-            If pIntelliSenseTimer <> 0 Then
-                GLib.Source.Remove(pIntelliSenseTimer)
-                pIntelliSenseTimer = 0
+            If pCodeSenseTimer <> 0 Then
+                GLib.Source.Remove(pCodeSenseTimer)
+                pCodeSenseTimer = 0
             End If
             
-            pIntelliSenseWindow?.Destroy()
-            pIntelliSenseEngine?.Dispose()
+            pCodeSenseWindow?.Destroy()
+            pCodeSenseEngine?.Dispose()
             
         Catch ex As Exception
-            Console.WriteLine($"CleanupIntelliSense error: {ex.Message}")
+            Console.WriteLine($"CleanupCodeSense error: {ex.Message}")
         End Try
     End Sub
     

@@ -58,8 +58,8 @@ Partial Public Class MainWindow
             ' Update status bar
             UpdateStatusBar("References updated")
             
-            ' Trigger a re-parse of the project for IntelliSense
-            UpdateIntelliSenseReferences()
+            ' Trigger a re-parse of the project for CodeSense
+            UpdateCodeSenseReferences()
             
         Catch ex As Exception
             Console.WriteLine($"OnReferencesChanged error: {ex.Message}")

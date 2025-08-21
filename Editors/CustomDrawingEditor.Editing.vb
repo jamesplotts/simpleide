@@ -13,9 +13,9 @@ Namespace Editors
         Inherits Box
         Implements IEditor
 
-        ' IntelliSense events
-        Public Event IntelliSenseRequested(sender As Object, Context As IntelliSenseContext)
-        Public Event IntelliSenseCancelled(sender As Object, e As EventArgs)
+        ' CodeSense events
+        Public Event CodeSenseRequested(sender As Object, Context As CodeSenseContext)
+        Public Event CodeSenseCancelled(sender As Object, e As EventArgs)
 
         ' ===== Character At Position =====
         Private Sub DeleteCharacterAt(vLine As Integer, vColumn As Integer)

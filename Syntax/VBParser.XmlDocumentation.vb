@@ -1,4 +1,4 @@
-' Syntax/VBParser.XmlDocumentation.vb - Parse XML documentation comments for IntelliSense
+' Syntax/VBParser.XmlDocumentation.vb - Parse XML documentation comments for CodeSense
 
 Imports System
 Imports System.Collections.Generic

@@ -115,9 +115,9 @@ Namespace Editors
         Private pSearchMatches As New List(Of EditorPosition)
         Private pCurrentSearchIndex As Integer = -1
         
-        ' ===== IntelliSense =====
-        Private pIntelliSenseContext As IntelliSenseContext
-        Private pIntelliSenseActive As Boolean = False
+        ' ===== CodeSense =====
+        Private pCodeSenseContext As CodeSenseContext
+        Private pCodeSenseActive As Boolean = False
         
         ' ===== Node Graph =====
         Private pRootNode As SyntaxNode
@@ -623,7 +623,7 @@ Namespace Editors
             End Get
         End Property
         
-        Public ReadOnly Property SupportsIntellisense As Boolean Implements IEditor.SupportsIntellisense
+        Public ReadOnly Property SupportsCodesense As Boolean Implements IEditor.SupportsCodeSense
             Get
                 Return True
             End Get

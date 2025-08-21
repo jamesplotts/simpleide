@@ -1,4 +1,4 @@
-' IntelliSenseSuggestion.vb
+' CodeSenseSuggestion.vb
 ' Created: 2025-08-12 20:59:10
 
 Imports System
@@ -8,13 +8,13 @@ Imports System
 Namespace Syntax
 
     
-    ' IntelliSense suggestion item
-    Public Class IntelliSenseSuggestion
+    ' CodeSense suggestion item
+    Public Class CodeSenseSuggestion
         Public Property Text As String = ""              ' Text to insert
         Public Property DisplayText As String = ""       ' Text to display in list
         Public Property Description As String = ""       ' Tooltip Description
         Public Property Icon As String = ""             ' Icon Identifier
-        Public Property SuggestionType As IntelliSenseSuggestionType = IntelliSenseSuggestionType.eOther
+        Public Property SuggestionType As CodeSenseSuggestionType = CodeSenseSuggestionType.eOther
         Public Property Signature As String = ""        ' Method Signature
         Public Property Data As Object                  ' Associated Data (MemberInfo, DocumentNode, etc.)
 
@@ -49,31 +49,31 @@ Namespace Syntax
         End Property
         
         ' Kind is mapped from Type enum
-        Public ReadOnly Property Kind As IntelliSenseSuggestionKind
+        Public ReadOnly Property Kind As CodeSenseSuggestionKind
             Get
                 Select Case SuggestionType
-                    Case IntelliSenseSuggestionType.eKeyword
-                        Return IntelliSenseSuggestionKind.eKeyword
-                    Case IntelliSenseSuggestionType.eType
-                        Return IntelliSenseSuggestionKind.eClass
-                    Case IntelliSenseSuggestionType.eNamespace
-                        Return IntelliSenseSuggestionKind.eNamespace
-                    Case IntelliSenseSuggestionType.eMethod
-                        Return IntelliSenseSuggestionKind.eMethod
-                    Case IntelliSenseSuggestionType.eProperty
-                        Return IntelliSenseSuggestionKind.eProperty
-                    Case IntelliSenseSuggestionType.eField
-                        Return IntelliSenseSuggestionKind.eField
-                    Case IntelliSenseSuggestionType.eEvent
-                        Return IntelliSenseSuggestionKind.eEvent
-                    Case IntelliSenseSuggestionType.eVariable
-                        Return IntelliSenseSuggestionKind.eLocalVariable
-                    Case IntelliSenseSuggestionType.eParameter
-                        Return IntelliSenseSuggestionKind.eParameter
-                    Case IntelliSenseSuggestionType.eSnippet
-                        Return IntelliSenseSuggestionKind.eSnippet
+                    Case CodeSenseSuggestionType.eKeyword
+                        Return CodeSenseSuggestionKind.eKeyword
+                    Case CodeSenseSuggestionType.eType
+                        Return CodeSenseSuggestionKind.eClass
+                    Case CodeSenseSuggestionType.eNamespace
+                        Return CodeSenseSuggestionKind.eNamespace
+                    Case CodeSenseSuggestionType.eMethod
+                        Return CodeSenseSuggestionKind.eMethod
+                    Case CodeSenseSuggestionType.eProperty
+                        Return CodeSenseSuggestionKind.eProperty
+                    Case CodeSenseSuggestionType.eField
+                        Return CodeSenseSuggestionKind.eField
+                    Case CodeSenseSuggestionType.eEvent
+                        Return CodeSenseSuggestionKind.eEvent
+                    Case CodeSenseSuggestionType.eVariable
+                        Return CodeSenseSuggestionKind.eLocalVariable
+                    Case CodeSenseSuggestionType.eParameter
+                        Return CodeSenseSuggestionKind.eParameter
+                    Case CodeSenseSuggestionType.eSnippet
+                        Return CodeSenseSuggestionKind.eSnippet
                     Case Else
-                        Return IntelliSenseSuggestionKind.eOther
+                        Return CodeSenseSuggestionKind.eOther
                 End Select
             End Get
         End Property
@@ -97,17 +97,17 @@ Namespace Syntax
         ''' </summary>
         Public Sub CalculatePriority()
             Select Case SuggestionType
-                Case IntelliSenseSuggestionType.eProperty
+                Case CodeSenseSuggestionType.eProperty
                     pPriority = 100
-                Case IntelliSenseSuggestionType.eMethod
+                Case CodeSenseSuggestionType.eMethod
                     pPriority = 90
-                Case IntelliSenseSuggestionType.eField
+                Case CodeSenseSuggestionType.eField
                     pPriority = 80
-                Case IntelliSenseSuggestionType.eType
+                Case CodeSenseSuggestionType.eType
                     pPriority = 70
-                Case IntelliSenseSuggestionType.eKeyword
+                Case CodeSenseSuggestionType.eKeyword
                     pPriority = 60
-                Case IntelliSenseSuggestionType.eNamespace
+                Case CodeSenseSuggestionType.eNamespace
                     pPriority = 50
                 Case Else
                     pPriority = 40
@@ -117,7 +117,7 @@ Namespace Syntax
         ''' <summary>
         ''' Comparison function for sorting
         ''' </summary>
-        Public Shared Function CompareByPriority(vA As IntelliSenseSuggestion, vB As IntelliSenseSuggestion) As Integer
+        Public Shared Function CompareByPriority(vA As CodeSenseSuggestion, vB As CodeSenseSuggestion) As Integer
             ' Sort by priority first (descending)
             Dim lPriorityCompare As Integer = vB.Priority.CompareTo(vA.Priority)
             If lPriorityCompare <> 0 Then

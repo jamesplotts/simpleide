@@ -1,4 +1,4 @@
-' CustomDrawingEditor.NodeAccess.vb - Node graph access methods for IntelliSense and Navigation
+' CustomDrawingEditor.NodeAccess.vb - Node graph access methods for CodeSense and Navigation
 Imports Gtk
 Imports System
 Imports System.Collections.Generic

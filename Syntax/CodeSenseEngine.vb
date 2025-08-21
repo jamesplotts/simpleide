@@ -1,4 +1,4 @@
-' Syntax/IntelliSenseEngine.vb - IntelliSense suggestion engine
+' Syntax/CodeSenseEngine.vb - CodeSense suggestion engine
 Imports System
 Imports System.Collections.Generic
 Imports System.Linq
@@ -9,16 +9,16 @@ Imports SimpleIDE.Interfaces
 
 Namespace Syntax
     
-    Public Class IntelliSenseEngine
+    Public Class CodeSenseEngine
         Implements IDisposable
         
         ' ===== Private Fields =====
         Private pProjectReferences As New List(Of Assembly)
         Private pDocumentNodes As Dictionary(Of String, DocumentNode)
         Private pRootNodes As List(Of DocumentNode)
-        Private pTypeCache As New Dictionary(Of String, IntelliSenseTypeInfo)
+        Private pTypeCache As New Dictionary(Of String, CodeSenseTypeInfo)
         Private pMemberCache As New Dictionary(Of String, List(Of MemberInfo))
-        Private pKeywordSuggestions As List(Of IntelliSenseSuggestion)
+        Private pKeywordSuggestions As List(Of CodeSenseSuggestion)
         Private pLastUpdateTime As DateTime = DateTime.MinValue
         Private pDisposed As Boolean = False
         
@@ -32,7 +32,7 @@ Namespace Syntax
                 LoadCoreAssemblies()
                 
             Catch ex As Exception
-                Console.WriteLine($"IntelliSenseEngine constructor error: {ex.Message}")
+                Console.WriteLine($"CodeSenseEngine constructor error: {ex.Message}")
             End Try
         End Sub
         
@@ -48,7 +48,7 @@ Namespace Syntax
                 ' Clear member cache as document structure changed
                 pMemberCache.Clear()
                 
-                Console.WriteLine($"IntelliSenseEngine updated with {vNodes.Count} Nodes")
+                Console.WriteLine($"CodeSenseEngine updated with {vNodes.Count} Nodes")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateDocumentNodes error: {ex.Message}")
@@ -86,9 +86,9 @@ Namespace Syntax
             End Try
         End Sub
         
-        ' Get IntelliSense suggestions for context
-        Public Function GetSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        ' Get CodeSense suggestions for context
+        Public Function GetSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 If vContext Is Nothing Then Return lSuggestions
@@ -120,16 +120,16 @@ Namespace Syntax
         
         Private Sub InitializeKeywordSuggestions()
             Try
-                pKeywordSuggestions = New List(Of IntelliSenseSuggestion)
+                pKeywordSuggestions = New List(Of CodeSenseSuggestion)
                 
                 ' Add VB.NET keywords
                 For Each lKeyword In VBLanguageDefinition.Keywords
-                    pKeywordSuggestions.Add(New IntelliSenseSuggestion() With {
+                    pKeywordSuggestions.Add(New CodeSenseSuggestion() With {
                         .Text = lKeyword,
                         .DisplayText = lKeyword,
                         .Description = $"VB.NET keyword: {lKeyword}",
                         .Icon = "keyword",
-                        .SuggestionType = IntelliSenseSuggestionType.eKeyword
+                        .SuggestionType = CodeSenseSuggestionType.eKeyword
                     })
                 Next
                 
@@ -152,7 +152,7 @@ Namespace Syntax
         
         ' ===== Private Methods - Type Information =====
         
-        Private Function GetTypeInfo(vTypeName As String) As IntelliSenseTypeInfo
+        Private Function GetTypeInfo(vTypeName As String) As CodeSenseTypeInfo
             Try
                 ' Check cache first
                 If pTypeCache.ContainsKey(vTypeName) Then
@@ -162,7 +162,7 @@ Namespace Syntax
                 ' Search in document nodes first
                 Dim lNode As DocumentNode = FindNodeByName(vTypeName)
                 If lNode IsNot Nothing Then
-                    Dim lInfo As New IntelliSenseTypeInfo(
+                    Dim lInfo As New CodeSenseTypeInfo(
                         lNode.Name,
                         lNode.FullName,
                         GetNodeNamespace(lNode),
@@ -180,7 +180,7 @@ Namespace Syntax
                 If lType IsNot Nothing Then
                     ' Use ReflectionHelper to get type info and convert
                     Dim lReflectionInfo As ReflectionHelper.TypeInfo = ReflectionHelper.GetTypeInfo(lType)
-                    Dim lInfo As New IntelliSenseTypeInfo(
+                    Dim lInfo As New CodeSenseTypeInfo(
                         lReflectionInfo.Name,
                         lReflectionInfo.FullName,
                         lReflectionInfo.TypeNamespace,
@@ -204,8 +204,8 @@ Namespace Syntax
         
         ' ===== Private Methods - Suggestion Generation =====
         
-        Private Function GetMemberSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        Private Function GetMemberSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 ' Get the type of the expression before the dot
@@ -213,7 +213,7 @@ Namespace Syntax
                 If String.IsNullOrEmpty(lTypeName) Then Return lSuggestions
                 
                 ' Get type info
-                Dim lTypeInfo As IntelliSenseTypeInfo = GetTypeInfo(lTypeName)
+                Dim lTypeInfo As CodeSenseTypeInfo = GetTypeInfo(lTypeName)
                 If lTypeInfo Is Nothing Then Return lSuggestions
                 
                 ' Check if it's a type from document nodes
@@ -246,8 +246,8 @@ Namespace Syntax
             Return lSuggestions
         End Function
         
-        Private Function GetContextualSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        Private Function GetContextualSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 ' Analyze the context to determine what to suggest
@@ -286,13 +286,13 @@ Namespace Syntax
             Return lSuggestions
         End Function
         
-        Private Function GetParameterHints(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
+        Private Function GetParameterHints(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             ' TODO: Implement parameter hints
-            Return New List(Of IntelliSenseSuggestion)
+            Return New List(Of CodeSenseSuggestion)
         End Function
         
-        Private Function GetStatementLevelSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        Private Function GetStatementLevelSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 ' Statement level keywords
@@ -304,12 +304,12 @@ Namespace Syntax
                 }
                 
                 For Each lKeyword In lStatementKeywords
-                    lSuggestions.Add(New IntelliSenseSuggestion() With {
+                    lSuggestions.Add(New CodeSenseSuggestion() With {
                         .Text = lKeyword,
                         .DisplayText = lKeyword,
                         .Description = $"VB.NET keyword: {lKeyword}",
                         .Icon = "keyword",
-                        .SuggestionType = IntelliSenseSuggestionType.eKeyword
+                        .SuggestionType = CodeSenseSuggestionType.eKeyword
                     })
                 Next
                 
@@ -326,8 +326,8 @@ Namespace Syntax
             Return lSuggestions
         End Function
         
-        Private Function GetExpressionLevelSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        Private Function GetExpressionLevelSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 ' Add variables and members
@@ -341,12 +341,12 @@ Namespace Syntax
                 }
                 
                 For Each lKeyword In lExpressionKeywords
-                    lSuggestions.Add(New IntelliSenseSuggestion() With {
+                    lSuggestions.Add(New CodeSenseSuggestion() With {
                         .Text = lKeyword,
                         .DisplayText = lKeyword,
                         .Description = $"VB.NET keyword: {lKeyword}",
                         .Icon = "keyword",
-                        .SuggestionType = IntelliSenseSuggestionType.eKeyword
+                        .SuggestionType = CodeSenseSuggestionType.eKeyword
                     })
                 Next
                 
@@ -357,19 +357,19 @@ Namespace Syntax
             Return lSuggestions
         End Function
         
-        Private Function GetLocalSuggestions(vContext As IntelliSenseContext) As List(Of IntelliSenseSuggestion)
-            Dim lSuggestions As New List(Of IntelliSenseSuggestion)
+        Private Function GetLocalSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)
             
             Try
                 ' Add from context if available
                 If vContext.LocalVariables IsNot Nothing Then
                     For Each lVar In vContext.LocalVariables
-                        lSuggestions.Add(New IntelliSenseSuggestion() With {
+                        lSuggestions.Add(New CodeSenseSuggestion() With {
                             .Text = lVar,
                             .DisplayText = lVar,
                             .Description = $"Local variable: {lVar}",
                             .Icon = "variable",
-                            .SuggestionType = IntelliSenseSuggestionType.eVariable
+                            .SuggestionType = CodeSenseSuggestionType.eVariable
                         })
                     Next
                 End If
@@ -383,21 +383,21 @@ Namespace Syntax
         
         ' ===== Helper Methods =====
         
-        Private Function IsAtStatementLevel(vContext As IntelliSenseContext) As Boolean
+        Private Function IsAtStatementLevel(vContext As CodeSenseContext) As Boolean
             ' Simple heuristic: if line is mostly whitespace before cursor, we're at statement level
             Return String.IsNullOrWhiteSpace(vContext.LineText.Trim())
         End Function
         
-        Private Function GetSuggestionPriority(vSuggestion As IntelliSenseSuggestion) As Integer
+        Private Function GetSuggestionPriority(vSuggestion As CodeSenseSuggestion) As Integer
             ' Prioritize suggestions based on type
             Select Case vSuggestion.SuggestionType
-                Case IntelliSenseSuggestionType.eKeyword
+                Case CodeSenseSuggestionType.eKeyword
                     Return 100
-                Case IntelliSenseSuggestionType.eMethod, IntelliSenseSuggestionType.eProperty
+                Case CodeSenseSuggestionType.eMethod, CodeSenseSuggestionType.eProperty
                     Return 90
-                Case IntelliSenseSuggestionType.eType
+                Case CodeSenseSuggestionType.eType
                     Return 80
-                Case IntelliSenseSuggestionType.eVariable
+                Case CodeSenseSuggestionType.eVariable
                     Return 70
                 Case Else
                     Return 50
@@ -430,7 +430,7 @@ Namespace Syntax
             Return ""
         End Function
         
-        Private Function IsAccessibleMember(vNode As DocumentNode, vContext As IntelliSenseContext) As Boolean
+        Private Function IsAccessibleMember(vNode As DocumentNode, vContext As CodeSenseContext) As Boolean
             ' Implementation would check member accessibility
             Return True
         End Function
@@ -440,30 +440,30 @@ Namespace Syntax
             Return True
         End Function
         
-        Private Function CreateSuggestionFromNode(vNode As DocumentNode) As IntelliSenseSuggestion
+        Private Function CreateSuggestionFromNode(vNode As DocumentNode) As CodeSenseSuggestion
             ' Implementation would create suggestion from document node
-            Return New IntelliSenseSuggestion()
+            Return New CodeSenseSuggestion()
         End Function
         
-        Private Function CreateSuggestionFromMember(vMember As MemberInfo) As IntelliSenseSuggestion
+        Private Function CreateSuggestionFromMember(vMember As MemberInfo) As CodeSenseSuggestion
             ' Implementation would create suggestion from member info
-            Return New IntelliSenseSuggestion()
+            Return New CodeSenseSuggestion()
         End Function
         
-        Private Function GetNamespaceSuggestions() As List(Of IntelliSenseSuggestion)
-            Return New List(Of IntelliSenseSuggestion)
+        Private Function GetNamespaceSuggestions() As List(Of CodeSenseSuggestion)
+            Return New List(Of CodeSenseSuggestion)
         End Function
         
-        Private Function GetTypeSuggestions(vInterfacesOnly As Boolean) As List(Of IntelliSenseSuggestion)
-            Return New List(Of IntelliSenseSuggestion)
+        Private Function GetTypeSuggestions(vInterfacesOnly As Boolean) As List(Of CodeSenseSuggestion)
+            Return New List(Of CodeSenseSuggestion)
         End Function
         
-        Private Function GetConstructibleTypeSuggestions() As List(Of IntelliSenseSuggestion)
-            Return New List(Of IntelliSenseSuggestion)
+        Private Function GetConstructibleTypeSuggestions() As List(Of CodeSenseSuggestion)
+            Return New List(Of CodeSenseSuggestion)
         End Function
         
-        Private Function GetCommonTypeSuggestions() As List(Of IntelliSenseSuggestion)
-            Return New List(Of IntelliSenseSuggestion)
+        Private Function GetCommonTypeSuggestions() As List(Of CodeSenseSuggestion)
+            Return New List(Of CodeSenseSuggestion)
         End Function
         
         ' ===== IDisposable Implementation =====
@@ -494,7 +494,7 @@ Namespace Syntax
     ' ===== Supporting Classes =====
     
     ' Internal type information class to avoid conflict with ReflectionHelper.TypeInfo
-    Friend Class IntelliSenseTypeInfo
+    Friend Class CodeSenseTypeInfo
         Public ReadOnly Property Name As String
         Public ReadOnly Property FullName As String
         Public ReadOnly Property [Namespace] As String
@@ -517,8 +517,8 @@ Namespace Syntax
         End Sub
     End Class
     
-    ' Types of IntelliSense triggers
-    Public Enum IntelliSenseTriggerType
+    ' Types of CodeSense triggers
+    Public Enum CodeSenseTriggerType
         eUnspecified
         eDot            ' After "."
         eSpace          ' After space (contextual)
@@ -529,8 +529,8 @@ Namespace Syntax
     End Enum
 
     
-    ' IntelliSense suggestion kind enum (for compatibility)
-    Public Enum IntelliSenseSuggestionKind
+    ' CodeSense suggestion kind enum (for compatibility)
+    Public Enum CodeSenseSuggestionKind
         eUnspecified
         eKeyword
         eClass
@@ -547,8 +547,8 @@ Namespace Syntax
         eLastValue
     End Enum
     
-    ' Types of IntelliSense suggestions
-    Public Enum IntelliSenseSuggestionType
+    ' Types of CodeSense suggestions
+    Public Enum CodeSenseSuggestionType
         eUnspecified
         eKeyword
         eType

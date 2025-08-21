@@ -265,7 +265,7 @@ Partial Public Class MainWindow
             lText.AppendLine("code Operations:")
             lText.AppendLine("  Tab             Indent")
             lText.AppendLine("  Shift+Tab       Outdent")
-            lText.AppendLine("  Ctrl+Space      IntelliSense")
+            lText.AppendLine("  Ctrl+Space      CodeSense")
             lText.AppendLine("  Ctrl+K,C        Comment Selection")
             lText.AppendLine("  Ctrl+K,U        Uncomment Selection")
             lText.AppendLine()

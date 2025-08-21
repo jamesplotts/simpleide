@@ -1,4 +1,4 @@
-' Editors/CustomDrawingEditor.Intellisense.vb - Implementation of missing IEditor interface methods
+' Editors/CustomDrawingEditor.Codesense.vb - Implementation of missing IEditor interface methods
 Imports Gtk
 Imports System
 Imports SimpleIDE.Interfaces
@@ -11,20 +11,20 @@ Namespace Editors
         Inherits Box
         Implements IEditor
 
-        ' StartIntelliSense - Start IntelliSense with the given context
-        Public Sub StartIntelliSense(vContext As IntelliSenseContext) Implements IEditor.StartIntelliSense
+        ' StartCodeSense - Start CodeSense with the given context
+        Public Sub StartCodeSense(vContext As CodeSenseContext) Implements IEditor.StartCodeSense
             Try
                 ' Store the context
-                pIntelliSenseContext = vContext
-                pIntelliSenseActive = True
+                pCodeSenseContext = vContext
+                pCodeSenseActive = True
                 
-                ' Create IntelliSense popup if needed
-                If pIntelliSensePopup Is Nothing Then
-                    CreateIntelliSensePopup()
+                ' Create CodeSense popup if needed
+                If pCodeSensePopup Is Nothing Then
+                    CreateCodeSensePopup()
                 End If
                 
                 ' Position and show the popup
-                If pIntelliSensePopup IsNot Nothing AndAlso vContext.SuggestedCompletions IsNot Nothing AndAlso vContext.SuggestedCompletions.Count > 0 Then
+                If pCodeSensePopup IsNot Nothing AndAlso vContext.SuggestedCompletions IsNot Nothing AndAlso vContext.SuggestedCompletions.Count > 0 Then
                     ' Calculate popup position based on cursor
                     Dim lX As Integer = GetCursorScreenX()
                     Dim lY As Integer = GetCursorScreenY() + pLineHeight
@@ -36,36 +36,36 @@ Namespace Editors
                     lRect.Width = 1
                     lRect.Height = 1
                     
-                    pIntelliSensePopup.PointingTo = lRect
-                    pIntelliSensePopup.ShowAll()
+                    pCodeSensePopup.PointingTo = lRect
+                    pCodeSensePopup.ShowAll()
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"StartIntelliSense error: {ex.Message}")
+                Console.WriteLine($"StartCodeSense error: {ex.Message}")
             End Try
         End Sub
         
-        ' CancelIntelliSense - Cancel any active IntelliSense
-        Public Sub CancelIntelliSense() Implements IEditor.CancelIntelliSense
+        ' CancelCodeSense - Cancel any active CodeSense
+        Public Sub CancelCodeSense() Implements IEditor.CancelCodeSense
             Try
-                pIntelliSenseActive = False
-                pIntelliSenseContext = Nothing
+                pCodeSenseActive = False
+                pCodeSenseContext = Nothing
                 
                 ' Hide the popup
-                If pIntelliSensePopup IsNot Nothing Then
-                    pIntelliSensePopup.Hide()
+                If pCodeSensePopup IsNot Nothing Then
+                    pCodeSensePopup.Hide()
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"CancelIntelliSense error: {ex.Message}")
+                Console.WriteLine($"CancelCodeSense error: {ex.Message}")
             End Try
         End Sub
         
-        ' Create the IntelliSense popup
-        Private Sub CreateIntelliSensePopup()
+        ' Create the CodeSense popup
+        Private Sub CreateCodeSensePopup()
             Try
-                pIntelliSensePopup = New Popover(pDrawingArea)
-                pIntelliSensePopup.Position = PositionType.Bottom
+                pCodeSensePopup = New Popover(pDrawingArea)
+                pCodeSensePopup.Position = PositionType.Bottom
                 
                 ' Create a scrolled window for the list
                 Dim lScrolledWindow As New ScrolledWindow()
@@ -76,8 +76,8 @@ Namespace Editors
                 Dim lListBox As New ListBox()
                 
                 ' Add suggestions from context
-                If pIntelliSenseContext IsNot Nothing AndAlso pIntelliSenseContext.SuggestedCompletions IsNot Nothing Then
-                    For Each lSuggestion In pIntelliSenseContext.SuggestedCompletions
+                If pCodeSenseContext IsNot Nothing AndAlso pCodeSenseContext.SuggestedCompletions IsNot Nothing Then
+                    For Each lSuggestion In pCodeSenseContext.SuggestedCompletions
                         Dim lRow As New ListBoxRow()
                         Dim lLabel As New Label(lSuggestion.DisplayText)
                         lLabel.Xalign = 0
@@ -87,13 +87,13 @@ Namespace Editors
                 End If
                 
                 lScrolledWindow.Add(lListBox)
-                pIntelliSensePopup.Add(lScrolledWindow)
+                pCodeSensePopup.Add(lScrolledWindow)
                 
                 ' Track current selection
                 Dim lCurrentIndex As Integer = 0
                 
                 ' Handle keyboard navigation and selection
-                AddHandler pIntelliSensePopup.KeyPressEvent, Sub(sender As Object, args As KeyPressEventArgs)
+                AddHandler pCodeSensePopup.KeyPressEvent, Sub(sender As Object, args As KeyPressEventArgs)
                     Try
                         Select Case args.Event.key
                             Case Gdk.key.Up, Gdk.key.KP_Up
@@ -112,19 +112,19 @@ Namespace Editors
                                 
                             Case Gdk.key.Return, Gdk.key.KP_Enter
                                 ' Insert selected suggestion
-                                If lCurrentIndex >= 0 AndAlso lCurrentIndex < pIntelliSenseContext.SuggestedCompletions.Count Then
-                                    Dim lSuggestion = pIntelliSenseContext.SuggestedCompletions(lCurrentIndex)
-                                    InsertIntelliSenseSuggestion(lSuggestion)
-                                    CancelIntelliSense()
+                                If lCurrentIndex >= 0 AndAlso lCurrentIndex < pCodeSenseContext.SuggestedCompletions.Count Then
+                                    Dim lSuggestion = pCodeSenseContext.SuggestedCompletions(lCurrentIndex)
+                                    InsertCodeSenseSuggestion(lSuggestion)
+                                    CancelCodeSense()
                                 End If
                                 args.RetVal = True
                                 
                             Case Gdk.key.Escape
-                                CancelIntelliSense()
+                                CancelCodeSense()
                                 args.RetVal = True
                         End Select
                     Catch ex As Exception
-                        Console.WriteLine($"IntelliSense key press error: {ex.Message}")
+                        Console.WriteLine($"CodeSense key press error: {ex.Message}")
                     End Try
                 End Sub
                 
@@ -134,19 +134,19 @@ Namespace Editors
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"CreateIntelliSensePopup error: {ex.Message}")
+                Console.WriteLine($"CreateCodeSensePopup error: {ex.Message}")
             End Try
         End Sub
         
-        ' Insert the selected IntelliSense suggestion
-        Private Sub InsertIntelliSenseSuggestion(vSuggestion As CompletionItem)
+        ' Insert the selected CodeSense suggestion
+        Private Sub InsertCodeSenseSuggestion(vSuggestion As CompletionItem)
             Try
-                ' This would need to be implemented based on the IntelliSense context
+                ' This would need to be implemented based on the CodeSense context
                 ' For now, just insert the text
                 InsertText(vSuggestion.Text)
                 
             Catch ex As Exception
-                Console.WriteLine($"InsertIntelliSenseSuggestion error: {ex.Message}")
+                Console.WriteLine($"InsertCodeSenseSuggestion error: {ex.Message}")
             End Try
         End Sub
 
@@ -179,7 +179,7 @@ Namespace Editors
             End Try
         End Sub
         
-        ' ===== Additional IntelliSense Support =====
+        ' ===== Additional CodeSense Support =====
         
         ' Note: This is a modification to the existing IsModified property setter
         ' to track when updates are needed during batch operations
@@ -189,44 +189,44 @@ Namespace Editors
             End If
         End Sub
 
-        ' IntelliSense popup field
-        Private pIntelliSensePopup As Popover
+        ' CodeSense popup field
+        Private pCodeSensePopup As Popover
         
-        ' Show IntelliSense popup
-        Private Sub ShowIntelliSensePopup()
+        ' Show CodeSense popup
+        Private Sub ShowCodeSensePopup()
             Try
                 ' For now, just raise an event to let MainWindow handle it
-                RaiseEvent IntelliSenseRequested(Me, pIntelliSenseContext)
+                RaiseEvent CodeSenseRequested(Me, pCodeSenseContext)
                 
             Catch ex As Exception
-                Console.WriteLine($"ShowIntelliSensePopup error: {ex.Message}")
+                Console.WriteLine($"ShowCodeSensePopup error: {ex.Message}")
             End Try
         End Sub
         
-        ' Update IntelliSense list
-        Private Sub UpdateIntelliSenseList()
+        ' Update CodeSense list
+        Private Sub UpdateCodeSenseList()
             Try
                 ' For now, just raise an event to let MainWindow handle it
-                If pIntelliSenseContext IsNot Nothing Then
-                    RaiseEvent IntelliSenseRequested(Me, pIntelliSenseContext)
+                If pCodeSenseContext IsNot Nothing Then
+                    RaiseEvent CodeSenseRequested(Me, pCodeSenseContext)
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdateIntelliSenseList error: {ex.Message}")
+                Console.WriteLine($"UpdateCodeSenseList error: {ex.Message}")
             End Try
         End Sub
         
-        ' Hide IntelliSense popup
-        Private Sub HideIntelliSensePopup()
+        ' Hide CodeSense popup
+        Private Sub HideCodeSensePopup()
             Try
                 ' Raise cancellation event
-                RaiseEvent IntelliSenseCancelled(Me, EventArgs.Empty)
+                RaiseEvent CodeSenseCancelled(Me, EventArgs.Empty)
                 
                 ' Clear context
-                pIntelliSenseContext = Nothing
+                pCodeSenseContext = Nothing
                 
             Catch ex As Exception
-                Console.WriteLine($"HideIntelliSensePopup error: {ex.Message}")
+                Console.WriteLine($"HideCodeSensePopup error: {ex.Message}")
             End Try
         End Sub
 

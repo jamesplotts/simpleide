@@ -471,9 +471,9 @@ Namespace Syntax
 
         
         ''' <summary>
-        ''' Get formatted documentation for IntelliSense tooltip
+        ''' Get formatted documentation for CodeSense tooltip
         ''' </summary>
-        Public Function GetIntelliSenseTooltip() As String
+        Public Function GetCodeSenseTooltip() As String
             Dim lTooltip As String = ""
             
             ' First line: Full declaration

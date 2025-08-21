@@ -428,16 +428,16 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub HandleEscapeKey()
         Try
-            ' First priority: Close IntelliSense if open
+            ' First priority: Close CodeSense if open
             Dim lCurrentTab As Models.TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
                 Try
                     Dim lEditor As IEditor = lCurrentTab.Editor
                     If TypeOf lEditor Is CustomDrawingEditor Then
-                        DirectCast(lEditor, CustomDrawingEditor).CancelIntelliSense()
+                        DirectCast(lEditor, CustomDrawingEditor).CancelCodeSense()
                     End If
                 Catch ex As Exception
-                    ' IntelliSense cancellation failed, continue
+                    ' CodeSense cancellation failed, continue
                 End Try
             End If
             

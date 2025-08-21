@@ -1,4 +1,4 @@
-' IntelliSenseContext.vb - Enhanced IntelliSense context using node graph information
+' CodeSenseContext.vb - Enhanced CodeSense context using node graph information
 Imports System
 Imports System.Collections.Generic
 Imports SimpleIDE.Interfaces
@@ -7,8 +7,8 @@ Imports SimpleIDE.Syntax
 
 Namespace Models
     
-    ' Enhanced IntelliSense context with node graph information
-    Public Class IntelliSenseContext
+    ' Enhanced CodeSense context with node graph information
+    Public Class CodeSenseContext
         
         ' Basic context (from IEditor interface)
         Public Property TriggerPosition As EditorPosition
@@ -25,7 +25,7 @@ Namespace Models
         Public Property LocalVariables As List(Of String)   ' Variables in current Scope
         Public Property MemberAccessTarget As String       ' Identifier before dot (for member access)
         
-        ' Type information (for advanced IntelliSense)
+        ' Type information (for advanced CodeSense)
         Public Property ExpectedReturnType As String       ' Expected return Type in current Context
         Public Property ParameterContext As ParameterInfo  ' Parameter information if in method call
         

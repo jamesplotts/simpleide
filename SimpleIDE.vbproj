@@ -70,7 +70,7 @@
     <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IdentifierCaseSync.vb" />
-    <Compile Include="Editors/CustomDrawingEditor.Intellisense.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Codesense.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.LineTracking.vb" />
@@ -96,7 +96,7 @@
     <Compile Include="Models/DocumentNode.vb" />
     <Compile Include="Models/EditorTheme.vb" />
     <Compile Include="Models/FindOptions.vb" />
-    <Compile Include="Models/IntelliSenseContext.vb" />
+    <Compile Include="Models/CodeSenseContext.vb" />
     <Compile Include="Models/LineMetadata.vb" />
     <Compile Include="Models/SyntaxColorSet.vb" />
     <Compile Include="Models/SyntaxToken.vb" />
@@ -140,7 +140,6 @@
     <!-- Syntax and Language Support -->
     <Compile Include="Syntax/VBSyntaxHighlighter.vb" />
     <Compile Include="Syntax/SyntaxNode.vb" />
-    <Compile Include="Syntax/IntelliSenseEngine.vb" />
     <!-- AI Integration -->
     <Compile Include="AI/AIFileSystemBridge.vb" />
     <Compile Include="AI/ClaudeAPIClient.vb" />
@@ -191,7 +190,7 @@
     <Compile Include="Editors/CustomDrawingEditor.Zoom.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Capitalization.vb" />
     <Compile Include="Syntax/VBParser.XmlDocumentation.vb" />
-    <Compile Include="Syntax/IntelliSenseSuggestion.vb" />
+    <Compile Include="Syntax/CodeSenseSuggestion.vb" />
     <Compile Include="Syntax/VBLanguageDefinition.vb" />
     <Compile Include="Syntax/VBParser.Unified.vb" />
     <Compile Include="Syntax/VBParser.FieldParsing.vb" />
@@ -230,6 +229,7 @@
     <Compile Include="Utilities/TimerHelper.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="MainWindow.Run.vb" />
+    <Compile Include="Syntax/CodeSenseEngine.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->
