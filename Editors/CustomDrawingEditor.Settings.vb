@@ -310,7 +310,7 @@ Namespace Editors
         End Sub
         
         ' Set auto-indent (internal method, not part of IEditor interface)
-        Private Sub SetAutoIndent(vAutoIndent As Boolean)
+        Public Sub SetAutoIndent(vAutoIndent As Boolean)
             Try
                 pAutoIndent = vAutoIndent
                 
@@ -320,7 +320,7 @@ Namespace Editors
         End Sub
         
         ' Set highlight current line (internal method, not part of IEditor interface)
-        Private Sub SetHighlightCurrentLine(vHighlight As Boolean)
+        Public Sub SetHighlightCurrentLine(vHighlight As Boolean)
             Try
                 If pHighlightCurrentLine <> vHighlight Then
                     pHighlightCurrentLine = vHighlight
@@ -335,7 +335,7 @@ Namespace Editors
         End Sub
         
         ' Set show whitespace (internal method, not part of IEditor interface)
-        Private Sub SetShowWhitespace(vShow As Boolean)
+        Public Sub SetShowWhitespace(vShow As Boolean)
             Try
                 If pShowWhitespace <> vShow Then
                     pShowWhitespace = vShow

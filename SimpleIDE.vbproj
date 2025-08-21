@@ -134,7 +134,6 @@
     <Compile Include="Dialogs/NewPngDialog.vb" />
     <Compile Include="Dialogs/NewProjectDialog.vb" />
     <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
-    <Compile Include="Dialogs/PreferencesDialog.vb" />
     <Compile Include="Dialogs/GitCommitDialog.vb" />
     <Compile Include="Dialogs/AISettingsDialog.vb" />
     <!-- Syntax and Language Support -->
@@ -163,7 +162,6 @@
     <Compile Include="Editors/FileComparisonPanel.vb" />
     <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
     <Compile Include="Utilities/EnhancedClaudeApiClient.vb" />
-    <Compile Include="Dialogs/PreferencesDialog.AI.vb" />
     <Compile Include="Dialogs/EnhancedAISettingsDialog.vb" />
     <Compile Include="MainWindow.Scratchpad.vb" />
     <Compile Include="Widgets/ScratchpadPanel.vb" />
@@ -230,6 +228,9 @@
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="MainWindow.Run.vb" />
     <Compile Include="Syntax/CodeSenseEngine.vb" />
+    <Compile Include="Managers/CredentialManager.vb" />
+    <Compile Include="Widgets/PreferencesTab.vb" />
+    <Compile Include="MainWindow.Preferences.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

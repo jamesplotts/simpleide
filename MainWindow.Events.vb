@@ -179,16 +179,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    Public Sub OnPreferences(vSender As Object, vArgs As EventArgs)
-        Try
-            Dim lDialog As New PreferencesDialog(Me, pSettingsManager, pThemeManager)
-            lDialog.Run()
-            lDialog.Destroy()
-        Catch ex As Exception
-            Console.WriteLine($"OnPreferences error: {ex.Message}")
-        End Try
-    End Sub
-    
     ' ===== View Menu Events =====
     Public Sub OnToggleProjectExplorer(vSender As Object, vArgs As EventArgs)
         Try

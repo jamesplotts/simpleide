@@ -15,6 +15,7 @@ Namespace Models
         Public Property IsProjectFile As Boolean = False
         Public Property IsPngFile As Boolean = False
         Public Property IsThemeEditor As Boolean = False
+        Public Property IsSpecialTab as Boolean = False
         Public Property LastSaved As DateTime = DateTime.Now  ' ADDED: Track last saved time for git integration
         
         ' Editor components - SIMPLIFIED

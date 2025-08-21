@@ -5,37 +5,173 @@ Imports System.IO
 Imports System.Xml
 Imports SimpleIDE.Dialogs
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Editors
+Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
     
     ' ===== Assembly Settings Management =====
     
-    ' Show Assembly Settings dialog
     Public Sub ShowAssemblySettings()
         Try
             If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowInfo("No project", "Please open a project first.")
+                ShowInfo("No Project", "Please open a project first.")
                 Return
             End If
             
-            Dim lDialog As New PreferencesDialog(Me, pSettingsManager, pThemeManager)
-            
-            If lDialog.Run() = CInt(ResponseType.Ok) Then
-                ' Refresh project explorer to update manifest status
-                pProjectExplorer.RefreshManifestNode()
-                
-                ' Update any open editors that might be affected
-                RefreshAssemblyRelatedEditors()
-            End If
-            
-            lDialog.Destroy()
+            ' Open the AssemblySettingsEditor in a tab
+            OpenAssemblySettingsEditor()
             
         Catch ex As Exception
             Console.WriteLine($"ShowAssemblySettings error: {ex.Message}")
-            ShowError("Assembly Settings error", ex.Message)
+            ShowError("Assembly Settings Error", ex.Message)
         End Try
     End Sub
-
+    
+    ''' <summary>
+    ''' Opens the AssemblySettingsEditor in a tab
+    ''' </summary>
+    Private Sub OpenAssemblySettingsEditor()
+        Try
+            ' Check if assembly settings editor is already open
+            For Each lTabEntry In pOpenTabs
+                If lTabEntry.Key.Contains("AssemblySettings") OrElse lTabEntry.Key = "Assembly Settings" Then
+                    ' Switch to existing tab
+                    SwitchToTab(lTabEntry.Key)
+                    Return
+                End If
+            Next
+            
+            ' Create new AssemblySettingsEditor
+            Dim lEditor As New AssemblySettingsEditor(pCurrentProject)
+            
+            ' Subscribe to events
+            AddHandler lEditor.SettingsChanged, AddressOf OnAssemblySettingsChanged
+            
+            ' Create scrolled window container
+            Dim lScrolled As New ScrolledWindow()
+            lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+            lScrolled.Add(lEditor)
+            
+            ' Create tab info
+            Dim lTabInfo As New TabInfo() With {
+                .FilePath = "Assembly Settings",
+                .Editor = Nothing,  ' AssemblySettingsEditor doesn't implement IEditor
+                .EditorContainer = lScrolled,
+                .Modified = False,
+                .IsSpecialTab = True  ' Mark as special tab
+            }
+            
+            ' Create tab label
+            Dim lTabLabel As Box = CreateAssemblySettingsTabLabel()
+            
+            ' Add to notebook
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lScrolled, lTabLabel)
+            pNotebook.ShowAll()
+            pNotebook.CurrentPage = lPageIndex
+            
+            ' Add to open tabs
+            pOpenTabs("Assembly Settings") = lTabInfo
+            
+            ' Update status bar
+            UpdateStatusBar("Opened assembly settings")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OpenAssemblySettingsEditor error: {ex.Message}")
+            Throw
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Creates tab label for assembly settings
+    ''' </summary>
+    Private Function CreateAssemblySettingsTabLabel() As Box
+        Try
+            Dim lBox As New Box(Orientation.Horizontal, 3)
+            
+            ' Icon
+            Dim lIcon As New Image()
+            lIcon.SetFromIconName("document-properties", IconSize.Menu)
+            lBox.PackStart(lIcon, False, False, 0)
+            
+            ' Label
+            Dim lLabel As New Label("Assembly Settings")
+            lBox.PackStart(lLabel, True, True, 0)
+            
+            ' Close button
+            Dim lCloseButton As New Button()
+            lCloseButton.Relief = ReliefStyle.None
+            lCloseButton.FocusOnClick = False
+            
+            Dim lCloseIcon As New Image()
+            lCloseIcon.SetFromIconName("window-close", IconSize.Menu)
+            lCloseButton.Add(lCloseIcon)
+            
+            AddHandler lCloseButton.Clicked, AddressOf OnAssemblySettingsCloseClicked
+            
+            lBox.PackStart(lCloseButton, False, False, 0)
+            
+            lBox.ShowAll()
+            Return lBox
+            
+        Catch ex As Exception
+            Console.WriteLine($"CreateAssemblySettingsTabLabel error: {ex.Message}")
+            Return New Box(Orientation.Horizontal, 0)
+        End Try
+    End Function
+    
+    ''' <summary>
+    ''' Handles assembly settings tab close
+    ''' </summary>
+    Private Sub OnAssemblySettingsCloseClicked(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Find and close the assembly settings tab
+            If pOpenTabs.ContainsKey("Assembly Settings") Then
+                Dim lTabInfo As TabInfo = pOpenTabs("Assembly Settings")
+                
+                ' Check for unsaved changes if applicable
+                ' For now, just close it
+                
+                ' Find the page index
+                For i As Integer = 0 To pNotebook.NPages - 1
+                    Dim lPage As Widget = pNotebook.GetNthPage(i)
+                    If lPage Is lTabInfo.EditorContainer Then
+                        pNotebook.RemovePage(i)
+                        Exit For
+                    End If
+                Next
+                
+                ' Remove from open tabs
+                pOpenTabs.Remove("Assembly Settings")
+                
+                ' Clean up
+                lTabInfo.Dispose()
+                
+                UpdateStatusBar("Closed assembly settings")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnAssemblySettingsCloseClicked error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles assembly settings changes
+    ''' </summary>
+    Private Sub OnAssemblySettingsChanged()
+        Try
+            ' Refresh project explorer to update any assembly-related nodes
+            If pProjectExplorer IsNot Nothing Then
+                pProjectExplorer.RefreshManifestNode()
+            End If
+            
+            ' Update status
+            UpdateStatusBar("Assembly settings updated")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnAssemblySettingsChanged error: {ex.Message}")
+        End Try
+    End Sub
 
     
     ' Handle Assembly Settings menu item

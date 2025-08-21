@@ -45,6 +45,7 @@ Namespace Editors
         ' Events
         Public Event Modified(vIsModified As Boolean)
         Public Event SaveRequested()
+        Public Event SettingsChanged()
         
         ' Properties
         Public Property IsModified As Boolean
@@ -55,6 +56,7 @@ Namespace Editors
                 If pIsModified <> Value Then
                     pIsModified = Value
                     RaiseEvent Modified(pIsModified)
+                    RaiseEvent SettingsChanged()
                 End If
             End Set
         End Property

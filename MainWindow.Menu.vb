@@ -240,7 +240,7 @@ Partial Public Class MainWindow
             
             ' Preferences
             Dim lPreferences As MenuItem = CreateMenuItemWithIcon("Pre_ferences...", "preferences-system")
-            ' TODO: AddHandler lPreferences.Activated, AddressOf OnPreferences
+            AddHandler lPreferences.Activated, AddressOf OnEditPreferences
             lEditMenu.Append(lPreferences)
             
         Catch ex As Exception
