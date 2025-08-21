@@ -55,6 +55,9 @@ Namespace Editors
                     AddHandler pLineNumberArea.ButtonPressEvent, AddressOf OnLineNumberButtonPress
                     AddHandler pLineNumberArea.MotionNotifyEvent, AddressOf OnLineNumberMotionNotify
                     AddHandler pLineNumberArea.ButtonReleaseEvent, AddressOf OnLineNumberButtonRelease
+
+                    ' CRITICAL FIX: Add scroll event handler to enable mouse wheel scrolling during drag selection
+                    AddHandler pLineNumberArea.ScrollEvent, AddressOf OnLineNumberScrollEvent
                     
                     ' Make sure the line number area can receive mouse events
                     pLineNumberArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or EventMask.PointerMotionMask))

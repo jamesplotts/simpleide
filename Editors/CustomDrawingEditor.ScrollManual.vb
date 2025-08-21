@@ -243,6 +243,48 @@ Namespace Editors
                     End Select
                 End If
                 
+                ' CRITICAL FIX: Update selection if we're currently dragging
+                ' This keeps the selection end under the mouse pointer during scroll
+                If pIsDragging AndAlso Not pPotentialDrag Then
+                    ' Get current mouse position relative to the drawing area
+                    Dim lDisplay As Gdk.Display = pDrawingArea.Display
+                    If lDisplay IsNot Nothing Then
+                        ' Get the default seat and then the pointer
+                        Dim lSeat As Gdk.Seat = lDisplay.DefaultSeat
+                        If lSeat IsNot Nothing Then
+                            Dim lPointer As Gdk.Device = lSeat.Pointer
+                            If lPointer IsNot Nothing Then
+                                ' Get pointer position
+                                Dim lScreen As Gdk.Screen = Nothing
+                                Dim lX, lY As Integer
+                                Dim lMask As Gdk.ModifierType = Nothing
+                                
+                                pDrawingArea.Window.GetDevicePosition(lPointer, lX, lY, lMask)
+                                
+                                ' The coordinates are already relative to the widget
+                                ' Get the position at current mouse coordinates after scroll
+                                Dim lPos As EditorPosition = GetPositionFromCoordinates(CDbl(lX), CDbl(lY))
+                                
+                                ' Update selection to this position
+                                If pIsStartingNewSelection Then
+                                    ' Creating new selection from drag
+                                    pSelectionEndLine = lPos.Line
+                                    pSelectionEndColumn = lPos.Column
+                                    pHasSelection = True
+                                    pIsStartingNewSelection = False
+                                ElseIf pHasSelection Then
+                                    ' Extending existing selection
+                                    pSelectionEndLine = lPos.Line
+                                    pSelectionEndColumn = lPos.Column
+                                End If
+                                
+                                ' Queue redraw for selection
+                                pDrawingArea.QueueDraw()
+                            End If
+                        End If
+                    End If
+                End If
+                
                 vArgs.RetVal = True
                 Return True
                 

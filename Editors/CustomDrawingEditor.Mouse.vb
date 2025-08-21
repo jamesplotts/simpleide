@@ -13,6 +13,9 @@ Namespace Editors
         ' ===== Mouse State =====
         Private pIsDragging As Boolean = False
         Private pLineNumberDragging As Boolean = False
+        Private pLineNumberDragAnchor As Integer = -1  
+        Private pTextDragAnchorLine As Integer = -1     
+        Private pTextDragAnchorColumn As Integer = -1  
         Private pLastMouseX As Double = 0
         Private pLastMouseY As Double = 0
         Private pDragScrollTimer As UInteger = 0
@@ -109,6 +112,8 @@ Namespace Editors
                     pPotentialDrag = False
                     pDragStarted = False
                     pIsDragSource = False
+                    pTextDragAnchorLine = -1     ' CRITICAL FIX: Reset text area anchors
+                    pTextDragAnchorColumn = -1
                     StopDragScrollTimer()
                     
                     ' Restore normal cursor
@@ -241,15 +246,26 @@ Namespace Editors
                 If pDrawingArea IsNot Nothing Then
                     pDrawingArea.GrabFocus()
                 End If
-
+        
                 If vArgs.Event.Button = 1 Then
-                    ' Left click - existing line selection logic
+                    ' Left click - line selection logic
                     Dim lLine As Integer = GetLineFromY(vArgs.Event.y)
                     
                     If lLine >= 0 AndAlso lLine < pLineCount Then
-                        ' Select entire line
-                        SelectLine(lLine)
+                        ' CRITICAL FIX: Store the anchor line and DON'T call SelectLine
+                        ' SelectLine modifies the selection anchors through UpdateSelection
+                        pLineNumberDragAnchor = lLine
                         pLineNumberDragging = True
+                        
+                        ' Set up the initial selection directly without calling SelectLine
+                        ' This preserves the anchors properly
+                        If lLine < pLineCount - 1 Then
+                            ' Not last line - select to start of next line
+                            SetSelection(lLine, 0, lLine + 1, 0)
+                        Else
+                            ' Last line - select to end
+                            SetSelection(lLine, 0, lLine, pTextLines(lLine).Length)
+                        End If
                     End If
                 ElseIf vArgs.Event.Button = 3 Then
                     ' Right click - show context menu for line number area
@@ -265,10 +281,14 @@ Namespace Editors
             End Try
         End Function
         
+        ''' <summary>
+        ''' Handles button release events in the line number area
+        ''' </summary>
         Private Function OnLineNumberButtonRelease(vSender As Object, vArgs As ButtonReleaseEventArgs) As Boolean
             Try
                 If vArgs.Event.Button = 1 Then
                     pLineNumberDragging = False
+                    pLineNumberDragAnchor = -1  ' Reset the anchor
                 End If
                 
                 vArgs.RetVal = False
@@ -282,19 +302,33 @@ Namespace Editors
         
         Private Function OnLineNumberMotionNotify(vSender As Object, vArgs As MotionNotifyEventArgs) As Boolean
             Try
-               pLineNumberArea.Window.Cursor = pPointerCursor
-                If pLineNumberDragging Then
-                    Dim lLine As Integer = GetLineFromY(vArgs.Event.y)
+                pLineNumberArea.Window.Cursor = pPointerCursor
+                
+                If pLineNumberDragging AndAlso pLineNumberDragAnchor >= 0 Then
+                    Dim lCurrentLine As Integer = GetLineFromY(vArgs.Event.y)
                     
-                    If lLine >= 0 AndAlso lLine < pLineCount Then
-                        ' Extend selection to this line
-                        Dim lStartLine As Integer = Math.Min(pSelectionStartLine, lLine)
-                        Dim lEndLine As Integer = Math.Max(pSelectionStartLine, lLine)
+                    If lCurrentLine >= 0 AndAlso lCurrentLine < pLineCount Then
+                        ' CRITICAL FIX: Always use the stored anchor to calculate selection
+                        ' Don't rely on pSelectionStartLine which gets modified
+                        Dim lStartLine As Integer
+                        Dim lEndLine As Integer
                         
-                        ' Select from start of first line to end of last line
+                        If lCurrentLine < pLineNumberDragAnchor Then
+                            ' Dragging upward from anchor
+                            lStartLine = lCurrentLine
+                            lEndLine = pLineNumberDragAnchor
+                        Else
+                            ' Dragging downward from anchor or on same line
+                            lStartLine = pLineNumberDragAnchor
+                            lEndLine = lCurrentLine
+                        End If
+                        
+                        ' Select from start of first line to end/start of next line
                         If lEndLine < pLineCount - 1 Then
+                            ' Not including last line - select to start of next line
                             SetSelection(lStartLine, 0, lEndLine + 1, 0)
                         Else
+                            ' Including last line - select to end of last line
                             SetSelection(lStartLine, 0, lEndLine, pTextLines(lEndLine).Length)
                         End If
                     End If
@@ -429,6 +463,8 @@ Namespace Editors
                     ' Shift+Click: extend selection
                     pIsStartingNewSelection = False
                     pPotentialDrag = False
+                    pTextDragAnchorLine = -1    ' Not using anchors for shift-click
+                    pTextDragAnchorColumn = -1
                     If Not pSelectionActive Then
                         StartSelection(pCursorLine, pCursorColumn)
                     End If
@@ -441,6 +477,8 @@ Namespace Editors
                     pIsStartingNewSelection = False
                     pPotentialDrag = True  ' Mark this as a potential drag
                     pIsDragging = True     ' We're in drag mode
+                    pTextDragAnchorLine = -1    ' Not starting new selection
+                    pTextDragAnchorColumn = -1
                     ' IMPORTANT: Don't clear selection or move cursor
                     ' Don't update selection - keep it as is
                 Else
@@ -448,6 +486,9 @@ Namespace Editors
                     Console.WriteLine("Click outside selection - new selection")
                     pIsStartingNewSelection = True
                     pPotentialDrag = False
+                    ' CRITICAL FIX: Store the anchor point for this new selection
+                    pTextDragAnchorLine = vPos.Line
+                    pTextDragAnchorColumn = vPos.Column
                     ClearSelection()
                     SetCursorPosition(vPos.Line, vPos.Column)
                     StartSelection(vPos.Line, vPos.Column)
@@ -793,7 +834,95 @@ Namespace Editors
                 Return 0
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Handles scroll events in the line number area during selection dragging
+        ''' </summary>
+        ''' <param name="vSender">The line number area widget</param>
+        ''' <param name="vArgs">Scroll event arguments</param>
+        ''' <returns>True if handled, false otherwise</returns>
+        Private Function OnLineNumberScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
+            Try
+                ' CRITICAL FIX: Allow scrolling while dragging in line number area
+                ' This enables mouse wheel scrolling during line selection
+                
+                Dim lLines As Integer = SCROLL_WHEEL_LINES
+                
+                ' Check for horizontal scrolling (Shift+Scroll)
+                If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                    ' Horizontal scroll
+                    Select Case vArgs.Event.Direction
+                        Case ScrollDirection.Up, ScrollDirection.Left
+                            ScrollLeft(lLines * pCharWidth)
+                        Case ScrollDirection.Down, ScrollDirection.Right
+                            ScrollRight(lLines * pCharWidth)
+                    End Select
+                Else
+                    ' Vertical scroll
+                    Select Case vArgs.Event.Direction
+                        Case ScrollDirection.Up
+                            ScrollUp(lLines)
+                        Case ScrollDirection.Down
+                            ScrollDown(lLines)
+                    End Select
+                    
+                    ' If we're currently dragging, update the selection after scrolling
+                    If pLineNumberDragging AndAlso pLineNumberDragAnchor >= 0 Then
+                        ' Get the current mouse position relative to the line number area
+                        Dim lDisplay As Gdk.Display = pLineNumberArea.Display
+                        If lDisplay IsNot Nothing Then
+                            ' Get the default seat and then the pointer
+                            Dim lSeat As Gdk.Seat = lDisplay.DefaultSeat
+                            If lSeat IsNot Nothing Then
+                                Dim lPointer As Gdk.Device = lSeat.Pointer
+                                If lPointer IsNot Nothing AndAlso pLineNumberArea.Window IsNot Nothing Then
+                                    ' Get pointer position relative to the line number area
+                                    Dim lX, lY As Integer
+                                    Dim lMask As Gdk.ModifierType = Nothing
+                                    
+                                    pLineNumberArea.Window.GetDevicePosition(lPointer, lX, lY, lMask)
+                                    
+                                    ' Get the line at the current mouse position after scroll
+                                    Dim lLine As Integer = GetLineFromY(CDbl(lY))
+                                    
+                                    If lLine >= 0 AndAlso lLine < pLineCount Then
+                                        ' CRITICAL FIX: Use anchor for consistent selection calculation
+                                        Dim lStartLine As Integer
+                                        Dim lEndLine As Integer
+                                        
+                                        If lLine < pLineNumberDragAnchor Then
+                                            ' Dragging upward from anchor
+                                            lStartLine = lLine
+                                            lEndLine = pLineNumberDragAnchor
+                                        Else
+                                            ' Dragging downward from anchor or on same line
+                                            lStartLine = pLineNumberDragAnchor
+                                            lEndLine = lLine
+                                        End If
+                                        
+                                        ' Select from start of first line to end/start of next line
+                                        If lEndLine < pLineCount - 1 Then
+                                            SetSelection(lStartLine, 0, lEndLine + 1, 0)
+                                        Else
+                                            SetSelection(lStartLine, 0, lEndLine, pTextLines(lEndLine).Length)
+                                        End If
+                                    End If
+                                End If
+                            End If
+                        End If
+                    End If
+                End If
+                
+                vArgs.RetVal = True
+                Return True
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnLineNumberScrollEvent error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
     End Class
-    
+
 End Namespace
+

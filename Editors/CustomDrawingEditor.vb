@@ -277,7 +277,11 @@ Namespace Editors
                                            EventMask.PointerMotionMask Or EventMask.KeyPressMask Or 
                                            EventMask.KeyReleaseMask Or EventMask.ScrollMask Or
                                            EventMask.FocusChangeMask))
-                
+
+                ' CRITICAL FIX: Add ScrollMask to enable scroll events in line number area
+                pLineNumberArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or 
+                                               EventMask.PointerMotionMask Or EventMask.ScrollMask))       
+         
                 ' Create scrollbars
                 pVScrollbar = New Scrollbar(Gtk.Orientation.Vertical, New Adjustment(0, 0, 100, 1, 10, 10))
                 pHScrollbar = New Scrollbar(Gtk.Orientation.Horizontal, New Adjustment(0, 0, 100, 1, 10, 10))
