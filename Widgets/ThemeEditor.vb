@@ -41,6 +41,9 @@ Namespace Widgets
         ' Color state
         Private pCurrentColor As Gdk.RGBA
         Private pColorAreas As New List(Of DrawingArea)
+
+        ' Track the actual selected theme name
+        Private pCurrentThemeName As String  
         
         ' Events
         Public Event ThemeChanged(vTheme As EditorTheme)
@@ -84,6 +87,7 @@ Namespace Widgets
                 
                 pThemeListBox = New CustomDrawListBox()
                 pThemeListBox.SetSizeRequest(200, 300)
+                pThemeListBox.ThemeManager = pThemeManager
                 AddHandler pThemeListBox.SelectionChanged, AddressOf OnThemeSelected
                 AddHandler pThemeListBox.ContextMenuRequested, AddressOf OnThemeContextMenuRequested
                 
@@ -129,6 +133,7 @@ Namespace Widgets
                 
                 pPropertyListBox = New CustomDrawListBox()
                 pPropertyListBox.SetSizeRequest(250, -1)
+                pPropertyListBox.ThemeManager = pThemeManager
                 AddHandler pPropertyListBox.SelectionChanged, AddressOf OnPropertySelected
                 
                 lPropertyContainer.PackStart(pPropertyListBox, True, True, 0)
@@ -158,9 +163,22 @@ Namespace Widgets
                 lPreviewScroll.SetSizeRequest(-1, 200)
                 lPreviewScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 
-                pPreviewEditor = New CustomDrawingEditor(New SourceFileInfo(GetPreviewText()))
-                pPreviewEditor.SetText(GetPreviewText())
+                ' Create SourceFileInfo using the content constructor which sets IsDemoMode
+                Dim lPreviewSourceInfo As New SourceFileInfo(GetPreviewText())
+                lPreviewSourceInfo.FilePath = "ThemePreview.vb"
+                lPreviewSourceInfo.FileName = "ThemePreview.vb"
+                lPreviewSourceInfo.TextLines = New List(Of String)(GetPreviewText().Split({Environment.NewLine}, StringSplitOptions.None))
+                lPreviewSourceInfo.IsLoaded = True
+                
+                ' Create the editor with proper initialization
+                pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo)
                 pPreviewEditor.IsReadOnly = True
+                
+                ' IMPORTANT: Set the ThemeManager before applying theme
+                pPreviewEditor.SetThemeManager(pThemeManager)
+                
+                ' Apply current theme
+                pPreviewEditor.ApplyTheme()
                 
                 lPreviewScroll.Add(pPreviewEditor)
                 lPreviewFrame.Add(lPreviewScroll)
@@ -185,6 +203,11 @@ Namespace Widgets
                 lRightBox.PackStart(lButtonBox, False, False, 0)
                 
                 lHPaned.Pack2(lRightBox, True, False)
+
+                ' Subscribe to theme manager events
+                AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeManagerThemeChanged
+                AddHandler pThemeManager.ThemeApplied, AddressOf OnThemeManagerThemeApplied
+                AddHandler pThemeListBox.SelectionChanged, AddressOf OnThemeListBoxSelectionChanged
                 
                 ' CRITICAL: Add the main paned to this widget
                 PackStart(lHPaned, True, True, 0)
@@ -255,6 +278,10 @@ Namespace Widgets
                 
                 ' Apply theme colors to the listbox
                 ApplyThemeToListBoxes()
+                
+                ' Select current theme if set
+                Dim lCurrentThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
+                pThemeListBox.SelectByText(lCurrentThemeName)
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.LoadThemes error: {ex.Message}")
@@ -486,15 +513,18 @@ End Namespace"
             Try
                 If pCurrentTheme Is Nothing OrElse pPreviewEditor Is Nothing Then Return
                 
-                ' Apply theme to preview editor
-                pPreviewEditor.ApplyTheme()
+                ' Apply the theme colors directly to the preview editor
+                ' WITHOUT changing the global theme
+                pPreviewEditor.SetThemeColors(pCurrentTheme)
+                
+                ' Queue redraw
                 pPreviewEditor.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.UpdatePreview error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub        
+
         Private Sub OnNewTheme(vSender As Object, vArgs As EventArgs)
             Try
                 ' Create dialog for theme name
@@ -548,31 +578,37 @@ End Namespace"
         
         Private Sub OnSaveTheme(vSender As Object, vArgs As EventArgs)
             Try
-                If pCurrentTheme Is Nothing Then Return
+                If pCurrentTheme Is Nothing OrElse String.IsNullOrEmpty(pCurrentThemeName) Then Return
                 
-                ' Get themes directory
+                ' Ensure the theme name matches the tracked name
+                pCurrentTheme.Name = pCurrentThemeName
+                
+                ' Save theme
                 Dim lThemesDir As String = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "SimpleIDE", "Themes")
-                
-                ' Ensure directory exists
+                    
                 If Not Directory.Exists(lThemesDir) Then
                     Directory.CreateDirectory(lThemesDir)
                 End If
                 
-                ' Save theme file
-                Dim lFilePath As String = System.IO.Path.Combine(lThemesDir, $"{pCurrentTheme.Name}.json")
+                Dim lFilePath As String = System.IO.Path.Combine(lThemesDir, $"{pCurrentThemeName}.json")
+                
                 If pThemeManager.SaveTheme(pCurrentTheme, lFilePath) Then
+                    ' Update the theme in the manager
+                    pThemeManager.UpdateCustomTheme(pCurrentThemeName, pCurrentTheme)
+                    
                     SetModified(False)
                     
-                    ' Show confirmation
+                    ' Show success message
                     Dim lDialog As New MessageDialog(
                         Me.Toplevel,
                         DialogFlags.Modal,
                         MessageType.Info,
                         ButtonsType.Ok,
-                        $"Theme '{pCurrentTheme.Name}' saved successfully."
-                    )
+                        $"Theme '{pCurrentThemeName}' saved successfully.")
+                    
+                    lDialog.Title = "Theme Saved"
                     lDialog.Run()
                     lDialog.Destroy()
                 End If
@@ -585,13 +621,29 @@ End Namespace"
         
         Private Sub OnApplyTheme(vSender As Object, vArgs As EventArgs)
             Try
-                If pCurrentTheme Is Nothing Then Return
+                If pCurrentTheme Is Nothing OrElse String.IsNullOrEmpty(pCurrentThemeName) Then Return
                 
-                ' Apply theme
-                pThemeManager.SetTheme(pCurrentTheme.Name)
+                ' Apply theme using the tracked theme name
+                pThemeManager.SetTheme(pCurrentThemeName)
                 
-                ' Raise event
-                RaiseEvent ThemeChanged(pCurrentTheme)
+                ' IMPORTANT: Update the listbox colors after applying the theme
+                ApplyThemeToListBoxes()
+                
+                ' Also update the preview editor
+                If pPreviewEditor IsNot Nothing Then
+                    pPreviewEditor.ApplyTheme()
+                    pPreviewEditor.QueueDraw()
+                End If
+                
+                ' Force the listboxes to redraw with new colors
+                pThemeListBox?.QueueDraw()
+                pPropertyListBox?.QueueDraw()
+                
+                ' Raise event with the actual theme object from ThemeManager
+                Dim lActualTheme As EditorTheme = pThemeManager.GetTheme(pCurrentThemeName)
+                If lActualTheme IsNot Nothing Then
+                    RaiseEvent ThemeChanged(lActualTheme)
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.OnApplyTheme error: {ex.Message}")
@@ -834,10 +886,17 @@ End Namespace"
             Try
                 pThemeContextMenu = New Menu()
                 
-                ' Copy theme item (renamed from Duplicate)
+                ' Copy theme item
                 Dim lCopyItem As New MenuItem("Copy Theme")
                 AddHandler lCopyItem.Activated, AddressOf OnContextMenuCopyTheme
                 pThemeContextMenu.Append(lCopyItem)
+                
+                ' Export theme item - ADD THIS
+                Dim lExportItem As New MenuItem("Export Theme...")
+                AddHandler lExportItem.Activated, AddressOf OnContextMenuExportTheme
+                pThemeContextMenu.Append(lExportItem)
+                
+                pThemeContextMenu.Append(New SeparatorMenuItem())
                 
                 ' Delete theme item
                 Dim lDeleteItem As New MenuItem("Delete Theme")
@@ -1033,19 +1092,15 @@ End Namespace"
                 Console.WriteLine($"ThemeEditor.OnContextMenuCopyTheme error: {ex.Message}")
             End Try
         End Sub
-
         
         ''' <summary>
         ''' Handles export theme from context menu
         ''' </summary>
         Private Sub OnContextMenuExportTheme(vSender As Object, vArgs As EventArgs)
             Try
-'                Dim lSelectedRow As ListBoxRow = pThemeListBox.SelectedRow
-'                If lSelectedRow Is Nothing Then Return
-
                 Dim lSelectedItem As ListBoxItem = pThemeListBox.SelectedItem
                 If lSelectedItem Is Nothing Then Return
-                                
+                
                 Dim lThemeName As String = lSelectedItem.Text
                 If String.IsNullOrEmpty(lThemeName) Then Return
                 
@@ -1063,9 +1118,13 @@ End Namespace"
                 
                 lDialog.CurrentName = $"{lThemeName}.json"
                 
+                ' Set default folder to user's Documents
+                Dim lDocsPath As String = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                lDialog.SetCurrentFolder(lDocsPath)
+                
                 ' Add filter for JSON files
                 Dim lFilter As New FileFilter()
-                lFilter.Name = "JSON Theme Files"
+                lFilter.Name = "JSON Theme Files (*.json)"
                 lFilter.AddPattern("*.json")
                 lDialog.AddFilter(lFilter)
                 
@@ -1077,9 +1136,26 @@ End Namespace"
                 If lDialog.Run() = CInt(ResponseType.Accept) Then
                     Dim lFilePath As String = lDialog.Filename
                     
+                    ' Ensure .json extension
+                    If Not lFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) Then
+                        lFilePath &= ".json"
+                    End If
+                    
                     ' Save theme to file
                     If pThemeManager.SaveTheme(lTheme, lFilePath) Then
                         UpdateStatusMessage($"Theme exported to: {lFilePath}")
+                        
+                        ' Show success dialog
+                        Dim lSuccessDialog As New MessageDialog(
+                            Me.Toplevel,
+                            DialogFlags.Modal,
+                            MessageType.Info,
+                            ButtonsType.Ok,
+                            $"Theme '{lThemeName}' exported successfully to:{Environment.NewLine}{lFilePath}")
+                        
+                        lSuccessDialog.Title = "Export Successful"
+                        lSuccessDialog.Run()
+                        lSuccessDialog.Destroy()
                     Else
                         ' Show error
                         Dim lErrorDialog As New MessageDialog(
@@ -1099,6 +1175,7 @@ End Namespace"
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.OnContextMenuExportTheme error: {ex.Message}")
+                ShowError("Export Error", ex.Message)
             End Try
         End Sub
         
@@ -1122,18 +1199,28 @@ End Namespace"
         Private Sub OnThemeSelected(vIndex As Integer, vItem As ListBoxItem)
             Try
                 If vItem Is Nothing Then Return
-                
                 Dim lThemeName As String = vItem.Text
+                Console.WriteLine($"OnThemeSelected Called: " + lThemeName )
+                
+                ' Store the actual theme name
+                pCurrentThemeName = lThemeName
                 
                 ' Load the theme
                 pCurrentTheme = pThemeManager.GetTheme(lThemeName)
                 If pCurrentTheme IsNot Nothing Then
+                    ' Clone it for editing if it's a custom theme
+                    If IsCustomTheme(lThemeName) Then
+                        pCurrentTheme = pCurrentTheme.Clone()
+                        ' Keep the correct name after cloning
+                        pCurrentTheme.Name = lThemeName
+                    End If
+                    
                     ' Update UI
                     pThemeNameLabel.Markup = $"<b>{lThemeName}</b>"
                     LoadProperties()
                     
                     ' Reset property selection  
-                    pCurrentPropertyTag = EditorTheme.Tags.eBackgroundColor ' Changed from eUnspecified
+                    pCurrentPropertyTag = EditorTheme.Tags.eBackgroundColor
                     
                     ' Set initial color in ColorPicker (background color by default)
                     Dim lColor As New Gdk.RGBA()
@@ -1149,8 +1236,12 @@ End Namespace"
                     ' Load theme colors to custom palette
                     LoadThemeColorsToCustomPalette()
                     
-                    ' Update preview
-                    UpdatePreview()
+                    ' Apply theme to preview WITHOUT flashing the entire UI
+                    If pPreviewEditor IsNot Nothing Then
+                        pPreviewEditor.SetThemeColors(pCurrentTheme)
+                        pPreviewEditor.QueueDraw()
+Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
+                    End If
                 End If
                 
             Catch ex As Exception
@@ -1284,39 +1375,6 @@ End Namespace"
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Applies current theme colors to the custom listboxes
-        ''' </summary>
-        Private Sub ApplyThemeToListBoxes()
-            Try
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then Return
-                
-                ' Calculate hover color (lighter version of selection color)
-                Dim lHoverColor As String = LightenColor(lTheme.SelectionColor, 0.3)
-                
-                ' Apply to theme list
-                pThemeListBox.SetColors(
-                    lTheme.BackgroundColor,
-                    lTheme.ForegroundColor,
-                    lTheme.SelectionColor,
-                    "#FFFFFF",  ' Selection text is always white
-                    lHoverColor
-                )
-                
-                ' Apply to property list
-                pPropertyListBox.SetColors(
-                    lTheme.BackgroundColor,
-                    lTheme.ForegroundColor,
-                    lTheme.SelectionColor,
-                    "#FFFFFF",
-                    lHoverColor
-                )
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyThemeToListBoxes error: {ex.Message}")
-            End Try
-        End Sub
 
         ''' <summary>
         ''' Lightens a color by the specified amount
@@ -1411,8 +1469,105 @@ End Namespace"
             End Try
         End Sub
 
-        Private Sub OnThemeListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)
+        ''' <summary>
+        ''' Applies current theme colors to both list boxes
+        ''' </summary>
+        Private Sub ApplyThemeToListBoxes()
+            Try
+                ' Ensure ThemeManager is set on both listboxes
+                If pThemeListBox.ThemeManager Is Nothing Then
+                    pThemeListBox.ThemeManager = pThemeManager
+                End If
+                If pPropertyListBox.ThemeManager Is Nothing Then
+                    pPropertyListBox.ThemeManager = pThemeManager
+                End If
+                
+                ' Use the UpdateFromTheme method which gets colors from ThemeManager
+                pThemeListBox.UpdateFromTheme()
+                pPropertyListBox.UpdateFromTheme()
+                
+                ' Force immediate redraw
+                pThemeListBox.QueueDraw()
+                pPropertyListBox.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ApplyThemeToListBoxes error: {ex.Message}")
+            End Try
+        End Sub
 
+        ''' <summary>
+        ''' Refreshes the theme editor when theme changes externally
+        ''' </summary>
+        Public Sub RefreshTheme()
+            Try
+                ' Apply theme colors to listboxes
+                ApplyThemeToListBoxes()
+                
+                ' Refresh preview editor if exists
+                If pPreviewEditor IsNot Nothing AndAlso pCurrentTheme IsNot Nothing Then
+                    ' Set the theme in the theme manager first
+                    pThemeManager.SetTheme(pCurrentThemeName)
+                    ' Then apply it to the editor
+                    pPreviewEditor.ApplyTheme()
+                    pPreviewEditor.QueueDraw()
+                End If
+                
+                ' Force redraw of all components
+                Me.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ThemeEditor.RefreshTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles theme changes from the ThemeManager
+        ''' </summary>
+        Private Sub OnThemeManagerThemeChanged(vTheme As EditorTheme)
+            Try
+                ' Update the listbox colors when theme changes
+                ApplyThemeToListBoxes()
+                
+                ' Force redraw
+                pThemeListBox?.QueueDraw()
+                pPropertyListBox?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ThemeEditor.OnThemeManagerThemeChanged error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles theme applied events from the ThemeManager
+        ''' </summary>
+        Private Sub OnThemeManagerThemeApplied(vThemeName As String)
+            Try
+                ' Update the listbox colors when theme is applied
+                ApplyThemeToListBoxes()
+                
+                ' Force redraw
+                pThemeListBox?.QueueDraw()
+                pPropertyListBox?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ThemeEditor.OnThemeManagerThemeApplied error: {ex.Message}")
+            End Try
+        End Sub
+
+
+
+        ''' </summary>
+        ''' <param name="vIndex">The index of the selected item</param>
+        ''' <param name="vItem">The selected ListBoxItem</param>
+        Private Sub OnThemeListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)
+            Try
+                ' Call the existing OnThemeSelected method which contains all the logic
+                ' for updating the preview and loading theme properties
+                OnThemeSelected(vIndex, vItem)
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnThemeListBoxSelectionChanged error: {ex.Message}")
+            End Try
         End Sub
 
         Private Sub OnPropertyListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)

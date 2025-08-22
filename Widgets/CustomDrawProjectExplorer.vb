@@ -155,13 +155,16 @@ Namespace Widgets
         ''' Initializes a new instance of the CustomDrawProjectExplorer
         ''' </summary>
         ''' <param name="vSettingsManager">Settings manager for configuration persistence</param>
-        Public Sub New(vSettingsManager As SettingsManager, vProjectManager as ProjectManager)
+        ''' <param name="vProjectManager">Project manager for project operations</param>
+        ''' <param name="vThemeManager">Theme manager for consistent theming (CRITICAL: Added parameter)</param>
+        Public Sub New(vSettingsManager As SettingsManager, vProjectManager As ProjectManager, vThemeManager As ThemeManager)
             MyBase.New(Orientation.Vertical, 0)
             
             Try
                 pSettingsManager = vSettingsManager
-                pProjectManager = vProjectManager  
-                pThemeManager = New ThemeManager(vSettingsManager)
+                pProjectManager = vProjectManager
+                ' CRITICAL FIX: Use the passed ThemeManager instead of creating a new one
+                pThemeManager = vThemeManager
                 pIconTheme = IconTheme.Default
                 
                 ' Initialize components
@@ -182,12 +185,13 @@ Namespace Widgets
                 ' Show all components
                 ShowAll()
                 
-                Console.WriteLine("CustomDrawProjectExplorer initialized")
+                Console.WriteLine("CustomDrawProjectExplorer initialized with shared ThemeManager")
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawProjectExplorer constructor error: {ex.Message}")
             End Try
         End Sub
+
         
         ' ===== Initialization Methods =====
         

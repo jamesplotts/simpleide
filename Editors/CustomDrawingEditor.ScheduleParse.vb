@@ -638,11 +638,11 @@ Namespace Editors
             Return "=+-*/\^&<>()[]{},.!?:".Contains(vChar)
         End Function
         
-        ' Check if word is a VB keyword
-        Private Function IsVBKeyword(vWord As String) As Boolean
-            Dim lKeywords As HashSet(Of String) = GetVBKeywords()
-            Return lKeywords.Contains(vWord.ToLower())
-        End Function
+'        ' Check if word is a VB keyword
+'        Private Function IsVBKeyword(vWord As String) As Boolean
+'            Dim lKeywords As HashSet(Of String) = GetVBKeywords()
+'            Return lKeywords.Contains(vWord.ToLower())
+'        End Function
         
         ' Get keyword case dictionary
         Private Function GetKeywordCaseDictionary() As Dictionary(Of String, String)

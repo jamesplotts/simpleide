@@ -110,9 +110,12 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Apply theme to all editors and refresh all widgets
+    ''' <summary>
+    ''' Applies the current theme to all editors and UI components
+    ''' </summary>
     Private Sub ApplyThemeToAllEditors()
         Try
+            ' Get current theme
             Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
             If lTheme Is Nothing Then Return
             
@@ -134,9 +137,19 @@ Partial Public Class MainWindow
                 pObjectExplorer.OnThemeChanged()
             End If
             
-            ' UPDATE: Apply theme to Project Explorer if it has a refresh method
+            ' CRITICAL FIX: Call OnThemeChanged for Project Explorer
+            ' to ensure it properly refreshes with the new theme
             If pProjectExplorer IsNot Nothing Then
-                pProjectExplorer.QueueDraw()
+                ' Check if Project Explorer has OnThemeChanged method
+                If TypeOf pProjectExplorer Is CustomDrawProjectExplorer Then
+                    Dim lCustomExplorer As CustomDrawProjectExplorer = DirectCast(pProjectExplorer, CustomDrawProjectExplorer)
+                    lCustomExplorer.OnThemeChanged()
+                Else
+                    ' Fallback to ApplyTheme for other explorer types
+                    pProjectExplorer.ApplyTheme()
+                End If
+                
+                Console.WriteLine("MainWindow.ApplyThemeToAllEditors: Project Explorer theme updated")
             End If
             
             ' Force refresh of all widgets by queuing draw
@@ -149,7 +162,6 @@ Partial Public Class MainWindow
             Console.WriteLine($"ApplyThemeToAllEditors error: {ex.Message}")
         End Try
     End Sub
-
     ' New method to refresh specific widgets
     Private Sub RefreshWidgetThemes()
         Try
@@ -304,7 +316,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    ' Also update the theme menu handler to use the enhanced method
+    ''' <summary>
+    ''' Handles theme menu item activation
+    ''' </summary>
     Private Sub OnThemeMenuItemActivated(vSender As Object, vArgs As EventArgs)
         Try
             Dim lMenuItem As MenuItem = TryCast(vSender, MenuItem)
@@ -319,7 +333,16 @@ Partial Public Class MainWindow
             ' Apply to all editors and refresh widgets
             ApplyThemeToAllEditors()
             
-            ' UPDATE: Ensure Object Explorer gets the theme change
+            ' CRITICAL FIX: Explicitly update Project Explorer
+            ' Ensure it gets the theme change notification
+            If pProjectExplorer IsNot Nothing Then
+                If TypeOf pProjectExplorer Is CustomDrawProjectExplorer Then
+                    Dim lCustomExplorer As CustomDrawProjectExplorer = DirectCast(pProjectExplorer, CustomDrawProjectExplorer)
+                    lCustomExplorer.OnThemeChanged()
+                End If
+            End If
+            
+            ' Ensure Object Explorer gets the theme change too
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.OnThemeChanged()
             End If

@@ -50,19 +50,18 @@ Namespace Editors
         ''' <summary>
         ''' Main content drawing method with drag-drop indicator support
         ''' </summary>
-        ''' <summary>
-        ''' Main content drawing method with drag-drop indicator support
-        ''' </summary>
         Private Sub DrawContent(vContext As Cairo.Context)
             Try
                 Dim lTopOffset As Integer = -3
                 Dim lBarLengthHalf As Integer = 4
-
+        
                 ' Create a layout for text rendering
                 Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
                 lLayout.FontDescription = pFontDescription
-                Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-
+                
+                ' CRITICAL CHANGE: Use GetActiveTheme instead of pThemeManager.GetCurrentThemeObject()
+                Dim lCurrentTheme As EditorTheme = GetActiveTheme()
+        
                 ' Get font metrics
                 Dim lAscent As Integer = 0
                 If pFontMetrics IsNot Nothing Then
@@ -72,65 +71,72 @@ Namespace Editors
                 End If
                 
                 ' Draw background
-                Dim Color As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eBackgroundColor)
-                Dim Pattern As New Cairo.SolidPattern(Color.r, Color.g, Color.b)
-                vContext.SetSource(Pattern)
+                Dim lBgColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eBackgroundColor)
+                Dim lBgPattern As New Cairo.SolidPattern(lBgColor.R, lBgColor.G, lBgColor.B)
+                vContext.SetSource(lBgPattern)
                 vContext.Rectangle(0, 0, pDrawingArea.AllocatedWidth, pDrawingArea.AllocatedHeight)
                 vContext.Fill()
-                Pattern.Dispose()
+                lBgPattern.Dispose()
                 
                 ' Calculate visible range
                 Dim lFirstLine As Integer = pFirstVisibleLine
-                Dim lLastLine As Integer = Math.Min(pFirstVisibleLine + pTotalVisibleLines - 1, pLineCount - 1)
+                Dim lLastLine As Integer = Math.Min(lFirstLine + pTotalVisibleLines, pLineCount - 1)
                 Dim lFirstColumn As Integer = pFirstVisibleColumn
-                Dim lLastColumn As Integer = pFirstVisibleColumn + pTotalVisibleColumns - 1
+                Dim lLastColumn As Integer = lFirstColumn + pTotalVisibleColumns
                 
-                ' Normalize selection bounds once
-                Dim lSelStartLine As Integer = pSelectionStartLine
-                Dim lSelStartCol As Integer = pSelectionStartColumn
-                Dim lSelEndLine As Integer = pSelectionEndLine
-                Dim lSelEndCol As Integer = pSelectionEndColumn
-                If pSelectionActive Then
-                    NormalizeSelection(lSelStartLine, lSelStartCol, lSelEndLine, lSelEndCol)
+                ' Draw current line highlight if enabled
+                If pHighlightCurrentLine AndAlso pCursorLine >= lFirstLine AndAlso pCursorLine <= lLastLine Then
+                    ' Calculate Y position with the same offset used for text drawing
+                    ' Apply the lTopOffset to align properly with the text
+                    Dim lLineY As Integer = (pCursorLine - lFirstLine) * pLineHeight + pTopPadding + lTopOffset
+                    Dim lCurrentLineColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eCurrentLineColor)
+                    Dim lCurrentLinePattern As New Cairo.SolidPattern(lCurrentLineColor.R, lCurrentLineColor.G, lCurrentLineColor.B)
+                    vContext.SetSource(lCurrentLinePattern)
+                    ' Draw the highlight rectangle for the full line height
+                    vContext.Rectangle(0, lLineY, pDrawingArea.AllocatedWidth, pLineHeight)
+                    vContext.Fill()
+                    lCurrentLinePattern.Dispose()
                 End If
-
-                ' Main drawing loop - iterate through visible lines
+                
+                ' Draw text and selections character by character
                 For lLineIndex As Integer = lFirstLine To lLastLine
-                    If lLineIndex >= pLineCount Then Exit For
+                    If lLineIndex >= pTextLines.Count Then Exit For
                     
-                    ' Get line text from SourceFileInfo if available, otherwise from pTextLines
-                    Dim lLineText As String = ""
-                    If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.TextLines IsNot Nothing Then
-                        If lLineIndex < pSourceFileInfo.TextLines.Count Then
-                            lLineText = pSourceFileInfo.TextLines(lLineIndex)
-                        End If
-                    ElseIf pTextLines IsNot Nothing AndAlso lLineIndex < pTextLines.Count Then
-                        lLineText = pTextLines(lLineIndex)
-                    End If
+                    Dim lLine As String = pTextLines(lLineIndex)
+                    ' Calculate Y position for this line
+                    ' The line rectangle starts here
+                    Dim lLineTop As Integer = (lLineIndex - lFirstLine - 1) * pLineHeight + pTopPadding + lTopOffset + 3
+                    ' The text baseline is positioned within the line rectangle
+                    Dim lY As Integer = lLineTop + lAscent
                     
-                    Dim lY As Integer = (lLineIndex - lFirstLine) * pLineHeight + pTopPadding + lAscent - pLineHeight
-                    
-                    ' Draw each visible character in the line
-                    ' Start from first visible column (with buffer), not from 0
-                    Dim lStartCol As Integer = Math.Max(0, lFirstColumn - 5)
-                    Dim lEndCol As Integer = Math.Min(lLineText.Length - 1, lLastColumn + 5)
-                    
-                    For lColIndex As Integer = lStartCol To lEndCol
-                        ' Calculate actual X position considering the character's position in the line
+                    ' Draw each character
+                    For lColIndex As Integer = 0 To lLine.Length - 1
+                        If lColIndex < lFirstColumn Then Continue For
+                        If lColIndex > lLastColumn Then Exit For
+                        
+                        Dim lChar As Char = lLine(lColIndex)
                         Dim lX As Integer = pLeftPadding + ((lColIndex - lFirstColumn) * pCharWidth)
                         
-                        ' Skip if before or after viewport
-                        If lX < pLeftPadding - pCharWidth OrElse lX > pViewportWidth Then Continue For
-                        
-                        ' Skip drawing character if it's beyond the line length
-                        If lColIndex >= lLineText.Length Then Continue For
-                        
-                        ' Get the character
-                        Dim lChar As Char = lLineText(lColIndex)
-                        
-                        ' Determine if this character is in selection
+                        ' Check if this character is in selection
                         Dim lInSelection As Boolean = False
-                        If pSelectionActive Then
+                        If pSelectionActive AndAlso pHasSelection Then
+                            ' Normalize selection bounds
+                            Dim lSelStartLine As Integer = pSelectionStartLine
+                            Dim lSelStartCol As Integer = pSelectionStartColumn
+                            Dim lSelEndLine As Integer = pSelectionEndLine
+                            Dim lSelEndCol As Integer = pSelectionEndColumn
+                            
+                            ' Ensure start is before end
+                            If lSelStartLine > lSelEndLine OrElse (lSelStartLine = lSelEndLine AndAlso lSelStartCol > lSelEndCol) Then
+                                Dim lTempLine As Integer = lSelStartLine
+                                Dim lTempCol As Integer = lSelStartCol
+                                lSelStartLine = lSelEndLine
+                                lSelStartCol = lSelEndCol
+                                lSelEndLine = lTempLine
+                                lSelEndCol = lTempCol
+                            End If
+                            
+                            ' Check if character is in selection
                             If lLineIndex > lSelStartLine AndAlso lLineIndex < lSelEndLine Then
                                 lInSelection = True
                             ElseIf lLineIndex = lSelStartLine AndAlso lLineIndex = lSelEndLine Then
@@ -141,13 +147,14 @@ Namespace Editors
                                 lInSelection = (lColIndex < lSelEndCol)
                             End If
                         End If
-                
+                        
                         ' Draw selection background if needed
                         If lInSelection Then
-                            Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eSelectionColor)
-                            Dim lSelPattern As New Cairo.SolidPattern(Color.r, Color.g, Color.b)
+                            Dim lSelColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eSelectionColor)
+                            Dim lSelPattern As New Cairo.SolidPattern(lSelColor.R, lSelColor.G, lSelColor.B)
                             vContext.SetSource(lSelPattern)
-                            vContext.Rectangle(lX, lY - lAscent + pLineHeight + lTopOffset, pCharWidth, pLineHeight)
+                            ' Use lLineTop for the selection rectangle to align with the line
+                            vContext.Rectangle(lX, lLineTop + lAscent + 1, pCharWidth, pLineHeight)
                             vContext.Fill()
                             lSelPattern.Dispose()
                         End If
@@ -165,7 +172,7 @@ Namespace Editors
                         End If
                         
                         ' Set the text color and draw the character
-                        Dim lTextPattern As New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
+                        Dim lTextPattern As New Cairo.SolidPattern(lTextColor.R, lTextColor.G, lTextColor.B)
                         vContext.SetSource(lTextPattern)
                         
                         ' Draw the character
@@ -177,23 +184,20 @@ Namespace Editors
                         lTextPattern.Dispose()
                     Next
                 Next
-
-                ' CRITICAL FIX: Draw drag-drop indicators if active
-                DrawDragDropIndicators(vContext)
-                
+        
                 ' Draw cursor if visible
                 If pCursorVisible AndAlso
                   pCursorLine >= lFirstLine AndAlso pCursorLine <= lLastLine AndAlso
                   pCursorColumn >= lFirstColumn - 1 AndAlso pCursorColumn <= lLastColumn + 1 Then
-                    Dim lTextColor As Cairo.Color
+                    Dim lCursorColor As Cairo.Color
                     If pCursorBlink Then
-                         lTextColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
+                         lCursorColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
                     Else
-                         lTextColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eBackgroundColor)
+                         lCursorColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eBackgroundColor)
                     End If
-                    Pattern = New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
-                    vContext.SetSource(Pattern)
-
+                    Dim lCursorPattern As New Cairo.SolidPattern(lCursorColor.R, lCursorColor.G, lCursorColor.B)
+                    vContext.SetSource(lCursorPattern)
+        
                     Dim lCursorX As Integer = pLeftPadding + ((pCursorColumn - lFirstColumn) * pCharWidth)
                     Dim lCursorY As Integer = (pCursorLine - lFirstLine) * pLineHeight + pTopPadding
                     
@@ -205,7 +209,7 @@ Namespace Editors
                     vContext.MoveTo(lCursorX - lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
                     vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
                     vContext.Stroke()
-                    Pattern.Dispose()
+                    lCursorPattern.Dispose()
                 End If
                 
                 ' Clean up
@@ -220,68 +224,53 @@ Namespace Editors
         
         Private Sub DrawLineNumbers(vContext As Cairo.Context)
             Try
+                ' CRITICAL CHANGE: Use GetActiveTheme instead of pThemeManager.GetCurrentThemeObject()
+                Dim lCurrentTheme As EditorTheme = GetActiveTheme()
+        
                 ' Set background color
-                Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-
-                Dim lTextColor As Cairo.Color  = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberBackgroundColor)
-                Dim Pattern As Cairo.SolidPattern = New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
-                vContext.SetSource(Pattern)
-
-                vContext.Rectangle(0 , 0, pLineNumberWidth, pLineNumberArea.AllocatedHeight)
+                Dim lBgColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberBackgroundColor)
+                Dim lBgPattern As New Cairo.SolidPattern(lBgColor.R, lBgColor.G, lBgColor.B)
+                vContext.SetSource(lBgPattern)
+                vContext.Rectangle(0, 0, pLineNumberWidth, pLineNumberArea.AllocatedHeight)
                 vContext.Fill()
-                Pattern.Dispose()
+                lBgPattern.Dispose()
+                
                 ' Set text color
-                lTextColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eForegroundColor)
-                Dim lLineNumberColorPattern As Cairo.SolidPattern = New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
+                Dim lTextColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberColor)
+                Dim lLineNumberColorPattern As New Cairo.SolidPattern(lTextColor.R, lTextColor.G, lTextColor.B)
                 vContext.SetSource(lLineNumberColorPattern)
                 
                 ' Create layout for line numbers
                 Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
                 lLayout.FontDescription = pFontDescription
-                lLayout.Alignment = Pango.Alignment.Right
-                lLayout.Width = Pango.Units.FromPixels(pLineNumberWidth - 10)
                 
-                ' Get font ascent for consistent positioning with main text
-                Dim lAscent As Integer = 0
-                If pFontMetrics IsNot Nothing Then
-                    lAscent = pFontMetrics.Ascent
-                Else
-                    lAscent = CInt(pLineHeight * 0.75)
-                End If
-                
-                ' Draw line numbers for visible lines
+                ' Draw line numbers
                 Dim lFirstLine As Integer = pFirstVisibleLine
-                Dim lLastLine As Integer = Math.Min(pFirstVisibleLine + pTotalVisibleLines - 1, pLineCount - 1)
-                lTextColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eCurrentLineNumberColor)
-                Dim lCurrentLineNumberColorPattern As Cairo.SolidPattern = New Cairo.SolidPattern(lTextColor.r, lTextColor.g, lTextColor.b)
-
+                Dim lLastLine As Integer = Math.Min(lFirstLine + pTotalVisibleLines, pLineCount - 1)
                 
-                For lLineIndex As Integer = lFirstLine To lLastLine
-                    ' Calculate Y position relative to viewport - matches text drawing
-                    Dim lY As Integer = (lLineIndex - pFirstVisibleLine) * pLineHeight + pTopPadding + lAscent - pLineHeight
+                For i As Integer = lFirstLine To lLastLine
+                    Dim lLineNumber As String = (i + 1).ToString()
+                    lLayout.SetText(lLineNumber)
+                    
+                    Dim lY As Integer = (i - lFirstLine) * pLineHeight + pTopPadding - 4
                     
                     ' Highlight current line number
-                    If lLineIndex = pCursorLine Then
-                        vContext.SetSource(lCurrentLineNumberColorPattern) ' Brighter for current Line
+                    If i = pCursorLine Then
+                        Dim lCurrentLineNumColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eCurrentLineNumberColor)
+                        Dim lCurrentPattern As New Cairo.SolidPattern(lCurrentLineNumColor.R, lCurrentLineNumColor.G, lCurrentLineNumColor.B)
+                        vContext.SetSource(lCurrentPattern)
+                        vContext.MoveTo(pLineNumberWidth - pRightPadding - (lLineNumber.Length * pCharWidth), lY)
+                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                        lCurrentPattern.Dispose()
+                        vContext.SetSource(lLineNumberColorPattern) ' Reset to normal color
                     Else
-                        vContext.SetSource(lLineNumberColorPattern)
+                        vContext.MoveTo(pLineNumberWidth - pRightPadding - (lLineNumber.Length * pCharWidth), lY)
+                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
                     End If
-                    
-                    ' Draw line number
-                    vContext.MoveTo(5, lY)
-                    lLayout.SetText((lLineIndex + 1).ToString())
-                    Pango.CairoHelper.ShowLayout(vContext, lLayout)
                 Next
                 
-                ' Draw right border
-                vContext.SetSource(lLineNumberColorPattern)
-                vContext.LineWidth = 1
-                vContext.MoveTo(pLineNumberWidth - 0.5, 0)
-                vContext.LineTo(pLineNumberWidth - 0.5, pLineNumberArea.AllocatedHeight)
-                vContext.Stroke()
-                lCurrentLineNumberColorPattern.Dispose()
+                ' Clean up
                 lLineNumberColorPattern.Dispose()
-                ' Dispose layout
                 lLayout.Dispose()
                 
             Catch ex As Exception

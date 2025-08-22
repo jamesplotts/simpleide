@@ -164,21 +164,48 @@ Namespace Editors
             Try
                 If String.IsNullOrEmpty(vLineText) Then Return
                 
-                ' Get theme with null check - use default colors if theme manager not available
-                Dim lTheme As EditorTheme = Nothing
+                ' CRITICAL FIX: Use pSyntaxColorSet colors which are updated by SetThemeColors
+                ' This ensures the preview editor uses the colors from the theme being edited
+                ' rather than the globally active theme
+                
                 Dim lCommentColor As String = "#008000"    ' Default green for comments
                 Dim lStringColor As String = "#A31515"     ' Default red for strings
                 Dim lNumberColor As String = "#098658"     ' Default teal for numbers
                 Dim lKeywordColor As String = "#0000FF"    ' Default blue for keywords
+                Dim lTypeColor As String = "#2B91AF"       ' Default blue-green for types
+                Dim lOperatorColor As String = "#000000"   ' Default black for operators
+                Dim lIdentifierColor As String = "#000000" ' Default black for identifiers
                 
-                If pThemeManager IsNot Nothing Then
-                    lTheme = pThemeManager.GetCurrentThemeObject()
+                ' Check if we're in demo mode (preview editor)
+                Dim lIsDemoMode As Boolean = False
+                If pSourceFileInfo IsNot Nothing Then
+                    lIsDemoMode = pSourceFileInfo.IsDemoMode
+                End If
+                
+                ' If we have a SyntaxColorSet, use its colors (these are updated by SetThemeColors)
+                If pSyntaxColorSet IsNot Nothing Then
+                    ' Get colors from the SyntaxColorSet which contains the preview theme colors
+                    lCommentColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eComment)
+                    lStringColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eString)
+                    lNumberColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eNumber)
+                    lKeywordColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eKeyword)
+                    lTypeColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eType)
+                    lOperatorColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eOperator)
+                    lIdentifierColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eIdentifier)
+                    
+                    Console.WriteLine($"Using SyntaxColorSet colors - Keyword: {lKeywordColor}, String: {lStringColor}, Comment: {lCommentColor}")
+                    
+                ' Only use ThemeManager colors if NOT in demo mode and no SyntaxColorSet
+                ElseIf Not lIsDemoMode AndAlso pThemeManager IsNot Nothing Then
+                    Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
                     If lTheme IsNot Nothing Then
-                        ' Use theme colors
+                        ' Use theme colors from the global theme
                         lCommentColor = lTheme.StringColor(EditorTheme.Tags.eCommentText)
                         lStringColor = lTheme.StringColor(EditorTheme.Tags.eStringText)
                         lNumberColor = lTheme.StringColor(EditorTheme.Tags.eNumberText)
                         lKeywordColor = lTheme.StringColor(EditorTheme.Tags.eKeywordText)
+                        
+                        Console.WriteLine($"Using ThemeManager colors - Keyword: {lKeywordColor}")
                     End If
                 End If
                 
@@ -191,210 +218,196 @@ Namespace Editors
                     ReDim Preserve pCharacterColors(vLineIndex)
                 End If
                 
-                ' Initialize the character colors for this line if needed
-                If pCharacterColors(vLineIndex) Is Nothing OrElse pCharacterColors(vLineIndex).Length <> vLineText.Length Then
+                If pCharacterColors(vLineIndex) Is Nothing OrElse 
+                   pCharacterColors(vLineIndex).Length <> vLineText.Length Then
                     ReDim pCharacterColors(vLineIndex)(Math.Max(0, vLineText.Length - 1))
                 End If
                 
-                ' Initialize all characters with default foreground color
-                For i As Integer = 0 To vLineText.Length - 1
-                    pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(If(pForegroundColor, "#000000"))
-                Next
-                
-                ' First, check for comments (highest priority)
-                Dim lCommentStart As Integer = -1
-                Dim lInString As Boolean = False
-                Dim lStringChar As Char = Nothing
-                
-                ' Find the first non-string comment
-                For i As Integer = 0 To vLineText.Length - 1
-                    Dim lChar As Char = vLineText(i)
-                    
-                    If Not lInString Then
-                        If lChar = """" Then
-                            lInString = True
-                            lStringChar = """"
-                        ElseIf lChar = "'" Then
-                            lCommentStart = i
-                            Exit For
-                        End If
+                ' Initialize all characters with default foreground color first
+                For i2 As Integer = 0 To vLineText.Length - 1
+                    If pCharacterColors(vLineIndex)(i2) Is Nothing Then
+                        pCharacterColors(vLineIndex)(i2) = New CharacterColorInfo(If(pForegroundColor, "#D4D4D4"))
                     Else
-                        If lChar = lStringChar Then
-                            ' Check for escaped quote
-                            If i + 1 < vLineText.Length AndAlso vLineText(i + 1) = lStringChar Then
-                                i += 1 ' Skip the escaped quote
-                            Else
-                                lInString = False
-                            End If
-                        End If
+                        pCharacterColors(vLineIndex)(i2).Color = If(pForegroundColor, "#D4D4D4")
                     End If
                 Next
                 
-                ' Apply comment coloring if found
-                If lCommentStart >= 0 Then
-                    For i As Integer = lCommentStart To vLineText.Length - 1
-                        pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lCommentColor)
+                ' Track if we're in a comment or string
+                Dim lInComment As Boolean = False
+                Dim lInString As Boolean = False
+                Dim lStringStartChar As Char = Nothing
+                
+                ' Check for comment line
+                Dim lTrimmedText As String = vLineText.TrimStart()
+                If lTrimmedText.StartsWith("'") OrElse lTrimmedText.ToUpper().StartsWith("REM ") Then
+                    ' Entire line is a comment
+                    lInComment = True
+                    Dim lCommentStart As Integer = vLineText.IndexOf("'")
+                    If lCommentStart = -1 Then
+                        lCommentStart = vLineText.ToUpper().IndexOf("REM ")
+                    End If
+                    
+                    For i2 As Integer = lCommentStart To vLineText.Length - 1
+                        pCharacterColors(vLineIndex)(i2).Color = lCommentColor
                     Next
                     
-                    ' Create token for metadata
-                    Dim lCommentToken As New SyntaxToken(lCommentStart, vLineText.Length - lCommentStart, SyntaxTokenType.eComment, lCommentColor)
-                    vMetadata.SyntaxTokens.Add(lCommentToken)
+                    ' Add token to metadata
+                    If vMetadata IsNot Nothing Then
+                        vMetadata.SyntaxTokens.Add(New SyntaxToken(lCommentStart, vLineText.Length - lCommentStart, 
+                                                                  SyntaxTokenType.eComment, lCommentColor))
+                    End If
+                    Return ' Don't process anything else on comment lines
                 End If
-        
-                ' Now process the rest of the line (up to comment start if any)
-                Dim lProcessEnd As Integer = If(lCommentStart >= 0, lCommentStart - 1, vLineText.Length - 1)
                 
-                ' Process strings
-                lInString = False
-                Dim lStringStart As Integer = -1
-                
-                For i As Integer = 0 To lProcessEnd
+                ' Process the line character by character for strings and then apply other highlights
+                Dim i As Integer = 0
+                While i < vLineText.Length
                     Dim lChar As Char = vLineText(i)
                     
-                    If Not lInString Then
-                        If lChar = """" Then
+                    ' Check for string start/end
+                    If lChar = """" AndAlso Not lInComment Then
+                        If Not lInString Then
                             lInString = True
-                            lStringStart = i
-                            lStringChar = """"
+                            lStringStartChar = lChar
+                            Dim lStringStart As Integer = i
+                            
+                            ' Find the end of the string
+                            i += 1
+                            While i < vLineText.Length
+                                If vLineText(i) = """" Then
+                                    ' Check for escaped quote
+                                    If i + 1 < vLineText.Length AndAlso vLineText(i + 1) = """" Then
+                                        i += 2 ' Skip escaped quote
+                                        Continue While
+                                    Else
+                                        ' End of string found
+                                        lInString = False
+                                        i += 1
+                                        Exit While
+                                    End If
+                                End If
+                                i += 1
+                            End While
+                            
+                            ' Color the entire string
+                            For j As Integer = lStringStart To Math.Min(i - 1, vLineText.Length - 1)
+                                pCharacterColors(vLineIndex)(j).Color = lStringColor
+                            Next
+                            
+                            ' Add token to metadata
+                            If vMetadata IsNot Nothing Then
+                                vMetadata.SyntaxTokens.Add(New SyntaxToken(lStringStart, i - lStringStart, 
+                                                                          SyntaxTokenType.eString, lStringColor))
+                            End If
+                            Continue While
                         End If
-                    Else
-                        If lChar = lStringChar Then
-                            ' Check for escaped quote
-                            If i + 1 <= lProcessEnd AndAlso vLineText(i + 1) = lStringChar Then
-                                i += 1 ' Skip the escaped quote
-                            Else
-                                ' End of string - color it
-                                For j As Integer = lStringStart To i
-                                    pCharacterColors(vLineIndex)(j) = New CharacterColorInfo(lStringColor)
+                    End If
+                    
+                    i += 1
+                End While
+                
+                ' Now highlight keywords, types, numbers, etc. (avoiding strings)
+                ' Use regex or word-by-word analysis
+                Dim lWords As String() = System.Text.RegularExpressions.Regex.Split(vLineText, "\b")
+                Dim lPosition As Integer = 0
+                
+                For Each lWord As String In lWords
+                    If Not String.IsNullOrEmpty(lWord) Then
+                        ' Check if this position is already colored (string or comment)
+                        Dim lAlreadyColored As Boolean = False
+                        If lPosition < vLineText.Length Then
+                            lAlreadyColored = (pCharacterColors(vLineIndex)(lPosition).Color = lStringColor OrElse
+                                              pCharacterColors(vLineIndex)(lPosition).Color = lCommentColor)
+                        End If
+                        
+                        If Not lAlreadyColored Then
+                            ' Check for keywords
+                            If IsVBKeyword(lWord) Then
+                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                    pCharacterColors(vLineIndex)(j).Color = lKeywordColor
                                 Next
                                 
-                                ' Create token
-                                Dim lStringToken As New SyntaxToken(lStringStart, i - lStringStart + 1, SyntaxTokenType.eString, lStringColor)
-                                vMetadata.SyntaxTokens.Add(lStringToken)
+                                If vMetadata IsNot Nothing Then
+                                    vMetadata.SyntaxTokens.Add(New SyntaxToken(lPosition, lWord.Length, 
+                                                                              SyntaxTokenType.eKeyword, lKeywordColor))
+                                End If
                                 
-                                lInString = False
+                            ' Check for types
+                            ElseIf IsVBType(lWord) Then
+                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                    pCharacterColors(vLineIndex)(j).Color = lTypeColor
+                                Next
+                                
+                                If vMetadata IsNot Nothing Then
+                                    vMetadata.SyntaxTokens.Add(New SyntaxToken(lPosition, lWord.Length, 
+                                                                              SyntaxTokenType.eType, lTypeColor))
+                                End If
+                                
+                            ' Check for numbers
+                            ElseIf IsNumeric(lWord) Then
+                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                    pCharacterColors(vLineIndex)(j).Color = lNumberColor
+                                Next
+                                
+                                If vMetadata IsNot Nothing Then
+                                    vMetadata.SyntaxTokens.Add(New SyntaxToken(lPosition, lWord.Length, 
+                                                                              SyntaxTokenType.eNumber, lNumberColor))
+                                End If
+                                
+                            ' Check for operators (single character)
+                            ElseIf lWord.Length = 1 AndAlso "+-*/=<>&|^".Contains(lWord) Then
+                                pCharacterColors(vLineIndex)(lPosition).Color = lOperatorColor
+                                
+                                If vMetadata IsNot Nothing Then
+                                    vMetadata.SyntaxTokens.Add(New SyntaxToken(lPosition, 1, 
+                                                                              SyntaxTokenType.eOperator, lOperatorColor))
+                                End If
                             End If
                         End If
                     End If
-                Next
-                
-                ' If string didn't close, color to end
-                If lInString Then
-                    For j As Integer = lStringStart To lProcessEnd
-                        pCharacterColors(vLineIndex)(j) = New CharacterColorInfo(lStringColor)
-                    Next
                     
-                    Dim lStringToken As New SyntaxToken(lStringStart, lProcessEnd - lStringStart + 1, SyntaxTokenType.eString, lStringColor)
-                    vMetadata.SyntaxTokens.Add(lStringToken)
-                End If
-                
-                ' Process keywords and numbers using comprehensive keyword list
-                Dim lKeywords As HashSet(Of String) = GetVBKeywords()
-                
-                ' Also add common types that should be colored as keywords
-                Dim lTypes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
-                    "String", "Integer", "Boolean", "Object", "Long", "Short", "Byte", 
-                    "Single", "Double", "Decimal", "Date", "Char", "Nothing",
-                    "System", "Console", "Exception", "EventArgs", "List", "Dictionary",
-                    "Gtk", "Gdk", "Cairo", "Widget", "Window", "Box", "Button", "Label"
-                }
-                
-                ' Simple word processing - scan through the line character by character
-                Dim lCurrentPos As Integer = 0
-                While lCurrentPos <= lProcessEnd
-                    ' Skip already processed characters (strings/comments)
-                    If pCharacterColors(vLineIndex)(lCurrentPos) IsNot Nothing AndAlso 
-                       Not String.IsNullOrEmpty(pCharacterColors(vLineIndex)(lCurrentPos).Color) AndAlso
-                       pCharacterColors(vLineIndex)(lCurrentPos).Color <> pForegroundColor Then
-                        lCurrentPos += 1
-                        Continue While
-                    End If
-                    
-                    If Char.IsDigit(vLineText(lCurrentPos)) Then
-                        ' Process number
-                        Dim lNumberStart As Integer = lCurrentPos
-                        
-                        While lCurrentPos <= lProcessEnd AndAlso 
-                              (Char.IsDigit(vLineText(lCurrentPos)) OrElse vLineText(lCurrentPos) = "."c)
-                            lCurrentPos += 1
-                        End While
-                        
-                        ' Color the number
-                        For i As Integer = lNumberStart To lCurrentPos - 1
-                            pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lNumberColor)
-                        Next
-                        
-                        ' Create token
-                        Dim lNumberToken As New SyntaxToken(lNumberStart, lCurrentPos - lNumberStart, SyntaxTokenType.eNumber, lNumberColor)
-                        vMetadata.SyntaxTokens.Add(lNumberToken)
-                        
-                    ElseIf Char.IsLetter(vLineText(lCurrentPos)) OrElse vLineText(lCurrentPos) = "_" Then
-                        ' Process identifier or keyword
-                        Dim lWordStart As Integer = lCurrentPos
-                        
-                        While lCurrentPos <= lProcessEnd AndAlso 
-                              (Char.IsLetterOrDigit(vLineText(lCurrentPos)) OrElse vLineText(lCurrentPos) = "_")
-                            lCurrentPos += 1
-                        End While
-                        
-                        Dim lWord As String = vLineText.Substring(lWordStart, lCurrentPos - lWordStart)
-                        
-                        ' Check if it's a keyword or a type
-                        If lKeywords.Contains(lWord) Then
-                            ' Color as keyword
-                            For i As Integer = lWordStart To lCurrentPos - 1
-                                pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lKeywordColor)
-                            Next
-                            
-                            ' Create token
-                            Dim lKeywordToken As New SyntaxToken(lWordStart, lWord.Length, SyntaxTokenType.eKeyword, lKeywordColor)
-                            vMetadata.SyntaxTokens.Add(lKeywordToken)
-                        ElseIf lTypes.Contains(lWord) Then
-                            ' Color as type (using keyword color for now, could use different color)
-                            For i As Integer = lWordStart To lCurrentPos - 1
-                                pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lKeywordColor)
-                            Next
-                            
-                            ' Create token
-                            Dim lTypeToken As New SyntaxToken(lWordStart, lWord.Length, SyntaxTokenType.eType, lKeywordColor)
-                            vMetadata.SyntaxTokens.Add(lTypeToken)
-                        End If
-                        
-                    Else
-                        ' Other character, skip it
-                        lCurrentPos += 1
-                    End If
-                End While
+                    lPosition += lWord.Length
+                 Next
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyVBNetSyntaxHighlightingCharacterBased error: {ex.Message}")
+                Console.WriteLine($"  Stack trace: {ex.StackTrace}")
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Get comprehensive list of VB.NET keywords
-        ''' </summary>
-        Private Function GetVBKeywords() As HashSet(Of String)
-            Static lKeywords As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
-                "addhandler", "addressof", "alias", "and", "andalso", "as", "boolean", "byref", "byte", "byval",
-                "call", "case", "catch", "cbool", "cbyte", "cchar", "cdate", "cdbl", "cdec", "char", "cint",
-                "class", "clng", "cobj", "const", "continue", "csbyte", "cshort", "csng", "cstr", "ctype",
-                "cuint", "culng", "cushort", "date", "decimal", "declare", "default", "delegate", "dim",
-                "directcast", "do", "double", "each", "else", "elseif", "end", "endif", "enum", "erase",
-                "error", "event", "exit", "false", "finally", "for", "friend", "function", "get", "gettype",
-                "getxmlnamespace", "global", "gosub", "goto", "handles", "if", "implements", "imports", "in",
-                "inherits", "integer", "interface", "is", "isnot", "let", "lib", "like", "long", "loop",
-                "me", "mod", "module", "mustinherit", "mustoverride", "mybase", "myclass", "namespace",
-                "narrowing", "new", "next", "not", "nothing", "notinheritable", "notoverridable", "object",
-                "of", "on", "operator", "option", "optional", "or", "orelse", "out", "overloads", "overridable",
-                "overrides", "paramarray", "partial", "private", "property", "protected", "public", "raiseevent",
-                "readonly", "redim", "rem", "removehandler", "resume", "return", "sbyte", "select", "set",
-                "shadows", "shared", "short", "single", "static", "step", "stop", "string", "structure",
-                "sub", "synclock", "then", "throw", "to", "true", "try", "trycast", "typeof", "uinteger",
-                "ulong", "ushort", "using", "variant", "wend", "when", "while", "widening", "with", "withevents",
-                "writeonly", "xor"
+        ' Helper function to check if a word is a VB keyword
+        Private Function IsVBKeyword(vWord As String) As Boolean
+            Static lKeywords As HashSet(Of String) = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+                "AddHandler", "AddressOf", "Alias", "And", "AndAlso", "As", "Boolean", "ByRef", "Byte", "ByVal",
+                "Call", "Case", "Catch", "CBool", "CByte", "CChar", "CDate", "CDbl", "CDec", "Char", "CInt", "Class",
+                "CLng", "CObj", "Const", "Continue", "CSByte", "CShort", "CSng", "CStr", "CType", "CUInt", "CULng",
+                "CUShort", "Date", "Decimal", "Declare", "Default", "Delegate", "Dim", "DirectCast", "Do", "Double",
+                "Each", "Else", "ElseIf", "End", "EndIf", "Enum", "Erase", "Error", "Event", "Exit", "False", "Finally",
+                "For", "Friend", "Function", "Get", "GetType", "GetXMLNamespace", "Global", "GoSub", "GoTo", "Handles",
+                "If", "Implements", "Imports", "In", "Inherits", "Integer", "Interface", "Is", "IsNot", "Let", "Lib",
+                "Like", "Long", "Loop", "Me", "Mod", "Module", "MustInherit", "MustOverride", "MyBase", "MyClass",
+                "Namespace", "Narrowing", "New", "Next", "Not", "Nothing", "NotInheritable", "NotOverridable", "Object",
+                "Of", "On", "Operator", "Option", "Optional", "Or", "OrElse", "Overloads", "Overridable", "Overrides",
+                "ParamArray", "Partial", "Private", "Property", "Protected", "Public", "RaiseEvent", "ReadOnly", "ReDim",
+                "REM", "RemoveHandler", "Resume", "Return", "SByte", "Select", "Set", "Shadows", "Shared", "Short",
+                "Single", "Static", "Step", "Stop", "String", "Structure", "Sub", "SyncLock", "Then", "Throw", "To",
+                "True", "Try", "TryCast", "TypeOf", "UInteger", "ULong", "UShort", "Using", "Variant", "Wend", "When",
+                "While", "Widening", "With", "WithEvents", "WriteOnly", "Xor"
             }
-            Return lKeywords
+            
+            Return lKeywords.Contains(vWord)
+        End Function
+
+        ' Helper function to check if a word is a VB type
+        Private Function IsVBType(vWord As String) As Boolean
+            Static lTypes As HashSet(Of String) = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+                "Boolean", "Byte", "Char", "Date", "Decimal", "Double", "Integer", "Long", "Object",
+                "SByte", "Short", "Single", "String", "UInteger", "ULong", "UShort",
+                "List", "Dictionary", "HashSet", "Queue", "Stack", "ArrayList",
+                "StringBuilder", "DateTime", "TimeSpan", "Guid", "Uri", "Regex"
+            }
+            
+            Return lTypes.Contains(vWord)
         End Function
         
         Private Sub ScheduleParsing()

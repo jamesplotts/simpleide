@@ -467,6 +467,81 @@ Namespace Editors
                 Console.WriteLine($"ApplySettings error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Sets theme colors without using ThemeManager
+        ''' </summary>
+        Public Sub SetThemeColors(vTheme As EditorTheme)
+            Try
+                If vTheme Is Nothing Then Return
+                
+                Console.WriteLine($"SetThemeColors called with theme: {vTheme.Name}")
+                
+                ' CRITICAL: Store the theme as the demo theme for use in drawing
+                pDemoTheme = vTheme
+                
+                ' Update background colors
+                pBackgroundColor = vTheme.BackgroundColor
+                pForegroundColor = vTheme.ForegroundColor
+                
+                ' Update line number colors
+                pLineNumberBgColor = vTheme.LineNumberBackgroundColor
+                pLineNumberFgColor = vTheme.LineNumberColor
+                
+                ' Update selection and cursor colors
+                pSelectionColor = vTheme.SelectionColor
+                pCursorColor = vTheme.CursorColor
+                pCurrentLineBgColor = vTheme.CurrentLineColor
+                
+                ' Set find highlight color
+                If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
+                    pFindHighlightColor = vTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
+                Else
+                    pFindHighlightColor = vTheme.SelectionColor
+                End If
+                
+                ' Update syntax colors if available
+                If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
+                    For Each kvp In vTheme.SyntaxColors
+                        Select Case kvp.Key
+                            Case SyntaxColorSet.Tags.eKeyword
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eKeyword) = kvp.Value
+                            Case SyntaxColorSet.Tags.eString
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eString) = kvp.Value
+                            Case SyntaxColorSet.Tags.eComment
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eComment) = kvp.Value
+                            Case SyntaxColorSet.Tags.eNumber
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eNumber) = kvp.Value
+                            Case SyntaxColorSet.Tags.eOperator
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eOperator) = kvp.Value
+                            Case SyntaxColorSet.Tags.eType
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eType) = kvp.Value
+                            Case SyntaxColorSet.Tags.ePreprocessor
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.ePreprocessor) = kvp.Value
+                            Case SyntaxColorSet.Tags.eIdentifier
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eIdentifier) = kvp.Value
+                            Case SyntaxColorSet.Tags.eSelection
+                                pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eSelection) = kvp.Value
+                        End Select
+                    Next
+                    
+                    ' Schedule a reparse to apply the new syntax colors
+                    ScheduleParse()
+                End If
+                
+                ' Apply theme to drawing area background (CSS)
+                ApplyThemeToWidget(vTheme)
+                
+                ' Queue full redraw to ensure everything updates
+                pDrawingArea?.QueueDraw()
+                pLineNumberArea?.QueueDraw()
+                
+                Console.WriteLine($"SetThemeColors completed for theme: {vTheme.Name}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetThemeColors error: {ex.Message}")
+            End Try
+        End Sub
         
         ' ===== Missing IEditor properties =====
         
@@ -483,6 +558,31 @@ Namespace Editors
                 Return True  ' CustomDrawingEditor supports navigation
             End Get
         End Property
+
+        ''' <summary>
+        ''' Gets the currently active theme, considering demo mode
+        ''' </summary>
+        ''' <returns>The demo theme if in demo mode, otherwise the current theme from ThemeManager</returns>
+        Private Function GetActiveTheme() As EditorTheme
+            Try
+                ' Check if we're in demo mode and have a demo theme
+                If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.IsDemoMode AndAlso pDemoTheme IsNot Nothing Then
+                    Return pDemoTheme
+                End If
+                
+                ' Otherwise use the theme manager's current theme
+                If pThemeManager IsNot Nothing Then
+                    Return pThemeManager.GetCurrentThemeObject()
+                End If
+                
+                ' Fallback - create a default theme
+                Return New EditorTheme("Default")
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetActiveTheme error: {ex.Message}")
+                Return New EditorTheme("Default")
+            End Try
+        End Function
         
     End Class
     

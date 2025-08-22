@@ -5,7 +5,8 @@ Imports Cairo
 Imports System
 Imports System.Collections.Generic
 Imports SimpleIDE.Utilities
-
+Imports SimpleIDE.Models
+Imports SimpleIDE.Managers
 
 ' CustomDrawListBox.vb
 ' Created: 2025-08-19 06:03:01
@@ -29,7 +30,8 @@ Namespace Widgets
         Private pItemHeight As Integer = 24
         Private pVisibleItems As Integer = 0
         Private pNeedsRedraw As Boolean = True
-        Private pThemeContextMenu as Menu
+        Private pThemeContextMenu As Menu
+        Private pThemeManager As ThemeManager
         
         ' Colors
         Private pBackgroundColor As String = "#FFFFFF"
@@ -40,7 +42,7 @@ Namespace Widgets
         
         ' Font settings
         Private pFontFamily As String = "Monospace"
-        Private pFontSize As Integer = 10
+        Private pFontSize As Integer = 11  ' Increased default size
         
         ' Events
         Public Event SelectionChanged(vIndex As Integer, vItem As ListBoxItem)
@@ -92,6 +94,19 @@ Namespace Widgets
             End Get
         End Property
         
+        ''' <summary>
+        ''' Gets or sets the theme manager
+        ''' </summary>
+        Public Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+            Set(value As ThemeManager)
+                pThemeManager = value
+                UpdateFromTheme()
+            End Set
+        End Property
+        
         ' ===== Constructor =====
         
         ''' <summary>
@@ -134,8 +149,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub SetupEventHandlers()
             Try
-                ' Drawing events
-                'AddHandler pDrawingArea.SizeAllocated, AddressOf OnSizeAllocated
+                ' Drawing events - FIXED: Connect the Drawn event
+                AddHandler pDrawingArea.Drawn, AddressOf OnDrawingAreaDrawn
+                AddHandler pDrawingArea.SizeAllocated, AddressOf OnDrawingAreaSizeAllocated
                 
                 ' Mouse events
                 AddHandler pDrawingArea.ButtonPressEvent, AddressOf OnButtonPress
@@ -158,12 +174,25 @@ Namespace Widgets
         ' ===== Drawing =====
         
         ''' <summary>
-        ''' Handles the draw event
+        ''' Handles the drawing area's Drawn event
         ''' </summary>
-        Protected Overrides Function OnDrawn(vContext As Context) As Boolean
+        Private Function OnDrawingAreaDrawn(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
-                Dim lWidth As Integer = AllocatedWidth
-                Dim lHeight As Integer = AllocatedHeight
+                DrawListBox(vArgs.Cr)
+                Return True
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.OnDrawingAreaDrawn error: {ex.Message}")
+                Return True
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Main drawing method
+        ''' </summary>
+        Private Sub DrawListBox(vContext As Context)
+            Try
+                Dim lWidth As Integer = pDrawingArea.AllocatedWidth
+                Dim lHeight As Integer = pDrawingArea.AllocatedHeight
                 
                 ' Clear background
                 SetSourceColor(vContext, pBackgroundColor)
@@ -180,12 +209,11 @@ Namespace Widgets
                 Next
                 
                 pNeedsRedraw = False
-                Return True
+                
             Catch ex As Exception
-                Console.WriteLine($"CustomDrawListBox.OnDrawn error: {ex.Message}")
-                Return False
+                Console.WriteLine($"CustomDrawListBox.DrawListBox error: {ex.Message}")
             End Try
-        End Function
+        End Sub
         
         ''' <summary>
         ''' Draws a single item
@@ -211,7 +239,7 @@ Namespace Widgets
                     vContext.Fill()
                 End If
                 
-                ' Draw text
+                ' Draw text with theme-appropriate font size
                 vContext.SelectFontFace(pFontFamily, FontSlant.Normal, FontWeight.Normal)
                 vContext.SetFontSize(pFontSize)
                 
@@ -221,11 +249,40 @@ Namespace Widgets
                     SetSourceColor(vContext, pForegroundColor)
                 End If
                 
-                vContext.MoveTo(5, lY + pItemHeight - 6)
+                ' Center text vertically in the item height
+                Dim lTextY As Integer = lY + (pItemHeight + pFontSize) \ 2 - 2
+                vContext.MoveTo(8, lTextY)  ' Increased left padding
                 vContext.ShowText(lItem.Text)
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.DrawItem error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' ===== Size Handling =====
+        
+        ''' <summary>
+        ''' Handles size allocation changes for the drawing area
+        ''' </summary>
+        Private Sub OnDrawingAreaSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
+            Try
+                ' Calculate visible items based on allocated height
+                If pItemHeight > 0 Then
+                    pVisibleItems = vArgs.Allocation.Height \ pItemHeight
+                Else
+                    pVisibleItems = 10  ' Default fallback
+                End If
+                
+                ' Update scrollbar
+                UpdateScrollbar()
+                
+                ' Redraw if needed
+                If pNeedsRedraw Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.OnDrawingAreaSizeAllocated error: {ex.Message}")
             End Try
         End Sub
         
@@ -299,6 +356,8 @@ Namespace Widgets
                     pHoverIndex = -1
                     pDrawingArea.QueueDraw()
                 End If
+                
+                vArgs.RetVal = True
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.OnLeaveNotify error: {ex.Message}")
@@ -391,9 +450,6 @@ Namespace Widgets
                 Console.WriteLine($"CustomDrawListBox.OnScrollbarValueChanged error: {ex.Message}")
             End Try
         End Sub
-        
-        ' ===== Size Handling =====
-        
         
         ''' <summary>
         ''' Updates scrollbar settings
@@ -490,6 +546,46 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
+        ''' Updates colors and font from current theme
+        ''' </summary>
+        Public Sub UpdateFromTheme()
+            Try
+                If pThemeManager Is Nothing Then Return
+                
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+                
+                ' Update colors from theme
+                pBackgroundColor = lTheme.BackgroundColor
+                pForegroundColor = lTheme.ForegroundColor
+                pSelectionColor = lTheme.SelectionColor
+                pSelectionTextColor = "#FFFFFF"  ' Usually white for selections
+                pHoverColor = lTheme.CurrentLineColor
+                
+                ' Update font size based on theme (you might want to get this from settings)
+                ' For now, use a reasonable default that matches the editor
+                pFontSize = 12
+                
+                ' Adjust item height based on font size
+                pItemHeight = pFontSize + 12  ' Add padding
+                
+                ' Recalculate visible items
+                If pDrawingArea IsNot Nothing AndAlso pDrawingArea.AllocatedHeight > 0 Then
+                    pVisibleItems = pDrawingArea.AllocatedHeight \ pItemHeight
+                End If
+                
+                ' Update scrollbar
+                UpdateScrollbar()
+                
+                ' Redraw
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.UpdateFromTheme error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
         ''' Ensures an item is visible
         ''' </summary>
         Public Sub EnsureVisible(vIndex As Integer)
@@ -571,7 +667,10 @@ Namespace Widgets
                 Console.WriteLine($"CustomDrawListBox.SetSourceColor error: {ex.Message}")
             End Try
         End Sub
-
+        
+        ''' <summary>
+        ''' Handles theme context menu requests
+        ''' </summary>
         Private Sub OnThemeContextMenuRequested(vIndex As Integer, vItem As ListBoxItem, vEvent As Gdk.Event)
             Try
                 If vItem Is Nothing Then Return
@@ -601,6 +700,5 @@ Namespace Widgets
         End Sub
         
     End Class
-    
     
 End Namespace

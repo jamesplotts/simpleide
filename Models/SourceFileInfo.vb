@@ -30,7 +30,7 @@ Namespace Models
         Public Property NeedsParsing As Boolean = True
 
         ' Demo Mode is used when you want to display a fictional file's content without having any file IO.
-        Private IsDemoMode as Boolean = False
+        Public IsDemoMode as Boolean = False
         
         ' ===== Constructor =====
         Public Sub New(vFilePath As String, vProjectDirectory As String)

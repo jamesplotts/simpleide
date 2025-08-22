@@ -206,7 +206,7 @@ Partial Public Class MainWindow
             pMainHPaned.Position = LEFT_PANEL_WIDTH
             
             ' Create project explorer
-            pProjectExplorer = New CustomDrawProjectExplorer(pSettingsManager, pProjectManager)
+            pProjectExplorer = New CustomDrawProjectExplorer(pSettingsManager, pProjectManager, pThemeManager)
             AddHandler pProjectExplorer.FileSelected, AddressOf OnProjectFileSelected
             AddHandler pProjectExplorer.ProjectFileSelected, AddressOf OnProjectFileDoubleClicked
             AddHandler pProjectExplorer.ProjectModified, AddressOf OnProjectModified

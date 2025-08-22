@@ -137,6 +137,10 @@ Namespace Editors
 
         ' ===== Has Selection Helper =====
         Private pHasSelection As Boolean = False
+
+        ' Theme to use when in demo mode (for preview)
+        Private pDemoTheme As EditorTheme  
+
         
         ' ===== Events =====
         Public Event Modified(vIsModified As Boolean) Implements IEditor.Modified
@@ -747,6 +751,12 @@ Namespace Editors
                 Console.WriteLine($"RefreshFromSourceFileInfo error: {ex.Message}")
             End Try
         End Sub
+
+        Public ReadOnly Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+        End Property
         
     End Class
     

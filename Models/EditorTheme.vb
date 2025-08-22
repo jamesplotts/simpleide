@@ -128,7 +128,8 @@ Namespace Models
         ' Clone theme
         Public Function Clone() As EditorTheme
             Dim lNewTheme As New EditorTheme()
-            lNewTheme.Name = Me.Name & " (Copy)"
+            ' DO NOT append "(Copy)" - let the caller set the name
+            lNewTheme.Name = Me.Name  ' Keep original name, caller will update if needed
             lNewTheme.Description = Me.Description
             lNewTheme.IsDarkTheme = Me.IsDarkTheme
             
@@ -145,7 +146,7 @@ Namespace Models
             ' Copy syntax colors
             lNewTheme.SyntaxColors.Clear()
             For Each kvp In Me.SyntaxColors
-                lNewTheme.SyntaxColors(kvp.key) = kvp.Value
+                lNewTheme.SyntaxColors(kvp.Key) = kvp.Value
             Next
             
             ' Copy font settings

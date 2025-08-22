@@ -818,7 +818,32 @@ Namespace Managers
             Catch ex As Exception
                 Console.WriteLine($"RefreshWidgetRecursive error: {ex.Message}")
             End Try
+
         End Sub
+
+        ''' <summary>
+        ''' Updates an existing custom theme with new values
+        ''' </summary>
+        Public Sub UpdateCustomTheme(vThemeName As String, vUpdatedTheme As EditorTheme)
+            Try
+                If pAvailableThemes.ContainsKey(vThemeName) Then
+                    ' Update the theme in the collection
+                    vUpdatedTheme.Name = vThemeName  ' Ensure name is correct
+                    pAvailableThemes(vThemeName) = vUpdatedTheme
+                    
+                    ' If it's the current theme, update it
+                    If pCurrentTheme IsNot Nothing AndAlso pCurrentTheme.Name = vThemeName Then
+                        pCurrentTheme = vUpdatedTheme
+                        ApplyCurrentTheme()
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateCustomTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+
         
         ' Theme data class for JSON serialization
         Public Class ThemeData

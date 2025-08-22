@@ -107,15 +107,51 @@ Namespace Widgets
         ' ===== Theme Management =====
         
         ''' <summary>
-        ''' Applies the current theme
+        ''' Applies the current theme and forces a complete refresh
         ''' </summary>
-        Private Sub ApplyTheme()
+        Public Sub ApplyTheme()
             Try
-                ' Theme is applied during drawing, so just refresh
-                pDrawingArea?.QueueDraw()
+                ' Since we're now using the shared ThemeManager,
+                ' we just need to redraw with the current theme
+                
+                ' Force a complete redraw of all visual elements
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+                ' Also refresh the corner box if visible
+                If pCornerBox IsNot Nothing AndAlso pCornerBox.Visible Then
+                    pCornerBox.QueueDraw()
+                End If
+                
+                ' Update scrollbars to match theme
+                If pHScrollBar IsNot Nothing Then
+                    pHScrollBar.QueueDraw()
+                End If
+                
+                If pVScrollBar IsNot Nothing Then
+                    pVScrollBar.QueueDraw()
+                End If
+                
+                Console.WriteLine($"ProjectExplorer.ApplyTheme: Theme applied and refreshed")
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles theme change notifications from the ThemeManager
+        ''' </summary>
+        Public Sub OnThemeChanged()
+            Try
+                Console.WriteLine("ProjectExplorer.OnThemeChanged: Received theme change notification")
+                
+                ' Apply the new theme
+                ApplyTheme()
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnThemeChanged error: {ex.Message}")
             End Try
         End Sub
         
