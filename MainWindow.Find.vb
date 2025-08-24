@@ -5,6 +5,7 @@ Imports System.Collections.Generic
 Imports SimpleIDE.Models
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Partial Public Class MainWindow
     
@@ -144,7 +145,7 @@ Partial Public Class MainWindow
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
                 ' Convert to 0-based indices
-                lEditor.GoToPosition(vLineNumber - 1, vColumnNumber - 1)
+                lEditor.GoToPosition(New EditorPosition(vLineNumber - 1, vColumnNumber - 1))
                 lEditor.Widget.GrabFocus()
             End If
             

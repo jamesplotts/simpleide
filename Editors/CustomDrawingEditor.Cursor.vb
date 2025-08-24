@@ -5,6 +5,7 @@ Imports Cairo
 Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -402,13 +403,13 @@ Namespace Editors
             End Try
         End Sub
         
-        Public Sub SetSelection(vStartLine As Integer, vStartColumn As Integer, 
-                                vEndLine As Integer, vEndColumn As Integer) Implements IEditor.SetSelection
+        Public Sub SetSelection(vStartPosition as EditorPosition, vEndPosition as EditorPosition) Implements IEditor.SetSelection
             Try
                 ' Validate and clamp ranges
-                vStartLine = Math.Max(0, Math.Min(vStartLine, pLineCount - 1))
-                vEndLine = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
-                
+                Dim vStartLine As Integer = Math.Max(0, Math.Min(vStartPosition.Line, pLineCount - 1))
+                Dim vEndLine As Integer = Math.Max(0, Math.Min(vEndPosition.Line, pLineCount - 1))
+                Dim vStartColumn as Integer = vStartPosition.Column
+                Dim vEndColumn As Integer = vEndPosition.Column
                 If vStartLine < pLineCount Then
                     vStartColumn = Math.Max(0, Math.Min(vStartColumn, pTextLines(vStartLine).Length))
                 End If
@@ -437,23 +438,44 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Selects an entire line including the newline character
+        ''' </summary>
+        ''' <param name="vLine">Line number to select (0-based)</param>
         Public Sub SelectLine(vLine As Integer) Implements IEditor.SelectLine
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
+                ' Clear any drag state to prevent interference
+                pIsDragging = False
+                pPotentialDrag = False
+                pIsStartingNewSelection = False
+                
                 ' Select entire line including newline
-                StartSelection(vLine, 0)
+                pSelectionStartLine = vLine
+                pSelectionStartColumn = 0
                 
                 If vLine < pLineCount - 1 Then
-                    ' Not last line - select to start of next line
-                    UpdateSelection(vLine + 1, 0)
+                    ' Not last line - select to start of next line (includes newline)
+                    pSelectionEndLine = vLine + 1
+                    pSelectionEndColumn = 0
+                    ' Move cursor to start of next line
                     SetCursorPosition(vLine + 1, 0)
                 Else
                     ' Last line - select to end
-                    Dim lLength As Integer = pTextLines(vLine).Length
-                    UpdateSelection(vLine, lLength)
-                    SetCursorPosition(vLine, lLength)
+                    pSelectionEndLine = vLine
+                    pSelectionEndColumn = pTextLines(vLine).Length
+                    ' Move cursor to end of line
+                    SetCursorPosition(vLine, pTextLines(vLine).Length)
                 End If
+                
+                ' Mark as having selection
+                pSelectionActive = True
+                pHasSelection = True
+                
+                ' Raise event and redraw
+                RaiseEvent SelectionChanged(True)
+                pDrawingArea.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"SelectLine error: {ex.Message}")
@@ -503,7 +525,13 @@ Namespace Editors
                 Dim lStartColumn As Integer = pSelectionStartColumn
                 Dim lEndLine As Integer = pSelectionEndLine
                 Dim lEndColumn As Integer = pSelectionEndColumn
-                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
+                Dim lStartPos As New EditorPosition(lStartLine, lStartColumn)
+                Dim lEndPos As New EditorPosition(lEndLine, lEndColumn)
+                NormalizeSelection(lStartPos, lEndPos)
+                lStartLine = lStartPos.Line
+                lStartColumn = lStartPos.Column
+                lEndLine = lEndPos.Line
+                lEndColumn = lEndPos.Column
                 
                 Dim lText As New System.Text.StringBuilder()
                 
@@ -592,7 +620,24 @@ Namespace Editors
             pLineNumberArea.Window.Cursor = pPointerCursor
             pDrawingArea.Window.Cursor = pTextCursor
         End Sub
-            
+
+        ''' <summary>
+        ''' Gets the current cursor line position (0-based)
+        ''' </summary>
+        Public ReadOnly Property CursorLine As Integer
+            Get
+                Return pCursorLine
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Gets the current cursor column position (0-based)
+        ''' </summary>
+        Public ReadOnly Property CursorColumn As Integer
+            Get
+                Return pCursorColumn
+            End Get
+        End Property            
         
     End Class
     

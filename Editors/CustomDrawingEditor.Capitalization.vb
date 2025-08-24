@@ -1,5 +1,7 @@
 ' CustomDrawingEditor.Capitalization.vb  Enhanced CustomDrawingEditor Events and Methods
 Imports System
+Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 
 Namespace Editors
@@ -45,8 +47,7 @@ Namespace Editors
             End Sub
         End Class
         
-        ' ===== Enhanced InsertCharacter Method =====
-        
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.InsertCharacter
         Private Sub InsertCharacter(vChar As Char)
             Try
                 If pIsReadOnly Then Return
@@ -58,9 +59,11 @@ Namespace Editors
                     End While
                 End If
                 
-                ' Record for undo
+                ' Record for undo using EditorPosition
                 If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.RecordInsertChar(pCursorLine, pCursorColumn, vChar, pCursorLine, pCursorColumn + 1)
+                    Dim lCurrentPos As New EditorPosition(pCursorLine, pCursorColumn)
+                    Dim lNewPos As New EditorPosition(pCursorLine, pCursorColumn + 1)
+                    pUndoRedoManager.RecordInsertChar(lCurrentPos, vChar, lNewPos)
                 End If
                 
                 ' Insert character
@@ -80,10 +83,8 @@ Namespace Editors
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
                 
-                ' ===== NEW: Check for identifier completion =====
+                ' Check for identifier completion and declaration
                 CheckForIdentifierCompletion(vChar)
-                
-                ' ===== NEW: Check for declaration =====
                 CheckForDeclaration()
                 
                 ' Update display

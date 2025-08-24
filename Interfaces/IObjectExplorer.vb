@@ -5,6 +5,8 @@ Imports System.Collections.Generic
 Imports SimpleIDE.Models
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Syntax
+Imports SimpleIDE.Utilities
+
 
 Namespace Interfaces
     
@@ -41,10 +43,9 @@ Namespace Interfaces
         ''' Raised when the user requests to navigate to a file location
         ''' </summary>
         ''' <param name="vFilePath">Full path to the file to navigate to</param>
-        ''' <param name="vLine">Line number to navigate to (1-based)</param>
-        ''' <param name="vColumn">Column position to navigate to (1-based)</param>
-        Event NavigateToFile(vFilePath As String, vLine As Integer, vColumn As Integer)
-        
+        ''' <param name="vPosition">Position to navigate to (1-based for user display)</param>
+        Event NavigateToFile(vFilePath As String, vPosition As EditorPosition)
+         
         ''' <summary>
         ''' Raised when the user requests to close the Object Explorer
         ''' </summary>

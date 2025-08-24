@@ -226,7 +226,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    ' Build keyboard shortcuts text
+    ''' <summary>
+    ''' Builds keyboard shortcuts text with correct VB.NET conventions
+    ''' </summary>
     Private Function BuildKeyboardShortcutsText() As String
         Try
             Dim lText As New System.Text.StringBuilder()
@@ -246,8 +248,10 @@ Partial Public Class MainWindow
             
             lText.AppendLine("Edit Operations:")
             lText.AppendLine("  Ctrl+Z          Undo")
-            lText.AppendLine("  Ctrl+y          Redo")
-            lText.AppendLine("  Ctrl+x          Cut")
+            lText.AppendLine("  Ctrl+R          Redo")
+            lText.AppendLine("  Ctrl+Shift+Z    Redo (alternative)")
+            lText.AppendLine("  Ctrl+Y          Cut Line (VB classic)")
+            lText.AppendLine("  Ctrl+X          Cut selection")
             lText.AppendLine("  Ctrl+C          Copy")
             lText.AppendLine("  Ctrl+V          Paste")
             lText.AppendLine("  Ctrl+A          Select All")
@@ -257,48 +261,54 @@ Partial Public Class MainWindow
             lText.AppendLine("Navigation:")
             lText.AppendLine("  Ctrl+F          Find")
             lText.AppendLine("  Ctrl+H          Replace")
-            lText.AppendLine("  Ctrl+g          Go to Line")
+            lText.AppendLine("  Ctrl+G          Go to Line")
             lText.AppendLine("  F3              Find Next")
             lText.AppendLine("  Shift+F3        Find Previous")
             lText.AppendLine()
             
-            lText.AppendLine("code Operations:")
-            lText.AppendLine("  Tab             Indent")
-            lText.AppendLine("  Shift+Tab       Outdent")
-            lText.AppendLine("  Ctrl+Space      CodeSense")
-            lText.AppendLine("  Ctrl+K,C        Comment Selection")
-            lText.AppendLine("  Ctrl+K,U        Uncomment Selection")
-            lText.AppendLine()
-            
-            lText.AppendLine("Build Operations:")
-            lText.AppendLine("  F5              Build Project")           ' CHANGED: Was "Build and Run"
-            lText.AppendLine("  Ctrl+F5         Build and Run")          ' CHANGED: Added new shortcut
-            lText.AppendLine("  F6              Rebuild Project")        ' CHANGED: Was "Build Solution"
-            lText.AppendLine("  Shift+F5        Stop Debugging")         ' Future feature
-            lText.AppendLine()
-            
-            lText.AppendLine("Debug Operations:")
-            lText.AppendLine("  F9              Toggle Breakpoint")
-            lText.AppendLine("  F10             Step Over")
-            lText.AppendLine("  F11             Step Into")
+            lText.AppendLine("Code Operations:")
+            lText.AppendLine("  F5              Run/Debug")
+            lText.AppendLine("  Ctrl+F5         Run without debugging")
+            lText.AppendLine("  Shift+F5        Stop debugging")
+            lText.AppendLine("  F6              Build Project")
+            lText.AppendLine("  Ctrl+Shift+B    Build Solution")
+            lText.AppendLine("  F12             Go to Definition")
             lText.AppendLine()
             
             lText.AppendLine("View Operations:")
-            lText.AppendLine("  F4              Properties")
-            lText.AppendLine("  Ctrl+\\         project Explorer")
-            lText.AppendLine("  Ctrl+Shift+E    error List")
-            lText.AppendLine("  Ctrl+Shift+O    output Window")
+            lText.AppendLine("  Ctrl+E          Toggle Project Explorer")
+            lText.AppendLine("  F11             Toggle Full Screen")
+            lText.AppendLine("  Ctrl+Tab        Next Tab")
+            lText.AppendLine("  Ctrl+Shift+Tab  Previous Tab")
             lText.AppendLine()
             
-            lText.AppendLine("Help:")
-            lText.AppendLine("  F1              Context Help")
-            lText.AppendLine("  Ctrl+F1         Help Contents")
+            lText.AppendLine("Text Navigation:")
+            lText.AppendLine("  Ctrl+Home       Go to start of document")
+            lText.AppendLine("  Ctrl+End        Go to end of document")
+            lText.AppendLine("  Ctrl+Left       Previous word")
+            lText.AppendLine("  Ctrl+Right      Next word")
+            lText.AppendLine("  Home            Start of line")
+            lText.AppendLine("  End             End of line")
+            lText.AppendLine("  Page Up         Page up")
+            lText.AppendLine("  Page Down       Page down")
+            lText.AppendLine()
+            
+            lText.AppendLine("Special Keys:")
+            lText.AppendLine("  Tab             Indent/Accept IntelliSense")
+            lText.AppendLine("  Shift+Tab       Outdent")
+            lText.AppendLine("  Escape          Cancel operation/Clear selection")
+            lText.AppendLine("  Ctrl+Space      Trigger IntelliSense")
+            lText.AppendLine("  Ctrl+Shift+Space  Parameter hints")
+            lText.AppendLine()
+            
+            lText.AppendLine("Note: Ctrl+Y is the traditional VB 'Cut Line' command,")
+            lText.AppendLine("      not Redo. Use Ctrl+R or Ctrl+Shift+Z for Redo.")
             
             Return lText.ToString()
             
         Catch ex As Exception
             Console.WriteLine($"BuildKeyboardShortcutsText error: {ex.Message}")
-            Return "error building shortcuts list."
+            Return "Error building keyboard shortcuts text"
         End Try
     End Function
     

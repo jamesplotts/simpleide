@@ -7,6 +7,7 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
+Imports SimpleIDE.Utilities
 
 Partial Public Class MainWindow
     Inherits Window
@@ -191,12 +192,10 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    ''' <summary>
-    ''' Enhanced NavigateToFile handler in MainWindow with pre-load status
-    ''' </summary>
-    Private Sub OnObjectExplorerNavigateToFile(vFilePath As String, vLine As Integer, vColumn As Integer)
+    ' Replace: SimpleIDE.MainWindow.OnObjectExplorerNavigateToFile
+    Private Sub OnObjectExplorerNavigateToFile(vFilePath As String, vPosition As EditorPosition)
         Try
-            Console.WriteLine($"NavigateToFile: {vFilePath} at line {vLine }")
+            Console.WriteLine($"NavigateToFile: {vFilePath} at line {vPosition.Line + 1}")
             
             ' Check if we need to open a different file
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
@@ -229,14 +228,14 @@ Partial Public Class MainWindow
                 lCurrentTab = GetCurrentTabInfo()
             End If
             
-            ' Navigate to the line
+            ' Navigate to the position
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' vLine is 1-based from the event, NavigateToLineNumberForPresentment expects 0-based
-                lCurrentTab.Editor.NavigateToLineNumberForPresentment(vLine - 1)
-                lCurrentTab.Editor.SelectLine(vLine)
+                ' vPosition is already 0-based from EditorPosition
+                lCurrentTab.Editor.NavigateToLineNumberForPresentment(vPosition.Line)
+                lCurrentTab.Editor.SelectLine(vPosition.Line + 1)  ' SelectLine expects 1-based
                 lCurrentTab.Editor.Widget.GrabFocus()
                 
-                UpdateStatusBar($"Ready - {lFileName} at line {vLine + 1}")
+                UpdateStatusBar($"Ready - {lFileName} at line {vPosition.Line + 1}")
             End If
             
         Catch ex As Exception

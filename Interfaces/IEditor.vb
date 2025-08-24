@@ -1,9 +1,10 @@
-' Interfaces/IEditor.vb - Fixed interface for editor implementations with stream-based I/O
+' Interfaces/IEditor.vb - Updated interface using EditorPosition for location parameters
 Imports Gtk
 Imports System
 Imports System.IO
 Imports System.Text
 Imports System.Threading.Tasks
+Imports System.Collections.Generic
 Imports SimpleIDE.Models
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Utilities
@@ -13,12 +14,14 @@ Imports SimpleIDE.Editors
 
 Namespace Interfaces
     
-    ' Main editor interface that all editors must implement
+    ''' <summary>
+    ''' Main editor interface that all editors must implement
+    ''' </summary>
     Public Interface IEditor
         Inherits IDisposable
         
         ' Core Properties
-        ReadOnly Property FilePath As String  ' for display purposes only, not used for i/O
+        ReadOnly Property FilePath As String  ' for display purposes only, not used for I/O
         Property IsModified As Boolean
         ReadOnly Property IsReadOnly As Boolean
         ReadOnly Property CanUndo As Boolean
@@ -53,10 +56,11 @@ Namespace Interfaces
         Event SelectionChanged(vHasSelection As Boolean)
         Event TextChanged(o As Object, e As EventArgs)
         Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean)
-        Event DocumentParsed(vRootNode As SyntaxNode)  
-        Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs) 
-
+        Event DocumentParsed(vRootNode As SyntaxNode)
+        Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs)
+        
         ' Helper method for setting file path (used by EditorFactory)
+        Sub SetFilePath(vFilePath As String)
         Sub SetThemeManager(vThemeManager As ThemeManager)
         
         ' Core Operations
@@ -67,10 +71,14 @@ Namespace Interfaces
         Sub Paste()
         Sub SelectAll()
         Sub Delete()
+        Sub ReplaceAllText(vText As String)
+        Sub DeleteTextDirect(vStartLine As Integer, vStartColumn As Integer,
+                                   vEndLine As Integer, vEndColumn As Integer)
+        Sub DeleteTextDirect(vStartPosition As EditorPosition, vEndPosition As EditorPosition)
         
-        ' Navigation
+        ' Navigation - Updated to use EditorPosition
         Sub GoToLine(vLine As Integer)
-        Sub GoToPosition(vLine As Integer, vColumn As Integer)
+        Sub GoToPosition(vPosition As EditorPosition)
         Sub MoveToDocumentStart()
         Sub MoveToDocumentEnd()
         Sub MoveToLineStart()
@@ -78,8 +86,10 @@ Namespace Interfaces
         Sub PageUp()
         Sub PageDown()
         
-        ' Selection
-        Sub SetSelection(vStartLine As Integer, vStartColumn As Integer, vEndLine As Integer, vEndColumn As Integer)
+        ' Selection - Updated to use EditorPosition
+        Sub SetSelection(vStartPosition As EditorPosition, vEndPosition As EditorPosition)
+        Sub DeleteSelection()
+        Sub ReplaceSelection(vText as String)
         Sub ClearSelection()
         Sub SelectLine(vLine As Integer)
         Sub SelectLines(vStartLine As Integer, vEndLine As Integer)
@@ -87,13 +97,16 @@ Namespace Interfaces
         Function GetSelectedText() As String
         Sub SquareSelection()
         Sub EnsureCursorVisible()
+        Function GetCursorPosition() as EditorPosition
         
-        ' Text Manipulation
+        ' Text Manipulation - Updated to use EditorPosition
         Sub InsertText(vText As String)
-        Sub InsertTextAtPosition(vLine As Integer, vColumn As Integer, vText As String)
-        Sub DeleteRange(vStartLine As Integer, vStartColumn As Integer, vEndLine As Integer, vEndColumn As Integer)
-        Sub ReplaceText(vStartLine As Integer, vStartColumn As Integer, vEndLine As Integer, vEndColumn As Integer, vNewText As String)
-        Sub ReplaceText(vText As String)
+        Sub InsertTextAtPosition(vPosition As EditorPosition, vText As String)
+        Sub DeleteRange(vStartPosition As EditorPosition, vEndPosition As EditorPosition)
+        Sub ReplaceText(vStartPosition As EditorPosition, vEndPosition As EditorPosition, vNewText As String)
+        
+        ' Cursor positioning - Updated to use EditorPosition
+        Sub SetCursorPosition(vPosition As EditorPosition)
         
         ' Indentation
         Sub IndentSelection()
@@ -102,7 +115,7 @@ Namespace Interfaces
         Sub OutdentLine(vLine As Integer)
         Function GetLineIndentation(vLine As Integer) As String
         
-        ' Search
+        ' Search - Updated to use EditorPosition
         Function Find(vSearchText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) As IEnumerable(Of EditorPosition)
         Sub FindNext()
         Sub FindPrevious()
@@ -119,11 +132,8 @@ Namespace Interfaces
         
         ' Advanced Features
         Sub RefreshSyntaxHighlighting()
-        Sub StartCodeSense(vContext As Models.CodeSenseContext)
-        Sub CancelCodeSense()
         Function GetWordAtCursor() As String
         Function GetLineText(vLine As Integer) As String
-        Function GetCursorPosition() As EditorPosition
         Function GetDocumentStructure() As SyntaxNode
         Sub RequestParse()
         Sub ZoomIn()
@@ -133,57 +143,24 @@ Namespace Interfaces
         ' Performance
         Sub BeginUpdate()  ' Suspend updates for bulk operations
         Sub EndUpdate()    ' Resume updates and Refresh
-
-'        ' Get the current selection as offsets
-'        Function GetSelection(ByRef vStartOffset As Integer, ByRef vEndOffset As Integer) As Boolean
         
-'        ' Select text between character offsets
-'        Sub SelectText(vStartOffset As Integer, vEndOffset As Integer)
         
-        ' Replace the current selection with new text
-        Sub ReplaceSelection(vText As String)
-        
-'        ' Get cursor position as character offset
-'        Function GetCursorOffset() As Integer
-
         ' Commenting for single line or selection
         Sub ToggleCommentBlock()
-
+        
         Sub GrabFocus()
-
-        ReadOnly Property SupportsCodeSense As Boolean
+        
+        ReadOnly Property SupportsIntellisense As Boolean
         Property Encoding As Encoding
         Property ShowLineNumbers As Boolean
         Property WordWrap As Boolean
-
-        ''' <summary>
-        ''' Set cursor position to specific line and column
-        ''' </summary>
-        Sub SetCursorPosition(vLine As Integer, vColumn As Integer)
-
-        ''' <summary>
-        ''' Navigates to a line number and positions it as the second visible line from top when possible
-        ''' </summary>
-        ''' <param name="vLineNumber">Target line number (1-based)</param>
-        ''' <remarks>
-        ''' This method scrolls the editor so the target line appears as the second visible line
-        ''' from the top of the viewport. If there aren't enough lines after the target to fill
-        ''' the viewport, it scrolls so the end of the file is at the bottom of the editor.
-        ''' </remarks>
+        ReadOnly Property DisplayName() as String
+        ReadOnly Property SupportsCodesense() as Boolean
+        Sub StartCodeSense(vContext As CodeSenseContext)
+        Sub CancelCodeSense()
         Sub NavigateToLineNumberForPresentment(vLineNumber As Integer)
-
+        Function FindAll(vFindText As String) As List(Of EditorPosition)
 
     End Interface
-    
-    ' Position in the editor
-    Public Structure EditorPosition
-        Public Line As Integer       ' 0-based
-        Public Column As Integer     ' 0-based
-        
-        Public Sub New(vLine As Integer, vColumn As Integer)
-            Line = vLine
-            Column = vColumn
-        End Sub
-    End Structure
     
 End Namespace

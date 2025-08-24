@@ -153,6 +153,16 @@ Namespace Editors
                 Console.WriteLine($"  LineIndex={vLineIndex}, pTextLines.Count={pTextLines.Count}, pLineMetadata.Length={If(pLineMetadata IsNot Nothing, pLineMetadata.Length.ToString(), "null")}")
             End Try
         End Sub
+
+        Dim lCommentColor As String = "#008000"    ' Default green for comments
+        Dim lStringColor As String = "#A31515"     ' Default red for strings
+        Dim lNumberColor As String = "#098658"     ' Default teal for numbers
+        Dim lKeywordColor As String = "#0000FF"    ' Default blue for keywords
+        Dim lTypeColor As String = "#2B91AF"       ' Default blue-green for types
+        Dim lOperatorColor As String = "#000000"   ' Default black for operators
+        Dim lIdentifierColor As String = "#000000" ' Default black for identifiers
+
+
         
         ''' <summary>
         ''' Apply VB.NET syntax highlighting to a line with proper null checks
@@ -168,13 +178,6 @@ Namespace Editors
                 ' This ensures the preview editor uses the colors from the theme being edited
                 ' rather than the globally active theme
                 
-                Dim lCommentColor As String = "#008000"    ' Default green for comments
-                Dim lStringColor As String = "#A31515"     ' Default red for strings
-                Dim lNumberColor As String = "#098658"     ' Default teal for numbers
-                Dim lKeywordColor As String = "#0000FF"    ' Default blue for keywords
-                Dim lTypeColor As String = "#2B91AF"       ' Default blue-green for types
-                Dim lOperatorColor As String = "#000000"   ' Default black for operators
-                Dim lIdentifierColor As String = "#000000" ' Default black for identifiers
                 
                 ' Check if we're in demo mode (preview editor)
                 Dim lIsDemoMode As Boolean = False
@@ -193,7 +196,7 @@ Namespace Editors
                     lOperatorColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eOperator)
                     lIdentifierColor = pSyntaxColorSet.GetColor(SyntaxColorSet.Tags.eIdentifier)
                     
-                    Console.WriteLine($"Using SyntaxColorSet colors - Keyword: {lKeywordColor}, String: {lStringColor}, Comment: {lCommentColor}")
+                    'Console.WriteLine($"Using SyntaxColorSet colors - Keyword: {lKeywordColor}, String: {lStringColor}, Comment: {lCommentColor}")
                     
                 ' Only use ThemeManager colors if NOT in demo mode and no SyntaxColorSet
                 ElseIf Not lIsDemoMode AndAlso pThemeManager IsNot Nothing Then

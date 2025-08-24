@@ -302,6 +302,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Close a specific tab with proper cleanup and SourceFileInfo reload
+    ''' </summary>
     Private Sub CloseTab(vTabInfo As TabInfo)
         Try
             If vTabInfo Is Nothing Then Return
@@ -313,7 +316,7 @@ Partial Public Class MainWindow
                     DialogFlags.Modal,
                     MessageType.Question,
                     ButtonsType.None,
-                    $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)}?"
+                    $"The file '{vTabInfo.Editor.DisplayName}' has unsaved changes.{Environment.NewLine}Do you want to save before closing?"
                 )
                 
                 lDialog.AddButton("Save", ResponseType.Yes)
@@ -325,14 +328,34 @@ Partial Public Class MainWindow
                 
                 Select Case lResponse
                     Case CInt(ResponseType.Yes)
+                        ' Save the file
                         If Not SaveFile(vTabInfo) Then
-                            Return
+                            Return ' Cancel close if save fails
                         End If
+                        
+                    Case CInt(ResponseType.No)
+                        ' CRITICAL FIX: Reload SourceFileInfo from disk when discarding changes
+                        ' This prevents the in-memory SourceFileInfo from retaining modified content
+                        If pProjectManager IsNot Nothing AndAlso Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
+                            Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
+                            If lSourceFileInfo IsNot Nothing Then
+                                Console.WriteLine($"Discarding changes - reloading {vTabInfo.FilePath} from disk")
+                                
+                                ' Reload content from disk to discard all in-memory changes
+                                If System.IO.File.Exists(vTabInfo.FilePath) Then
+                                    lSourceFileInfo.LoadContent()
+                                    ' Mark as needing re-parsing since we reloaded
+                                    lSourceFileInfo.NeedsParsing = True
+                                    lSourceFileInfo.IsParsed = False
+                                End If
+                            End If
+                        End If
+                        
                     Case CInt(ResponseType.Cancel)
-                        Return
+                        Return ' Cancel the close operation
                 End Select
             End If
-
+    
             ' When closing a tab
             UnhookEditorEventsForObjectExplorer(vTabInfo.Editor)
             UpdateObjectExplorerForActiveTab()
@@ -351,7 +374,7 @@ Partial Public Class MainWindow
             
             ' Dispose tab
             vTabInfo.Dispose()
-
+    
             ' Update UI
             UpdateWindowTitle()
             UpdateStatusBar("")

@@ -39,58 +39,76 @@ Namespace Editors
                 Console.WriteLine($"ApplyFont error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Applies the current theme from ThemeManager
+        ''' </summary>
+        Public Sub ApplyTheme() Implements IEditor.ApplyTheme
+            Try
+                If pThemeManager IsNot Nothing Then
+                    Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                    If lCurrentTheme IsNot Nothing Then
+                        ApplyTheme(lCurrentTheme)
+                    End If
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"ApplyTheme (parameterless) error: {ex.Message}")
+            End Try
+        End Sub
         
         ''' <summary>
         ''' Apply theme from theme manager
         ''' </summary>
-        Public Sub ApplyTheme() Implements IEditor.ApplyTheme
+        Public Sub ApplyTheme(vTheme As EditorTheme)
             Try
-                If pThemeManager Is Nothing Then
-                    Console.WriteLine("ApplyTheme: ThemeManager is Nothing")
-                    Return
+                ' Store theme colors
+                If vTheme IsNot Nothing Then
+                    pBackgroundColor = vTheme.GetColor(EditorTheme.Tags.eBackgroundColor)
+                    pForegroundColor = vTheme.GetColor(EditorTheme.Tags.eForegroundColor)
+                    pLineNumberBgColor = vTheme.GetColor(EditorTheme.Tags.eLineNumberBackgroundColor)
+                    pLineNumberFgColor = vTheme.GetColor(EditorTheme.Tags.eLineNumberColor)
+                    pSelectionColor = vTheme.GetColor(EditorTheme.Tags.eSelectionColor)
+                    pCurrentLineColor = vTheme.GetColor(EditorTheme.Tags.eCurrentLineColor)
+                    
+                    ' Update syntax highlighting colors
+                    If pSyntaxColorSet IsNot Nothing Then
+                        pSyntaxColorSet.UpdateFromTheme(vTheme)
+                    End If
+                    
+                    ' Update line number widget theme
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.UpdateTheme(vTheme)
+                    End If
+                    
+                    ' Reprocess syntax highlighting with new colors
+                    If pSyntaxHighlighter IsNot Nothing Then
+                        For i As Integer = 0 To pLineCount - 1
+                            ProcessLineFormatting(i)
+                        Next
+                    End If
+                    
+                    ' Queue redraw
+                    pDrawingArea?.QueueDraw()
+                    pLineNumberWidget?.QueueDraw()
                 End If
-                
-                Dim vTheme As EditorTheme = pThemeManager.GetCurrentThemeObject
-        
-                If vTheme Is Nothing Then Return
-                
-                ' Update background colors (using color properties from Drawing partial)
-                pBackgroundColor = vTheme.BackgroundColor
-                pForegroundColor = vTheme.ForegroundColor
-                
-                ' Update line number colors
-                pLineNumberBgColor = vTheme.LineNumberBackgroundColor
-                pLineNumberFgColor = vTheme.LineNumberColor
-                
-                ' Update selection and cursor colors
-                pSelectionColor = vTheme.SelectionColor
-                pCursorColor = vTheme.CursorColor
-                pCurrentLineBgColor = vTheme.CurrentLineColor
-                
-                ' Set find highlight color - use selection color or a default
-                If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
-                    pFindHighlightColor = vTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
-                Else
-                    pFindHighlightColor = vTheme.SelectionColor
-                End If  
-              
-                ' Update syntax colors if available
-                If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
-                    UpdateSyntaxColorsFromTheme(vTheme)
-                End If
-                
-                ' Apply theme to drawing area background
-                ApplyThemeToWidget(vTheme)
-                
-                ' Queue full redraw
-                pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
-                
-                ' Raise event (event declared in main file)
-                RaiseEvent ThemeChanged(vTheme)
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Shows the context menu for the line number area
+        ''' </summary>
+        ''' <param name="vX">X coordinate for menu position</param>
+        ''' <param name="vY">Y coordinate for menu position</param>
+        Public Sub ShowLineNumberContextMenu(vX As Integer, vY As Integer)
+            Try
+                If pLineNumberContextMenu IsNot Nothing Then
+                    pLineNumberContextMenu.PopupAtPointer(Nothing)
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"ShowLineNumberContextMenu error: {ex.Message}")
             End Try
         End Sub
         

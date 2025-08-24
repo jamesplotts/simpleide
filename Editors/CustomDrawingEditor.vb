@@ -25,7 +25,6 @@ Namespace Editors
         ' ===== Core Components =====
         Private pMainGrid As Grid
         Private pDrawingArea As DrawingArea
-        Private pLineNumberArea As DrawingArea
         Private pVScrollbar As Scrollbar
         Private pHScrollbar As Scrollbar
         Private pCornerBox As DrawingArea  ' Bottom-right corner
@@ -141,6 +140,14 @@ Namespace Editors
         ' Theme to use when in demo mode (for preview)
         Private pDemoTheme As EditorTheme  
 
+        ' Line number widget (NEW - replaces pLineNumberArea)
+        Private pLineNumberWidget As Widgets.LineNumberWidget
+        Private pLineNumberArea As DrawingArea
+        
+        ' Line number dragging state (if not already present)
+        Private pLineNumberDragging As Boolean = False
+        Private pLineNumberDragAnchor As Integer = -1
+
         
         ' ===== Events =====
         Public Event Modified(vIsModified As Boolean) Implements IEditor.Modified
@@ -162,7 +169,6 @@ Namespace Editors
             eDeleting
             ePasting
         End Enum
-
         
         ' ===== Constructor =====
 
@@ -202,11 +208,11 @@ Namespace Editors
                 InitializeComponents()
                 InitializeEditor()
                 
-                ' Process initial content for formatting
-                ' This is now safe because metadata arrays are properly sized
-                For i As Integer = 0 To pLineCount - 1
-                    ProcessLineFormatting(i)
-                Next
+                ' REMOVED: Don't process formatting here - RefreshFromSourceFileInfo will do it
+                ' This was causing duplicate processing and multiple draws
+                ' For i As Integer = 0 To pLineCount - 1
+                '     ProcessLineFormatting(i)
+                ' Next
                 
                 ' FIXED: Check if SourceFileInfo already has a parsed SyntaxTree
                 If vSourceFileInfo.SyntaxTree IsNot Nothing AndAlso vSourceFileInfo.IsParsed Then
@@ -214,10 +220,10 @@ Namespace Editors
                     pRootNode = vSourceFileInfo.SyntaxTree
                     Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
                     
-                    ' Apply syntax highlighting based on existing parse
-                    For i As Integer = 0 To pLineCount - 1
-                        ApplySyntaxHighlightingToLine(i)
-                    Next
+                    ' REMOVED: Don't apply highlighting here - RefreshFromSourceFileInfo will do it
+                    ' For i As Integer = 0 To pLineCount - 1
+                    '     ApplySyntaxHighlightingToLine(i)
+                    ' Next
                     
                     ' Raise document parsed event with existing structure
                     RaiseEvent DocumentParsed(pRootNode)
@@ -268,10 +274,8 @@ Namespace Editors
                 pMainGrid.RowHomogeneous = False
                 pMainGrid.ColumnHomogeneous = False
                 
-                ' Create line number area
-                pLineNumberArea = New DrawingArea()
-                pLineNumberArea.WidthRequest = pLineNumberWidth
-                pLineNumberArea.CanFocus = False
+                ' Create line number widget (NEW: Using dedicated widget)
+                pLineNumberWidget = New Widgets.LineNumberWidget(Me)
                 
                 ' Create main drawing area
                 pDrawingArea = New DrawingArea()
@@ -281,24 +285,20 @@ Namespace Editors
                                            EventMask.PointerMotionMask Or EventMask.KeyPressMask Or 
                                            EventMask.KeyReleaseMask Or EventMask.ScrollMask Or
                                            EventMask.FocusChangeMask))
-
-                ' CRITICAL FIX: Add ScrollMask to enable scroll events in line number area
-                pLineNumberArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or 
-                                               EventMask.PointerMotionMask Or EventMask.ScrollMask))       
-         
+                
                 ' Create scrollbars
                 pVScrollbar = New Scrollbar(Gtk.Orientation.Vertical, New Adjustment(0, 0, 100, 1, 10, 10))
                 pHScrollbar = New Scrollbar(Gtk.Orientation.Horizontal, New Adjustment(0, 0, 100, 1, 10, 10))
                 
                 ' Create corner box
                 pCornerBox = New DrawingArea()
-                pCornerBox.WidthRequest = 15  ' Standard scrollbar Width
+                pCornerBox.WidthRequest = 15  ' Standard scrollbar width
                 pCornerBox.HeightRequest = 15
                 
                 ' Layout in grid:
                 ' [LineNumbers] [DrawingArea] [VScrollbar]
                 ' [Empty]       [HScrollbar]  [Corner]
-                pMainGrid.Attach(pLineNumberArea, 0, 0, 1, 1)
+                pMainGrid.Attach(pLineNumberWidget, 0, 0, 1, 1)
                 pMainGrid.Attach(pDrawingArea, 1, 0, 1, 1)
                 pMainGrid.Attach(pVScrollbar, 2, 0, 1, 1)
                 pMainGrid.Attach(pHScrollbar, 1, 1, 1, 1)
@@ -323,24 +323,22 @@ Namespace Editors
                 ' Register event handlers
                 RegisterEventHandlers()
                 ShowAll()
-
+        
                 ' Enable line numbers by default
                 pShowLineNumbers = True
                 
-                ' Update line number width after font metrics are set
-                UpdateLineNumberWidth()
+                ' Update line number widget after font metrics are set
+                UpdateLineNumberWidget()
                 
-                ' Make line number area visible
-                If pLineNumberArea IsNot Nothing Then
-                    pLineNumberArea.Visible = True
-                    pLineNumberArea.QueueDraw()
+                ' Make line number widget visible
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.Visible = True
                 End If
-
+        
                 InitializeDragDrop()
                 EnsureCursorsCreated()
                 pKeyPressHandler = New KeyPressEventHandler(AddressOf OnKeyPress)
-
-
+        
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
             End Try
@@ -393,33 +391,145 @@ Namespace Editors
                 Console.WriteLine($"InitializeEditor error: {ex.Message}")
             End Try
         End Sub
+
         Public Sub SetThemeManager(vThemeManager As ThemeManager) Implements IEditor.SetThemeManager
             pThemeManager = vThemeManager
         End Sub
-
+        
+        ''' <summary>
+        ''' Updates the line number widget with current editor state
+        ''' </summary>
+        Private Sub UpdateLineNumberWidget()
+            Try
+                If pLineNumberWidget Is Nothing Then Return
+                
+                ' Update font and metrics
+                pLineNumberWidget.UpdateFont(pFontDescription, pLineHeight, pCharWidth)
+                
+                ' Update theme if available
+                If pThemeManager IsNot Nothing Then
+                    Dim lTheme As EditorTheme = GetActiveTheme()
+                    If lTheme IsNot Nothing Then
+                        pLineNumberWidget.UpdateTheme(lTheme)
+                    End If
+                End If
+                
+                ' Update width based on line count
+                pLineNumberWidget.UpdateWidth()
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateLineNumberWidget error: {ex.Message}")
+            End Try
+        End Sub
+        
+        Private Sub UpdateLineNumberWidth()
+            Try
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.UpdateWidth()
+                Else
+                    ' Fallback for old code compatibility
+                    Dim lMaxDigits As Integer = Math.Max(3, pLineCount.ToString().Length)
+                    pLineNumberWidth = (lMaxDigits * pCharWidth) + 16
+                    
+                    If pLineNumberArea IsNot Nothing Then
+                        pLineNumberArea.WidthRequest = pLineNumberWidth
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateLineNumberWidth error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets the first visible line in the viewport
+        ''' </summary>
+        Public ReadOnly Property FirstVisibleLine As Integer
+            Get
+                Return pFirstVisibleLine
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Starts a line number drag selection
+        ''' </summary>
+        ''' <param name="vAnchorLine">The anchor line for drag selection</param>
+        Public Sub StartLineNumberDrag(vAnchorLine As Integer)
+            Try
+                pLineNumberDragAnchor = vAnchorLine
+                pLineNumberDragging = True
+            Catch ex As Exception
+                Console.WriteLine($"StartLineNumberDrag error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Ends a line number drag selection
+        ''' </summary>
+        Public Sub EndLineNumberDrag()
+            Try
+                pLineNumberDragging = False
+            Catch ex As Exception
+                Console.WriteLine($"EndLineNumberDrag error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets whether line number dragging is in progress
+        ''' </summary>
+        Public ReadOnly Property IsLineNumberDragging As Boolean
+            Get
+                Return pLineNumberDragging
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Updates selection during line number drag
+        ''' </summary>
+        ''' <param name="vCurrentLine">Current line under mouse</param>
+        Public Sub UpdateLineNumberDrag(vCurrentLine As Integer)
+            Try
+                If Not pLineNumberDragging OrElse vCurrentLine < 0 OrElse vCurrentLine >= pLineCount Then Return
+                
+                Dim lStartLine As Integer
+                Dim lEndLine As Integer
+                
+                If vCurrentLine < pLineNumberDragAnchor Then
+                    ' Dragging upward
+                    lStartLine = vCurrentLine
+                    lEndLine = pLineNumberDragAnchor
+                Else
+                    ' Dragging downward or same line
+                    lStartLine = pLineNumberDragAnchor
+                    lEndLine = vCurrentLine
+                End If
+                
+                ' Select from start of first line to end/start of next line
+                If lEndLine < pLineCount - 1 Then
+                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine + 1, 0))
+                Else
+                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateLineNumberDrag error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles scroll events from line number widget
+        ''' </summary>
+        ''' <param name="vArgs">Scroll event arguments</param>
+        Public Sub HandleScroll(vArgs As ScrollEventArgs)
+            Try
+                ' Forward to existing scroll handler
+                OnScrollEvent(Me, vArgs)
+            Catch ex As Exception
+                Console.WriteLine($"HandleScroll error: {ex.Message}")
+            End Try
+        End Sub
         
         ' ===== Event Handler Registration =====
-'        Private Sub RegisterEventHandlers()
-'            ' Drawing events
-'            AddHandler pDrawingArea.Drawn, AddressOf OnDrawn
-'            AddHandler pLineNumberArea.Drawn, AddressOf OnLineNumberAreaDraw
-'            AddHandler pCornerBox.Drawn, AddressOf OnCornerBoxDraw
-'            
-'            ' Input events
-'            AddHandler pDrawingArea.KeyPressEvent, AddressOf OnKeyPress
-'            AddHandler pDrawingArea.KeyReleaseEvent, AddressOf OnKeyRelease
-'            AddHandler pDrawingArea.ButtonPressEvent, AddressOf OnButtonPress
-'            AddHandler pDrawingArea.ButtonReleaseEvent, AddressOf OnButtonRelease
-'            AddHandler pDrawingArea.MotionNotifyEvent, AddressOf OnMotionNotify
-'            AddHandler pDrawingArea.ScrollEvent, AddressOf OnScrollEvent
-'            AddHandler pDrawingArea.FocusInEvent, AddressOf OnFocusIn
-'            AddHandler pDrawingArea.FocusOutEvent, AddressOf OnFocusOut
-'            
-'            ' Line number area mouse events
-'            AddHandler pLineNumberArea.ButtonPressEvent, AddressOf OnLineNumberButtonPress
-'            AddHandler pLineNumberArea.MotionNotifyEvent, AddressOf OnLineNumberMotionNotify
-'            AddHandler pLineNumberArea.ButtonReleaseEvent, AddressOf OnLineNumberButtonRelease
-'        End Sub
         
         ' ===== Size Allocation Handlers =====
         Private Sub OnDrawingAreaSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
@@ -597,7 +707,13 @@ Namespace Editors
                     Dim lStartColumn As Integer = pSelectionStartColumn
                     Dim lEndLine As Integer = pSelectionEndLine
                     Dim lEndColumn As Integer = pSelectionEndColumn
-                    NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
+                    Dim lStartPos As New EditorPosition(lStartLine, lStartColumn)
+                    Dim lEndPos As New EditorPosition(lEndLine, lEndColumn)
+                    NormalizeSelection(lStartPos, lEndPos)
+                    lStartLine = lStartPos.Line
+                    lStartColumn = lStartPos.Column
+                    lEndLine = lEndPos.Line
+                    lEndColumn = lEndPos.Column
                     Return New EditorPosition(lStartLine, lStartColumn)
                 Else
                     Return New EditorPosition(pCursorLine, pCursorColumn)
@@ -612,7 +728,13 @@ Namespace Editors
                     Dim lStartColumn As Integer = pSelectionStartColumn
                     Dim lEndLine As Integer = pSelectionEndLine
                     Dim lEndColumn As Integer = pSelectionEndColumn
-                    NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
+                    Dim lStartPos As New EditorPosition(lStartLine, lStartColumn)
+                    Dim lEndPos As New EditorPosition(lEndLine, lEndColumn)
+                    NormalizeSelection(lStartPos, lEndPos)
+                    lStartLine = lStartPos.Line
+                    lStartColumn = lStartPos.Column
+                    lEndLine = lEndPos.Line
+                    lEndColumn = lEndPos.Column
                     Return New EditorPosition(lEndLine, lEndColumn)
                 Else
                     Return New EditorPosition(pCursorLine, pCursorColumn)
@@ -651,19 +773,6 @@ Namespace Editors
             Get
                 Return True
             End Get
-        End Property
-        
-        Public Property ShowLineNumbers As Boolean Implements IEditor.ShowLineNumbers
-            Get
-                Return pShowLineNumbers
-            End Get
-            Set(Value As Boolean)
-                If pShowLineNumbers <> Value Then
-                    pShowLineNumbers = Value
-                    pLineNumberArea.Visible = Value
-                    pDrawingArea.QueueDraw()
-                End If
-            End Set
         End Property
         
         Public Property WordWrap As Boolean Implements IEditor.WordWrap
@@ -755,6 +864,57 @@ Namespace Editors
         Public ReadOnly Property ThemeManager As ThemeManager
             Get
                 Return pThemeManager
+            End Get
+        End Property
+
+        Public ReadOnly Property DisplayName() as String Implements IEditor.DisplayName
+           Get
+                Return pSourceFileInfo.FileName
+           End Get
+        End Property
+
+        ''' <summary>
+        ''' Sets the file path for this editor (used by EditorFactory)
+        ''' </summary>
+        ''' <param name="vFilePath">The full path to the file this editor represents</param>
+        Public Sub SetFilePath(vFilePath As String) Implements IEditor.SetFilePath
+            Try
+                ' Update the editor's file path
+                pFilePath = vFilePath
+                
+                ' Update the SourceFileInfo if it exists
+                If pSourceFileInfo IsNot Nothing Then
+                    pSourceFileInfo.FilePath = vFilePath
+                    pSourceFileInfo.FileName = System.IO.Path.GetFileName(vFilePath)
+                    pSourceFileInfo.ProjectDirectory = System.IO.Path.GetDirectoryName(vFilePath)
+                    
+                    ' Calculate relative path if we have a project directory
+                    If Not String.IsNullOrEmpty(pSourceFileInfo.ProjectDirectory) Then
+                        Try
+                            pSourceFileInfo.RelativePath = System.IO.Path.GetRelativePath(pSourceFileInfo.ProjectDirectory, vFilePath)
+                        Catch
+                            ' Fallback to filename only if relative path calculation fails
+                            pSourceFileInfo.RelativePath = pSourceFileInfo.FileName
+                        End Try
+                    End If
+                End If
+                
+                Console.WriteLine($"SetFilePath: Updated file path to {vFilePath}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetFilePath error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Gets whether this editor supports IntelliSense/code completion features
+        ''' </summary>
+        ''' <value>True if IntelliSense is supported, False otherwise</value>
+        ''' <returns>Always returns True for CustomDrawingEditor as it supports VB.NET IntelliSense</returns>
+        Public ReadOnly Property SupportsIntellisense As Boolean Implements IEditor.SupportsIntellisense
+            Get
+                ' CustomDrawingEditor supports IntelliSense for VB.NET files
+                Return True
             End Get
         End Property
         

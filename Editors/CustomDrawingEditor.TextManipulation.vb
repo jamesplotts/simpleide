@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -98,11 +99,11 @@ Namespace Editors
             End Get
         End Property
 
-        Public Sub DeleteRange(vStartLine As Integer, vStartColumn As Integer, vEndLine As Integer, vEndColumn As Integer) Implements IEditor.DeleteRange
+        Public Sub DeleteRange(vStartPosition As EditorPosition, vEndPosition As EditorPosition) Implements IEditor.DeleteRange
             Try
                 If pIsReadOnly Then Return
-                If vStartLine < 0 OrElse vStartLine >= pLineCount Then Return
-                If vEndLine < 0 OrElse vEndLine >= pLineCount Then Return
+                If vStartPosition.Line < 0 OrElse vStartPosition.Line >= pLineCount Then Return
+                If vEndPosition.Line < 0 OrElse vEndPosition.Line >= pLineCount Then Return
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -110,7 +111,7 @@ Namespace Editors
                 End If
                 
                 ' Set selection to the range
-                SetSelection(vStartLine, vStartColumn, vEndLine, vEndColumn)
+                SetSelection(vStartPosition, vEndPosition)
                 
                 ' Delete the selection
                 If pHasSelection Then
@@ -121,20 +122,35 @@ Namespace Editors
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.EndUserAction()
                 End If
-                If Math.Abs(vEndLine - vStartLine) >= 1 Then ScheduleFullDocumentParse()
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteRange error: {ex.Message}")
             End Try
         End Sub
-        
-        Public Sub ReplaceText(vStartLine As Integer, vStartColumn As Integer, vEndLine As Integer, vEndColumn As Integer, vNewText As String) Implements IEditor.ReplaceText
+
+        ''' <summary>
+        ''' Replaces text in the specified range with new text using EditorPosition parameters
+        ''' </summary>
+        ''' <param name="vStartPosition">The start position of the text to replace</param>
+        ''' <param name="vEndPosition">The end position of the text to replace</param>
+        ''' <param name="vNewText">The new text to insert in place of the selected range</param>
+        Public Sub ReplaceText(vStartPosition As EditorPosition, vEndPosition As EditorPosition, vNewText As String) Implements IEditor.ReplaceText
             Try
                 If pIsReadOnly Then Return
-                If vStartLine < 0 OrElse vStartLine >= pLineCount Then Return
-                If vEndLine < 0 OrElse vEndLine >= pLineCount Then Return
+                If vStartPosition.Line < 0 OrElse vStartPosition.Line >= pLineCount Then Return
+                If vEndPosition.Line < 0 OrElse vEndPosition.Line >= pLineCount Then Return
+                
+                ' Normalize positions to ensure start comes before end
+                Dim lStartPos As EditorPosition = vStartPosition
+                Dim lEndPos As EditorPosition = vEndPosition
+                
+                If lStartPos.Line > lEndPos.Line OrElse 
+                   (lStartPos.Line = lEndPos.Line AndAlso lStartPos.Column > lEndPos.Column) Then
+                    ' Swap positions
+                    Dim lTemp As EditorPosition = lStartPos
+                    lStartPos = lEndPos
+                    lEndPos = lTemp
+                End If
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -142,10 +158,10 @@ Namespace Editors
                 End If
                 
                 ' Delete the range first
-                DeleteRange(vStartLine, vStartColumn, vEndLine, vEndColumn)
+                DeleteRange(lStartPos, lEndPos)
                 
                 ' Insert new text at the start position
-                InsertTextAtPosition(vStartLine, vStartColumn, vNewText)
+                InsertTextAtPosition(lStartPos, vNewText)
                 
                 ' End undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -154,6 +170,56 @@ Namespace Editors
                 
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Schedule parsing if the change spans multiple lines or is significant
+                If Math.Abs(lEndPos.Line - lStartPos.Line) >= 1 Then 
+                    ScheduleFullDocumentParse()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"ReplaceText error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Replaces the entire document text with the specified text
+        ''' </summary>
+        ''' <param name="vText">The new text content for the entire document</param>
+        Public Sub ReplaceAllText(vText As String) Implements IEditor.ReplaceAllText
+            Try
+                If pIsReadOnly Then Return
+                
+                ' Begin undo group for complete text replacement
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.BeginUserAction()
+                End If
+                
+                ' Update the Text property which will handle all the necessary updates
+                Text = vText
+                
+                ' Reset cursor position to start of document
+                SetCursorPosition(0, 0)
+                
+                ' Clear any selection
+                ClearSelection()
+                
+                ' End undo group
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.EndUserAction()
+                End If
+                
+                ' Mark as modified and raise events
+                IsModified = True
+                RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Force a full document parse since we replaced everything
+                ScheduleFullDocumentParse()
+                
+                ' Update display
+                UpdateLineNumberWidth()
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"ReplaceText: Replaced entire document with {vText.Length} characters")
                 
             Catch ex As Exception
                 Console.WriteLine($"ReplaceText error: {ex.Message}")
@@ -386,7 +452,7 @@ Namespace Editors
                     Next
                     
                     ' Adjust selection to include the indentation
-                    SetSelection(lStartLine, 0, lEndLine, pTextLines(lEndLine).Length)
+                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
                 Else
                     ' Just indent current line
                     IndentLinePrivate(pCursorLine)
@@ -431,7 +497,7 @@ Namespace Editors
                     Next
                     
                     ' Adjust selection
-                    SetSelection(lStartLine, 0, lEndLine, pTextLines(lEndLine).Length)
+                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
                 Else
                     ' Just outdent current line
                     OutdentLinePrivate(pCursorLine)

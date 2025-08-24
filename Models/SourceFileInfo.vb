@@ -460,6 +460,78 @@ Namespace Models
                 Console.WriteLine($"SourceFileInfo.LoadFromStream error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Reload content from disk, discarding any in-memory changes
+        ''' </summary>
+        ''' <returns>True if successfully reloaded, False otherwise</returns>
+        Public Function ReloadFromDisk() As Boolean
+            Try
+                If IsDemoMode Then 
+                    Return True
+                End If
+                
+                If Not File.Exists(FilePath) Then
+                    Console.WriteLine($"ReloadFromDisk: File not found: {FilePath}")
+                    Return False
+                End If
+                
+                ' Read fresh content from disk
+                Content = File.ReadAllText(FilePath)
+                IsLoaded = True
+                
+                ' Split into lines
+                TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
+                If TextLines.Count = 0 Then
+                    TextLines.Add("")
+                End If
+                
+                ' Clear any existing parse data since content changed
+                SyntaxTree = Nothing
+                ParseErrors.Clear()
+                IsParsed = False
+                NeedsParsing = True
+                
+                ' Update editor if attached
+                If Editor IsNot Nothing Then
+                    ' Note: This will update the editor's internal copy of TextLines
+                    ' but won't modify the displayed text unless explicitly refreshed
+                    
+                    ' WRONG - The editor has a pass-through property that returns the
+                    ' reference to the TextLines existant in this instance. No update needed.
+                End If
+                
+                Console.WriteLine($"ReloadFromDisk: Reloaded {Content.Length} characters from {FileName}")
+                Return True
+                
+            Catch ex As Exception
+                Console.WriteLine($"SourceFileInfo.ReloadFromDisk error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Check if the in-memory content differs from disk content
+        ''' </summary>
+        ''' <returns>True if content differs, False if same or file doesn't exist</returns>
+        Public Function HasDiskChanges() As Boolean
+            Try
+                If IsDemoMode Then 
+                    Return False
+                End If
+                
+                If Not File.Exists(FilePath) Then
+                    Return False
+                End If
+                
+                Dim lDiskContent As String = File.ReadAllText(FilePath)
+                Return lDiskContent <> Content
+                
+            Catch ex As Exception
+                Console.WriteLine($"SourceFileInfo.HasDiskChanges error: {ex.Message}")
+                Return False
+            End Try
+        End Function
         
     End Class
     

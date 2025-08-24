@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -13,7 +14,7 @@ Namespace Editors
         ' ===== SetCursorPosition Implementation =====
         
         ' Set the cursor position to the specified line and column
-        Public Sub SetCursorPosition(vLine As Integer, vColumn As Integer) Implements IEditor.SetCursorPosition
+        Public Sub SetCursorPosition(vLine as Integer, vColumn as Integer) 
             Try
                 ' Store previous position for events and line tracking
                 Dim lOldLine As Integer = pCursorLine
@@ -81,7 +82,7 @@ Namespace Editors
         End Sub
         
         ' Public overload for IEditor interface if needed
-        Public Sub SetCursorPosition(vPosition As EditorPosition)
+        Public Sub SetCursorPosition(vPosition As EditorPosition) Implements IEditor.SetCursorPosition
             SetCursorPosition(vPosition.Line, vPosition.Column)
         End Sub
         
@@ -136,6 +137,7 @@ Namespace Editors
                 Return 0
             End Try
         End Function
+
         
         ' Validate cursor position and adjust if necessary
         Private Sub ValidateCursorPosition()

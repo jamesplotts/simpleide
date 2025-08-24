@@ -7,7 +7,8 @@
     <AssemblyName>SimpleIDE</AssemblyName>
     <StartupObject>SimpleIDE.Program</StartupObject>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <PlatformTarget></PlatformTarget>
+    <PlatformTarget>
+    </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
     <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
@@ -34,6 +35,7 @@
     <Compile Include="MainWindow.AssemblySettings.vb" />
     <Compile Include="MainWindow.BottomPanel.vb" />
     <Compile Include="MainWindow.Build.vb" />
+    <Compile Include="MainWindow.CodeSense.vb" />
     <Compile Include="MainWindow.Comment.vb" />
     <Compile Include="MainWindow.Console.vb" />
     <Compile Include="MainWindow.Debug.vb" />
@@ -46,7 +48,6 @@
     <Compile Include="MainWindow.IdentifierSync.vb" />
     <Compile Include="MainWindow.Indent.vb" />
     <Compile Include="MainWindow.Integration.vb" />
-    <Compile Include="MainWindow.IntelliSense.vb" />
     <Compile Include="MainWindow.Keyboard.vb" />
     <Compile Include="MainWindow.ManifestIntegration.vb" />
     <Compile Include="MainWindow.Menu.vb" />
@@ -232,6 +233,12 @@
     <Compile Include="MainWindow.Preferences.vb" />
     <Compile Include="Widgets/CustomDrawProjectExplorer.AddNewItem.vb" />
     <Compile Include="MainWindow.ProjectExplorerIntegration.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.UndoRedoHelpers.vb" />
+    <Compile Include="Managers/UndoRedoManager.vb" />
+    <Compile Include="Models/UndoAction.vb" />
+    <Compile Include="Models/UndoGroup.vb" />
+    <Compile Include="Models/EditorPosition.vb" />
+    <Compile Include="Widgets/LineNumberWidget.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

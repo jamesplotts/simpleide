@@ -144,6 +144,12 @@ Namespace Editors
         ''' <param name="vLineIndex">The line index to format</param>
         Private Sub ProcessLineFormatting(vLineIndex As Integer)
             Try
+                Static lCallCount As Integer = 0
+                lCallCount += 1
+                'If lCallCount <= 5 OrElse lCallCount Mod 100 = 0 Then
+                    Console.WriteLine($"ProcessLineFormatting #{lCallCount} for line {vLineIndex}")
+                    'Console.WriteLine($"  Stack: {Environment.StackTrace}")
+                'End If
                 ' CRITICAL FIX: Add null checks for pSourceFileInfo and TextLines
                 If pSourceFileInfo Is Nothing Then
                     Console.WriteLine("ProcessLineFormatting: pSourceFileInfo is Nothing")

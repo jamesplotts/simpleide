@@ -398,7 +398,7 @@ Partial Public Class MainWindow
                 Dim lEndPos As EditorPosition = GetPositionFromOffset(lText, lWordEnd)
                 
                 ' Select the current word
-                lEditor.SetSelection(lStartPos.Line, lStartPos.Column, lEndPos.Line, lEndPos.Column)
+                lEditor.SetSelection(New EditorPosition(lStartPos.Line, lStartPos.Column), New EditorPosition(lEndPos.Line, lEndPos.Column))
                 
                 ' Insert the new text (this will replace the selection)
                 lEditor.InsertText(vItemName)

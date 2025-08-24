@@ -306,6 +306,94 @@ Namespace Models
             Return New Cairo.Color(r / 255.0, g / 255.0, b / 255.0)
         End Function
 
+        ''' <summary>
+        ''' Gets a color value from the theme by tag
+        ''' </summary>
+        ''' <param name="vTag">The theme color tag to retrieve</param>
+        ''' <returns>Hex color string (e.g., "#FF0000")</returns>
+        Public Function GetColor(vTag As EditorTheme.Tags) As String
+            Try
+                Select Case vTag
+                    Case EditorTheme.Tags.eBackgroundColor
+                        Return BackgroundColor
+                    Case EditorTheme.Tags.eForegroundColor
+                        Return ForegroundColor
+                    Case EditorTheme.Tags.eSelectionColor
+                        Return SelectionColor
+                    Case EditorTheme.Tags.eCurrentLineColor
+                        Return CurrentLineColor
+                    Case EditorTheme.Tags.eLineNumberColor
+                        Return LineNumberColor
+                    Case EditorTheme.Tags.eLineNumberBackgroundColor
+                        Return LineNumberBackgroundColor
+                    Case EditorTheme.Tags.eCurrentLineNumberColor
+                        Return CurrentLineNumberColor
+                    Case EditorTheme.Tags.eCursorColor
+                        Return CursorColor
+                    Case EditorTheme.Tags.eKeywordText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eKeyword) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eKeyword)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eTypeText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eType) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eType)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eStringText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eString) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eString)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eCommentText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eComment) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eComment)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eNumberText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eNumber) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eNumber)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eOperatorText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eOperator) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eOperator)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.ePreprocessorText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.ePreprocessor) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.ePreprocessor)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eIdentifierText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eIdentifier) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eIdentifier)
+                        Else
+                            Return ForegroundColor ' Fallback
+                        End If
+                    Case EditorTheme.Tags.eSelectionText
+                        If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
+                            Return SyntaxColors(SyntaxColorSet.Tags.eSelection)
+                        Else
+                            Return SelectionColor ' Fallback to regular selection color
+                        End If
+                    Case Else
+                        Return ForegroundColor ' Default fallback
+                End Select
+                
+            Catch ex As Exception
+                Console.WriteLine($"EditorTheme.GetColor error: {ex.Message}")
+                Return "#000000" ' Fallback to black on error
+            End Try
+        End Function
+
     End Class
 
 End Namespace

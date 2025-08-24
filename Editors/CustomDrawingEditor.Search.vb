@@ -5,6 +5,7 @@ Imports System.Collections.Generic
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -156,11 +157,11 @@ Namespace Editors
                     Dim lMatch As EditorPosition = pLastSearchResults(lNextIndex)
                     
                     ' Move cursor and select match
-                    GoToPosition(lMatch.Line, lMatch.Column)
+                    GoToPosition(New EditorPosition(lMatch.Line, lMatch.Column))
                     
                     ' Select the match
                     Dim lEndColumn As Integer = lMatch.Column + pLastSearchText.Length
-                    SetSelection(lMatch.Line, lMatch.Column, lMatch.Line, lEndColumn)
+                    SetSelection(New EditorPosition(lMatch.Line, lMatch.Column), New EditorPosition(lMatch.Line, lEndColumn))
                 End If
                 
             Catch ex As Exception
@@ -198,11 +199,11 @@ Namespace Editors
                     Dim lMatch As EditorPosition = pLastSearchResults(lPrevIndex)
                     
                     ' Move cursor and select match
-                    GoToPosition(lMatch.Line, lMatch.Column)
+                    GoToPosition(New EditorPosition(lMatch.Line, lMatch.Column))
                     
                     ' Select the match
                     Dim lEndColumn As Integer = lMatch.Column + pLastSearchText.Length
-                    SetSelection(lMatch.Line, lMatch.Column, lMatch.Line, lEndColumn)
+                    SetSelection(New EditorPosition(lMatch.Line, lMatch.Column), New EditorPosition(lMatch.Line, lEndColumn))
                 End If
                 
             Catch ex As Exception
@@ -312,8 +313,8 @@ Namespace Editors
                                     Dim lReplacementText As String = lRegexMatch.Result(vReplaceText)
                                     
                                     ' Replace the match
-                                    ReplaceText(lMatch.Line, lMatch.Column, 
-                                              lMatch.Line, lMatch.Column + lRegexMatch.Length, 
+                                    ReplaceText(New EditorPosition(lMatch.Line, lMatch.Column), 
+                                              New EditorPosition(lMatch.Line, lMatch.Column + lRegexMatch.Length), 
                                               lReplacementText)
                                 End If
                             Catch
@@ -321,8 +322,8 @@ Namespace Editors
                             End Try
                         Else
                             ' Plain text replacement
-                            ReplaceText(lMatch.Line, lMatch.Column, 
-                                      lMatch.Line, lMatch.Column + vSearchText.Length, 
+                            ReplaceText(New EditorPosition(lMatch.Line, lMatch.Column), 
+                                      New EditorPosition(lMatch.Line, lMatch.Column + vSearchText.Length), 
                                       vReplaceText)
                         End If
                     Next
@@ -350,6 +351,269 @@ Namespace Editors
             Catch ex As Exception
                 Console.WriteLine($"ReplaceAll error: {ex.Message}")
             End Try
+        End Sub
+
+
+        ''' <summary>
+        ''' Finds all occurrences of the specified text in the document
+        ''' </summary>
+        ''' <param name="vFindText">Text to search for</param>
+        ''' <returns>List of all positions where the text was found</returns>
+        ''' <remarks>
+        ''' This is a simple case-sensitive, non-regex search.
+        ''' For more options, use the Find method with additional parameters.
+        ''' </remarks>
+        Public Function FindAll(vFindText As String) As List(Of EditorPosition) Implements IEditor.FindAll
+            Try
+                ' Use the full Find method with default options (case-sensitive, no whole word, no regex)
+                Return New List(Of EditorPosition)(Find(vFindText, True, False, False))
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindAll error: {ex.Message}")
+                Return New List(Of EditorPosition)()
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Finds all occurrences with simple options
+        ''' </summary>
+        ''' <param name="vFindText">Text to search for</param>
+        ''' <param name="vCaseSensitive">Whether search is case-sensitive</param>
+        ''' <returns>List of all positions where the text was found</returns>
+        Public Function FindAll(vFindText As String, vCaseSensitive As Boolean) As List(Of EditorPosition)
+            Try
+                Return New List(Of EditorPosition)(Find(vFindText, vCaseSensitive, False, False))
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindAll error: {ex.Message}")
+                Return New List(Of EditorPosition)()
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Enhanced FindAll implementation with full control
+        ''' </summary>
+        ''' <param name="vFindText">Text to search for</param>
+        ''' <param name="vCaseSensitive">Whether search is case-sensitive</param>
+        ''' <param name="vWholeWord">Whether to match whole words only</param>
+        ''' <param name="vRegex">Whether to use regular expressions</param>
+        ''' <param name="vSearchInSelection">Whether to search only in selected text</param>
+        ''' <returns>List of all positions where the text was found</returns>
+        Public Function FindAllExtended(vFindText As String, 
+                                        vCaseSensitive As Boolean,
+                                        vWholeWord As Boolean,
+                                        vRegex As Boolean,
+                                        Optional vSearchInSelection As Boolean = False) As List(Of EditorPosition)
+            Try
+                Dim lResults As New List(Of EditorPosition)()
+                
+                ' Validate input
+                If String.IsNullOrEmpty(vFindText) Then
+                    Return lResults
+                End If
+                
+                ' Determine search range
+                Dim lStartLine As Integer = 0
+                Dim lStartColumn As Integer = 0
+                Dim lEndLine As Integer = pLineCount - 1
+                Dim lEndColumn As Integer = If(pLineCount > 0, pTextLines(pLineCount - 1).Length, 0)
+                
+                If vSearchInSelection AndAlso pHasSelection Then
+                    ' Search only in selection
+                    Dim lSelStart As EditorPosition = SelectionStart
+                    Dim lSelEnd As EditorPosition = SelectionEnd
+                    NormalizeSelection(lSelStart, lSelEnd)
+                    
+                    lStartLine = lSelStart.Line
+                    lStartColumn = lSelStart.Column
+                    lEndLine = lSelEnd.Line
+                    lEndColumn = lSelEnd.Column
+                End If
+                
+                ' Perform search based on type
+                If vRegex Then
+                    FindAllWithRegex(vFindText, vCaseSensitive, lStartLine, lStartColumn, 
+                                   lEndLine, lEndColumn, lResults)
+                Else
+                    FindAllPlainText(vFindText, vCaseSensitive, vWholeWord, lStartLine, 
+                                   lStartColumn, lEndLine, lEndColumn, lResults)
+                End If
+                
+                Return lResults
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindAllExtended error: {ex.Message}")
+                Return New List(Of EditorPosition)()
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Helper method for plain text search
+        ''' </summary>
+        Private Sub FindAllPlainText(vSearchText As String, vCaseSensitive As Boolean, vWholeWord As Boolean,
+                                     vStartLine As Integer, vStartColumn As Integer,
+                                     vEndLine As Integer, vEndColumn As Integer,
+                                     vResults As List(Of EditorPosition))
+            Try
+                Dim lComparison As StringComparison = If(vCaseSensitive, 
+                    StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase)
+                
+                For lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
+                    If lLineIndex >= pLineCount Then Exit For
+                    
+                    Dim lLine As String = pTextLines(lLineIndex)
+                    Dim lSearchStart As Integer = If(lLineIndex = vStartLine, vStartColumn, 0)
+                    Dim lSearchEnd As Integer = If(lLineIndex = vEndLine, Math.Min(vEndColumn, lLine.Length), lLine.Length)
+                    
+                    If lSearchStart >= lSearchEnd Then Continue For
+                    
+                    Dim lIndex As Integer = lSearchStart
+                    
+                    While lIndex >= 0 AndAlso lIndex <= lSearchEnd - vSearchText.Length
+                        ' Find next occurrence
+                        lIndex = lLine.IndexOf(vSearchText, lIndex, lSearchEnd - lIndex, lComparison)
+                        
+                        If lIndex >= 0 Then
+                            ' Check whole word if required
+                            If Not vWholeWord OrElse IsWholeWordMatch(lLine, lIndex, vSearchText) Then
+                                vResults.Add(New EditorPosition(lLineIndex, lIndex))
+                            End If
+                            
+                            lIndex += 1  ' Move past this match to find next
+                        End If
+                    End While
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindAllPlainText error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Helper method for regex search
+        ''' </summary>
+        Private Sub FindAllWithRegex(vPattern As String, vCaseSensitive As Boolean,
+                                     vStartLine As Integer, vStartColumn As Integer,
+                                     vEndLine As Integer, vEndColumn As Integer,
+                                     vResults As List(Of EditorPosition))
+            Try
+                Dim lOptions As RegexOptions = If(vCaseSensitive, RegexOptions.None, RegexOptions.IgnoreCase)
+                Dim lRegex As Regex
+                
+                Try
+                    lRegex = New Regex(vPattern, lOptions)
+                Catch ex As ArgumentException
+                    Console.WriteLine($"Invalid regex pattern: {vPattern}")
+                    Return
+                End Try
+                
+                For lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
+                    If lLineIndex >= pLineCount Then Exit For
+                    
+                    Dim lLine As String = pTextLines(lLineIndex)
+                    Dim lSearchStart As Integer = If(lLineIndex = vStartLine, vStartColumn, 0)
+                    Dim lSearchEnd As Integer = If(lLineIndex = vEndLine, Math.Min(vEndColumn, lLine.Length), lLine.Length)
+                    
+                    If lSearchStart >= lSearchEnd Then Continue For
+                    
+                    ' Get substring to search if not searching entire line
+                    Dim lSearchText As String = lLine
+                    If lSearchStart > 0 OrElse lSearchEnd < lLine.Length Then
+                        lSearchText = lLine.Substring(lSearchStart, lSearchEnd - lSearchStart)
+                    End If
+                    
+                    ' Find all matches in the line
+                    For Each lMatch As Match In lRegex.Matches(lSearchText)
+                        ' Adjust column position if we're searching a substring
+                        Dim lColumn As Integer = lMatch.Index + lSearchStart
+                        vResults.Add(New EditorPosition(lLineIndex, lColumn))
+                    Next
+                Next
+                
+            Catch ex As RegexMatchTimeoutException
+                Console.WriteLine($"Regex timeout: {ex.Message}")
+            Catch ex As Exception
+                Console.WriteLine($"FindAllWithRegex error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Finds all occurrences and highlights them
+        ''' </summary>
+        Public Function FindAllAndHighlight(vFindText As String, vCaseSensitive As Boolean) As Integer
+            Try
+                ' Find all occurrences
+                Dim lMatches As List(Of EditorPosition) = FindAll(vFindText, vCaseSensitive)
+                
+                ' Store for navigation
+                pLastSearchResults = lMatches
+                pCurrentSearchIndex = -1
+                pLastSearchText = vFindText
+                
+                ' Highlight all matches (if you have highlighting support)
+                HighlightSearchResults(lMatches, vFindText.Length)
+                
+                ' Return count of matches
+                Return lMatches.Count
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindAllAndHighlight error: {ex.Message}")
+                Return 0
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Highlights search results visually
+        ''' </summary>
+        Private Sub HighlightSearchResults(vMatches As List(Of EditorPosition), vMatchLength As Integer)
+            Try
+                ' Clear previous highlights
+                ' TODO: ClearSearchHighlights()
+                
+                ' Apply highlight color to each match
+                For Each lMatch In vMatches
+                    If lMatch.Line < pLineCount Then
+                        ' TODO: Search Highlighting: Mark the line for special rendering
+                        ' You would need to implement a way to store and render these highlights
+                        ' For example, add to a list of highlighted regions
+                        ' AddSearchHighlight(lMatch.Line, lMatch.Column, vMatchLength)
+                    End If
+                Next
+                
+                ' Queue redraw to show highlights
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"HighlightSearchResults error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Example usage for various scenarios
+        ''' </summary>
+        Private Sub ExampleUsage()
+            ' Simple find all
+            Dim lMatches As List(Of EditorPosition) = FindAll("TODO")
+            
+            ' Case-insensitive search
+            Dim lCaseInsensitive As List(Of EditorPosition) = FindAll("error", False)
+            
+            ' Find whole words only
+            Dim lWholeWords As List(Of EditorPosition) = FindAllExtended("End", True, True, False)
+            
+            ' Regex search for VB.NET method declarations
+            Dim lMethods As List(Of EditorPosition) = FindAllExtended(
+                "^\s*(Public|Private|Protected|Friend)\s+(Sub|Function)\s+\w+", 
+                True, False, True)
+            
+            ' Search in selection only
+            Dim lInSelection As List(Of EditorPosition) = FindAllExtended(
+                "Dim", True, True, False, True)
+            
+            ' Process all matches
+            For Each lPosition In lMatches
+                Console.WriteLine($"Found at Line {lPosition.Line + 1}, Column {lPosition.Column + 1}")
+            Next
         End Sub
         
     End Class

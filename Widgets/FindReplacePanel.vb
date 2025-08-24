@@ -6,6 +6,7 @@ Imports System.IO
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
     Public Class FindReplacePanel
@@ -783,29 +784,33 @@ Namespace Widgets
         End Function
         
         ' ===== Replace Implementation =====
-        
         Private Sub ReplaceAllInCurrentFile()
             Try
                 Dim lTab As TabInfo = GetCurrentTab()
                 If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
-                    pStatusLabel.Text = "No file open to Replace in"
+                    pStatusLabel.Text = "No file open"
                     Return
                 End If
                 
                 ' Find all matches
-                Dim lMatches As List(Of EditorPosition) = New List(Of EditorPosition)(
-                    lTab.Editor.Find(pLastSearchOptions.SearchText, pLastSearchOptions.MatchCase, 
-                                   pLastSearchOptions.WholeWord, pLastSearchOptions.UseRegex))
+                Dim lMatches As List(Of EditorPosition) = lTab.Editor.Find(
+                    pLastSearchOptions.SearchText,
+                    pLastSearchOptions.MatchCase,
+                    pLastSearchOptions.WholeWord,
+                    pLastSearchOptions.UseRegex
+                ).ToList()
                 
                 If lMatches.Count = 0 Then
-                    pStatusLabel.Text = "No matches found to Replace"
+                    pStatusLabel.Text = "No matches found"
                     Return
                 End If
                 
-                ' Begin bulk update
-                lTab.Editor.BeginUpdate()
-                
                 Try
+                    lTab.Editor.BeginUpdate()
+                    
+                    ' Determine replacement text
+                    Dim lReplaceText As String = pReplaceEntry.Text
+                    
                     ' Replace from end to beginning to maintain positions
                     For i As Integer = lMatches.Count - 1 To 0 Step -1
                         Dim lPosition As EditorPosition = lMatches(i)
@@ -824,9 +829,10 @@ Namespace Widgets
                             End If
                         End If
                         
-                        ' Replace text
-                        lTab.Editor.ReplaceText(lPosition.Line, lPosition.Column, 
-                                              lEndLine, lEndColumn, pReplaceEntry.Text)
+                        ' Replace text - using lPosition for start position
+                        lTab.Editor.ReplaceText(lPosition,
+                                                New EditorPosition(lEndLine, lEndColumn), 
+                                                lReplaceText)
                     Next
                     
                     pStatusLabel.Text = $"Replaced {lMatches.Count} occurrence(s)"
@@ -1007,11 +1013,11 @@ Namespace Widgets
                 Dim lMatch As EditorPosition = pCurrentMatches(vIndex)
                 
                 ' Navigate to position
-                pCurrentEditor.GoToPosition(lMatch.Line, lMatch.Column)
+                pCurrentEditor.GoToPosition(New EditorPosition(lMatch.Line, lMatch.Column))
                 
                 ' Select the match
                 Dim lEndColumn As Integer = lMatch.Column + pLastSearchOptions.SearchText.Length
-                pCurrentEditor.SetSelection(lMatch.Line, lMatch.Column, lMatch.Line, lEndColumn)
+                pCurrentEditor.SetSelection(New EditorPosition(lMatch.Line, lMatch.Column), New EditorPosition(lMatch.Line, lEndColumn))
                 
                 ' Update status
                 pStatusLabel.Text = $"Match {vIndex + 1} of {pCurrentMatches.Count}"

@@ -1,4 +1,4 @@
-' Editors/CustomDrawingEditor.Editing.vb - Text editing operations with fixed InsertCharacter
+' Editors/CustomDrawingEditor.Editing.vb - Text editing operations
 Imports Gtk
 Imports System
 Imports System.Collections.Generic
@@ -13,89 +13,50 @@ Namespace Editors
         Inherits Box
         Implements IEditor
 
-        ' CodeSense events
+        ' CodeSense events (if not defined elsewhere)
         Public Event CodeSenseRequested(sender As Object, Context As CodeSenseContext)
         Public Event CodeSenseCancelled(sender As Object, e As EventArgs)
 
-        ' ===== Character At Position =====
+        ' ===== Character Operations =====
+        
+
+        
+        ''' <summary>
+        ''' Deletes a character at the specified position
+        ''' </summary>
         Private Sub DeleteCharacterAt(vLine As Integer, vColumn As Integer)
             Try
-                If pIsReadOnly Then Return
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
                 Dim lLine As String = pTextLines(vLine)
-                If vColumn < 0 OrElse vColumn >= lLine.Length Then Return
-                
-                ' Get the character to be deleted for undo recording
-                Dim lDeletedChar As Char = lLine(vColumn)
-                
-                ' Record for undo
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.RecordDeleteChar(vLine, vColumn, lDeletedChar, vLine, vColumn)
+                If vColumn >= 0 AndAlso vColumn < lLine.Length Then
+                    Dim lDeletedChar As Char = lLine(vColumn)
+                    
+                    ' Record for undo using EditorPosition
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(vLine, vColumn)
+                        Dim lEndPos As New EditorPosition(vLine, vColumn + 1)
+                        Dim lCursorPos As New EditorPosition(vLine, vColumn)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
+                    End If
+                    
+                    pTextLines(vLine) = lLine.Remove(vColumn, 1)
+                    pLineMetadata(vLine).MarkChanged()
+                    
+                    IsModified = True
+                    RaiseEvent TextChanged(Me, New EventArgs)
                 End If
-                
-                ' Remove the character
-                pTextLines(vLine) = lLine.Remove(vColumn, 1)
-                pLineMetadata(vLine).MarkChanged()
-                
-                ' Mark as modified
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Update display
-                pDrawingArea.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteCharacterAt error: {ex.Message}")
             End Try
         End Sub
         
-        ' ===== Text Editing Operations =====
-'        
-'        Private Sub InsertCharacter(vChar As Char)
-'            Try
-'                If pIsReadOnly Then Return
-'                
-'                ' Ensure we have a valid line
-'                If pCursorLine >= pLineCount Then
-'                    ' Add empty lines if needed
-'                    While pLineCount <= pCursorLine
-'                        AddNewLine("")
-'                    End While
-'                End If
-'                
-'                ' Record for undo
-'                If pUndoRedoManager IsNot Nothing Then
-'                    pUndoRedoManager.RecordInsertChar(pCursorLine, pCursorColumn, vChar, pCursorLine, pCursorColumn + 1)
-'                End If
-'                
-'                ' Insert character at cursor position
-'                Dim lLine As String = pTextLines(pCursorLine)
-'                If pCursorColumn <= lLine.Length Then
-'                    pTextLines(pCursorLine) = lLine.Insert(pCursorColumn, vChar)
-'                    
-'                    ' Mark line as changed
-'                    pLineMetadata(pCursorLine).MarkChanged()
-'                    
-'                    ' Move cursor
-'                    SetCursorPosition(pCursorLine, pCursorColumn + 1)
-'                    
-'                    ' Mark as modified
-'                    IsModified = True
-'                    RaiseEvent TextChanged(Me, New EventArgs)
-'                    
-'                    ' FIXED: Ensure proper redraw of the current line
-'                    InvalidateLine(pCursorLine)
-'                    
-'                    ' Also queue a full redraw to ensure everything is updated
-'                    pDrawingArea.QueueDraw()
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"InsertCharacter error: {ex.Message}")
-'            End Try
-'        End Sub
+        ' ===== Line Operations =====
         
+        ''' <summary>
+        ''' Inserts a new line at the cursor position
+        ''' </summary>
         Private Sub InsertNewLine()
             Try
                 If pIsReadOnly Then Return
@@ -133,8 +94,18 @@ Namespace Editors
                 ' Record for undo
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.BeginUserAction()
-                    pUndoRedoManager.RecordReplaceText(pCursorLine, 0, lCurrentLine, lBeforeCursor)
-                    pUndoRedoManager.RecordInsertLine(pCursorLine + 1, lAfterCursor, pCursorLine + 1, 0)
+                    
+                    ' Record replacing current line with the part before cursor
+                    Dim lReplaceStart As New EditorPosition(pCursorLine, 0)
+                    Dim lReplaceEnd As New EditorPosition(pCursorLine, lCurrentLine.Length)
+                    Dim lTempCursorPos As New EditorPosition(pCursorLine, lBeforeCursor.Length)
+                    pUndoRedoManager.RecordReplaceText(lReplaceStart, lReplaceEnd, lCurrentLine, lBeforeCursor, lTempCursorPos)
+                    
+                    ' Record inserting new line with the part after cursor
+                    Dim lInsertPos As New EditorPosition(pCursorLine + 1, 0)
+                    Dim lNewCursorPos As New EditorPosition(pCursorLine + 1, 0)
+                    pUndoRedoManager.RecordInsertLine(lInsertPos, lAfterCursor, lNewCursorPos)
+                    
                     pUndoRedoManager.EndUserAction()
                 End If
                 
@@ -176,6 +147,11 @@ Namespace Editors
             End Try
         End Sub
         
+        ' ===== Delete Operations =====
+        
+        ''' <summary>
+        ''' Deletes backward from cursor (Backspace)
+        ''' </summary>
         Private Sub DeleteBackward()
             Try
                 If pIsReadOnly Then Return
@@ -188,9 +164,12 @@ Namespace Editors
                         Dim lLine As String = pTextLines(pCursorLine)
                         Dim lDeletedChar As Char = lLine(pCursorColumn - 1)
                         
-                        ' Record for undo
+                        ' Record for undo using EditorPosition
                         If pUndoRedoManager IsNot Nothing Then
-                            pUndoRedoManager.RecordDeleteChar(pCursorLine, pCursorColumn - 1, lDeletedChar, pCursorLine, pCursorColumn - 1)
+                            Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                            Dim lEndPos As New EditorPosition(pCursorLine, pCursorColumn)
+                            Dim lNewCursorPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                            pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lNewCursorPos)
                         End If
                         
                         pTextLines(pCursorLine) = lLine.Remove(pCursorColumn - 1, 1)
@@ -207,11 +186,20 @@ Namespace Editors
                         Dim lCurrentLine As String = pTextLines(pCursorLine)
                         Dim lNewColumn As Integer = lPrevLine.Length
                         
-                        ' Record for undo
+                        ' Record for undo using EditorPosition
                         If pUndoRedoManager IsNot Nothing Then
                             pUndoRedoManager.BeginUserAction()
-                            pUndoRedoManager.RecordReplaceText(pCursorLine - 1, 0, lPrevLine, lPrevLine & lCurrentLine)
-                            pUndoRedoManager.RecordDeleteLine(pCursorLine, lCurrentLine, pCursorLine - 1, lNewColumn)
+                            
+                            ' Record the text replacement on the previous line
+                            Dim lReplaceStart As New EditorPosition(pCursorLine - 1, 0)
+                            Dim lReplaceEnd As New EditorPosition(pCursorLine - 1, lPrevLine.Length)
+                            Dim lNewCursorPos As New EditorPosition(pCursorLine - 1, lNewColumn)
+                            pUndoRedoManager.RecordReplaceText(lReplaceStart, lReplaceEnd, 
+                                                              lPrevLine, lPrevLine & lCurrentLine, lNewCursorPos)
+                            
+                            ' Record the line deletion
+                            pUndoRedoManager.RecordDeleteLine(pCursorLine, lCurrentLine, lNewCursorPos)
+                            
                             pUndoRedoManager.EndUserAction()
                         End If
                         
@@ -235,6 +223,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Deletes forward from cursor (Delete key)
+        ''' </summary>
         Private Sub DeleteForward()
             Try
                 If pIsReadOnly Then Return
@@ -250,11 +241,20 @@ Namespace Editors
                         Dim lCurrentLine As String = pTextLines(pCursorLine)
                         Dim lNextLine As String = pTextLines(pCursorLine + 1)
                         
-                        ' Record for undo
+                        ' Record for undo using EditorPosition
                         If pUndoRedoManager IsNot Nothing Then
                             pUndoRedoManager.BeginUserAction()
-                            pUndoRedoManager.RecordReplaceText(pCursorLine, 0, lCurrentLine, lCurrentLine & lNextLine)
-                            pUndoRedoManager.RecordDeleteLine(pCursorLine + 1, lNextLine, pCursorLine, pCursorColumn)
+                            
+                            ' Record the text replacement
+                            Dim lReplaceStart As New EditorPosition(pCursorLine, 0)
+                            Dim lReplaceEnd As New EditorPosition(pCursorLine, lCurrentLine.Length)
+                            Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn)
+                            pUndoRedoManager.RecordReplaceText(lReplaceStart, lReplaceEnd,
+                                                              lCurrentLine, lCurrentLine & lNextLine, lCursorPos)
+                            
+                            ' Record the line deletion
+                            pUndoRedoManager.RecordDeleteLine(pCursorLine + 1, lNextLine, lCursorPos)
+                            
                             pUndoRedoManager.EndUserAction()
                         End If
                         
@@ -275,6 +275,11 @@ Namespace Editors
             End Try
         End Sub
         
+        ' ===== Text Insertion =====
+        
+        ''' <summary>
+        ''' Inserts text at the current cursor position
+        ''' </summary>
         Public Sub InsertText(vText As String) Implements IEditor.InsertText
             Try
                 If pIsReadOnly OrElse String.IsNullOrEmpty(vText) Then Return
@@ -288,7 +293,8 @@ Namespace Editors
                 For Each lChar As Char In vText
                     If lChar = vbLf OrElse lChar = vbCr Then
                         ' Skip CR in CRLF pairs
-                        If lChar = vbCr AndAlso vText.IndexOf(lChar) < vText.Length - 1 AndAlso vText(vText.IndexOf(lChar) + 1) = vbLf Then
+                        If lChar = vbCr AndAlso vText.IndexOf(lChar) < vText.Length - 1 AndAlso 
+                           vText(vText.IndexOf(lChar) + 1) = vbLf Then
                             Continue For
                         End If
                         InsertNewLine()
@@ -301,350 +307,531 @@ Namespace Editors
                 If pUndoRedoManager IsNot Nothing AndAlso vText.Length > 1 Then
                     pUndoRedoManager.EndUserAction()
                 End If
-                If vText.IndexOf(Environment.NewLine) >= 0 Then ScheduleFullDocumentParse()
+                
             Catch ex As Exception
                 Console.WriteLine($"InsertText error: {ex.Message}")
             End Try
         End Sub
         
-        Public Sub ReplaceText(vText As String) Implements IEditor.ReplaceText
+        ' ===== Multi-line Text Operations =====
+        
+        ''' <summary>
+        ''' Inserts multi-line text at a specific position
+        ''' </summary>
+        Friend Sub InsertMultiLineTextAt(vLine As Integer, vColumn As Integer, vText As String)
             Try
-                If pIsReadOnly Then Return
+                ' Split text into lines
+                Dim lLines() As String = vText.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
                 
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
+                If lLines.Length = 0 Then Return
                 
-                ' Delete current selection or all text
-                If pHasSelection Then
-                    DeleteSelection()
+                ' Get the current line
+                Dim lCurrentLine As String = pTextLines(vLine)
+                Dim lBeforeInsert As String = If(vColumn > 0, lCurrentLine.Substring(0, Math.Min(vColumn, lCurrentLine.Length)), "")
+                Dim lAfterInsert As String = If(vColumn < lCurrentLine.Length, lCurrentLine.Substring(vColumn), "")
+                
+                If lLines.Length = 1 Then
+                    ' Single line insert
+                    pTextLines(vLine) = lBeforeInsert & lLines(0) & lAfterInsert
+                    pLineMetadata(vLine).MarkChanged()
+                    
+                    ' Move cursor to end of inserted text
+                    SetCursorPosition(vLine, vColumn + lLines(0).Length)
                 Else
-                    SelectAll()
-                    DeleteSelection()
+                    ' Multi-line insert
+                    ' First line
+                    pTextLines(vLine) = lBeforeInsert & lLines(0)
+                    pLineMetadata(vLine).MarkChanged()
+                    
+                    ' Insert middle lines
+                    For i As Integer = 1 To lLines.Length - 2
+                        InsertLineAt(vLine + i, lLines(i))
+                    Next
+                    
+                    ' Last line
+                    InsertLineAt(vLine + lLines.Length - 1, lLines(lLines.Length - 1) & lAfterInsert)
+                    
+                    ' Move cursor to end of inserted text
+                    SetCursorPosition(vLine + lLines.Length - 1, lLines(lLines.Length - 1).Length)
                 End If
                 
-                ' Insert new text
-                InsertText(vText)
+                ' Update line count
+                UpdateLineNumberWidth()
                 
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                If vText.IndexOf(Environment.NewLine) >= 0 Then ScheduleFullDocumentParse()
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
+                
             Catch ex As Exception
-                Console.WriteLine($"ReplaceText error: {ex.Message}")
+                Console.WriteLine($"InsertMultiLineTextAt error: {ex.Message}")
             End Try
         End Sub
         
-        ' ===== Helper Methods =====
+        ' ===== Replace Operations =====
         
-        Private Sub NormalizeSelection(ByRef vStartLine As Integer, ByRef vStartColumn As Integer, 
-                                       ByRef vEndLine As Integer, ByRef vEndColumn As Integer)
+        ''' <summary>
+        ''' Replaces text at a specific position
+        ''' </summary>
+        Friend Sub ReplaceTextAt(vLine As Integer, vColumn As Integer, vLength As Integer, vNewText As String)
             Try
-                ' Swap if selection is backwards
-                If vEndLine < vStartLine OrElse (vEndLine = vStartLine AndAlso vEndColumn < vStartColumn) Then
-                    ' Swap lines
-                    Dim lTempLine As Integer = vStartLine
-                    vStartLine = vEndLine
-                    vEndLine = lTempLine
-                    
-                    ' Swap columns
-                    Dim lTempColumn As Integer = vStartColumn
-                    vStartColumn = vEndColumn
-                    vEndColumn = lTempColumn
+                If vLine < 0 OrElse vLine >= pLineCount Then Return
+                
+                Dim lLine As String = pTextLines(vLine)
+                
+                ' Ensure column is within valid range
+                If vColumn < 0 Then vColumn = 0
+                If vColumn > lLine.Length Then vColumn = lLine.Length
+                
+                ' Calculate actual length to replace
+                Dim lActualLength As Integer = Math.Min(vLength, lLine.Length - vColumn)
+                
+                ' Replace the text
+                If lActualLength > 0 Then
+                    lLine = lLine.Remove(vColumn, lActualLength)
                 End If
+                lLine = lLine.Insert(vColumn, vNewText)
+                
+                pTextLines(vLine) = lLine
+                pLineMetadata(vLine).MarkChanged()
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
-                Console.WriteLine($"NormalizeSelection error: {ex.Message}")
+                Console.WriteLine($"ReplaceTextAt error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' ===== Helper Key Handlers =====
+        
+        ''' <summary>
+        ''' Handles the Return/Enter key
+        ''' </summary>
+        Private Sub HandleReturn()
+            Try
+                If pIsReadOnly Then Return
+                
+                ' Delete selection if any
+                If pHasSelection Then
+                    DeleteSelection()
+                End If
+                
+                ' Insert new line
+                InsertNewLine()
+                
+            Catch ex As Exception
+                Console.WriteLine($"HandleReturn error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles the Backspace key
+        ''' </summary>
+        Private Sub HandleBackspace()
+            Try
+                If pIsReadOnly Then Return
+                DeleteBackward()
+            Catch ex As Exception
+                Console.WriteLine($"HandleBackspace error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles the Delete key
+        ''' </summary>
+        Private Sub HandleDelete()
+            Try
+                If pIsReadOnly Then Return
+                DeleteForward()
+            Catch ex As Exception
+                Console.WriteLine($"HandleDelete error: {ex.Message}")
             End Try
         End Sub
 
-        Private Sub UpdateFontMetrics()
-            Try
-                ' Create a temporary surface to get a Cairo context for font measurement
-                Using lSurface As Cairo.ImageSurface = New Cairo.ImageSurface(Cairo.Format.Argb32, 1, 1)
-                    Using lContext As Cairo.Context = New Cairo.Context(lSurface)
-                        ' Dispose old font metrics if exists
-                        If pFontMetrics IsNot Nothing Then
-                            pFontMetrics.Dispose()
-                        End If
-                        
-                        ' Create new font metrics
-                        pFontMetrics = New FontMetrics(pFontDescription, lContext)
-                        
-                        ' Update editor metrics from font metrics
-                        pCharWidth = pFontMetrics.CharWidth
-                        pLineHeight = pFontMetrics.CharHeight
-                        
-                        ' Log the update
-                        Console.WriteLine($"UpdateFontMetrics: CharWidth={pCharWidth}, LineHeight={pLineHeight}")
-                    End Using
-                End Using
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateFontMetrics error: {ex.Message}")
-                ' Set defaults if font metrics fail
-                pCharWidth = 10
-                pLineHeight = 20
-            End Try
-        End Sub
-        
-        ' ===== Missing IEditor implementations =====
-        
-        Public Sub InsertTextAtPosition(vLine As Integer, vColumn As Integer, vText As String) Implements IEditor.InsertTextAtPosition
+
+
+        ''' <summary>
+        ''' Inserts text at the specified position using EditorPosition
+        ''' </summary>
+        ''' <param name="vPosition">The position to insert the text at</param>
+        ''' <param name="vText">The text to insert</param>
+        Public Sub InsertTextAtPosition(vPosition As EditorPosition, vText As String) Implements IEditor.InsertTextAtPosition
             Try
                 If pIsReadOnly Then Return
-                If vLine < 0 OrElse vLine >= pLineCount Then Return
+                If String.IsNullOrEmpty(vText) Then Return
                 
-                ' Begin undo group if inserting multiple characters
-                If pUndoRedoManager IsNot Nothing AndAlso vText.Length > 1 Then
+                ' Validate position
+                If vPosition.Line < 0 OrElse vPosition.Line >= pLineCount Then Return
+                If vPosition.Column < 0 Then Return
+                
+                ' Begin undo group for multi-character operations
+                If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                ' Save current cursor position
-                Dim lOldLine As Integer = pCursorLine
-                Dim lOldColumn As Integer = pCursorColumn
-                
-                ' Move cursor to insertion point
-                SetCursorPosition(vLine, vColumn)
-                
-                ' Insert the text using existing InsertText method
-                InsertText(vText)
-                
-                ' Restore cursor if needed (optional based on requirements)
-                ' SetCursorPosition(lOldLine, lOldColumn)
+                ' Handle multi-line text insertion
+                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) OrElse vText.Contains(vbCrLf) Then
+                    ' Split text into lines
+                    Dim lLines() As String = vText.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+                    
+                    If lLines.Length = 0 Then Return
+                    
+                    ' Get the current line
+                    Dim lCurrentLine As String = pTextLines(vPosition.Line)
+                    Dim lBeforeInsert As String = If(vPosition.Column > 0 AndAlso vPosition.Column <= lCurrentLine.Length, 
+                                                   lCurrentLine.Substring(0, vPosition.Column), 
+                                                   If(vPosition.Column > lCurrentLine.Length, lCurrentLine.PadRight(vPosition.Column), ""))
+                    Dim lAfterInsert As String = If(vPosition.Column < lCurrentLine.Length, 
+                                                  lCurrentLine.Substring(vPosition.Column), "")
+                    
+                    ' Replace current line with first line of inserted text
+                    pTextLines(vPosition.Line) = lBeforeInsert & lLines(0)
+                    pLineMetadata(vPosition.Line).MarkChanged()
+                    
+                    ' Insert additional lines if needed
+                    For i As Integer = 1 To lLines.Length - 1
+                        Dim lNewLineContent As String = lLines(i)
+                        
+                        ' For the last line, append the remainder of the original line
+                        If i = lLines.Length - 1 Then
+                            lNewLineContent &= lAfterInsert
+                        End If
+                        
+                        ' Insert the new line
+                        InsertLineAt(vPosition.Line + i, lNewLineContent)
+                    Next
+                    
+                    ' Set cursor to end of inserted text
+                    Dim lNewLine As Integer = vPosition.Line + lLines.Length - 1
+                    Dim lNewColumn As Integer = lLines(lLines.Length - 1).Length
+                    If lLines.Length = 1 Then
+                        lNewColumn = vPosition.Column + lLines(0).Length
+                    End If
+                    SetCursorPosition(lNewLine, lNewColumn)
+                Else
+                    ' Single line text insertion
+                    Dim lLine As String = pTextLines(vPosition.Line)
+                    
+                    If vPosition.Column <= lLine.Length Then
+                        pTextLines(vPosition.Line) = lLine.Insert(vPosition.Column, vText)
+                    Else
+                        ' Pad line if column is beyond current line length
+                        pTextLines(vPosition.Line) = lLine.PadRight(vPosition.Column) & vText
+                    End If
+                    
+                    pLineMetadata(vPosition.Line).MarkChanged()
+                    
+                    ' Set cursor to end of inserted text
+                    SetCursorPosition(vPosition.Line, vPosition.Column + vText.Length)
+                End If
                 
                 ' End undo group
-                If pUndoRedoManager IsNot Nothing AndAlso vText.Length > 1 Then
+                If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.EndUserAction()
                 End If
-                If vText.IndexOf(Environment.NewLine) >= 0 Then ScheduleFullDocumentParse()
+                
+                ' Mark as modified and raise events
+                IsModified = True
+                RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Process syntax highlighting for affected lines
+                ProcessLineFormatting(vPosition.Line)
+                If vText.Contains(Environment.NewLine) Then
+                    ScheduleFullDocumentParse()
+                End If
+                
+                ' Update display
+                UpdateLineNumberWidth()
+                pDrawingArea?.QueueDraw()
+                
             Catch ex As Exception
                 Console.WriteLine($"InsertTextAtPosition error: {ex.Message}")
             End Try
         End Sub
 
-        Public Sub ReplaceSelection(vText As String)  Implements IEditor.ReplaceSelection
+        ''' <summary>
+        ''' Replaces the current selection with the specified text
+        ''' </summary>
+        ''' <param name="vText">Text to replace the selection with</param>
+        ''' <remarks>
+        ''' If there is no selection, the text is inserted at the cursor position.
+        ''' This method records the operation for undo/redo.
+        ''' </remarks>
+        Public Sub ReplaceSelection(vText As String) Implements IEditor.ReplaceSelection
             Try
+                ' Check if read-only
                 If pIsReadOnly Then Return
                 
-                ' Begin undo group
+                ' If no text provided, this is equivalent to delete
+                If vText Is Nothing Then vText = ""
+                
+                ' Begin undo group for the replacement operation
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                ' Delete current selection if any
-                If pHasSelection Then
-                    DeleteSelection()
-                End If
+                Try
+                    If pHasSelection Then
+                        ' ===== Replace Selected Text =====
+                        ReplaceSelectedText(vText)
+                    Else
+                        ' ===== No Selection - Insert at Cursor =====
+                        InsertAtCursor(vText)
+                    End If
+                    
+                Finally
+                    ' End undo group
+                    If pUndoRedoManager IsNot Nothing Then
+                        pUndoRedoManager.EndUserAction()
+                    End If
+                End Try
                 
-                ' Insert new text
-                InsertText(vText)
+                ' Mark document as modified
+                IsModified = True
                 
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                If vText.IndexOf(Environment.NewLine) >= 0 Then ScheduleFullDocumentParse()
+                ' Update UI
+                UpdateScrollbars()
+                pDrawingArea?.QueueDraw()
+                pLineNumberArea?.QueueDraw()
+                
+                ' Raise text changed event
+                RaiseEvent TextChanged(Me, New EventArgs())
+                
             Catch ex As Exception
                 Console.WriteLine($"ReplaceSelection error: {ex.Message}")
             End Try
         End Sub
         
-        Private Sub ApplyAutoIndent(vLine As Integer)
+        ''' <summary>
+        ''' Helper method to replace selected text
+        ''' </summary>
+        Private Sub ReplaceSelectedText(vText As String)
             Try
-                If vLine <= 0 OrElse vLine >= pLineCount Then Return
+                ' Get selection bounds
+                Dim lStartPos As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+                Dim lEndPos As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
                 
-                ' Get indentation from previous line
-                Dim lPrevLine As String = pTextLines(vLine - 1)
-                Dim lIndent As Integer = 0
+                ' Normalize selection
+                NormalizeSelection(lStartPos, lEndPos)
                 
-                For Each lChar In lPrevLine
-                    If lChar = " "c OrElse lChar = vbTab Then
-                        lIndent += 1
-                    Else
-                        Exit For
-                    End If
-                Next
+                ' Get the selected text for undo
+                Dim lSelectedText As String = GetSelectedText()
                 
-                If lIndent > 0 Then
-                    Dim lIndentText As String = lPrevLine.Substring(0, lIndent)
-                    pTextLines(vLine) = lIndentText & pTextLines(vLine)
-                    SetCursorPosition(vLine, lIndent)
+                ' Calculate new cursor position after replacement
+                Dim lNewCursorPos As EditorPosition = CalculateNewCursorPosition(lStartPos, vText)
+                
+                ' Record the replacement for undo
+                If pUndoRedoManager IsNot Nothing AndAlso Not pUndoRedoManager.IsUndoingOrRedoing Then
+                    pUndoRedoManager.RecordReplaceText(lStartPos, lEndPos, lSelectedText, vText, lNewCursorPos)
                 End If
                 
-            Catch ex As Exception
-                Console.WriteLine($"ApplyAutoIndent error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub InsertLineAt(vLineIndex As Integer, vText As String)
-            Try
-                ' Validate index
-                If vLineIndex < 0 Then vLineIndex = 0
-                If vLineIndex > pLineCount Then vLineIndex = pLineCount
-                
-                ' Insert the line in the list
-                pTextLines.Insert(vLineIndex, vText)
-                pLineCount = pTextLines.Count
-                
-                ' Preserve and shift existing metadata and colors
-                Dim lOldMetadata() As LineMetadata = pLineMetadata
-                Dim lOldCharacterColors()() As CharacterColorInfo = pCharacterColors
-                
-                ReDim pLineMetadata(pLineCount - 1)
-                ReDim pCharacterColors(pLineCount - 1)
-                
-                ' Copy items before insertion point
-                For i As Integer = 0 To vLineIndex - 1
-                    If lOldMetadata IsNot Nothing AndAlso i < lOldMetadata.Length Then
-                        pLineMetadata(i) = lOldMetadata(i)
-                    Else
-                        pLineMetadata(i) = New LineMetadata()
-                    End If
-                    
-                    If lOldCharacterColors IsNot Nothing AndAlso i < lOldCharacterColors.Length Then
-                        pCharacterColors(i) = lOldCharacterColors(i)
-                    Else
-                        pCharacterColors(i) = New CharacterColorInfo() {}
-                    End If
-                Next
-                
-                ' Initialize new line
-                pLineMetadata(vLineIndex) = New LineMetadata()
-                pCharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                
-                ' Shift items after insertion point
-                For i As Integer = vLineIndex To lOldMetadata.Length - 1
-                    If i + 1 < pLineMetadata.Length Then
-                        pLineMetadata(i + 1) = lOldMetadata(i)
-                    End If
-                    
-                    If lOldCharacterColors IsNot Nothing AndAlso i < lOldCharacterColors.Length AndAlso i + 1 < pCharacterColors.Length Then
-                        pCharacterColors(i + 1) = lOldCharacterColors(i)
-                    End If
-                Next
-                
-                ' Update line numbers display width if needed
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                
-            Catch ex As Exception
-                Console.WriteLine($"InsertLineAt error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub RemoveLines(vStartLine As Integer, vCount As Integer)
-            Try
-                If vStartLine < 0 OrElse vStartLine >= pLineCount OrElse vCount <= 0 Then Return
-                
-                ' Adjust count if it exceeds available lines
-                If vStartLine + vCount > pLineCount Then
-                    vCount = pLineCount - vStartLine
-                End If
-                
-                ' Remove lines from the List (this supports RemoveAt)
-                For i As Integer = 1 To vCount
-                    pTextLines.RemoveAt(vStartLine)
-                Next
-                
-                ' Update line count
-                pLineCount = pTextLines.Count
-                
-                ' Handle the arrays (pLineMetadata and pCharacterColors)
-                If pLineCount > 0 Then
-                    ' Create new arrays with the correct size
-                    Dim lNewLineMetadata(pLineCount - 1) As LineMetadata
-                    Dim lNewCharacterColors(pLineCount - 1)() As CharacterColorInfo
-                    
-                    ' Copy elements before the removed range
-                    For i As Integer = 0 To vStartLine - 1
-                        If i < pLineMetadata.Length Then
-                            lNewLineMetadata(i) = pLineMetadata(i)
-                        Else
-                            lNewLineMetadata(i) = New LineMetadata()
-                        End If
-                        
-                        If i < pCharacterColors.Length Then
-                            lNewCharacterColors(i) = pCharacterColors(i)
-                        Else
-                            lNewCharacterColors(i) = New CharacterColorInfo() {}
-                        End If
-                    Next
-                    
-                    ' Copy elements after the removed range
-                    Dim lSourceIndex As Integer = vStartLine + vCount
-                    For i As Integer = vStartLine To pLineCount - 1
-                        If lSourceIndex < pLineMetadata.Length Then
-                            lNewLineMetadata(i) = pLineMetadata(lSourceIndex)
-                        Else
-                            lNewLineMetadata(i) = New LineMetadata()
-                        End If
-                        
-                        If lSourceIndex < pCharacterColors.Length Then
-                            lNewCharacterColors(i) = pCharacterColors(lSourceIndex)
-                        Else
-                            lNewCharacterColors(i) = New CharacterColorInfo() {}
-                        End If
-                        
-                        lSourceIndex += 1
-                    Next
-                    
-                    ' Replace the old arrays with the new ones
-                    pLineMetadata = lNewLineMetadata
-                    pCharacterColors = lNewCharacterColors
+                ' Perform the replacement
+                If String.IsNullOrEmpty(vText) Then
+                    ' Empty replacement - just delete
+                    DeleteTextDirect(lStartPos, lEndPos)
+                    SetCursorPosition(lStartPos)
                 Else
-                    ' Ensure at least one line exists
-                    pTextLines.Add("")
-                    pLineCount = 1
-                    ReDim pLineMetadata(0)
-                    ReDim pCharacterColors(0)
-                    pLineMetadata(0) = New LineMetadata()
-                    pCharacterColors(0) = New CharacterColorInfo() {}
+                    ' Delete old text and insert new
+                    DeleteTextDirect(lStartPos, lEndPos)
+                    SetCursorPosition(lStartPos)
+                    InsertTextDirect(vText)
                 End If
                 
-                ' Update display
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+                ' Clear selection
+                ClearSelection()
+                
+                ' Set final cursor position
+                SetCursorPosition(lNewCursorPos)
                 
             Catch ex As Exception
-                Console.WriteLine($"RemoveLines error: {ex.Message}")
+                Console.WriteLine($"ReplaceSelectedText error: {ex.Message}")
             End Try
         End Sub
         
-        Private Sub AddNewLine(vText As String)
+        ''' <summary>
+        ''' Helper method to insert text at cursor when no selection exists
+        ''' </summary>
+        Private Sub InsertAtCursor(vText As String)
             Try
-                InsertLineAt(pLineCount, vText)
+                ' Get current cursor position
+                Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn)
+                
+                ' Calculate new cursor position after insertion
+                Dim lNewCursorPos As EditorPosition = CalculateNewCursorPosition(lCursorPos, vText)
+                
+                ' Record the insertion for undo
+                If pUndoRedoManager IsNot Nothing AndAlso Not pUndoRedoManager.IsUndoingOrRedoing Then
+                    pUndoRedoManager.RecordInsertText(lCursorPos, vText, lNewCursorPos)
+                End If
+                
+                ' Insert the text
+                InsertTextDirect(vText)
+                
+                ' Cursor position is already updated by InsertTextDirect
+                
             Catch ex As Exception
-                Console.WriteLine($"AddNewLine error: {ex.Message}")
+                Console.WriteLine($"InsertAtCursor error: {ex.Message}")
             End Try
         End Sub
-
-        Private Sub UpdateAfterDeleteSelection(lStartLine As Integer, lStartColumn As Integer, lEndLine As Integer, lEndColumn As Integer)
+        
+        ''' <summary>
+        ''' Calculates the new cursor position after inserting text
+        ''' </summary>
+        Private Function CalculateNewCursorPosition(vStartPos As EditorPosition, vText As String) As EditorPosition
             Try
-                ' Create the new combined line
-                Dim lStartLineText As String = pTextLines(lStartLine).Substring(0, lStartColumn)
-                Dim lEndLineText As String = If(lEndLine < pLineCount, pTextLines(lEndLine).Substring(lEndColumn), "")
-                Dim lCombinedLine As String = lStartLineText & lEndLineText
+                If String.IsNullOrEmpty(vText) Then
+                    Return vStartPos
+                End If
                 
-                ' Update the start line with combined text
-                pTextLines(lStartLine) = lCombinedLine
-                pLineMetadata(lStartLine).MarkChanged()
+                ' Check if text contains newlines
+                Dim lLines() As String = vText.Split({Environment.NewLine, vbLf.ToString()}, StringSplitOptions.None)
                 
-                ' Remove the lines between start and end (if any)
-                If lEndLine > lStartLine Then
-                    ' Use RemoveLines helper which properly handles metadata arrays
-                    RemoveLines(lStartLine + 1, lEndLine - lStartLine)
+                If lLines.Length = 1 Then
+                    ' Single line - cursor at end of inserted text
+                    Return New EditorPosition(vStartPos.Line, vStartPos.Column + vText.Length)
+                Else
+                    ' Multi-line - cursor at end of last line
+                    Dim lNewLine As Integer = vStartPos.Line + lLines.Length - 1
+                    Dim lNewColumn As Integer = lLines(lLines.Length - 1).Length
+                    Return New EditorPosition(lNewLine, lNewColumn)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"CalculateNewCursorPosition error: {ex.Message}")
+                Return vStartPos
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Insert text directly without recording undo (helper for ReplaceSelection)
+        ''' </summary>
+        Private Sub InsertTextDirect(vText As String)
+            Try
+                If String.IsNullOrEmpty(vText) Then Return
+                
+                ' Save current position
+                Dim lStartLine As Integer = pCursorLine
+                Dim lStartColumn As Integer = pCursorColumn
+                
+                ' Split text into lines
+                Dim lLines() As String = vText.Split({Environment.NewLine, vbLf.ToString()}, StringSplitOptions.None)
+                
+                If lLines.Length = 1 Then
+                    ' Single line insertion
+                    InsertTextInLine(pCursorLine, pCursorColumn, vText)
+                    SetCursorPosition(pCursorLine, pCursorColumn + vText.Length)
+                Else
+                    ' Multi-line insertion
+                    InsertMultiLineText(lLines)
+                End If
+                
+                ' Update syntax highlighting for affected lines
+                If pHighlightingEnabled Then
+                    Dim lEndLine As Integer = pCursorLine
+                    For i As Integer = lStartLine To lEndLine
+                        If i < pLineCount Then
+                            ProcessLineFormatting(i)
+                        End If
+                    Next
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"InsertTextDirect error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Helper to insert text within a single line
+        ''' </summary>
+        Private Sub InsertTextInLine(vLine As Integer, vColumn As Integer, vText As String)
+            Try
+                ' Ensure line exists
+                While vLine >= pLineCount
+                    pTextLines.Add("")
+                    EnsureLineMetadata(pLineCount)
+                    pLineCount += 1
+                End While
+                
+                ' Get the line
+                Dim lLine As String = pTextLines(vLine)
+                
+                ' Ensure column is valid
+                If vColumn > lLine.Length Then
+                    ' Pad with spaces if needed
+                    lLine = lLine.PadRight(vColumn)
+                End If
+                
+                ' Insert the text
+                pTextLines(vLine) = lLine.Insert(vColumn, vText)
+                pLineMetadata(vLine).MarkChanged()
+                
+            Catch ex As Exception
+                Console.WriteLine($"InsertTextInLine error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Helper to insert multi-line text
+        ''' </summary>
+        Private Sub InsertMultiLineText(vLines() As String)
+            Try
+                If vLines.Length = 0 Then Return
+                
+                ' Get current line
+                Dim lCurrentLine As String = If(pCursorLine < pLineCount, pTextLines(pCursorLine), "")
+                
+                ' Split current line at cursor
+                Dim lBeforeCursor As String = If(pCursorColumn <= lCurrentLine.Length, 
+                                                 lCurrentLine.Substring(0, pCursorColumn), 
+                                                 lCurrentLine)
+                Dim lAfterCursor As String = If(pCursorColumn < lCurrentLine.Length,
+                                                lCurrentLine.Substring(pCursorColumn),
+                                                "")
+                
+                ' First line: combine with text before cursor
+                pTextLines(pCursorLine) = lBeforeCursor & vLines(0)
+                pLineMetadata(pCursorLine).MarkChanged()
+                
+                ' Insert middle lines
+                For i As Integer = 1 To vLines.Length - 2
+                    InsertLineAt(pCursorLine + i, vLines(i))
+                Next
+                
+                ' Last line: add and combine with text after cursor
+                If vLines.Length > 1 Then
+                    InsertLineAt(pCursorLine + vLines.Length - 1, vLines(vLines.Length - 1) & lAfterCursor)
+                    ' Set cursor to end of inserted text (before the after-cursor text)
+                    SetCursorPosition(pCursorLine + vLines.Length - 1, vLines(vLines.Length - 1).Length)
                 End If
                 
                 ' Update line count
-                pLineCount = pTextLines.Count
+                UpdateLineNumberWidth()
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdateAfterDeleteSelection error: {ex.Message}")
+                Console.WriteLine($"InsertMultiLineText error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Alternative simpler implementation using existing ReplaceText method
+        ''' </summary>
+        Public Sub ReplaceSelectionSimple(vText As String) 
+            Try
+                If pIsReadOnly Then Return
+                
+                If pHasSelection Then
+                    ' Replace selected text
+                    Dim lStartPos As EditorPosition = SelectionStart
+                    Dim lEndPos As EditorPosition = SelectionEnd
+                    ReplaceText(lStartPos, lEndPos, vText)
+                    ClearSelection()
+                Else
+                    ' Insert at cursor
+                    Dim lCursorPos As EditorPosition = GetCursorPosition()
+                    InsertTextAtPosition(lCursorPos, vText)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"ReplaceSelectionSimple error: {ex.Message}")
             End Try
         End Sub
         

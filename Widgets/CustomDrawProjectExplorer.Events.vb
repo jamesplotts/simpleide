@@ -334,7 +334,7 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles vertical scrollbar value changes
+        ''' Handles vertical scrollbar value changes (alternate name for compatibility)
         ''' </summary>
         Private Sub OnVScrollBarValueChanged(vSender As Object, vArgs As EventArgs)
             Try

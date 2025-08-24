@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
@@ -295,7 +296,7 @@ Partial Public Class MainWindow
             
             If lFormattedLine <> lOriginalLine Then
                 ' Replace the line
-                vEditor.ReplaceText(vLineIndex, 0, vLineIndex, lOriginalLine.Length, lFormattedLine)
+                vEditor.ReplaceText(New EditorPosition(vLineIndex, 0), New EditorPosition(vLineIndex, lOriginalLine.Length), lFormattedLine)
             End If
             
         Catch ex As Exception
@@ -383,7 +384,7 @@ Partial Public Class MainWindow
             ' Only apply if indentation is different
             If lCurrentIndent <> vNewIndent Then
                 Dim lNewLine As String = vNewIndent & lTrimmedLine
-                vEditor.ReplaceText(vLineIndex, 0, vLineIndex, lCurrentLine.Length, lNewLine)
+                vEditor.ReplaceText(New EditorPosition(vLineIndex, 0), New EditorPosition(vLineIndex, lCurrentLine.Length), lNewLine)
             End If
             
         Catch ex As Exception
@@ -413,7 +414,7 @@ Partial Public Class MainWindow
                 ApplyLineIndentation(vEditor, lCursorPos.Line, lNewIndent)
                 
                 ' Move cursor to end of indentation
-                vEditor.GoToPosition(lCursorPos.Line, lNewIndent.Length)
+                vEditor.GoToPosition(New EditorPosition(lCursorPos.Line, lNewIndent.Length))
             End If
             
         Catch ex As Exception

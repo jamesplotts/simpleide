@@ -5,6 +5,7 @@ Imports Gtk
 Imports Gdk
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -257,120 +258,9 @@ Namespace Editors
             End Try
         End Function
 
-        Private Sub HandleBackspace()
-            Try
-                If pSelectionActive Then
-                    ' Delete selection
-                    DeleteSelection()
-                ElseIf pCursorColumn > 0 Then
-                    ' Delete character before cursor
-                    Dim lLine As String = pTextLines(pCursorLine)
-                    pTextLines(pCursorLine) = lLine.Remove(pCursorColumn - 1, 1)
-                    pLineMetadata(pCursorLine).MarkChanged()
-                    SetCursorPosition(pCursorLine, pCursorColumn - 1)
-                    
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs())
-                ElseIf pCursorLine > 0 Then
-                    ' Join with previous line
-                    Dim lPrevLine As String = pTextLines(pCursorLine - 1)
-                    Dim lCurrentLine As String = pTextLines(pCursorLine)
-                    Dim lNewColumn As Integer = lPrevLine.Length
-                    
-                    pTextLines(pCursorLine - 1) = lPrevLine & lCurrentLine
-                    pTextLines.RemoveAt(pCursorLine)
-                    
-                    ' Handle metadata array (it's an array, not a List)
-                    RemoveLineMetadata(pCursorLine)
-                    pLineCount -= 1
-                    
-                    SetCursorPosition(pCursorLine - 1, lNewColumn)
-                    
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs())
-                End If
-                
-                pDrawingArea.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"HandleBackspace error: {ex.Message}")
-            End Try
-        End Sub
+
         
-        Private Sub HandleDelete()
-            Try
-                If pSelectionActive Then
-                    ' Delete selection
-                    DeleteSelection()
-                ElseIf pCursorColumn < pTextLines(pCursorLine).Length Then
-                    ' Delete character at cursor
-                    Dim lLine As String = pTextLines(pCursorLine)
-                    pTextLines(pCursorLine) = lLine.Remove(pCursorColumn, 1)
-                    pLineMetadata(pCursorLine).MarkChanged()
-                    
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs())
-                ElseIf pCursorLine < pLineCount - 1 Then
-                    ' Join with next line
-                    Dim lCurrentLine As String = pTextLines(pCursorLine)
-                    Dim lNextLine As String = pTextLines(pCursorLine + 1)
-                    
-                    pTextLines(pCursorLine) = lCurrentLine & lNextLine
-                    pTextLines.RemoveAt(pCursorLine + 1)
-                    
-                    ' Handle metadata array
-                    RemoveLineMetadata(pCursorLine + 1)
-                    pLineCount -= 1
-                    
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs())
-                End If
-                
-                pDrawingArea.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"HandleDelete error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub HandleReturn()
-            Try
-                If pSelectionActive Then
-                    DeleteSelection()
-                End If
-                
-                Dim lLine As String = pTextLines(pCursorLine)
-                Dim lLeftPart As String = lLine.Substring(0, pCursorColumn)
-                Dim lRightPart As String = lLine.Substring(pCursorColumn)
-                
-                ' Calculate indentation for new line
-                Dim lIndent As String = ""
-                For Each lChar As Char In lLeftPart
-                    If lChar = " "c OrElse lChar = vbTab Then
-                        lIndent &= lChar
-                    Else
-                        Exit For
-                    End If
-                Next
-                
-                ' Update current line and insert new line
-                pTextLines(pCursorLine) = lLeftPart
-                pTextLines.Insert(pCursorLine + 1, lIndent & lRightPart)
-                
-                ' Handle metadata array
-                InsertLineMetadata(pCursorLine + 1)
-                pLineCount += 1
-                
-                SetCursorPosition(pCursorLine + 1, lIndent.Length)
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs())
-                pDrawingArea.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"HandleReturn error: {ex.Message}")
-            End Try
-        End Sub
+
         
         Private Sub HandleTab(vModifiers As ModifierType)
             Try
@@ -396,35 +286,6 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleTab error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' ===== Helper Methods for Array Management =====
-        Private Sub RemoveLineMetadata(vLineIndex As Integer)
-            Try
-                If vLineIndex < 0 OrElse vLineIndex >= pLineMetadata.Length Then Return
-                
-                ' Create new arrays without the specified line
-                Dim lNewMetadata(pLineMetadata.Length - 2) As LineMetadata
-                Dim lNewColors(pCharacterColors.Length - 2)() As CharacterColorInfo
-                
-                ' Copy before removed line
-                For i As Integer = 0 To vLineIndex - 1
-                    lNewMetadata(i) = pLineMetadata(i)
-                    lNewColors(i) = pCharacterColors(i)
-                Next
-                
-                ' Copy after removed line
-                For i As Integer = vLineIndex + 1 To pLineMetadata.Length - 1
-                    lNewMetadata(i - 1) = pLineMetadata(i)
-                    lNewColors(i - 1) = pCharacterColors(i)
-                Next
-                
-                pLineMetadata = lNewMetadata
-                pCharacterColors = lNewColors
-                
-            Catch ex As Exception
-                Console.WriteLine($"RemoveLineMetadata error: {ex.Message}")
             End Try
         End Sub
         
@@ -801,6 +662,7 @@ Namespace Editors
         End Function
         
         ' ===== Cut Line Implementation (Ctrl+Y) =====
+
         ''' <summary>
         ''' Cuts the entire current line to clipboard (VB classic Ctrl+Y behavior)
         ''' </summary>
@@ -832,7 +694,9 @@ Namespace Editors
                 If pLineCount > 1 Then
                     ' Multiple lines - remove this line
                     If pUndoRedoManager IsNot Nothing Then
-                        pUndoRedoManager.RecordDeleteLine(pCursorLine, lLineText, pCursorLine, 0)
+                        ' Use EditorPosition for the new cursor position
+                        Dim lNewCursorPos As New EditorPosition(pCursorLine, 0)
+                        pUndoRedoManager.RecordDeleteLine(pCursorLine, lLineText, lNewCursorPos)
                     End If
                     
                     pTextLines.RemoveAt(pCursorLine)
@@ -850,7 +714,11 @@ Namespace Editors
                 Else
                     ' Only one line - just clear it
                     If pUndoRedoManager IsNot Nothing Then
-                        pUndoRedoManager.RecordDelete(pCursorLine, 0, lLineText)
+                        ' Record as delete text, not delete line
+                        Dim lStartPos As New EditorPosition(0, 0)
+                        Dim lEndPos As New EditorPosition(0, lLineText.Length)
+                        Dim lCursorPos As New EditorPosition(0, 0)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lLineText, lCursorPos)
                     End If
                     
                     pTextLines(0) = ""

@@ -4,6 +4,7 @@ Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -44,11 +45,11 @@ Namespace Editors
         End Sub
         
         ' Navigate to a specific position (line and column)
-        Public Sub GoToPosition(vLine As Integer, vColumn As Integer) Implements IEditor.GoToPosition
+        Public Sub GoToPosition(vPosition As EditorPosition) Implements IEditor.GoToPosition
             Try
                 ' Convert to 0-based indices
-                Dim lTargetLine As Integer = vLine - 1
-                Dim lTargetColumn As Integer = vColumn - 1
+                Dim lTargetLine As Integer = vPosition.Line - 1
+                Dim lTargetColumn As Integer = vPosition.Column - 1
                 
                 ' Validate line number
                 If lTargetLine < 0 Then

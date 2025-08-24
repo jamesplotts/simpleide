@@ -1,18 +1,22 @@
+' Editors/CustomDrawingEditor.Clipboard.vb - Clipboard operations
 Imports Gtk
 Imports Gdk
 Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
     Partial Public Class CustomDrawingEditor
         Inherits Box
         Implements IEditor 
-
- 
+        
         ' ===== Clipboard Operations =====
         
+        ''' <summary>
+        ''' Cuts the selected text to the clipboard
+        ''' </summary>
         Public Sub Cut() Implements IEditor.Cut
             Try
                 If Not pHasSelection OrElse pIsReadOnly Then Return
@@ -38,6 +42,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Copies the selected text to the clipboard
+        ''' </summary>
         Public Sub Copy() Implements IEditor.Copy
             Try
                 If Not pHasSelection Then Return
@@ -58,6 +65,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Pastes text from the clipboard
+        ''' </summary>
         Public Sub Paste() Implements IEditor.Paste
             Try
                 If pIsReadOnly Then Return
@@ -71,6 +81,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles clipboard text when received
+        ''' </summary>
         Private Sub OnClipboardTextReceived(vClipboard As Clipboard, vText As String)
             Try
                 If String.IsNullOrEmpty(vText) OrElse pIsReadOnly Then Return
@@ -119,6 +132,9 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles primary clipboard text when received (middle-click paste)
+        ''' </summary>
         Private Sub OnPrimaryClipboardReceived(vClipboard As Clipboard, vText As String)
             Try
                 ' Same as regular paste but from primary selection
@@ -128,270 +144,239 @@ Namespace Editors
                 Console.WriteLine($"OnPrimaryClipboardReceived error: {ex.Message}")
             End Try
         End Sub
+        
+        ' ===== Selection Deletion =====
 
-        ' ===== SelectAll Implementation =====
-'        Public Sub SelectAll() Implements IEditor.SelectAll
-'            Try
-'                If pLineCount > 0 Then
-'                    pSelectionStartLine = 0
-'                    pSelectionStartColumn = 0
-'                    pSelectionEndLine = pLineCount - 1
-'                    pSelectionEndColumn = pTextLines(pLineCount - 1).Length
-'                    pSelectionActive = True
-'                    
-'                    RaiseEvent SelectionChanged(True)
-'                    'SetCursorPosition(pSelectionEndLine, pSelectionEndColumn)
-'                    'EnsureCursorVisible()
-'                    pDrawingArea.QueueDraw()
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"SelectAll error: {ex.Message}")
-'            End Try
-'        End Sub
-        
-'        ' ===== Delete Implementation =====
-'        Public Sub Delete() Implements IEditor.Delete
-'            Try
-'                If pIsReadOnly Then Return
-'                
-'                If pSelectionActive Then
-'                    ' Delete selection
-'                    DeleteSelection()
-'                ElseIf pCursorColumn < pTextLines(pCursorLine).Length Then
-'                    ' Delete character at cursor
-'                    DeleteCharacterAt(pCursorLine, pCursorColumn)
-'                ElseIf pCursorLine < pLineCount - 1 Then
-'                    ' Join with next line
-'                    JoinLines(pCursorLine)
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"Delete error: {ex.Message}")
-'            End Try
-'        End Sub
-
-
-        ' Appends the next line of text to the cursor's line and deletes the next line from the array of lines. 
-'        Public Sub JoinLines(vCursorLine as Integer)
-'            ' TODO: Implement CustomDrawingEditor.JoinLines
-'        End Sub
-        
-        ' ===== Selection Operations Implementation =====
-        
-'        Public Sub SetSelection(vStartLine As Integer, vStartColumn As Integer, 
-'                                vEndLine As Integer, vEndColumn As Integer) Implements IEditor.SetSelection
-'            Try
-'                ' Validate and clamp ranges
-'                vStartLine = Math.Max(0, Math.Min(vStartLine, pLineCount - 1))
-'                vEndLine = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
-'                
-'                If vStartLine < pLineCount Then
-'                    vStartColumn = Math.Max(0, Math.Min(vStartColumn, pTextLines(vStartLine).Length))
-'                End If
-'                
-'                If vEndLine < pLineCount Then
-'                    vEndColumn = Math.Max(0, Math.Min(vEndColumn, pTextLines(vEndLine).Length))
-'                End If
-'                
-'                ' Set selection
-'                pSelectionStartLine = vStartLine
-'                pSelectionStartColumn = vStartColumn
-'                pSelectionEndLine = vEndLine
-'                pSelectionEndColumn = vEndColumn
-'                pHasSelection = True
-'                
-'                ' Move cursor to end of selection
-'                SetCursorPosition(vEndLine, vEndColumn)
-'                
-'                ' Raise event and redraw
-'                RaiseEvent SelectionChanged(True)
-'                pDrawingArea.QueueDraw()
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"SetSelection error: {ex.Message}")
-'            End Try
-'        End Sub
-        
-'        Public Sub SelectLine(vLine As Integer) Implements IEditor.SelectLine
-'            Try
-'                If vLine < 0 OrElse vLine >= pLineCount Then Return
-'                
-'                ' Select entire line including newline
-'                StartSelection(vLine, 0)
-'                
-'                If vLine < pLineCount - 1 Then
-'                    ' Not last line - select to start of next line
-'                    UpdateSelection(vLine + 1, 0)
-'                    SetCursorPosition(vLine + 1, 0)
-'                Else
-'                    ' Last line - select to end
-'                    Dim lLength As Integer = pTextLines(vLine).Length
-'                    UpdateSelection(vLine, lLength)
-'                    SetCursorPosition(vLine, lLength)
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"SelectLine error: {ex.Message}")
-'            End Try
-'        End Sub
-        
-'        Public Sub SelectLines(vStartLine As Integer, vEndLine As Integer) Implements IEditor.SelectLines
-'            Try
-'                ' Validate range
-'                vStartLine = Math.Max(0, Math.Min(vStartLine, pLineCount - 1))
-'                vEndLine = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
-'                
-'                ' Ensure proper order
-'                If vStartLine > vEndLine Then
-'                    Dim lTemp As Integer = vStartLine
-'                    vStartLine = vEndLine
-'                    vEndLine = lTemp
-'                End If
-'                
-'                ' Select from start of first line
-'                StartSelection(vStartLine, 0)
-'                
-'                If vEndLine < pLineCount - 1 Then
-'                    ' Not including last line - select to start of line after end
-'                    UpdateSelection(vEndLine + 1, 0)
-'                    SetCursorPosition(vEndLine + 1, 0)
-'                Else
-'                    ' Including last line - select to end of last line
-'                    Dim lLength As Integer = pTextLines(vEndLine).Length
-'                    UpdateSelection(vEndLine, lLength)
-'                    SetCursorPosition(vEndLine, lLength)
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"SelectLines error: {ex.Message}")
-'            End Try
-'        End Sub
-        
         ''' <summary>
         ''' Deletes the currently selected text
         ''' </summary>
-        Private Sub DeleteSelection()
+        ''' <remarks>
+        ''' This method handles both single-line and multi-line selections,
+        ''' records the operation for undo, and updates all necessary UI elements
+        ''' </remarks>
+        Public Sub DeleteSelection() Implements IEditor.DeleteSelection
             Try
+                ' Exit if no selection or read-only
                 If Not pHasSelection OrElse pIsReadOnly Then Return
                 
-                ' Record for undo
+                ' Get the selected text BEFORE deleting it for undo recording
+                Dim lSelectedText As String = GetSelectedText()
+                If String.IsNullOrEmpty(lSelectedText) Then
+                    ClearSelection()
+                    Return
+                End If
+                
+                ' Get and normalize selection bounds
+                Dim lStartPos As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+                Dim lEndPos As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+                NormalizeSelection(lStartPos, lEndPos)
+                
+                Dim lStartLine As Integer = lStartPos.Line
+                Dim lStartColumn As Integer = lStartPos.Column
+                Dim lEndLine As Integer = lEndPos.Line
+                Dim lEndColumn As Integer = lEndPos.Column
+                
+                ' Record the deletion for undo (before making changes)
                 If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.RecordDelete(GetSelectedText(), 
-                                                  GetSelectionStartOffset(), 
-                                                  GetSelectionEndOffset())
+                    Dim lCursorPos As New EditorPosition(lStartLine, lStartColumn)
+                    pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lSelectedText, lCursorPos)
                 End If
                 
-                ' Normalize selection
-                Dim lStartLine As Integer = pSelectionStartLine
-                Dim lStartColumn As Integer = pSelectionStartColumn
-                Dim lEndLine As Integer = pSelectionEndLine
-                Dim lEndColumn As Integer = pSelectionEndColumn
-                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
-                
+                ' Perform the deletion
                 If lStartLine = lEndLine Then
-                    ' Single line deletion
-                    If lStartLine < pLineCount Then
-                        Dim lLine As String = pTextLines(lStartLine)
-                        If lStartColumn < lLine.Length Then
-                            pTextLines(lStartLine) = lLine.Remove(lStartColumn, Math.Min(lEndColumn - lStartColumn, lLine.Length - lStartColumn))
-                            pLineMetadata(lStartLine).MarkChanged()
-                        End If
-                    End If
+                    ' ===== Single Line Deletion =====
+                    DeleteSingleLineSelection(lStartLine, lStartColumn, lEndColumn)
                 Else
-                    ' Multi-line deletion
-                    ' Combine first and last line
-                    Dim lNewLine As String = ""
-                    If lStartLine < pLineCount Then
-                        lNewLine = pTextLines(lStartLine).Substring(0, Math.Min(lStartColumn, pTextLines(lStartLine).Length))
-                    End If
-                    If lEndLine < pLineCount AndAlso lEndColumn < pTextLines(lEndLine).Length Then
-                        lNewLine &= pTextLines(lEndLine).Substring(lEndColumn)
-                    End If
-                    
-                    ' Set the combined line
-                    If lStartLine < pLineCount Then
-                        pTextLines(lStartLine) = lNewLine
-                        pLineMetadata(lStartLine).MarkChanged()
-                    End If
-                    
-                    ' Remove lines in between
-                    Dim lLinesToRemove As Integer = lEndLine - lStartLine
-                    If lLinesToRemove > 0 Then
-                        RemoveLines(lStartLine + 1, lLinesToRemove)
-                    End If
+                    ' ===== Multi-Line Deletion =====
+                    DeleteMultiLineSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
                 End If
                 
-                ' Clear selection and move cursor
+                ' Clear the selection
                 ClearSelection()
+                
+                ' Set cursor to the start of where the selection was
                 SetCursorPosition(lStartLine, lStartColumn)
                 
-                ' Update UI
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                pDrawingArea.QueueDraw()
-                
+                ' Mark document as modified
                 IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Update line numbers if line count changed
+                If lStartLine <> lEndLine Then
+                    UpdateLineNumberWidth()
+                End If
+                
+                ' Update scrollbars
+                UpdateScrollbars()
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
+                pLineNumberArea?.QueueDraw()
+                
+                ' Raise text changed event
+                RaiseEvent TextChanged(Me, New EventArgs())
+                
+                ' Trigger syntax highlighting for affected lines
+                If pHighlightingEnabled Then
+                    ProcessLineFormatting(lStartLine)
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteSelection error: {ex.Message}")
             End Try
         End Sub
         
-'        Private Function GetSelectionStartOffset() As Integer
-'            Try
-'                Dim lStartLine As Integer = pSelectionStartLine
-'                Dim lStartColumn As Integer = pSelectionStartColumn
-'                Dim lEndLine As Integer = pSelectionEndLine
-'                Dim lEndColumn As Integer = pSelectionEndColumn
-'                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
-'                
-'                Return GetOffsetFromPosition(lStartLine, lStartColumn)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"GetSelectionStartOffset error: {ex.Message}")
-'                Return 0
-'            End Try
-'        End Function
+        ''' <summary>
+        ''' Helper method to delete text within a single line
+        ''' </summary>
+        Private Sub DeleteSingleLineSelection(vLine As Integer, vStartColumn As Integer, vEndColumn As Integer)
+            Try
+                If vLine >= pLineCount Then Return
+                
+                Dim lLine As String = pTextLines(vLine)
+                
+                ' Ensure columns are within bounds
+                vStartColumn = Math.Max(0, Math.Min(vStartColumn, lLine.Length))
+                vEndColumn = Math.Max(vStartColumn, Math.Min(vEndColumn, lLine.Length))
+                
+                ' Calculate the text to remove
+                Dim lLengthToRemove As Integer = vEndColumn - vStartColumn
+                
+                If lLengthToRemove > 0 Then
+                    ' Remove the selected portion
+                    pTextLines(vLine) = lLine.Remove(vStartColumn, lLengthToRemove)
+                    
+                    ' Mark line as changed
+                    pLineMetadata(vLine).MarkChanged()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"DeleteSingleLineSelection error: {ex.Message}")
+            End Try
+        End Sub
         
-'        Private Function GetSelectionEndOffset() As Integer
-'            Try
-'                Dim lStartLine As Integer = pSelectionStartLine
-'                Dim lStartColumn As Integer = pSelectionStartColumn
-'                Dim lEndLine As Integer = pSelectionEndLine
-'                Dim lEndColumn As Integer = pSelectionEndColumn
-'                NormalizeSelection(lStartLine, lStartColumn, lEndLine, lEndColumn)
-'                
-'                Return GetOffsetFromPosition(lEndLine, lEndColumn)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"GetSelectionEndOffset error: {ex.Message}")
-'                Return 0
-'            End Try
-'        End Function
+        ''' <summary>
+        ''' Helper method to delete text spanning multiple lines
+        ''' </summary>
+        Private Sub DeleteMultiLineSelection(vStartLine As Integer, vStartColumn As Integer, 
+                                            vEndLine As Integer, vEndColumn As Integer)
+            Try
+                ' Validate line indices
+                If vStartLine >= pLineCount OrElse vEndLine >= pLineCount Then Return
+                
+                ' Get the text to keep from first line (before selection)
+                Dim lFirstLine As String = pTextLines(vStartLine)
+                Dim lKeepFromFirst As String = ""
+                If vStartColumn > 0 AndAlso vStartColumn <= lFirstLine.Length Then
+                    lKeepFromFirst = lFirstLine.Substring(0, vStartColumn)
+                End If
+                
+                ' Get the text to keep from last line (after selection)
+                Dim lLastLine As String = pTextLines(vEndLine)
+                Dim lKeepFromLast As String = ""
+                If vEndColumn < lLastLine.Length Then
+                    lKeepFromLast = lLastLine.Substring(vEndColumn)
+                End If
+                
+                ' Combine the kept portions
+                pTextLines(vStartLine) = lKeepFromFirst & lKeepFromLast
+                pLineMetadata(vStartLine).MarkChanged()
+                
+                ' Remove all lines between start and end (including end line)
+                Dim lLinesToRemove As Integer = vEndLine - vStartLine
+                If lLinesToRemove > 0 Then
+                    For i As Integer = 0 To lLinesToRemove - 1
+                        ' Always remove at vStartLine + 1 because the list shifts
+                        pTextLines.RemoveAt(vStartLine + 1)
+                        RemoveLineMetadata(vStartLine + 1)
+                    Next
+                    
+                    ' Update line count
+                    pLineCount = pTextLines.Count
+                End If
+                
+                ' Ensure we always have at least one line
+                If pLineCount = 0 Then
+                    pTextLines.Add("")
+                    ReDim Preserve pLineMetadata(0)
+                    ReDim Preserve pCharacterColors(0)
+                    pLineMetadata(0) = New LineMetadata()
+                    pCharacterColors(0) = New CharacterColorInfo() {}
+                    pLineCount = 1
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"DeleteMultiLineSelection error: {ex.Message}")
+            End Try
+        End Sub
         
-'        Private Function GetOffsetFromPosition(vLine As Integer, vColumn As Integer) As Integer
-'            Try
-'                Dim lOffset As Integer = 0
-'                
-'                ' Add lengths of all previous lines
-'                For i As Integer = 0 To Math.Min(vLine - 1, pLineCount - 1)
-'                    lOffset += pTextLines(i).Length + Environment.NewLine.Length
-'                Next
-'                
-'                ' Add column offset in current line
-'                If vLine < pLineCount Then
-'                    lOffset += Math.Min(vColumn, pTextLines(vLine).Length)
-'                End If
-'                
-'                Return lOffset
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"GetOffsetFromPosition error: {ex.Message}")
-'                Return 0
-'            End Try
-'        End Function
+        ''' <summary>
+        ''' Alternative simpler implementation if you prefer a more compact version
+        ''' </summary>
+        Public Sub DeleteSelectionSimple() 
+            Try
+                If Not HasSelection OrElse IsReadOnly Then Return
+                
+                ' Get selection bounds
+                Dim lStart As EditorPosition = SelectionStart
+                Dim lEnd As EditorPosition = SelectionEnd
+                Dim lSelectedText As String = GetSelectedText()
+                
+                ' Record for undo
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordDeleteText(lStart, lEnd, lSelectedText, lStart)
+                End If
+                
+                ' Use ReplaceText to delete (replace with empty string)
+                ReplaceText(lStart, lEnd, "")
+                
+                ' Clear selection and position cursor
+                ClearSelection()
+                SetCursorPosition(lStart)
+                
+            Catch ex As Exception
+                Console.WriteLine($"DeleteSelectionSimple error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Helper method to remove line metadata when deleting lines
+        ''' </summary>
+        Private Sub RemoveLineMetadata(vLineIndex As Integer)
+            Try
+                If vLineIndex < 0 OrElse vLineIndex >= pLineMetadata.Length Then Return
+                
+                ' Create new arrays without the specified line
+                Dim lNewMetadata(pLineMetadata.Length - 2) As LineMetadata
+                Dim lNewColors(pCharacterColors.Length - 2)() As CharacterColorInfo
+                
+                ' Copy before the removed line
+                For i As Integer = 0 To vLineIndex - 1
+                    If i < pLineMetadata.Length Then
+                        lNewMetadata(i) = pLineMetadata(i)
+                        lNewColors(i) = pCharacterColors(i)
+                    End If
+                Next
+                
+                ' Copy after the removed line
+                For i As Integer = vLineIndex + 1 To pLineMetadata.Length - 1
+                    If i - 1 < lNewMetadata.Length Then
+                        lNewMetadata(i - 1) = pLineMetadata(i)
+                        lNewColors(i - 1) = pCharacterColors(i)
+                    End If
+                Next
+                
+                ' Update the arrays
+                pLineMetadata = lNewMetadata
+                pCharacterColors = lNewColors
+                
+            Catch ex As Exception
+                Console.WriteLine($"RemoveLineMetadata error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ' ===== Select All =====
+        
+
         
     End Class
     

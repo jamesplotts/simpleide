@@ -34,16 +34,6 @@ Namespace Editors
             End Try
         End Function
         
-        Private Function OnLineNumberAreaDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
-            Try
-                DrawLineNumbers(vArgs.Cr)
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnLineNumberAreaDraw error: {ex.Message}")
-                Return True
-            End Try
-        End Function
         
         ' ===== Unified Drawing Method =====
         
@@ -217,64 +207,6 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"DrawContent error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' ===== Line Number Drawing =====
-        
-        Private Sub DrawLineNumbers(vContext As Cairo.Context)
-            Try
-                ' CRITICAL CHANGE: Use GetActiveTheme instead of pThemeManager.GetCurrentThemeObject()
-                Dim lCurrentTheme As EditorTheme = GetActiveTheme()
-        
-                ' Set background color
-                Dim lBgColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberBackgroundColor)
-                Dim lBgPattern As New Cairo.SolidPattern(lBgColor.R, lBgColor.G, lBgColor.B)
-                vContext.SetSource(lBgPattern)
-                vContext.Rectangle(0, 0, pLineNumberWidth, pLineNumberArea.AllocatedHeight)
-                vContext.Fill()
-                lBgPattern.Dispose()
-                
-                ' Set text color
-                Dim lTextColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberColor)
-                Dim lLineNumberColorPattern As New Cairo.SolidPattern(lTextColor.R, lTextColor.G, lTextColor.B)
-                vContext.SetSource(lLineNumberColorPattern)
-                
-                ' Create layout for line numbers
-                Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
-                lLayout.FontDescription = pFontDescription
-                
-                ' Draw line numbers
-                Dim lFirstLine As Integer = pFirstVisibleLine
-                Dim lLastLine As Integer = Math.Min(lFirstLine + pTotalVisibleLines, pLineCount - 1)
-                
-                For i As Integer = lFirstLine To lLastLine
-                    Dim lLineNumber As String = (i + 1).ToString()
-                    lLayout.SetText(lLineNumber)
-                    
-                    Dim lY As Integer = (i - lFirstLine) * pLineHeight + pTopPadding - 4
-                    
-                    ' Highlight current line number
-                    If i = pCursorLine Then
-                        Dim lCurrentLineNumColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eCurrentLineNumberColor)
-                        Dim lCurrentPattern As New Cairo.SolidPattern(lCurrentLineNumColor.R, lCurrentLineNumColor.G, lCurrentLineNumColor.B)
-                        vContext.SetSource(lCurrentPattern)
-                        vContext.MoveTo(pLineNumberWidth - pRightPadding - (lLineNumber.Length * pCharWidth), lY)
-                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
-                        lCurrentPattern.Dispose()
-                        vContext.SetSource(lLineNumberColorPattern) ' Reset to normal color
-                    Else
-                        vContext.MoveTo(pLineNumberWidth - pRightPadding - (lLineNumber.Length * pCharWidth), lY)
-                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
-                    End If
-                Next
-                
-                ' Clean up
-                lLineNumberColorPattern.Dispose()
-                lLayout.Dispose()
-                
-            Catch ex As Exception
-                Console.WriteLine($"DrawLineNumbers error: {ex.Message}")
             End Try
         End Sub
         

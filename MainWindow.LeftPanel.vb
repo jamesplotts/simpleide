@@ -8,6 +8,7 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 
 Partial Public Class MainWindow
@@ -125,7 +126,7 @@ Partial Public Class MainWindow
             
             ' Navigate to the node's location
             If vNode.StartLine >= 0 Then
-                lCurrentTab.Editor.GoToPosition(vNode.StartLine + 1, vNode.StartColumn + 1)
+                lCurrentTab.Editor.GoToPosition(New EditorPosition(vNode.StartLine + 1, vNode.StartColumn + 1))
                 lCurrentTab.Editor.EnsureCursorVisible()
             End If
             

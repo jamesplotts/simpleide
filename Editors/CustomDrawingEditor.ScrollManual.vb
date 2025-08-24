@@ -4,6 +4,8 @@ Imports Gdk
 Imports Cairo
 Imports System
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
+Imports SimpleIDE.Models
 
 Namespace Editors
 
@@ -26,7 +28,14 @@ Namespace Editors
                 If lNewFirstLine <> pFirstVisibleLine Then
                     pFirstVisibleLine = lNewFirstLine
                     pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
+                    
+                    ' Update line number widget
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
+                    ElseIf pLineNumberArea IsNot Nothing Then
+                        ' Fallback for old widget
+                        pLineNumberArea.QueueDraw()
+                    End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"OnVScrollbarValueChanged error: {ex.Message}")

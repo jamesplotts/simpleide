@@ -67,7 +67,7 @@ Namespace Widgets
         ''' <param name="vFilePath">Full path to the file to navigate to</param>
         ''' <param name="vLine">Line number to navigate to (1-based)</param>
         ''' <param name="vColumn">Column position to navigate to (1-based)</param>
-        Public Event NavigateToFile(vFilePath As String, vLine As Integer, vColumn As Integer) Implements IObjectExplorer.NavigateToFile
+        Public Event NavigateToFile(vFilePath As String, vPosition as EditorPosition) Implements IObjectExplorer.NavigateToFile
         
         ''' <summary>
         ''' Raised when the user requests to close the Object Explorer

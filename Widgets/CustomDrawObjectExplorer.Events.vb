@@ -5,6 +5,7 @@ Imports Gdk
 Imports System
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
     
@@ -31,9 +32,9 @@ Namespace Widgets
                 AddHandler pDrawingArea.ScrollEvent, AddressOf OnDrawingAreaScroll
                 AddHandler pDrawingArea.KeyPressEvent, AddressOf OnDrawingAreaKeyPress
                 AddHandler pDrawingArea.EnterNotifyEvent, AddressOf OnDrawingAreaEnter
-                AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnDrawingAreaLeave
+                AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnDrawingAreaLeaveNotify
                 
-                ' Scrollbar events
+                ' Scrollbar events - FIXED: Use consistent naming
                 AddHandler pHScrollBar.ValueChanged, AddressOf OnHScrollBarValueChanged
                 AddHandler pVScrollBar.ValueChanged, AddressOf OnVScrollBarValueChanged
                 
@@ -392,9 +393,9 @@ Namespace Widgets
                 Console.WriteLine($"OnHScrollBarValueChanged error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Handles vertical scrollbar value changes
+        ''' Handles vertical scrollbar value changes (alternate name for compatibility)
         ''' </summary>
         Private Sub OnVScrollBarValueChanged(vSender As Object, vArgs As EventArgs)
             Try
@@ -452,8 +453,8 @@ Namespace Widgets
                 If Not String.IsNullOrEmpty(vNode.Node.FilePath) Then
                     ' StartLine is already 1-based from the parser
                     RaiseEvent NavigateToFile(vNode.Node.FilePath, 
-                                             vNode.Node.StartLine,
-                                             vNode.Node.StartColumn + 1)
+                                             New EditorPosition(vNode.Node.StartLine,
+                                             vNode.Node.StartColumn + 1))
                 End If
                 
                 ' Don't fire NodeActivated - NavigateToFile is enough
@@ -536,6 +537,48 @@ Namespace Widgets
                 Console.WriteLine($"OnThemeChanged error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Handles mouse leave events for the drawing area
+        ''' </summary>
+        ''' <param name="vSender">The drawing area widget</param>
+        ''' <param name="vArgs">Leave notify event arguments</param>
+        ''' <returns>True if event was handled, False otherwise</returns>
+        Private Function OnDrawingAreaLeaveNotify(vSender As Object, vArgs As LeaveNotifyEventArgs) As Boolean
+            Try
+                ' Clear hover state
+                pHoveredNode = Nothing
+                
+                ' Cancel tooltip timer if running
+                If pTooltipTimer <> 0 Then
+                    Dim lTimerId As UInteger = pTooltipTimer
+                    pTooltipTimer = 0  ' Clear ID before removing to prevent double-removal
+                    Try
+                        GLib.Source.Remove(lTimerId)
+                    Catch
+                        ' Timer may have already expired - this is OK and expected
+                    End Try
+                End If
+                
+                ' Hide any visible tooltip
+                HideTooltip()
+                
+                ' Reset cursor to default
+                If pDrawingArea IsNot Nothing AndAlso pDrawingArea.Window IsNot Nothing Then
+                    pDrawingArea.Window.Cursor = Nothing
+                End If
+                
+                ' Queue redraw to remove any hover highlighting
+                pDrawingArea?.QueueDraw()
+                
+                Return False
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnDrawingAreaLeaveNotify error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+        
 
     End Class
     

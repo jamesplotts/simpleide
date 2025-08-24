@@ -3,7 +3,7 @@ Imports System
 Imports System.Collections.Generic
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Syntax
-
+Imports SimpleIDE.Utilities
 
 Namespace Models
     

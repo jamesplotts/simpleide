@@ -3,6 +3,7 @@
 Imports System
 
 Namespace Models
+
     Public Class SyntaxColorSet
         Public Enum Tags
             eUnknown
@@ -85,5 +86,48 @@ Namespace Models
                 Case Else : Throw New Exception("Tags Parameter Out Of Range")
             End Select
         End Function
+
+        ''' <summary>
+        ''' Updates all syntax colors from the provided theme
+        ''' </summary>
+        ''' <param name="vTheme">The EditorTheme containing the new colors to apply</param>
+        ''' <remarks>
+        ''' This method iterates through all syntax color tags in the theme's SyntaxColors dictionary
+        ''' and updates the corresponding colors in this SyntaxColorSet
+        ''' </remarks>
+        Public Sub UpdateFromTheme(vTheme As EditorTheme)
+            Try
+                ' Validate theme parameter
+                If vTheme Is Nothing Then
+                    Console.WriteLine("UpdateFromTheme: Theme is Nothing")
+                    Return
+                End If
+                
+                ' Validate theme has syntax colors
+                If vTheme.SyntaxColors Is Nothing Then
+                    Console.WriteLine("UpdateFromTheme: Theme.SyntaxColors is Nothing")
+                    Return
+                End If
+                
+                ' Update each syntax color from the theme
+                For Each kvp In vTheme.SyntaxColors
+                    ' Only update valid tag values
+                    If kvp.Key >= Tags.eKeyword AndAlso kvp.Key <= Tags.eSelection Then
+                        ' Update the color using the property setter which will trigger events
+                        Me.SyntaxColor(kvp.Key) = kvp.Value
+                        
+                        Console.WriteLine($"UpdateFromTheme: Updated {kvp.Key} to {kvp.Value}")
+                    End If
+                Next
+                
+                ' Trigger a final color changed event to ensure UI updates
+                RaiseEvent SyntaxColorChanged(Me, New EventArgs())
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateFromTheme error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
+
 End Namespace

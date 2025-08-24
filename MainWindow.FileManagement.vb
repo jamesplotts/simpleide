@@ -279,7 +279,7 @@ Partial Public Class MainWindow
             ' Navigate to line/column
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing AndAlso lEditor.FilePath = vFilePath Then
-                lEditor.GoToPosition(vLine, vColumn)
+                lEditor.GoToPosition(New EditorPosition(vLine, vColumn))
                 lEditor.GrabFocus()
             End If
             

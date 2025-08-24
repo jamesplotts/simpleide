@@ -275,17 +275,12 @@ Namespace Widgets
                 AddHandler pDrawingArea.KeyPressEvent, AddressOf OnDrawingAreaKeyPress
                 AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnDrawingAreaLeaveNotify
                 
-                ' Scrollbar events
+                ' Scrollbar events - FIXED: Use consistent naming
                 AddHandler pHScrollBar.ValueChanged, AddressOf OnHScrollBarValueChanged
                 AddHandler pVScrollBar.ValueChanged, AddressOf OnVScrollBarValueChanged
                 
                 ' Corner box drawing
                 AddHandler pCornerBox.Drawn, AddressOf OnCornerBoxDraw
-                
-                ' Settings manager events
-                If pSettingsManager IsNot Nothing Then
-                    AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
-                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SetupEventHandlers error: {ex.Message}")

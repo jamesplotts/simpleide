@@ -2,6 +2,8 @@
 Imports Gtk
 Imports System
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
+Imports SimpleIDE.Models
 
 Namespace Editors
     
@@ -387,9 +389,9 @@ Namespace Editors
                 Dim lLine As Integer = GetLineFromY(pLastRightClickY)
                 If lLine >= 0 AndAlso lLine < pLineCount Then
                     ' Insert a new line above the clicked line
-                    InsertTextAtPosition(lLine, 0, Environment.NewLine)
+                    InsertTextAtPosition(New EditorPosition(lLine, 0), Environment.NewLine)
                     ' Position cursor at the new line
-                    SetCursorPosition(lLine, 0)
+                    SetCursorPosition(New EditorPosition(lLine, 0))
                 End If
                 
             Catch ex As Exception
@@ -405,7 +407,7 @@ Namespace Editors
                 If lLine >= 0 AndAlso lLine < pLineCount Then
                     ' Insert a new line below the clicked line
                     Dim lLineLength As Integer = pTextLines(lLine).Length
-                    InsertTextAtPosition(lLine, lLineLength, Environment.NewLine)
+                    InsertTextAtPosition(New EditorPosition(lLine, lLineLength), Environment.NewLine)
                     ' Position cursor at the new line
                     SetCursorPosition(lLine + 1, 0)
                 End If

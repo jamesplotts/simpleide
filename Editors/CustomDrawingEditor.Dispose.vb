@@ -24,6 +24,10 @@ Namespace Editors
         Private pHScrollbarHandler As EventHandler
         
         ' ===== Event Handler Registration (called from constructor) =====
+
+        ''' <summary>
+        ''' Registers all event handlers for the editor components
+        ''' </summary>
         Private Sub RegisterEventHandlers()
             Try
                 ' Create and store delegates
@@ -37,7 +41,7 @@ Namespace Editors
                 pVScrollbarHandler = New EventHandler(AddressOf OnVScrollbarValueChanged)
                 pHScrollbarHandler = New EventHandler(AddressOf OnHScrollbarValueChanged)
                 
-                ' Register all event handlers
+                ' Register DRAWING AREA event handlers
                 If pDrawingArea IsNot Nothing Then
                     AddHandler pDrawingArea.Drawn, pDrawnHandler
                     AddHandler pDrawingArea.KeyPressEvent, pKeyPressHandler
@@ -46,24 +50,10 @@ Namespace Editors
                     AddHandler pDrawingArea.ButtonReleaseEvent, pButtonReleaseHandler
                     AddHandler pDrawingArea.MotionNotifyEvent, pMotionNotifyHandler
                     AddHandler pDrawingArea.ScrollEvent, pScrollHandler
-                    AddHandler pLineNumberArea.Drawn, AddressOf OnLineNumberAreaDraw
                 End If
                 
-                ' LINE NUMBER AREA EVENT HANDLERS:
-                If pLineNumberArea IsNot Nothing Then
-                    AddHandler pLineNumberArea.Drawn, AddressOf OnLineNumberAreaDraw
-                    AddHandler pLineNumberArea.ButtonPressEvent, AddressOf OnLineNumberButtonPress
-                    AddHandler pLineNumberArea.MotionNotifyEvent, AddressOf OnLineNumberMotionNotify
-                    AddHandler pLineNumberArea.ButtonReleaseEvent, AddressOf OnLineNumberButtonRelease
-
-                    ' CRITICAL FIX: Add scroll event handler to enable mouse wheel scrolling during drag selection
-                    AddHandler pLineNumberArea.ScrollEvent, AddressOf OnLineNumberScrollEvent
-                    
-                    ' Make sure the line number area can receive mouse events
-                    pLineNumberArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or EventMask.PointerMotionMask))
-                    
-                    Console.WriteLine("Line number area mouse events registered")
-                End If
+                ' NOTE: Line number widget (pLineNumberWidget) handles its own events internally
+                ' No need to register events here - they're handled in LineNumberWidget constructor
                 
                 ' Register scrollbar handlers
                 If pVScrollbar IsNot Nothing Then
@@ -78,22 +68,93 @@ Namespace Editors
                 Console.WriteLine($"RegisterEventHandlers error: {ex.Message}")
             End Try
         End Sub
-        
-        ' ===== IDisposable Implementation =====
-        
+
+        Public Property ShowLineNumbers As Boolean Implements IEditor.ShowLineNumbers
+            Get
+                Return pShowLineNumbers
+            End Get
+            Set(value As Boolean)
+                Try
+                    If pShowLineNumbers <> value Then
+                        pShowLineNumbers = value
+                        
+                        ' Show/hide line number widget
+                        If pLineNumberWidget IsNot Nothing Then
+                            pLineNumberWidget.Visible = pShowLineNumbers
+                        ElseIf pLineNumberArea IsNot Nothing Then
+                            ' Fallback for old widget
+                            pLineNumberArea.Visible = pShowLineNumbers
+                        End If
+                        
+                        ' Queue redraw
+                        pDrawingArea?.QueueDraw()
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"ShowLineNumbers setter error: {ex.Message}")
+                End Try
+            End Set
+        End Property
+
         Protected Overrides Sub Dispose(vDisposing As Boolean)
             Try
-                If vDisposing Then
-                    ' Clean up managed resources
-                    CleanupResources()
+                If vDisposing AndAlso Not pIsDisposed Then
+                    ' Remove timer
+                    If pCursorBlinkTimer > 0 Then
+                        GLib.Source.Remove(pCursorBlinkTimer)
+                        pCursorBlinkTimer = 0
+                    End If
+                    
+                    ' Remove event handlers
+                    If pDrawingArea IsNot Nothing Then
+                        If pDrawnHandler IsNot Nothing Then RemoveHandler pDrawingArea.Drawn, pDrawnHandler
+                        If pKeyPressHandler IsNot Nothing Then RemoveHandler pDrawingArea.KeyPressEvent, pKeyPressHandler
+                        If pKeyReleaseHandler IsNot Nothing Then RemoveHandler pDrawingArea.KeyReleaseEvent, pKeyReleaseHandler
+                        If pButtonPressHandler IsNot Nothing Then RemoveHandler pDrawingArea.ButtonPressEvent, pButtonPressHandler
+                        If pButtonReleaseHandler IsNot Nothing Then RemoveHandler pDrawingArea.ButtonReleaseEvent, pButtonReleaseHandler
+                        If pMotionNotifyHandler IsNot Nothing Then RemoveHandler pDrawingArea.MotionNotifyEvent, pMotionNotifyHandler
+                        If pScrollHandler IsNot Nothing Then RemoveHandler pDrawingArea.ScrollEvent, pScrollHandler
+                    End If
+                    
+                    ' LineNumberWidget handles its own disposal
+                    
+                    If pVScrollbar IsNot Nothing AndAlso pVScrollbarHandler IsNot Nothing Then
+                        RemoveHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                    End If
+                    
+                    If pHScrollbar IsNot Nothing AndAlso pHScrollbarHandler IsNot Nothing Then
+                        RemoveHandler pHScrollbar.ValueChanged, pHScrollbarHandler
+                    End If
+                    
+                    ' Dispose widgets
+                    pLineNumberWidget?.Dispose()
+                    pDrawingArea?.Dispose()
+                    pVScrollbar?.Dispose()
+                    pHScrollbar?.Dispose()
+                    pCornerBox?.Dispose()
+                    pMainGrid?.Dispose()
+                    
+                    ' Dispose context menus
+                    pContextMenu?.Dispose()
+                    pLineNumberContextMenu?.Dispose()
+                    
+                    ' Clear references
+                    pLineNumberWidget = Nothing
+                    pDrawingArea = Nothing
+                    pVScrollbar = Nothing
+                    pHScrollbar = Nothing
+                    pCornerBox = Nothing
+                    pMainGrid = Nothing
+                    
+                    pIsDisposed = True
                 End If
-                
-                MyBase.Dispose(vDisposing)
-                
             Catch ex As Exception
                 Console.WriteLine($"Dispose error: {ex.Message}")
             End Try
+            
+            MyBase.Dispose(vDisposing)
         End Sub
+        
+        ' ===== IDisposable Implementation =====
         
         Private Sub CleanupResources()
             Try
