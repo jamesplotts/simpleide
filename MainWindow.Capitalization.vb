@@ -16,6 +16,7 @@ Partial Public Class MainWindow
     
     ' ===== Initialization =====
     
+    ' Replace: SimpleIDE.MainWindow.InitializeCapitalizationManager
     ''' <summary>
     ''' Initialize capitalization management system
     ''' </summary>
@@ -31,14 +32,15 @@ Partial Public Class MainWindow
             ' Add menu items (simplified)
             AddCapitalizationMenuItems()
             
-            ' Add status bar widget
-            AddCapitalizationStatusWidget()
+            ' REMOVED: Status bar widget for auto-correction
+            ' The user is experienced with VB and knows that a VB IDE automatically corrects case
+            ' AddCapitalizationStatusWidget()
             
         Catch ex As Exception
             Console.WriteLine($"InitializeCapitalizationManager error: {ex.Message}")
         End Try
     End Sub
-    
+
     ''' <summary>
     ''' Add simplified capitalization menu items
     ''' </summary>
@@ -49,11 +51,11 @@ Partial Public Class MainWindow
             Dim lMenuBar As MenuBar = TryCast(pMenuBar, MenuBar)
             
             If lMenuBar IsNot Nothing Then
-                For Each lItem In lMenuBar.Children
+                for each lItem in lMenuBar.Children
                     Dim lMenuItem As MenuItem = TryCast(lItem, MenuItem)
                     If lMenuItem IsNot Nothing AndAlso lMenuItem.Label = "_Tools" Then
                         lToolsMenu = TryCast(lMenuItem.Submenu, Menu)
-                        Exit For
+                        Exit for
                     End If
                 Next
             End If
@@ -147,18 +149,20 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnReindexProjectClicked error: {ex.Message}")
         End Try
     End Sub
-    
+        
     Private Sub OnToggleAutoCorrection(vSender As Object, vArgs As EventArgs)
         Try
             Dim lToggleItem As CheckMenuItem = TryCast(vSender, CheckMenuItem)
             If lToggleItem IsNot Nothing Then
-                If lToggleItem.Active Then
-                    pCapitalizationStatusLabel.Markup = "<span size='small' color='green'>✓ Auto-correction enabled</span>"
-                Else
-                    pCapitalizationStatusLabel.Markup = "<span size='small' color='gray'>○ Auto-correction disabled</span>"
-                End If
+                ' Status label removed - user knows VB IDE auto-corrects case
+                ' Just update the actual functionality state
                 
                 ' TODO: Enable/disable auto-correction in editors
+                If lToggleItem.Active Then
+                    Console.WriteLine("Auto-correction enabled")
+                Else
+                    Console.WriteLine("Auto-correction disabled")
+                End If
             End If
             
         Catch ex As Exception
