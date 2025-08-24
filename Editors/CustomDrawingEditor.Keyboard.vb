@@ -14,58 +14,293 @@ Namespace Editors
         Implements IEditor
         
         ' ===== Key Press Event Handler =====
+'        Private Function OnKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
+'            Try
+'                ' Reset cursor blink
+'                pCursorBlink = True
+'                pCursorVisible = True
+'                InvalidateCursor()
+'                Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
+'                Dim lKey As Gdk.key = CType(vArgs.Event.key, Gdk.key)
+'                Dim lModifiers As ModifierType = vArgs.Event.State
+'                
+''                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow for accelerators
+''                ' F1-F12 keys should not be consumed by the editor
+''                Select Case lKey
+''                    Case Gdk.key.F1, Gdk.key.F2, Gdk.key.F3, Gdk.key.F4, Gdk.key.F5, Gdk.key.F6,
+''                         Gdk.key.F7, Gdk.key.F8, Gdk.key.F9, Gdk.key.F10, Gdk.key.F11, Gdk.key.F12
+''                        ' Let function keys pass through to MainWindow accelerators
+''                        vArgs.RetVal = False
+''                        Return False
+''                End Select
+'                
+'                ' Check for Control key combinations first (shortcuts)
+'                If (lModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
+'                    ' Handle keyboard shortcuts using keyval to avoid ambiguity
+'                    ' Using ASCII values: a=97, c=99, f=102, r=114, s=115, v=118, x=120, y=121, z=122
+'                    Select Case vArgs.Event.KeyValue
+'                        ' Undo - Ctrl+Z (122)
+'                        Case 122, 90  ' z or Z
+'                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+'                                ' Ctrl+Shift+Z - Redo
+'                                If CanRedo Then
+'                                    Redo()
+'                                End If
+'                            Else
+'                                ' Ctrl+Z - Undo
+'                                If CanUndo Then
+'                                    Undo()
+'                                End If
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Redo - Ctrl+R (114)
+'                        Case 114, 82  ' r or R
+'                            If CanRedo Then
+'                                Redo()
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Cut Line - Ctrl+Y (121)
+'                        Case 121, 89  ' y or Y
+'                            If Not pIsReadOnly Then
+'                                CutLine()
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Select All - Ctrl+A (97)
+'                        Case 97, 65  ' a or A
+'                            SelectAll()
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Copy - Ctrl+C (99)
+'                        Case 99, 67  ' c or C
+'                            Copy()
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Cut - Ctrl+X (120)
+'                        Case 120, 88  ' x or X
+'                            If Not pIsReadOnly Then
+'                                Cut()
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Paste - Ctrl+V (118)
+'                        Case 118, 86  ' v or V
+'                            If Not pIsReadOnly Then
+'                                Paste()
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        ' Find - Ctrl+F (102)
+'                        Case 102, 70  ' f or F
+'                            ' Let this bubble up to MainWindow
+'                            vArgs.RetVal = False
+'                            Return False
+'                            
+'                        ' Save - Ctrl+S (115)
+'                        Case 115, 83  ' s or S
+'                            ' Let this bubble up to MainWindow  
+'                            vArgs.RetVal = False
+'                            Return False
+'                            
+'                        ' Toggle comment - Ctrl+/ (47 or shift+/)
+'                        Case 47, 95  ' / or _
+'                            If Not pIsReadOnly Then
+'                                ToggleCommentBlock()
+'                            End If
+'                            vArgs.RetVal = True
+'                            Return True
+'                    End Select
+'                    
+'                    ' Check for Ctrl+Arrow keys (word navigation)
+'                    Select Case lKey
+'                        Case Gdk.key.Left, Gdk.key.KP_Left
+'                            HandleLeftKey(lModifiers)
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        Case Gdk.key.Right, Gdk.key.KP_Right
+'                            HandleRightKey(lModifiers)
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        Case Gdk.key.Home, Gdk.key.KP_Home
+'                            HandleHomeKey(lModifiers)
+'                            vArgs.RetVal = True
+'                            Return True
+'                            
+'                        Case Gdk.key.End, Gdk.key.KP_End
+'                            HandleEndKey(lModifiers)
+'                            vArgs.RetVal = True
+'                            Return True
+'                    End Select
+'                End If
+'                
+'                ' Handle navigation keys (without Control modifier)
+'                Select Case lKey
+'                    Case Gdk.key.Up, Gdk.key.KP_Up
+'                        HandleUpKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Down, Gdk.key.KP_Down
+'                        HandleDownKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Left, Gdk.key.KP_Left
+'                        HandleLeftKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Right, Gdk.key.KP_Right
+'                        HandleRightKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Home, Gdk.key.KP_Home
+'                        HandleHomeKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.End, Gdk.key.KP_End
+'                        HandleEndKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Page_Up, Gdk.key.KP_Page_Up
+'                        HandlePageUpKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Page_Down, Gdk.key.KP_Page_Down
+'                        HandlePageDownKey(lModifiers)
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Escape
+'                        ' Clear selection on Escape
+'                        ClearSelection()
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Insert
+'                        ' Toggle insert/overwrite mode
+'                        pInsertMode = Not pInsertMode
+'                        ' Note: UpdateStatusBar method doesn't exist in CustomDrawingEditor
+'                        ' Status updates are handled by MainWindow
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Delete, Gdk.key.KP_Delete
+'                        If Not pIsReadOnly Then
+'                            HandleDelete()
+'                        End If
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.BackSpace
+'                        If Not pIsReadOnly Then
+'                            HandleBackspace()
+'                        End If
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Tab
+'                        If Not pIsReadOnly Then
+'                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+'                                ' Shift+Tab - Unindent
+'                                OutdentSelection()
+'                            Else
+'                                ' Tab - Indent or insert tab
+'                                If HasSelection() Then
+'                                    IndentSelection()
+'                                Else
+'                                    InsertText(vbTab)
+'                                End If
+'                            End If
+'                        End If
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Gdk.key.Return, Gdk.key.KP_Enter
+'                        If Not pIsReadOnly Then
+'                            HandleReturn()
+'                        End If
+'                        vArgs.RetVal = True
+'                        Return True
+'                        
+'                    Case Else
+'                        ' Handle printable characters
+'                        If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
+'                            InsertCharacter(Convert.ToChar(vArgs.Event.KeyValue))
+'                            vArgs.RetVal = True
+'                            Return True
+'                        End If
+'                End Select
+'                
+'                ' Default: don't consume the event
+'                vArgs.RetVal = False
+'                Return False
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"OnKeyPress error: {ex.Message}")
+'                vArgs.RetVal = False
+'                Return False
+'            End Try
+'        End Function
+
+
+        ''' <summary>
+        ''' Handles key press events with mouse cursor auto-hide
+        ''' </summary>
         Private Function OnKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
             Try
+                ' Hide mouse cursor when typing
+                HideMouseCursor()
+                
                 ' Reset cursor blink
                 pCursorBlink = True
                 pCursorVisible = True
                 InvalidateCursor()
                 Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
-                Dim lKey As Gdk.key = CType(vArgs.Event.key, Gdk.key)
+                
+                ' Get the key code and modifiers
+                Dim lKey As UInteger = vArgs.Event.KeyValue
                 Dim lModifiers As ModifierType = vArgs.Event.State
                 
-'                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow for accelerators
-'                ' F1-F12 keys should not be consumed by the editor
-'                Select Case lKey
-'                    Case Gdk.key.F1, Gdk.key.F2, Gdk.key.F3, Gdk.key.F4, Gdk.key.F5, Gdk.key.F6,
-'                         Gdk.key.F7, Gdk.key.F8, Gdk.key.F9, Gdk.key.F10, Gdk.key.F11, Gdk.key.F12
-'                        ' Let function keys pass through to MainWindow accelerators
-'                        vArgs.RetVal = False
-'                        Return False
-'                End Select
-                
-                ' Check for Control key combinations first (shortcuts)
+                ' Handle Ctrl key combinations first
                 If (lModifiers And ModifierType.ControlMask) = ModifierType.ControlMask Then
-                    ' Handle keyboard shortcuts using keyval to avoid ambiguity
-                    ' Using ASCII values: a=97, c=99, f=102, r=114, s=115, v=118, x=120, y=121, z=122
-                    Select Case vArgs.Event.KeyValue
+                    ' Get ASCII value for Ctrl combinations
+                    Dim lKeyChar As Char = ChrW(lKey)
+                    
+                    Select Case CInt(lKey)
                         ' Undo - Ctrl+Z (122)
                         Case 122, 90  ' z or Z
-                            If (lModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-                                ' Ctrl+Shift+Z - Redo
-                                If CanRedo Then
-                                    Redo()
-                                End If
-                            Else
-                                ' Ctrl+Z - Undo
-                                If CanUndo Then
-                                    Undo()
-                                End If
-                            End If
+                            Undo()
                             vArgs.RetVal = True
                             Return True
                             
-                        ' Redo - Ctrl+R (114)
+                        ' Redo - Ctrl+R (114) or Ctrl+Y (121)
                         Case 114, 82  ' r or R
-                            If CanRedo Then
-                                Redo()
-                            End If
+                            Redo()
                             vArgs.RetVal = True
                             Return True
                             
-                        ' Cut Line - Ctrl+Y (121)
                         Case 121, 89  ' y or Y
-                            If Not pIsReadOnly Then
+                            If (lModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                                ' Ctrl+Shift+Y - Redo
+                                Redo()
+                            Else
+                                ' Ctrl+Y - Cut line
                                 CutLine()
                             End If
                             vArgs.RetVal = True
@@ -144,7 +379,7 @@ Namespace Editors
                     End Select
                 End If
                 
-                ' Handle navigation keys (without Control modifier)
+                ' Handle regular navigation keys
                 Select Case lKey
                     Case Gdk.key.Up, Gdk.key.KP_Up
                         HandleUpKey(lModifiers)
@@ -241,13 +476,23 @@ Namespace Editors
                     Case Else
                         ' Handle printable characters
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
-                            InsertCharacter(Convert.ToChar(vArgs.Event.KeyValue))
+                            Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
+                            
+                            ' Handle character insertion
+                            If pHasSelection Then
+                                ' Replace selection with character
+                                DeleteSelection()
+                            End If
+                            
+                            ' Insert the character
+                            InsertText(lChar.ToString())
+                            
                             vArgs.RetVal = True
                             Return True
                         End If
                 End Select
                 
-                ' Default: don't consume the event
+                ' Let unhandled keys bubble up
                 vArgs.RetVal = False
                 Return False
                 
@@ -256,15 +501,12 @@ Namespace Editors
                 vArgs.RetVal = False
                 Return False
             End Try
-        End Function
-
-
-        
+        End Function        
 
         
         Private Sub HandleTab(vModifiers As ModifierType)
             Try
-                If (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                If (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
                     ' Shift+Tab - outdent
                     If pSelectionActive Then
                         ' Outdent selected lines
@@ -298,7 +540,7 @@ Namespace Editors
                 Dim lNewColors(pCharacterColors.Length)() As CharacterColorInfo
                 
                 ' Copy before insertion point
-                For i As Integer = 0 To vLineIndex - 1
+                for i As Integer = 0 To vLineIndex - 1
                     If i < pLineMetadata.Length Then
                         lNewMetadata(i) = pLineMetadata(i)
                         lNewColors(i) = pCharacterColors(i)
@@ -310,7 +552,7 @@ Namespace Editors
                 lNewColors(vLineIndex) = New CharacterColorInfo() {}
                 
                 ' Copy after insertion point
-                For i As Integer = vLineIndex To pLineMetadata.Length - 1
+                for i As Integer = vLineIndex To pLineMetadata.Length - 1
                     lNewMetadata(i + 1) = pLineMetadata(i)
                     lNewColors(i + 1) = pCharacterColors(i)
                 Next
@@ -402,7 +644,7 @@ Namespace Editors
         ' ===== Navigation Key Handlers =====
         Private Sub HandleUpKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -430,7 +672,7 @@ Namespace Editors
         
         Private Sub HandleDownKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -458,8 +700,8 @@ Namespace Editors
         
         Private Sub HandleLeftKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers And ModifierType.ControlMask) = ModifierType.ControlMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -495,8 +737,8 @@ Namespace Editors
         
         Private Sub HandleRightKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers And ModifierType.ControlMask) = ModifierType.ControlMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -532,8 +774,8 @@ Namespace Editors
         
         Private Sub HandleHomeKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers And ModifierType.ControlMask) = ModifierType.ControlMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -564,8 +806,8 @@ Namespace Editors
         
         Private Sub HandleEndKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers And ModifierType.ControlMask) = ModifierType.ControlMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -596,7 +838,7 @@ Namespace Editors
         
         Private Sub HandlePageUpKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
@@ -617,7 +859,7 @@ Namespace Editors
         
         Private Sub HandlePageDownKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask
+                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
                 
                 If lShift AndAlso Not pSelectionActive Then
                     StartSelection(pCursorLine, pCursorColumn)
