@@ -404,7 +404,7 @@ Partial Public Class MainWindow
                 ' If there's a word at cursor, use it as search text
                 If Not String.IsNullOrEmpty(lWordAtCursor) Then
                     pBottomPanelManager?.FindPanel?.SetSearchText(lWordAtCursor)
-                    ' Don't execute search yet - let user confirm
+                    pBottomPanelManager?.FindPanel?.OnFind(Nothing, Nothing)
                 End If
             End If
             
