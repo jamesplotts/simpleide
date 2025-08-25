@@ -82,8 +82,10 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Handles clipboard text when received
+        ''' Handles clipboard text when received - automatically selects pasted text
         ''' </summary>
+        ''' <param name="vClipboard">The clipboard source</param>
+        ''' <param name="vText">The text to paste</param>
         Private Sub OnClipboardTextReceived(vClipboard As Clipboard, vText As String)
             Try
                 If String.IsNullOrEmpty(vText) OrElse pIsReadOnly Then Return
@@ -93,19 +95,37 @@ Namespace Editors
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                ' Remember the starting line for syntax highlighting
-                Dim lStartLine As Integer = pCursorLine
+                ' Remember where we're starting the paste
+                Dim lPasteStartLine As Integer = pCursorLine
+                Dim lPasteStartColumn As Integer = pCursorColumn
                 
-                ' Delete selection if any
-                If pHasSelection Then
+                ' If there's a selection, remember we need to adjust start position
+                Dim lHadSelection As Boolean = pHasSelection
+                Dim lSelectionStartLine As Integer = 0
+                Dim lSelectionStartColumn As Integer = 0
+                
+                If lHadSelection Then
+                    ' Get normalized selection bounds to know where paste will actually start
+                    Dim lStartPos As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+                    Dim lEndPos As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+                    NormalizeSelection(lStartPos, lEndPos)
+                    lSelectionStartLine = lStartPos.Line
+                    lSelectionStartColumn = lStartPos.Column
+                    
+                    ' Delete selection
                     DeleteSelection()
+                    
+                    ' After deletion, cursor is at the start of where selection was
+                    lPasteStartLine = pCursorLine
+                    lPasteStartColumn = pCursorColumn
                 End If
                 
                 ' Insert text at cursor
                 InsertText(vText)
                 
-                ' Calculate the ending line after insertion
-                Dim lEndLine As Integer = pCursorLine
+                ' Calculate where the paste ended (current cursor position after InsertText)
+                Dim lPasteEndLine As Integer = pCursorLine
+                Dim lPasteEndColumn As Integer = pCursorColumn
                 
                 ' End undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -114,7 +134,7 @@ Namespace Editors
                 
                 ' Apply syntax highlighting immediately to all affected lines
                 If pHighlightingEnabled Then
-                    For i As Integer = lStartLine To Math.Min(lEndLine, pLineCount - 1)
+                    for i As Integer = lPasteStartLine To Math.Min(lPasteEndLine, pLineCount - 1)
                         ProcessLineFormatting(i)
                     Next
                     
@@ -127,6 +147,27 @@ Namespace Editors
                     ScheduleFullDocumentParse()
                 End If
                 
+                ' CRITICAL NEW FEATURE: Automatically select the pasted text
+                ' This allows immediate indentation adjustment
+                Console.WriteLine($"Paste: Selecting from ({lPasteStartLine},{lPasteStartColumn}) to ({lPasteEndLine},{lPasteEndColumn})")
+                
+                ' Set the selection to cover the pasted text
+                pSelectionStartLine = lPasteStartLine
+                pSelectionStartColumn = lPasteStartColumn
+                pSelectionEndLine = lPasteEndLine
+                pSelectionEndColumn = lPasteEndColumn
+                pSelectionActive = True
+                pHasSelection = True
+                
+                ' Ensure cursor stays at the end of the pasted text
+                SetCursorPosition(lPasteEndLine, lPasteEndColumn)
+                
+                ' Raise selection changed event
+                RaiseEvent SelectionChanged(True)
+                
+                ' Queue redraw to show the selection
+                pDrawingArea?.QueueDraw()
+                GrabFocus()
             Catch ex As Exception
                 Console.WriteLine($"OnClipboardTextReceived error: {ex.Message}")
             End Try
@@ -210,7 +251,6 @@ Namespace Editors
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 
                 ' Raise text changed event
                 RaiseEvent TextChanged(Me, New EventArgs())
@@ -284,7 +324,7 @@ Namespace Editors
                 ' Remove all lines between start and end (including end line)
                 Dim lLinesToRemove As Integer = vEndLine - vStartLine
                 If lLinesToRemove > 0 Then
-                    For i As Integer = 0 To lLinesToRemove - 1
+                    for i As Integer = 0 To lLinesToRemove - 1
                         ' Always remove at vStartLine + 1 because the list shifts
                         pTextLines.RemoveAt(vStartLine + 1)
                         RemoveLineMetadata(vStartLine + 1)
@@ -350,7 +390,7 @@ Namespace Editors
                 Dim lNewColors(pCharacterColors.Length - 2)() As CharacterColorInfo
                 
                 ' Copy before the removed line
-                For i As Integer = 0 To vLineIndex - 1
+                for i As Integer = 0 To vLineIndex - 1
                     If i < pLineMetadata.Length Then
                         lNewMetadata(i) = pLineMetadata(i)
                         lNewColors(i) = pCharacterColors(i)
@@ -358,7 +398,7 @@ Namespace Editors
                 Next
                 
                 ' Copy after the removed line
-                For i As Integer = vLineIndex + 1 To pLineMetadata.Length - 1
+                for i As Integer = vLineIndex + 1 To pLineMetadata.Length - 1
                     If i - 1 < lNewMetadata.Length Then
                         lNewMetadata(i - 1) = pLineMetadata(i)
                         lNewColors(i - 1) = pCharacterColors(i)

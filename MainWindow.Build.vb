@@ -22,6 +22,9 @@ Partial Public Class MainWindow
     Private pIsDebugging As Boolean = False
     Private pDebugProcess As Process = Nothing
     Private pBuildManager As BuildManager = Nothing
+
+    ' ===== Auto-Hide Timer Fields =====
+    Private pAutoHideTimerId As UInteger = 0
     
     ''' <summary>
     ''' Initialize build system components
@@ -63,18 +66,10 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Build the current project - Main entry point for F5
+    ''' Build the current project - Main entry point for F6
     ''' </summary>
     Public Sub BuildProject()
-        Static bolIsBuilding as Boolean
-        If Not bolIsBuilding then
-            bolIsBuilding = true
-        Else
-            Exit Sub
-        End If
-
         Try
-
             ' DEBUG: Simple console output to verify method is called
             Console.WriteLine("===============================================")
             Console.WriteLine("BUILD PROJECT CALLED!")
@@ -87,7 +82,7 @@ Partial Public Class MainWindow
                 ShowError("No project", "Please open a project before building.")
                 Return
             End If
-
+    
             ' Initialize build system if needed
             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
                 Console.WriteLine("BuildProject: Initializing build system")
@@ -106,22 +101,24 @@ Partial Public Class MainWindow
                 ShowError("Build Error", "Failed to initialize build configuration")
                 Return
             End If
-
+    
+            ' Check if already building - use the BuildManager's IsBuilding property
             If pBuildManager.IsBuilding Then
+                Console.WriteLine("BuildProject: Build already in progress, exiting")
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If
-
+    
             ' Auto-increment version if enabled
             TryIncrementVersionBeforeBuild()
-
+    
             ' Start the build
             SetBuildButtonsEnabled(False)
             UpdateStatusBar("Building project...")
-
+    
             ' Save all open files before building
             SaveAllFiles()
-
+    
             ' Set project path and configuration for build manager
             Console.WriteLine($"BuildProject: Setting project path = {pCurrentProject}")
             pBuildManager.ProjectPath = pCurrentProject
@@ -133,25 +130,22 @@ Partial Public Class MainWindow
             ' Start async build - Pass the configuration explicitly
             Console.WriteLine("BuildProject: Starting async build")
             Task.Run(Async Function() 
-                         Try
-                             Console.WriteLine("BuildProject: Async task started")
-                             Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
-                             Console.WriteLine($"BuildProject: Async task completed - Success = {lResult.Success}")
-                             Return lResult
-                         Catch ex As Exception
-                             Console.WriteLine($"BuildProject: Async task error - {ex.Message}")
-                             Console.WriteLine($"Stack trace: {ex.StackTrace}")
-                             Throw
-                         End Try
-                     End Function)
-
+                Try
+                    Console.WriteLine("BuildProject: Async task started")
+                    Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
+                    Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
+                    Return lResult
+                Catch ex As Exception
+                    Console.WriteLine($"BuildProject: Async task error: {ex.Message}")
+                    Return Nothing
+                End Try
+            End Function)
+            
         Catch ex As Exception
             Console.WriteLine($"BuildProject error: {ex.Message}")
-            Console.WriteLine($"Stack trace: {ex.StackTrace}")
-            ShowError("Build error", ex.Message)
+            ShowError("Build Error", ex.Message)
             SetBuildButtonsEnabled(True)
         End Try
-        bolIsBuilding = false
     End Sub
 
     ''' <summary>
@@ -257,34 +251,7 @@ Partial Public Class MainWindow
             SetBuildButtonsEnabled(True)
         End Try
     End Sub
-    
-'    ' Run the current project
-'    Public Sub RunProject()
-'        Try
-'            If String.IsNullOrEmpty(pCurrentProject) Then
-'                ShowError("No project", "Please open a project before running.")
-'                Return
-'            End If
-'            
-'            ' Check if executable exists
-'            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-'            Dim lBinDir As String = System.IO.Path.Combine(lProjectDir, "bin", "Debug", "net8.0")
-'            Dim lProjectName As String = System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)
-'            Dim lExecutable As String = System.IO.Path.Combine(lBinDir, lProjectName)
-'            
-'            If Not File.Exists(lExecutable) Then
-'                ShowError("Executable Not Found", "Please build the project first.")
-'                Return
-'            End If
-'            
-'            ' Run the executable
-'            StartProcess(lExecutable, "")
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"RunProject error: {ex.Message}")
-'            ShowError("Run error", ex.Message)
-'        End Try
-'    End Sub
+
 
     Private Sub OnCleanProject(vSender As Object, vArgs As EventArgs)
         Try
@@ -384,28 +351,75 @@ Partial Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Build event handler - build completed
+    ''' Build event handler - build completed with error/warning population (no double output)
     ''' </summary>
     Private Sub OnBuildCompleted(vSender As Object, vArgs As BuildEventArgs)
         Try
             Console.WriteLine($"OnBuildCompleted called - Success = {vArgs?.Result?.Success}")
+            Console.WriteLine($"OnBuildCompleted - Errors: {vArgs?.Result?.Errors?.Count}, Warnings: {vArgs?.Result?.Warnings?.Count}")
+            
             Application.Invoke(Sub()
-                If vArgs.Result.Success Then
-                    UpdateStatusBar("Build succeeded")
-                    pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build succeeded =========={Environment.NewLine}")
-                Else
-                    UpdateStatusBar($"Build failed with {vArgs.Result.Errors.Count} error(s)")
-                    pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build failed =========={Environment.NewLine}")
+                Try
+                    If vArgs.Result IsNot Nothing Then
+                        ' IMPORTANT: Don't append the raw output here - it's already been added via OnBuildOutput
+                        ' Just update the error/warning lists from the parsed BuildResult
+                        
+                        ' Update the build output panel with the parsed errors and warnings
+                        ' This will populate the error and warning tabs WITHOUT adding to the output tab
+                        If pBuildOutputPanel IsNot Nothing Then
+                            ' Pass the BuildResult to populate error/warning lists
+                            ' This should NOT append any text to the output tab
+                            pBuildOutputPanel.ShowBuildResult(vArgs.Result, pCurrentProject)
+                        End If
+                        
+                        If vArgs.Result.Success Then
+                            UpdateStatusBar("Build succeeded")
+                            ' Only append the summary line, not the full output
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build succeeded =========={Environment.NewLine}")
+                            
+                            ' Start timer to auto-hide bottom panel after 5 seconds
+                            StartAutoHideBottomPanelTimer()
+                        Else
+                            Dim lErrorText As String = If(vArgs.Result.Errors.Count = 1, "error", "errors")
+                            Dim lWarningText As String = If(vArgs.Result.Warnings.Count = 1, "warning", "warnings")
+                            
+                            UpdateStatusBar($"Build failed with {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText}")
+                            ' Only append the summary line, not the full output
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build failed: {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText} =========={Environment.NewLine}")
+                            
+                            ' Switch to errors tab if there are errors
+                            If vArgs.Result.Errors.Count > 0 AndAlso pBuildOutputPanel IsNot Nothing Then
+                                ' Switch to the Errors tab (index 1)
+                                pBuildOutputPanel.Notebook.CurrentPage = 1
+                            ElseIf vArgs.Result.Warnings.Count > 0 AndAlso pBuildOutputPanel IsNot Nothing Then
+                                ' Switch to the Warnings tab (index 2) if only warnings
+                                pBuildOutputPanel.Notebook.CurrentPage = 2
+                            End If
+                            
+                            ' Cancel any pending auto-hide timer since build failed
+                            CancelAutoHideBottomPanelTimer()
+                        End If
+                    End If
                     
-                    ' Update error list
-                    UpdateErrorList(vArgs.Result)
-                End If
-                
-                SetBuildButtonsEnabled(True)
-                
-                ' Raise our build completed event
-                RaiseEvent BuildCompleted(vArgs.Result.Success)
+                    SetBuildButtonsEnabled(True)
+                    
+                    ' Check if we should run after build (for F5)
+                    If pRunAfterBuild AndAlso vArgs.Result?.Success = True Then
+                        pRunAfterBuild = False
+                        Task.Run(Async Function() 
+                            Await RunProject()
+                            Return Nothing
+                        End Function)
+                    End If
+                    
+                    ' Raise our build completed event
+                    RaiseEvent BuildCompleted(vArgs.Result?.Success)
+                    
+                Catch ex As Exception
+                    Console.WriteLine($"OnBuildCompleted invoke error: {ex.Message}")
+                End Try
             End Sub)
+            
         Catch ex As Exception
             Console.WriteLine($"OnBuildCompleted error: {ex.Message}")
         End Try
@@ -518,16 +532,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-'    Private Sub OnBuildError(vSender As Object, vError As String)
-'        Try
-'            Application.Invoke(Sub()
-'                pBuildOutputPanel?.AppendOutput($"ERROR: {vError}")
-'            End Sub)
-'        Catch ex As Exception
-'            Console.WriteLine($"OnBuildError error: {ex.Message}")
-'        End Try
-'    End Sub
-    
     ' Re-initialize build system with corrected event handlers
     Private Sub InitializeBuildSystemFixed()
         Try
@@ -552,100 +556,59 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-'    ' Fixed BuildProject method
-'    Public Sub BuildProjectFixed()
-'        Try
-'            If String.IsNullOrEmpty(pCurrentProject) Then
-'                ShowError("No project", "Please open a project before building.")
-'                Return
-'            End If
-'
-'            ' Initialize build system if needed
-'            If pBuildManager Is Nothing Then
-'                InitializeBuildSystemFixed()
-'            End If
-'
-'            If pBuildManager.IsBuilding Then
-'                ShowInfo("Build in Progress", "A build is already in progress.")
-'                Return
-'            End If
-'            
-'            ' Save all modified files
-'            SaveAllFiles()
-'            
-'            ' Set project path for build manager
-'            pBuildManager.ProjectPath = pCurrentProject
-'            
-'            ' Start build async
-'            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"BuildProjectFixed error: {ex.Message}")
-'            ShowError("Build error", ex.Message)
-'        End Try
-'    End Sub
-'    
-'    ' Fixed RebuildProject method
-'    Public Sub RebuildProjectFixed()
-'        Try
-'            If String.IsNullOrEmpty(pCurrentProject) Then
-'                ShowError("No project", "Please open a project before rebuilding.")
-'                Return
-'            End If
-'            
-'            ' Initialize build system if needed
-'            If pBuildManager Is Nothing Then
-'                InitializeBuildSystemFixed()
-'            End If
-'            
-'            If pBuildManager.IsBuilding Then
-'                ShowInfo("Build in progress", "A build is already in progress.")
-'                Return
-'            End If
-'            
-'            ' Save all modified files
-'            SaveAllFiles()
-'            
-'            ' Set project path for build manager
-'            pBuildManager.ProjectPath = pCurrentProject
-'            
-'            ' Start rebuild async
-'            Task.Run(Async Function() Await pBuildManager.BuildProjectAsync(pBuildManager.Configuration))
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"RebuildProjectFixed error: {ex.Message}")
-'            ShowError("Rebuild error", ex.Message)
-'        End Try
-'    End Sub
-'    
-'    ' Fixed CleanProject method
-'    Public Sub CleanProjectFixed()
-'        Try
-'            If String.IsNullOrEmpty(pCurrentProject) Then
-'                ShowError("No project", "Please open a project before cleaning.")
-'                Return
-'            End If
-'            
-'            ' Initialize build system if needed
-'            If pBuildManager Is Nothing Then
-'                InitializeBuildSystemFixed()
-'            End If
-'            
-'            If pBuildManager.IsBuilding Then
-'                ShowInfo("Build in progress", "A build is already in progress.")
-'                Return
-'            End If
-'            
-'            ' Set project path for build manager
-'            pBuildManager.ProjectPath = pCurrentProject
-'            
-'            ' Start clean async
-'            Task.Run(Async Function() Await pBuildManager.CleanProjectAsync())
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"CleanProjectFixed error: {ex.Message}")
-'            ShowError("Clean error", ex.Message)
-'        End Try
-'    End Sub
+    ''' <summary>
+    ''' Starts a timer to auto-hide the bottom panel after 5 seconds
+    ''' </summary>
+    Private Sub StartAutoHideBottomPanelTimer()
+        Try
+            ' Cancel any existing timer
+            CancelAutoHideBottomPanelTimer()
+            
+            ' Start new timer for 5 seconds (5000 milliseconds)
+            pAutoHideTimerId = GLib.Timeout.Add(5000, AddressOf OnAutoHideBottomPanelTimeout)
+            Console.WriteLine("Started auto-hide timer for bottom panel (5 seconds)")
+            
+        Catch ex As Exception
+            Console.WriteLine($"StartAutoHideBottomPanelTimer error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Cancels the auto-hide timer if it's running
+    ''' </summary>
+    Private Sub CancelAutoHideBottomPanelTimer()
+        Try
+            If pAutoHideTimerId > 0 Then
+                GLib.Source.Remove(pAutoHideTimerId)
+                pAutoHideTimerId = 0
+                Console.WriteLine("Cancelled auto-hide timer for bottom panel")
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"CancelAutoHideBottomPanelTimer error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Timer callback to hide the bottom panel
+    ''' </summary>
+    ''' <returns>False to stop the timer</returns>
+    Private Function OnAutoHideBottomPanelTimeout() As Boolean
+        Try
+            ' Hide the bottom panel
+            HideBottomPanel()
+            UpdateStatusBar("Build output hidden (build succeeded)")
+            
+            ' Clear the timer ID
+            pAutoHideTimerId = 0
+            
+            ' Return False to stop the timer (one-shot timer)
+            Return False
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnAutoHideBottomPanelTimeout error: {ex.Message}")
+            pAutoHideTimerId = 0
+            Return False
+        End Try
+    End Function
     
 End Class

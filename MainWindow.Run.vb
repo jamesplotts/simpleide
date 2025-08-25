@@ -139,7 +139,7 @@ Partial Public Class MainWindow
             
             ' Add any configured environment variables
             If pBuildConfiguration IsNot Nothing Then
-                For Each lVar In pBuildConfiguration.EnvironmentVariables
+                for each lVar in pBuildConfiguration.EnvironmentVariables
                     lStartInfo.EnvironmentVariables(lVar.Key) = lVar.Value
                 Next
             End If
@@ -177,7 +177,7 @@ Partial Public Class MainWindow
             OutputToPanel("========================================")
             
             ' Create run result
-            Dim lResult As New RunEventArgs() With {
+            Dim lResult As New RunEventArgs() with {
                 .Success = (lExitCode = 0),
                 .ExitCode = lExitCode,
                 .Message = If(lExitCode = 0, "Run completed successfully", $"Run failed with exit code {lExitCode}"),
@@ -265,12 +265,27 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Build and run the project
+    ''' Build and run the current project
     ''' </summary>
     Public Sub BuildAndRun()
         Try
+            Console.WriteLine("BuildAndRun called")
+            
             If String.IsNullOrEmpty(pCurrentProject) Then
-                ShowError("No Project", "Please open a project before building and running.")
+                ShowError("No Project", "Please open a project before building.")
+                Return
+            End If
+            
+            ' Initialize build system if needed
+            If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
+                Console.WriteLine("BuildAndRun: Initializing build system")
+                InitializeBuildSystem()
+            End If
+            
+            ' Check if already building
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("BuildAndRun: Build already in progress")
+                ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If
             
@@ -278,11 +293,13 @@ Partial Public Class MainWindow
             pRunAfterBuild = True
             
             ' Start the build
+            Console.WriteLine("BuildAndRun: Calling BuildProject")
             BuildProject()
             
         Catch ex As Exception
             Console.WriteLine($"BuildAndRun error: {ex.Message}")
             ShowError("Build and Run Error", ex.Message)
+            pRunAfterBuild = False
         End Try
     End Sub
     
@@ -396,7 +413,7 @@ Partial Public Class MainWindow
                 "/opt/dotnet/dotnet"
             }
             
-            For Each lPath In lPaths
+            for each lPath in lPaths
                 If File.Exists(lPath) Then
                     Return lPath
                 End If

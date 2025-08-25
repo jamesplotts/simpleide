@@ -69,7 +69,6 @@ Namespace Editors
                 
                 ' Force immediate redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
 
             Catch ex As Exception
                 Console.WriteLine($"RefreshSyntaxHighlighting error: {ex.Message}")

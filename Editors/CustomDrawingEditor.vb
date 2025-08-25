@@ -28,7 +28,7 @@ Namespace Editors
         Private pVScrollbar As Scrollbar
         Private pHScrollbar As Scrollbar
         Private pCornerBox As DrawingArea  ' Bottom-right corner
-        Private pSourceFileInfo as SourceFileInfo
+        Private pSourceFileInfo As SourceFileInfo
         
         ' ===== Scrolling State =====
         Private pFirstVisibleLine As Integer = 0
@@ -142,7 +142,7 @@ Namespace Editors
 
         ' Line number widget (NEW - replaces pLineNumberArea)
         Private pLineNumberWidget As Widgets.LineNumberWidget
-        Private pLineNumberArea As DrawingArea
+        'Private pLineNumberArea As DrawingArea
         
         ' Line number dragging state (if not already present)
         Private pLineNumberDragging As Boolean = False
@@ -155,11 +155,11 @@ Namespace Editors
         Public Event SelectionChanged(vHasSelection As Boolean) Implements IEditor.SelectionChanged
         Public Event TextChanged(o As Object, e As EventArgs) Implements IEditor.TextChanged
         Public Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean) Implements IEditor.UndoRedoStateChanged
-        Public Event RequestSourceFiles(vSourceFileRequestor as SourceFileRequestor)
+        Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
 '        Public Event DocumentParsed(vRootNode As SyntaxNode) Implements IEditor.DocumentParsed
 
         Public Class SourceFileRequestor
-            Public SourceFileInfo as SourceFileInfo
+            Public SourceFileInfo As SourceFileInfo
         End Class
 
         ' ===== Enums =====
@@ -199,7 +199,7 @@ Namespace Editors
                 ' This ensures they're properly sized for any operations that may reference them
                 ReDim pLineMetadata(pLineCount - 1)
                 ReDim pCharacterColors(pLineCount - 1)
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     pLineMetadata(i) = New LineMetadata()
                     pCharacterColors(i) = New CharacterColorInfo() {}
                 Next
@@ -262,7 +262,7 @@ Namespace Editors
         
         Private ReadOnly Property pTextLines As List(Of String)
            Get
-               return pSourceFileInfo.TextLines
+               Return pSourceFileInfo.TextLines
            End Get
         End Property
         
@@ -362,7 +362,7 @@ Namespace Editors
                 ReDim pCharacterColors(pLineCount - 1)
                 
                 ' Initialize each metadata element
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     pLineMetadata(i) = New LineMetadata()
                     pCharacterColors(i) = New CharacterColorInfo() {}
                 Next
@@ -426,14 +426,6 @@ Namespace Editors
             Try
                 If pLineNumberWidget IsNot Nothing Then
                     pLineNumberWidget.UpdateWidth()
-                Else
-                    ' Fallback for old code compatibility
-                    Dim lMaxDigits As Integer = Math.Max(3, pLineCount.ToString().Length)
-                    pLineNumberWidth = (lMaxDigits * pCharWidth) + 16
-                    
-                    If pLineNumberArea IsNot Nothing Then
-                        pLineNumberArea.WidthRequest = pLineNumberWidth
-                    End If
                 End If
                 
             Catch ex As Exception
@@ -553,7 +545,6 @@ Namespace Editors
             Try
                 ' Force redraw when main container is resized
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"OnMainGridSizeAllocated error: {ex.Message}")
@@ -672,7 +663,7 @@ Namespace Editors
         Public ReadOnly Property CharCount As Integer Implements IEditor.CharCount
             Get
                 Dim lCount As Integer = 0
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     lCount += pTextLines(i).Length
                     If i < pLineCount - 1 Then
                         lCount += Environment.NewLine.Length
@@ -838,7 +829,7 @@ Namespace Editors
                 ' Resize metadata arrays
                 ReDim pLineMetadata(pLineCount - 1)
                 ReDim pCharacterColors(pLineCount - 1)
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     pLineMetadata(i) = New LineMetadata()
                     pCharacterColors(i) = New CharacterColorInfo() {}
                     ProcessLineFormatting(i)
@@ -851,7 +842,6 @@ Namespace Editors
                 UpdateLineNumberWidth()
                 UpdateScrollbars()
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 
                 ' Schedule parsing
                 ScheduleParsing()
@@ -867,7 +857,7 @@ Namespace Editors
             End Get
         End Property
 
-        Public ReadOnly Property DisplayName() as String Implements IEditor.DisplayName
+        Public ReadOnly Property DisplayName() As String Implements IEditor.DisplayName
            Get
                 Return pSourceFileInfo.FileName
            End Get

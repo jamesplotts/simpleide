@@ -33,7 +33,7 @@ Namespace Editors
                 
                 ' Queue full redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyFont error: {ex.Message}")
@@ -288,20 +288,13 @@ Namespace Editors
             Try
                 If pShowLineNumbers <> vShow Then
                     pShowLineNumbers = vShow
-                    
-                    ' Update visibility
-                    If pLineNumberArea IsNot Nothing Then
-                        pLineNumberArea.Visible = vShow
-                        
-                        If vShow Then
-                            pLineNumberArea.WidthRequest = pLineNumberWidth
-                        Else
-                            pLineNumberArea.WidthRequest = 0
-                        End If
+
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
                     End If
-                    
-                    ' Queue redraw
-                    pDrawingArea?.QueueDraw()
+                    If pDrawingArea IsNot Nothing Then
+                        pDrawingArea.QueueDraw()
+                    End If
                 End If
                 
             Catch ex As Exception
@@ -407,7 +400,7 @@ Namespace Editors
                 
                 ' Queue full redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+
                 
             Catch ex As Exception
                 Console.WriteLine($"SetFont error: {ex.Message}")
@@ -552,7 +545,7 @@ Namespace Editors
                 
                 ' Queue full redraw to ensure everything updates
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+
                 
                 Console.WriteLine($"SetThemeColors completed for theme: {vTheme.Name}")
                 

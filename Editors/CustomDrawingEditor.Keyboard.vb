@@ -13,250 +13,41 @@ Namespace Editors
         Inherits Box
         Implements IEditor
         
-        ' ===== Key Press Event Handler =====
-'        Private Function OnKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
-'            Try
-'                ' Reset cursor blink
-'                pCursorBlink = True
-'                pCursorVisible = True
-'                InvalidateCursor()
-'                Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
-'                Dim lKey As Gdk.key = CType(vArgs.Event.key, Gdk.key)
-'                Dim lModifiers As ModifierType = vArgs.Event.State
-'                
-''                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow for accelerators
-''                ' F1-F12 keys should not be consumed by the editor
-''                Select Case lKey
-''                    Case Gdk.key.F1, Gdk.key.F2, Gdk.key.F3, Gdk.key.F4, Gdk.key.F5, Gdk.key.F6,
-''                         Gdk.key.F7, Gdk.key.F8, Gdk.key.F9, Gdk.key.F10, Gdk.key.F11, Gdk.key.F12
-''                        ' Let function keys pass through to MainWindow accelerators
-''                        vArgs.RetVal = False
-''                        Return False
-''                End Select
-'                
-'                ' Check for Control key combinations first (shortcuts)
-'                If (lModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
-'                    ' Handle keyboard shortcuts using keyval to avoid ambiguity
-'                    ' Using ASCII values: a=97, c=99, f=102, r=114, s=115, v=118, x=120, y=121, z=122
-'                    Select Case vArgs.Event.KeyValue
-'                        ' Undo - Ctrl+Z (122)
-'                        Case 122, 90  ' z or Z
-'                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-'                                ' Ctrl+Shift+Z - Redo
-'                                If CanRedo Then
-'                                    Redo()
-'                                End If
-'                            Else
-'                                ' Ctrl+Z - Undo
-'                                If CanUndo Then
-'                                    Undo()
-'                                End If
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Redo - Ctrl+R (114)
-'                        Case 114, 82  ' r or R
-'                            If CanRedo Then
-'                                Redo()
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Cut Line - Ctrl+Y (121)
-'                        Case 121, 89  ' y or Y
-'                            If Not pIsReadOnly Then
-'                                CutLine()
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Select All - Ctrl+A (97)
-'                        Case 97, 65  ' a or A
-'                            SelectAll()
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Copy - Ctrl+C (99)
-'                        Case 99, 67  ' c or C
-'                            Copy()
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Cut - Ctrl+X (120)
-'                        Case 120, 88  ' x or X
-'                            If Not pIsReadOnly Then
-'                                Cut()
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Paste - Ctrl+V (118)
-'                        Case 118, 86  ' v or V
-'                            If Not pIsReadOnly Then
-'                                Paste()
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        ' Find - Ctrl+F (102)
-'                        Case 102, 70  ' f or F
-'                            ' Let this bubble up to MainWindow
-'                            vArgs.RetVal = False
-'                            Return False
-'                            
-'                        ' Save - Ctrl+S (115)
-'                        Case 115, 83  ' s or S
-'                            ' Let this bubble up to MainWindow  
-'                            vArgs.RetVal = False
-'                            Return False
-'                            
-'                        ' Toggle comment - Ctrl+/ (47 or shift+/)
-'                        Case 47, 95  ' / or _
-'                            If Not pIsReadOnly Then
-'                                ToggleCommentBlock()
-'                            End If
-'                            vArgs.RetVal = True
-'                            Return True
-'                    End Select
-'                    
-'                    ' Check for Ctrl+Arrow keys (word navigation)
-'                    Select Case lKey
-'                        Case Gdk.key.Left, Gdk.key.KP_Left
-'                            HandleLeftKey(lModifiers)
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        Case Gdk.key.Right, Gdk.key.KP_Right
-'                            HandleRightKey(lModifiers)
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        Case Gdk.key.Home, Gdk.key.KP_Home
-'                            HandleHomeKey(lModifiers)
-'                            vArgs.RetVal = True
-'                            Return True
-'                            
-'                        Case Gdk.key.End, Gdk.key.KP_End
-'                            HandleEndKey(lModifiers)
-'                            vArgs.RetVal = True
-'                            Return True
-'                    End Select
-'                End If
-'                
-'                ' Handle navigation keys (without Control modifier)
-'                Select Case lKey
-'                    Case Gdk.key.Up, Gdk.key.KP_Up
-'                        HandleUpKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Down, Gdk.key.KP_Down
-'                        HandleDownKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Left, Gdk.key.KP_Left
-'                        HandleLeftKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Right, Gdk.key.KP_Right
-'                        HandleRightKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Home, Gdk.key.KP_Home
-'                        HandleHomeKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.End, Gdk.key.KP_End
-'                        HandleEndKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Page_Up, Gdk.key.KP_Page_Up
-'                        HandlePageUpKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Page_Down, Gdk.key.KP_Page_Down
-'                        HandlePageDownKey(lModifiers)
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Escape
-'                        ' Clear selection on Escape
-'                        ClearSelection()
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Insert
-'                        ' Toggle insert/overwrite mode
-'                        pInsertMode = Not pInsertMode
-'                        ' Note: UpdateStatusBar method doesn't exist in CustomDrawingEditor
-'                        ' Status updates are handled by MainWindow
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Delete, Gdk.key.KP_Delete
-'                        If Not pIsReadOnly Then
-'                            HandleDelete()
-'                        End If
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.BackSpace
-'                        If Not pIsReadOnly Then
-'                            HandleBackspace()
-'                        End If
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Tab
-'                        If Not pIsReadOnly Then
-'                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-'                                ' Shift+Tab - Unindent
-'                                OutdentSelection()
-'                            Else
-'                                ' Tab - Indent or insert tab
-'                                If HasSelection() Then
-'                                    IndentSelection()
-'                                Else
-'                                    InsertText(vbTab)
-'                                End If
-'                            End If
-'                        End If
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Gdk.key.Return, Gdk.key.KP_Enter
-'                        If Not pIsReadOnly Then
-'                            HandleReturn()
-'                        End If
-'                        vArgs.RetVal = True
-'                        Return True
-'                        
-'                    Case Else
-'                        ' Handle printable characters
-'                        If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
-'                            InsertCharacter(Convert.ToChar(vArgs.Event.KeyValue))
-'                            vArgs.RetVal = True
-'                            Return True
-'                        End If
-'                End Select
-'                
-'                ' Default: don't consume the event
-'                vArgs.RetVal = False
-'                Return False
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"OnKeyPress error: {ex.Message}")
-'                vArgs.RetVal = False
-'                Return False
-'            End Try
-'        End Function
+' ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+' ''' <summary>
+' ''' DIAGNOSTIC VERSION - Handles key press events with mouse cursor auto-hide
+' ''' </summary>
+' Private Function OnKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
+'     Try
+'         Console.WriteLine($"=== OnKeyPress DIAGNOSTIC ===")
+'         Console.WriteLine($"  KeyValue: {vArgs.Event.KeyValue}")
+'         Console.WriteLine($"  Key (raw): {vArgs.Event.Key}")
+'         Console.WriteLine($"  State: {vArgs.Event.State}")
+'         
+'         ' Try to get the key
+'         Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
+'         Console.WriteLine($"  Key (enum): {lKey}")
+'         
+'         ' Check if it's a function key
+'         Select Case lKey
+'             Case Gdk.Key.F1 To Gdk.Key.F12
+'                 Console.WriteLine($"  >>> FUNCTION KEY DETECTED: {lKey}")
+'                 Console.WriteLine($"  >>> Setting RetVal = False and Returning False")
+'                 vArgs.RetVal = False
+'                 Return False  ' Let it bubble up
+'         End Select
+'         
+'         ' For all other keys, just consume them for now
+'         Console.WriteLine($"  >>> NOT a function key, consuming event")
+'         vArgs.RetVal = True
+'         Return True
+'         
+'     Catch ex As Exception
+'         Console.WriteLine($"OnKeyPress DIAGNOSTIC error: {ex.Message}")
+'         vArgs.RetVal = False
+'         Return False
+'     End Try
+' End Function
 
 
         ''' <summary>
@@ -273,36 +64,63 @@ Namespace Editors
                 InvalidateCursor()
                 Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
                 
-                ' Get the key code and modifiers
-                Dim lKey As UInteger = vArgs.Event.KeyValue
+                ' Get key and modifiers
+                Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
                 Dim lModifiers As ModifierType = vArgs.Event.State
                 
-                ' Handle Ctrl key combinations first
-                If (lModifiers And ModifierType.ControlMask) = ModifierType.ControlMask Then
-                    ' Get ASCII value for Ctrl combinations
-                    Dim lKeyChar As Char = ChrW(lKey)
-                    
-                    Select Case CInt(lKey)
+                ' CRITICAL FIX: Allow function keys to bubble up to MainWindow
+                ' F1-F12 keys should not be consumed by the editor
+                Select Case lKey
+                    Case Gdk.Key.F1, Gdk.Key.F2, Gdk.Key.F3, Gdk.Key.F4, Gdk.Key.F5, Gdk.Key.F6,
+                         Gdk.Key.F7, Gdk.Key.F8, Gdk.Key.F9, Gdk.Key.F10, Gdk.Key.F11, Gdk.Key.F12
+                        ' Let function keys pass through to MainWindow
+                        Console.WriteLine($"Function key {lKey} detected - passing to MainWindow")
+                        vArgs.RetVal = False
+                        Return False
+                End Select
+                
+                ' Check for Control key combinations first (shortcuts)
+                If (lModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
+                    ' Handle keyboard shortcuts using keyval to avoid ambiguity
+                    ' Using ASCII values: a=97, c=99, f=102, r=114, s=115, v=118, x=120, y=121, z=122
+                    Select Case vArgs.Event.KeyValue
                         ' Undo - Ctrl+Z (122)
                         Case 122, 90  ' z or Z
-                            Undo()
-                            vArgs.RetVal = True
-                            Return True
-                            
-                        ' Redo - Ctrl+R (114) or Ctrl+Y (121)
-                        Case 114, 82  ' r or R
-                            Redo()
-                            vArgs.RetVal = True
-                            Return True
-                            
-                        Case 121, 89  ' y or Y
-                            If (lModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-                                ' Ctrl+Shift+Y - Redo
-                                Redo()
+                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                                ' Ctrl+Shift+Z - Redo
+                                If CanRedo Then
+                                    Redo()
+                                End If
                             Else
-                                ' Ctrl+Y - Cut line
-                                CutLine()
+                                ' Ctrl+Z - Undo
+                                If CanUndo Then
+                                    Undo()
+                                End If
                             End If
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        ' Redo - Ctrl+R (114)
+                        Case 114, 82  ' r or R
+                            If CanRedo Then
+                                Redo()
+                            End If
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        ' Cut/Copy/Paste - Ctrl+X/C/V
+                        Case 120, 88  ' x or X
+                            Cut()
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        Case 99, 67  ' c or C
+                            Copy()
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        Case 118, 86  ' v or V
+                            Paste()
                             vArgs.RetVal = True
                             Return True
                             
@@ -312,24 +130,10 @@ Namespace Editors
                             vArgs.RetVal = True
                             Return True
                             
-                        ' Copy - Ctrl+C (99)
-                        Case 99, 67  ' c or C
-                            Copy()
-                            vArgs.RetVal = True
-                            Return True
-                            
-                        ' Cut - Ctrl+X (120)
-                        Case 120, 88  ' x or X
+                        ' Cut Line - Ctrl+Y (121) - VB.NET traditional shortcut
+                        Case 121, 89  ' y or Y
                             If Not pIsReadOnly Then
-                                Cut()
-                            End If
-                            vArgs.RetVal = True
-                            Return True
-                            
-                        ' Paste - Ctrl+V (118)
-                        Case 118, 86  ' v or V
-                            If Not pIsReadOnly Then
-                                Paste()
+                                CutLine()
                             End If
                             vArgs.RetVal = True
                             Return True
@@ -357,22 +161,22 @@ Namespace Editors
                     
                     ' Check for Ctrl+Arrow keys (word navigation)
                     Select Case lKey
-                        Case Gdk.key.Left, Gdk.key.KP_Left
+                        Case Gdk.Key.Left, Gdk.Key.KP_Left
                             HandleLeftKey(lModifiers)
                             vArgs.RetVal = True
                             Return True
                             
-                        Case Gdk.key.Right, Gdk.key.KP_Right
+                        Case Gdk.Key.Right, Gdk.Key.KP_Right
                             HandleRightKey(lModifiers)
                             vArgs.RetVal = True
                             Return True
                             
-                        Case Gdk.key.Home, Gdk.key.KP_Home
+                        Case Gdk.Key.Home, Gdk.Key.KP_Home
                             HandleHomeKey(lModifiers)
                             vArgs.RetVal = True
                             Return True
                             
-                        Case Gdk.key.End, Gdk.key.KP_End
+                        Case Gdk.Key.End, Gdk.Key.KP_End
                             HandleEndKey(lModifiers)
                             vArgs.RetVal = True
                             Return True
@@ -381,53 +185,53 @@ Namespace Editors
                 
                 ' Handle regular navigation keys
                 Select Case lKey
-                    Case Gdk.key.Up, Gdk.key.KP_Up
+                    Case Gdk.Key.Up, Gdk.Key.KP_Up
                         HandleUpKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Down, Gdk.key.KP_Down
+                    Case Gdk.Key.Down, Gdk.Key.KP_Down
                         HandleDownKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Left, Gdk.key.KP_Left
+                    Case Gdk.Key.Left, Gdk.Key.KP_Left
                         HandleLeftKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Right, Gdk.key.KP_Right
+                    Case Gdk.Key.Right, Gdk.Key.KP_Right
                         HandleRightKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Home, Gdk.key.KP_Home
+                    Case Gdk.Key.Home, Gdk.Key.KP_Home
                         HandleHomeKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.End, Gdk.key.KP_End
+                    Case Gdk.Key.End, Gdk.Key.KP_End
                         HandleEndKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Page_Up, Gdk.key.KP_Page_Up
+                    Case Gdk.Key.Page_Up, Gdk.Key.KP_Page_Up
                         HandlePageUpKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Page_Down, Gdk.key.KP_Page_Down
+                    Case Gdk.Key.Page_Down, Gdk.Key.KP_Page_Down
                         HandlePageDownKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Escape
+                    Case Gdk.Key.Escape
                         ' Clear selection on Escape
                         ClearSelection()
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Insert
+                    Case Gdk.Key.Insert
                         ' Toggle insert/overwrite mode
                         pInsertMode = Not pInsertMode
                         ' Note: UpdateStatusBar method doesn't exist in CustomDrawingEditor
@@ -435,23 +239,23 @@ Namespace Editors
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Delete, Gdk.key.KP_Delete
+                    Case Gdk.Key.Delete, Gdk.Key.KP_Delete
                         If Not pIsReadOnly Then
                             HandleDelete()
                         End If
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.BackSpace
+                    Case Gdk.Key.BackSpace
                         If Not pIsReadOnly Then
                             HandleBackspace()
                         End If
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Tab
+                    Case Gdk.Key.Tab
                         If Not pIsReadOnly Then
-                            If (lModifiers And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
                                 ' Shift+Tab - Unindent
                                 OutdentSelection()
                             Else
@@ -466,7 +270,7 @@ Namespace Editors
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.key.Return, Gdk.key.KP_Enter
+                    Case Gdk.Key.Return, Gdk.Key.KP_Enter
                         If Not pIsReadOnly Then
                             HandleReturn()
                         End If
@@ -501,7 +305,7 @@ Namespace Editors
                 vArgs.RetVal = False
                 Return False
             End Try
-        End Function        
+        End Function
 
         
         Private Sub HandleTab(vModifiers As ModifierType)
@@ -908,7 +712,7 @@ Namespace Editors
         ''' <summary>
         ''' Cuts the entire current line to clipboard (VB classic Ctrl+Y behavior)
         ''' </summary>
-        Private Sub CutLine()
+        Friend Sub CutLine()
             Try
                 If pIsReadOnly OrElse pLineCount = 0 Then Return
                 

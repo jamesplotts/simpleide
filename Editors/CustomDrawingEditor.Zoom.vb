@@ -131,7 +131,7 @@ Namespace Editors
                 
                 ' Force full redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+
                 
                 ' Update scrollbars to reflect new content size
                 UpdateScrollbars()

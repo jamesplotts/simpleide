@@ -81,9 +81,6 @@ Namespace Editors
                         ' Show/hide line number widget
                         If pLineNumberWidget IsNot Nothing Then
                             pLineNumberWidget.Visible = pShowLineNumbers
-                        ElseIf pLineNumberArea IsNot Nothing Then
-                            ' Fallback for old widget
-                            pLineNumberArea.Visible = pShowLineNumbers
                         End If
                         
                         ' Queue redraw

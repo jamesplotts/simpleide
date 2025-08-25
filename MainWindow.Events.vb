@@ -249,15 +249,29 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handles Build and Run command (F5)
+    ''' </summary>
     Public Sub OnBuildAndRun(vSender As Object, vArgs As EventArgs)
         Try
-            ' Implemented in MainWindow.Build.vb
+            Console.WriteLine("OnBuildAndRun called")
+            
+            ' Check if already building using BuildManager
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("OnBuildAndRun: Build already in progress")
+                ShowInfo("Build in Progress", "A build Is already in progress.")
+                Return
+            End If
+            
+            ' Call the BuildAndRun method
             BuildAndRun()
+            
         Catch ex As Exception
             Console.WriteLine($"OnBuildAndRun error: {ex.Message}")
+            ShowError("Build and Run error", ex.Message)
         End Try
     End Sub
-    
+        
     Public Sub OnConfigureBuild(vSender As Object, vArgs As EventArgs)
         Try
             ' Implemented in MainWindow.Build.vb
@@ -271,7 +285,7 @@ Partial Public Class MainWindow
     Public Sub OnExternalTools(vSender As Object, vArgs As EventArgs)
         Try
             ' TODO: Implement external tools
-            ShowInfo("External Tools", "External tools not yet implemented.")
+            ShowInfo("External Tools", "External tools Not yet implemented.")
         Catch ex As Exception
             Console.WriteLine($"OnExternalTools error: {ex.Message}")
         End Try
@@ -441,7 +455,7 @@ Partial Public Class MainWindow
     Private Sub OnProjectProperties(vSender As Object, vArgs As EventArgs)
         Try
             ' TODO: Implement project properties dialog
-            ShowInfo("Project Properties", "Project properties dialog not yet implemented.")
+            ShowInfo("Project Properties", "Project properties dialog Not yet implemented.")
         Catch ex As Exception
             Console.WriteLine($"OnProjectProperties error: {ex.Message}")
         End Try

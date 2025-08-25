@@ -226,5 +226,37 @@ Partial Public Class MainWindow
             Console.WriteLine($"ShowReplacePanel error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Called when user interacts with the bottom panel
+    ''' Cancels the auto-hide timer to prevent hiding while user is working
+    ''' </summary>
+    Private Sub OnBottomPanelInteraction()
+        Try
+            ' Cancel auto-hide timer if it's running
+            If pAutoHideTimerId > 0 Then
+                CancelAutoHideBottomPanelTimer()
+                Console.WriteLine("User interaction detected - cancelled auto-hide")
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnBottomPanelInteraction error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Enhanced ShowBottomPanel that cancels auto-hide timer
+    ''' </summary>
+    Public Sub ShowBottomPanelEnhanced(Optional vTabIndex As Integer = -1)
+        Try
+            ' Cancel any pending auto-hide
+            CancelAutoHideBottomPanelTimer()
+            
+            ' Show the panel
+            ShowBottomPanel(vTabIndex)
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShowBottomPanelEnhanced error: {ex.Message}")
+        End Try
+    End Sub
     
 End Class

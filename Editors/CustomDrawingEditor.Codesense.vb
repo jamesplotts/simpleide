@@ -170,7 +170,6 @@ Namespace Editors
                     If pUpdateCount = 0 AndAlso pNeedRedrawAfterUpdate Then
                         pNeedRedrawAfterUpdate = False
                         pDrawingArea?.QueueDraw()
-                        pLineNumberArea?.QueueDraw()
                     End If
                 End If
                 

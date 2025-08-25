@@ -403,12 +403,12 @@ Namespace Editors
             End Try
         End Sub
         
-        Public Sub SetSelection(vStartPosition as EditorPosition, vEndPosition as EditorPosition) Implements IEditor.SetSelection
+        Public Sub SetSelection(vStartPosition As EditorPosition, vEndPosition As EditorPosition) Implements IEditor.SetSelection
             Try
                 ' Validate and clamp ranges
                 Dim vStartLine As Integer = Math.Max(0, Math.Min(vStartPosition.Line, pLineCount - 1))
                 Dim vEndLine As Integer = Math.Max(0, Math.Min(vEndPosition.Line, pLineCount - 1))
-                Dim vStartColumn as Integer = vStartPosition.Column
+                Dim vStartColumn As Integer = vStartPosition.Column
                 Dim vEndColumn As Integer = vEndPosition.Column
                 If vStartLine < pLineCount Then
                     vStartColumn = Math.Max(0, Math.Min(vStartColumn, pTextLines(vStartLine).Length))
@@ -482,32 +482,53 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Selects multiple lines including their newline characters
+        ''' </summary>
+        ''' <param name="vStartLine">Starting line number (0-based)</param>
+        ''' <param name="vEndLine">Ending line number (0-based, inclusive)</param>
         Public Sub SelectLines(vStartLine As Integer, vEndLine As Integer) Implements IEditor.SelectLines
             Try
-                ' Validate range
-                vStartLine = Math.Max(0, Math.Min(vStartLine, pLineCount - 1))
-                vEndLine = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
+                ' Validate and clamp line numbers
+                Dim lStartLine As Integer = Math.Max(0, Math.Min(vStartLine, pLineCount - 1))
+                Dim lEndLine As Integer = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
                 
-                ' Ensure proper order
-                If vStartLine > vEndLine Then
-                    Dim lTemp As Integer = vStartLine
-                    vStartLine = vEndLine
-                    vEndLine = lTemp
+                ' Ensure start is before end
+                If lEndLine < lStartLine Then
+                    Dim lTemp As Integer = lStartLine
+                    lStartLine = lEndLine
+                    lEndLine = lTemp
                 End If
                 
-                ' Select from start of first line
-                StartSelection(vStartLine, 0)
+                ' Clear any drag state to prevent interference
+                pIsDragging = False
+                pPotentialDrag = False
+                pIsStartingNewSelection = False
                 
-                If vEndLine < pLineCount - 1 Then
-                    ' Not including last line - select to start of line after end
-                    UpdateSelection(vEndLine + 1, 0)
-                    SetCursorPosition(vEndLine + 1, 0)
+                ' Set selection from start of first line to end of last line
+                pSelectionStartLine = lStartLine
+                pSelectionStartColumn = 0
+                pSelectionEndLine = lEndLine
+                
+                ' For the end column, include the entire last line
+                If lEndLine < pLineCount Then
+                    pSelectionEndColumn = pTextLines(lEndLine).Length
                 Else
-                    ' Including last line - select to end of last line
-                    Dim lLength As Integer = pTextLines(vEndLine).Length
-                    UpdateSelection(vEndLine, lLength)
-                    SetCursorPosition(vEndLine, lLength)
+                    pSelectionEndColumn = 0
                 End If
+                
+                pSelectionActive = True
+                pHasSelection = True
+                
+                ' Move cursor to end of selection
+                SetCursorPosition(pSelectionEndLine, pSelectionEndColumn)
+                
+                ' Ensure the selection is visible
+                EnsureCursorVisible()
+                
+                ' Raise event and redraw
+                RaiseEvent SelectionChanged(True)
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"SelectLines error: {ex.Message}")
@@ -557,7 +578,7 @@ Namespace Editors
                     End If
                     
                     ' Middle lines
-                    For i As Integer = lStartLine + 1 To lEndLine - 1
+                    for i As Integer = lStartLine + 1 To lEndLine - 1
                         If i < pLineCount Then
                             lText.AppendLine(pTextLines(i))
                         End If
@@ -617,7 +638,7 @@ Namespace Editors
             If pDragCursor Is Nothing Then
                 pDragCursor = New Cursor(Display.Default, CursorType.Crosshair)
             End If
-            pLineNumberArea.Window.Cursor = pPointerCursor
+            pLineNumberWidget.Window.Cursor = pPointerCursor
             pDrawingArea.Window.Cursor = pTextCursor
         End Sub
 

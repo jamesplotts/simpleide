@@ -102,7 +102,7 @@ Namespace Editors
                     pDrawingArea?.QueueDrawArea(0, lY, pDrawingArea.AllocatedWidth, pLineHeight)
                     
                     ' Also update line number area if needed
-                    pLineNumberArea?.QueueDrawArea(0, lY, pLineNumberArea.AllocatedWidth, pLineHeight)
+                    pLineNumberWidget?.QueueDrawArea(0, lY, pLineNumberWidget.AllocatedWidth, pLineHeight)
                 End If
                 
             Catch ex As Exception

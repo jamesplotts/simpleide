@@ -32,9 +32,6 @@ Namespace Editors
                     ' Update line number widget
                     If pLineNumberWidget IsNot Nothing Then
                         pLineNumberWidget.QueueDraw()
-                    ElseIf pLineNumberArea IsNot Nothing Then
-                        ' Fallback for old widget
-                        pLineNumberArea.QueueDraw()
                     End If
                 End If
             Catch ex As Exception
@@ -234,7 +231,7 @@ Namespace Editors
                 Dim lLines As Integer = SCROLL_WHEEL_LINES
                 
                 ' Check for horizontal scrolling (Shift+Scroll)
-                If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                If (vArgs.Event.State and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
                     ' Horizontal scroll
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up, ScrollDirection.Left
@@ -313,7 +310,11 @@ Namespace Editors
                     pFirstVisibleLine = Math.Max(0, pFirstVisibleLine - vLines)
                     UpdateScrollbars()
                     pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
+                    
+                    ' Update line number widget - check both new and old widgets
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
+                    End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"ScrollUp error: {ex.Message}")
@@ -330,7 +331,11 @@ Namespace Editors
                     pFirstVisibleLine = Math.Min(lMaxFirstLine, pFirstVisibleLine + vLines)
                     UpdateScrollbars()
                     pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
+                    
+                    ' Update line number widget - check both new and old widgets
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
+                    End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"ScrollDown error: {ex.Message}")
@@ -447,8 +452,15 @@ Namespace Editors
                 End If
                 
                 If lNeedsRedraw Then
-                    pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
+                    ' Queue redraw for main drawing area
+                    If pDrawingArea IsNot Nothing Then
+                        pDrawingArea.QueueDraw()
+                    End If
+                    
+                    ' Queue redraw for line number widget - check both new and old widgets
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
+                    End If
                 End If
                 
             Catch ex As Exception
@@ -488,6 +500,11 @@ Namespace Editors
         ' ===== Ensure Cursor Visible =====
         Public Sub EnsureCursorVisible() Implements IEditor.EnsureCursorVisible
             Try
+                ' Check if scrollbars are initialized
+                If pVScrollbar Is Nothing OrElse pHScrollbar Is Nothing Then
+                    Return
+                End If
+                
                 ' Vertical scrolling
                 If pCursorLine < pFirstVisibleLine Then
                     ' Cursor above visible area
@@ -502,7 +519,7 @@ Namespace Editors
                 ' Horizontal scrolling
                 If pCursorColumn < pFirstVisibleColumn Then
                     ' Cursor to the left of visible area
-                    pFirstVisibleColumn = Math.Max(0, pCursorColumn - 5) ' Leave some Context
+                    pFirstVisibleColumn = Math.Max(0, pCursorColumn - 5) ' Leave some context
                     pHScrollbar.Value = pFirstVisibleColumn
                 ElseIf pCursorColumn >= pFirstVisibleColumn + pTotalVisibleColumns Then
                     ' Cursor to the right of visible area
@@ -510,9 +527,15 @@ Namespace Editors
                     pHScrollbar.Value = pFirstVisibleColumn
                 End If
                 
-                ' Queue redraw
-                pDrawingArea.QueueDraw()
-                pLineNumberArea.QueueDraw()
+                ' Queue redraw for main drawing area
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+                ' Queue redraw for line number widget - check both new and old widgets
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.QueueDraw()
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"EnsureCursorVisible error: {ex.Message}")
@@ -520,21 +543,38 @@ Namespace Editors
         End Sub
 
         ' ===== Scroll to specific line =====
+
+        ''' <summary>
+        ''' Scrolls to a specific line in the editor
+        ''' </summary>
+        ''' <param name="vLine">The line number to scroll to</param>
         Public Sub ScrollToLine(vLine As Integer)
             Try
+                ' Check if scrollbar is initialized
+                If pVScrollbar Is Nothing Then
+                    Return
+                End If
+                
                 ' Validate line
                 vLine = Math.Max(0, Math.Min(vLine, pLineCount - 1))
                 
                 ' Center the line if possible
-
                 Dim lTargetFirstLine As Integer = Math.Max(0, vLine - pTotalVisibleLines \ 2)
                 lTargetFirstLine = Math.Min(lTargetFirstLine, Math.Max(0, pLineCount - pTotalVisibleLines))
                 
                 If lTargetFirstLine <> pFirstVisibleLine Then
                     pFirstVisibleLine = lTargetFirstLine
                     pVScrollbar.Value = pFirstVisibleLine
-                    pDrawingArea.QueueDraw()
-                    pLineNumberArea.QueueDraw()
+                    
+                    ' Queue redraw for main drawing area
+                    If pDrawingArea IsNot Nothing Then
+                        pDrawingArea.QueueDraw()
+                    End If
+                    
+                    ' Queue redraw for line number widget - check both new and old widgets
+                    If pLineNumberWidget IsNot Nothing Then
+                        pLineNumberWidget.QueueDraw()
+                    End If
                 End If
                 
             Catch ex As Exception
@@ -546,7 +586,7 @@ Namespace Editors
         Private Sub UpdateMaxLineWidth()
             Try
                 pMaxLineWidth = 0
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     If pTextLines(i) IsNot Nothing Then
                         pMaxLineWidth = Math.Max(pMaxLineWidth, pTextLines(i).Length)
                     End If

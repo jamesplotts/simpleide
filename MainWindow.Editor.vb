@@ -361,11 +361,11 @@ Partial Public Class MainWindow
             UpdateObjectExplorerForActiveTab()
             
             ' Find and remove the page
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
                     pNotebook.RemovePage(i)
-                    Exit For
+                    Exit for
                 End If
             Next
             
@@ -395,7 +395,7 @@ Partial Public Class MainWindow
             ' Create a copy of the collection to avoid modification during iteration
             Dim lTabsToClose As New List(Of TabInfo)(pOpenTabs.Values)
             
-            For Each lTabInfo In lTabsToClose
+            for each lTabInfo in lTabsToClose
                 CloseTab(lTabInfo)
             Next
             
@@ -500,7 +500,7 @@ Partial Public Class MainWindow
         Try
             Dim lSuccess As Boolean = True
             
-            For Each lKvp In pOpenTabs
+            for each lKvp in pOpenTabs
                 Dim lTabInfo As TabInfo = lKvp.Value
                 If lTabInfo.Modified AndAlso lTabInfo.Editor IsNot Nothing Then
                     If Not SaveFile(lTabInfo) Then
@@ -625,10 +625,10 @@ Partial Public Class MainWindow
     Private Sub CloseWelcomeTab()
         Try
             ' Find and close welcome tab
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     pNotebook.RemovePage(i)
-                    Exit For
+                    Exit for
                 End If
             Next
         Catch ex As Exception
@@ -639,13 +639,13 @@ Partial Public Class MainWindow
     Private Sub MarkTabModified(vEditor As IEditor)
         Try
             ' Find tab containing this editor
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 Dim lTabInfo As TabInfo = lTabEntry.Value
                 If lTabInfo.Editor Is vEditor AndAlso Not lTabInfo.Modified Then
                     lTabInfo.Modified = True
                     UpdateTabLabel(lTabInfo)
                     UpdateWindowTitle()
-                    Exit For
+                    Exit for
                 End If
             Next
             
@@ -659,7 +659,7 @@ Partial Public Class MainWindow
             ' Find the label in the tab
             If vTabInfo.TabLabel.GetType() Is GetType(Box) Then
                 Dim lBox As Box = CType(vTabInfo.TabLabel, Box)
-                For Each lChild As Widget In lBox.Children
+                for each lChild As Widget in lBox.Children
                     If lChild.GetType() Is GetType(Label) Then
                         Dim lLabel As Label = CType(lChild, Label)
                         Dim lFileName As String = System.IO.Path.GetFileName(vTabInfo.FilePath)
@@ -668,7 +668,7 @@ Partial Public Class MainWindow
                         Else
                             lLabel.Text = lFileName
                         End If
-                        Exit For
+                        Exit for
                     End If
                 Next
             ElseIf vTabInfo.TabLabel.GetType() Is GetType(Label) Then
@@ -702,7 +702,7 @@ Partial Public Class MainWindow
             If lPage Is Nothing Then Return Nothing
             
             ' Find the TabInfo that matches this page
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 If lTabEntry.Value.EditorContainer Is lPage Then
                     Return lTabEntry.Value
                 End If
@@ -832,7 +832,7 @@ Partial Public Class MainWindow
     Private Sub ApplySettings()
         Try
             ' Apply settings to all open editors
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 Dim lTabInfo As TabInfo = lTabEntry.Value
                 If TypeOf lTabInfo.Editor Is CustomDrawingEditor Then
                     Dim lEditor As CustomDrawingEditor = DirectCast(lTabInfo.Editor, CustomDrawingEditor)
@@ -845,5 +845,57 @@ Partial Public Class MainWindow
             Console.WriteLine($"ApplySettings error: {ex.Message}")
         End Try
     End Sub
-
+        
+    ''' <summary>
+    ''' Handles the Cut Line command (Ctrl+Y) - Traditional VB.NET behavior
+    ''' </summary>
+    ''' <param name="vSender">Event sender (unused)</param>
+    ''' <param name="vArgs">Event arguments (unused)</param>
+    Public Sub OnCutLine(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Get the current editor
+            Dim lEditor As IEditor = GetCurrentEditor()
+            If lEditor Is Nothing Then
+                Console.WriteLine("OnCutLine: No active editor")
+                Return
+            End If
+            
+            ' Check if it's a CustomDrawingEditor (which has the CutLine method)
+            Dim lCustomEditor As CustomDrawingEditor = TryCast(lEditor, CustomDrawingEditor)
+            If lCustomEditor IsNot Nothing Then
+                ' Call the CutLine method on the editor
+                lCustomEditor.CutLine()
+                
+                ' Update toolbar button states
+                UpdateToolbarButtons()
+                
+                ' Show status
+                UpdateStatusBar("Line cut to clipboard")
+            Else
+                ' For other editor types, try to implement basic cut line functionality
+                ' using the IEditor interface methods
+                
+                ' Get current line position
+                Dim lPosition As EditorPosition = lEditor.GetCursorPosition()
+                Dim lCurrentLine As Integer = lPosition.Line  ' 0-based
+                
+                ' Select the entire line
+                lEditor.SelectLine(lCurrentLine + 1)  ' SelectLine expects 1-based
+                
+                ' Cut the selected text
+                lEditor.Cut()
+                
+                ' Update toolbar and status
+                UpdateToolbarButtons()
+                UpdateStatusBar("Line cut to clipboard")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnCutLine error: {ex.Message}")
+            ShowError("Cut Line Error", $"Failed to cut line: {ex.Message}")
+        End Try
+    End Sub
+       
+         
+        
 End Class

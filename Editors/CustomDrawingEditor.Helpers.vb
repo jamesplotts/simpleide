@@ -37,7 +37,6 @@ Namespace Editors
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertLineAt error: {ex.Message}")
@@ -55,7 +54,7 @@ Namespace Editors
                 Dim lActualCount As Integer = Math.Min(vCount, pLineCount - vStartLine)
                 
                 ' Remove the lines
-                For i As Integer = 0 To lActualCount - 1
+                for i As Integer = 0 To lActualCount - 1
                     pTextLines.RemoveAt(vStartLine)
                     RemoveLineMetadata(vStartLine)
                 Next
@@ -73,7 +72,6 @@ Namespace Editors
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"RemoveLines error: {ex.Message}")
@@ -333,7 +331,7 @@ Namespace Editors
                     lBuilder.AppendLine()
                     
                     ' Middle lines
-                    For i As Integer = lStartLine + 1 To lEndLine - 1
+                    for i As Integer = lStartLine + 1 To lEndLine - 1
                         lBuilder.AppendLine(pTextLines(i))
                     Next
                     
@@ -589,11 +587,11 @@ Namespace Editors
                 Dim lPreviousLine As String = pTextLines(vLineNumber - 1)
                 Dim lIndent As New System.Text.StringBuilder()
                 
-                For Each lChar As Char In lPreviousLine
+                for each lChar As Char in lPreviousLine
                     If lChar = " "c OrElse lChar = vbTab Then
                         lIndent.Append(lChar)
                     Else
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
@@ -684,6 +682,25 @@ Namespace Editors
                 Console.WriteLine($"NormalizeSelection (EditorPosition) error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Gets the text of a specific line
+        ''' </summary>
+        ''' <param name="vLineIndex">The line index to get (0-based)</param>
+        ''' <returns>The text of the line, or empty string if invalid index</returns>
+        Public Function GetLineText(vLineIndex As Integer) As String Implements IEditor.GetLineText
+            Try
+                If vLineIndex < 0 OrElse vLineIndex >= pLineCount Then
+                    Return ""
+                End If
+                
+                Return pTextLines(vLineIndex)
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetLineText error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
         
     End Class
     

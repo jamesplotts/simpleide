@@ -590,8 +590,7 @@ Namespace Editors
                 
                 ' Update UI
                 UpdateScrollbars()
-                pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+                pLineNumberWidget?.QueueDraw()
                 
                 ' Raise text changed event
                 RaiseEvent TextChanged(Me, New EventArgs())

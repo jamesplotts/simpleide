@@ -68,7 +68,6 @@ Namespace Editors
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
-                pLineNumberArea?.QueueDraw()
                 UpdateScrollbars()
                
             Catch ex As Exception

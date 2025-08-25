@@ -63,7 +63,7 @@ Partial Public Class MainWindow
             ' Get parsed nodes from editor
             Dim lNodes As List(Of DocumentNode) = vEditor.GetAllNodes()
             
-            For Each lNode In lNodes
+            for each lNode in lNodes
                 If lNode.Name = vSymbol Then
                     ' Consider it a definition if it's a class, method, property, etc.
                     Select Case lNode.NodeType
@@ -86,16 +86,16 @@ Partial Public Class MainWindow
     ' Find definition in open files
     Private Function FindDefinitionInOpenFiles(vSymbol As String) As Integer
         Try
-            For Each lTabInfo In pOpenTabs.Values
-                If lTabInfo.Editor Is Nothing Then Continue For
+            for each lTabInfo in pOpenTabs.Values
+                If lTabInfo.Editor Is Nothing Then Continue for
                 
                 Dim lCustomEditor As CustomDrawingEditor = TryCast(lTabInfo.Editor, CustomDrawingEditor)
-                If lCustomEditor Is Nothing Then Continue For
+                If lCustomEditor Is Nothing Then Continue for
                 
                 Dim lLine As Integer = FindDefinitionInFile(lCustomEditor, vSymbol)
                 If lLine >= 0 Then
                     ' Switch to this tab
-                    For i As Integer = 0 To pNotebook.NPages - 1
+                    for i As Integer = 0 To pNotebook.NPages - 1
                         If pNotebook.GetNthPage(i) Is lTabInfo.EditorContainer Then
                             pNotebook.CurrentPage = i
                             NavigateToLine(lLine + 1)
@@ -133,7 +133,7 @@ Partial Public Class MainWindow
     Public Sub NavigateForward()
         Try
             ' TODO: Implement navigation history
-            UpdateStatusBar("Navigate forward not yet implemented")
+            UpdateStatusBar("Navigate forward Not yet implemented")
             
         Catch ex As Exception
             Console.WriteLine($"NavigateForward error: {ex.Message}")
@@ -144,7 +144,7 @@ Partial Public Class MainWindow
     Public Sub NavigateBackward()
         Try
             ' TODO: Implement navigation history
-            UpdateStatusBar("Navigate backward not yet implemented")
+            UpdateStatusBar("Navigate backward Not yet implemented")
             
         Catch ex As Exception
             Console.WriteLine($"NavigateBackward error: {ex.Message}")
@@ -278,7 +278,7 @@ Partial Public Class MainWindow
     ' Go to line dialog
     Public Sub ShowGoToLineDialog()
         Try
-            Dim lDialog As New Dialog("Go to Line", Me, DialogFlags.Modal)
+            Dim lDialog As New Dialog("Go To Line", Me, DialogFlags.Modal)
             lDialog.SetDefaultSize(300, 120)
             
             Dim lVBox As New Box(Orientation.Vertical, 5)
@@ -323,5 +323,81 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnEditorGoToLineRequested error: {ex.Message}")
         End Try
     End Sub
+            
+    ''' <summary>
+    ''' Switches to the next tab in the notebook (Ctrl+Tab functionality)
+    ''' </summary>
+    Private Sub SwitchToNextTab()
+        Try
+            ' Check if notebook exists and has tabs
+            If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                Return
+            End If
+            
+            ' Get current page index
+            Dim lCurrentPage As Integer = pNotebook.CurrentPage
+            
+            ' Calculate next page index (wrap around if at end)
+            Dim lNextPage As Integer = lCurrentPage + 1
+            If lNextPage >= pNotebook.NPages Then
+                lNextPage = 0  ' Wrap to first tab
+            End If
+            
+            ' Switch to next tab
+            pNotebook.CurrentPage = lNextPage
+            
+            ' Ensure the editor gets focus
+            Dim lTabInfo As TabInfo = GetTabInfo(lNextPage)
+            If lTabInfo IsNot Nothing AndAlso lTabInfo.Editor IsNot Nothing Then
+                ' Give focus to the editor widget
+                lTabInfo.Editor.Widget.GrabFocus()
+                
+                ' Update status bar with current file
+                Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
+                UpdateStatusBar($"Switched To {lFileName}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"SwitchToNextTab error: {ex.Message}")
+        End Try
+    End Sub        
+            
+    ''' <summary>
+    ''' Switches to the previous tab in the notebook (Ctrl+Shift+Tab functionality)
+    ''' </summary>
+    Private Sub SwitchToPreviousTab()
+        Try
+            ' Check if notebook exists and has tabs
+            If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                Return
+            End If
+            
+            ' Get current page index
+            Dim lCurrentPage As Integer = pNotebook.CurrentPage
+            
+            ' Calculate previous page index (wrap around if at beginning)
+            Dim lPreviousPage As Integer = lCurrentPage - 1
+            If lPreviousPage < 0 Then
+                lPreviousPage = pNotebook.NPages - 1  ' Wrap to last tab
+            End If
+            
+            ' Switch to previous tab
+            pNotebook.CurrentPage = lPreviousPage
+            
+            ' Ensure the editor gets focus
+            Dim lTabInfo As TabInfo = GetTabInfo(lPreviousPage)
+            If lTabInfo IsNot Nothing AndAlso lTabInfo.Editor IsNot Nothing Then
+                ' Give focus to the editor widget
+                lTabInfo.Editor.Widget.GrabFocus()
+                
+                ' Update status bar with current file
+                Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
+                UpdateStatusBar($"Switched To {lFileName}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"SwitchToPreviousTab error: {ex.Message}")
+        End Try
+    End Sub        
     
 End Class

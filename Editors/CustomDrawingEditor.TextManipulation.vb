@@ -11,22 +11,6 @@ Namespace Editors
         Inherits Box
         Implements IEditor
         
-        ' GetLineText - Get the text of a specific line (0-based)
-        Public Function GetLineText(vLine As Integer) As String Implements IEditor.GetLineText
-            Try
-                ' Validate line number
-                If vLine < 0 OrElse vLine >= pLineCount Then
-                    Return ""
-                End If
-                
-                ' Return the line text
-                Return pTextLines(vLine)
-                
-            Catch ex As Exception
-                Console.WriteLine($"GetLineText error: {ex.Message}")
-                Return ""
-            End Try
-        End Function    
 
 
 
@@ -54,7 +38,7 @@ Namespace Editors
                     ' Resize metadata arrays
                     ReDim pLineMetadata(pLineCount - 1)
                     ReDim pCharacterColors(pLineCount - 1)
-                    For i As Integer = 0 To pLineCount - 1
+                    for i As Integer = 0 To pLineCount - 1
                         pLineMetadata(i) = New LineMetadata()
                         pCharacterColors(i) = New CharacterColorInfo() {}
                         ProcessLineFormatting(i)
@@ -78,7 +62,7 @@ Namespace Editors
                     
                     ' Queue redraw
                     pDrawingArea?.QueueDraw()
-                    pLineNumberArea?.QueueDraw()
+
                     UpdateScrollbars()
                     
                 Catch ex As Exception
@@ -240,11 +224,11 @@ Namespace Editors
                 Dim lIndentation As New System.Text.StringBuilder()
                 
                 ' Extract leading whitespace
-                For Each lChar As Char In lLine
+                for each lChar As Char in lLine
                     If lChar = " "c OrElse lChar = vbTab Then
                         lIndentation.Append(lChar)
                     Else
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
@@ -276,7 +260,7 @@ Namespace Editors
                     Dim lNewColors(pTextLines(vLine).Length - 1) As CharacterColorInfo
                     If pCharacterColors(vLine) IsNot Nothing Then
                         ' Shift existing colors by indent length
-                        For i As Integer = 0 To pCharacterColors(vLine).Length - 1
+                        for i As Integer = 0 To pCharacterColors(vLine).Length - 1
                             If i + lIndent.Length < lNewColors.Length Then
                                 lNewColors(i + lIndent.Length) = pCharacterColors(vLine)(i)
                             End If
@@ -318,11 +302,11 @@ Namespace Editors
                     lRemoveCount = 1
                 ElseIf lLine.StartsWith(" ") Then
                     ' Remove up to TabWidth spaces
-                    For i As Integer = 0 To Math.Min(pTabWidth - 1, lLine.Length - 1)
+                    for i As Integer = 0 To Math.Min(pTabWidth - 1, lLine.Length - 1)
                         If lLine(i) = " "c Then
                             lRemoveCount += 1
                         Else
-                            Exit For
+                            Exit for
                         End If
                     Next
                 End If
@@ -336,7 +320,7 @@ Namespace Editors
                         Dim lNewColors(pTextLines(vLine).Length - 1) As CharacterColorInfo
                         If pCharacterColors(vLine) IsNot Nothing AndAlso pCharacterColors(vLine).Length > lRemoveCount Then
                             ' Shift colors left
-                            For i As Integer = lRemoveCount To pCharacterColors(vLine).Length - 1
+                            for i As Integer = lRemoveCount To pCharacterColors(vLine).Length - 1
                                 If i - lRemoveCount < lNewColors.Length Then
                                     lNewColors(i - lRemoveCount) = pCharacterColors(vLine)(i)
                                 End If
@@ -447,7 +431,7 @@ Namespace Editors
                     Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
                     
                     ' Indent each line in selection
-                    For i As Integer = lStartLine To lEndLine
+                    for i As Integer = lStartLine To lEndLine
                         IndentLinePrivate(i)
                     Next
                     
@@ -492,7 +476,7 @@ Namespace Editors
                     Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
                     
                     ' Outdent each line in selection
-                    For i As Integer = lStartLine To lEndLine
+                    for i As Integer = lStartLine To lEndLine
                         OutdentLinePrivate(i)
                     Next
                     

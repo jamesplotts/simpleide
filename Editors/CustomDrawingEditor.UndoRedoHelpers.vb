@@ -79,7 +79,7 @@ Namespace Editors
                 UpdateLineNumberWidth()
                 UpdateScrollbars()
                 pDrawingArea.QueueDraw()
-                pLineNumberArea?.QueueDraw()
+
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertNewLineDirect error: {ex.Message}")
