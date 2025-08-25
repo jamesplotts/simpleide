@@ -32,6 +32,7 @@ Namespace Widgets
         Private pCancelButton As Button
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
+        Private pCurrentTab as TabInfo
         
         ' Search state
         Private pProjectRoot As String
@@ -79,18 +80,141 @@ Namespace Widgets
         Public Enum SearchScope
             eUnspecified
             eCurrentFile
-            eOpenFiles  
+            eOpenFiles 
             eProject
             eLastValue
         End Enum
-
+        
         Public Class FindResult
+            ' Core properties
             Public Property FilePath As String
             Public Property LineNumber As Integer
             Public Property ColumnNumber As Integer
             Public Property LineText As String
             Public Property MatchText As String
             Public Property MatchLength As Integer
+            
+            ''' <summary>
+            ''' Parameterized constructor for FindResult
+            ''' </summary>
+            ''' <param name="vFilePath">Full path to the file containing the match</param>
+            ''' <param name="vLineNumber">Line number of the match (1-based)</param>
+            ''' <param name="vColumnNumber">Column number of the match (1-based)</param>
+            ''' <param name="vLineText">The text of the line containing the match</param>
+            ''' <param name="vMatchColumnInLine">Column offset of the match within the line (0-based)</param>
+            ''' <param name="vMatchLength">Length of the matched text</param>
+            Public Sub New(vFilePath As String, 
+                           vLineNumber As Integer, 
+                           vColumnNumber As Integer, 
+                           vLineText As String, 
+                           vMatchColumnInLine As Integer, 
+                           vMatchLength As Integer)
+                
+                Me.FilePath = vFilePath
+                Me.LineNumber = vLineNumber
+                Me.ColumnNumber = vColumnNumber
+                Me.LineText = vLineText
+                Me.MatchLength = vMatchLength
+                
+                ' Extract the match text from the line using the column offset
+                Try
+                    If Not String.IsNullOrEmpty(vLineText) AndAlso 
+                       vMatchColumnInLine >= 0 AndAlso 
+                       vMatchColumnInLine + vMatchLength <= vLineText.Length Then
+                        
+                        Me.MatchText = vLineText.Substring(vMatchColumnInLine, vMatchLength)
+                    Else
+                        ' Fallback if we can't extract the exact match
+                        Me.MatchText = ""
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"FindResult constructor error extracting match text: {ex.Message}")
+                    Me.MatchText = ""
+                End Try
+            End Sub
+            
+            ''' <summary>
+            ''' Default parameterless constructor (keeps existing functionality)
+            ''' </summary>
+            Public Sub New()
+                ' Default constructor for object initializer syntax
+            End Sub
+            
+            ''' <summary>
+            ''' Gets the file name without path
+            ''' </summary>
+            Public ReadOnly Property FileName As String
+                Get
+                    If String.IsNullOrEmpty(FilePath) Then
+                        Return ""
+                    End If
+                    Return System.IO.Path.GetFileName(FilePath)
+                End Get
+            End Property
+            
+            ''' <summary>
+            ''' Gets the directory path
+            ''' </summary>
+            Public ReadOnly Property DirectoryPath As String
+                Get
+                    If String.IsNullOrEmpty(FilePath) Then
+                        Return ""
+                    End If
+                    Return System.IO.Path.GetDirectoryName(FilePath)
+                End Get
+            End Property
+            
+            ''' <summary>
+            ''' Gets a display string for the result
+            ''' </summary>
+            Public ReadOnly Property DisplayText As String
+                Get
+                    Return $"{FileName}:{LineNumber}:{ColumnNumber}: {LineText}"
+                End Get
+            End Property
+            
+            ''' <summary>
+            ''' Gets a tooltip-friendly description
+            ''' </summary>
+            Public ReadOnly Property ToolTipText As String
+                Get
+                    Return $"File: {FilePath}{Environment.NewLine}" &
+                           $"Line {LineNumber}, Column {ColumnNumber}{Environment.NewLine}" &
+                           $"Match: ""{MatchText}"" ({MatchLength} characters)"
+                End Get
+            End Property
+
+        
+
+            
+            ''' <summary>
+            ''' Compares two FindResult objects for equality
+            ''' </summary>
+            Public Overrides Function Equals(obj As Object) As Boolean
+                If obj Is Nothing OrElse Not TypeOf obj Is FindResult Then
+                    Return False
+                End If
+                
+                Dim lOther As FindResult = DirectCast(obj, FindResult)
+                Return FilePath = lOther.FilePath AndAlso
+                       LineNumber = lOther.LineNumber AndAlso
+                       ColumnNumber = lOther.ColumnNumber AndAlso
+                       MatchText = lOther.MatchText
+            End Function
+            
+            ''' <summary>
+            ''' Gets hash code for the result
+            ''' </summary>
+            Public Overrides Function GetHashCode() As Integer
+                Return HashCode.Combine(FilePath, LineNumber, ColumnNumber, MatchText)
+            End Function
+            
+            ''' <summary>
+            ''' String representation for debugging
+            ''' </summary>
+            Public Overrides Function ToString() As String
+                Return DisplayText
+            End Function
         End Class
 
         Public Sub New()
@@ -99,6 +223,9 @@ Namespace Widgets
             ConnectEvents()
         End Sub
 
+        ''' <summary>
+        ''' Initializes the user interface components of the find/replace panel with sortable results
+        ''' </summary>
         Private Sub InitializeUI()
             Try
                 ' Search/Replace controls
@@ -114,18 +241,26 @@ Namespace Widgets
                 pStatusLabel = New Label("Ready")
                 pProgressBar = New ProgressBar()
                 pProgressBar.Visible = False
-                pCancelButton.Visible = False
+                
+                ' FIXED: pCancelButton is created in CreateSearchControls, so check if it exists
+                If pCancelButton IsNot Nothing Then
+                    pCancelButton.Visible = False
+                End If
                 
                 lStatusBox.PackStart(pStatusLabel, False, False, 0)
                 lStatusBox.PackEnd(pProgressBar, False, False, 0)
                 PackStart(lStatusBox, False, False, 0)
                 
-                ' Results list
+                ' Results list with sortable columns
                 Dim lResultsScroll As New ScrolledWindow()
                 lResultsScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 lResultsScroll.ShadowType = ShadowType.In
                 
-                pResultsView = CreateResultsView()
+                ' Set a minimum height for the results scroll window
+                lResultsScroll.HeightRequest = 200
+                
+                ' Use the new sortable results view
+                pResultsView = CreateSortableResultsView()
                 lResultsScroll.Add(pResultsView)
                 PackStart(lResultsScroll, True, True, 0)
                 
@@ -133,8 +268,13 @@ Namespace Widgets
                 UpdateButtonStates()
                 ShowAll()
                 
+                ' Hide cancel button after ShowAll()
+                If pCancelButton IsNot Nothing Then
+                    pCancelButton.Visible = False
+                End If
+                
             Catch ex As Exception
-                Console.WriteLine($"error initializing FindReplacePanel: {ex.Message}")
+                Console.WriteLine($"Error initializing FindReplacePanel: {ex.Message}")
             End Try
         End Sub
 
@@ -235,308 +375,136 @@ Namespace Widgets
             Return lOptionsBox
         End Function
 
+        ''' <summary>
+        ''' Creates the tree view for displaying search results
+        ''' </summary>
+        ''' <returns>Configured TreeView widget for search results</returns>
         Private Function CreateResultsView() As TreeView
-            ' Create tree view
-            Dim lTreeView As New TreeView()
-            
-            ' Create model (FilePath, LineText, LineNumber, ColumnNumber, MatchText)
-            pResultsStore = New ListStore(GetType(String), GetType(String), GetType(Integer), GetType(Integer), GetType(String))
-            lTreeView.Model = pResultsStore
-            
-            ' File column
-            Dim lFileRenderer As New CellRendererText()
-            Dim lFileColumn As New TreeViewColumn("File", lFileRenderer, "Text", 0)
-            lFileColumn.Resizable = True
-            lFileColumn.MinWidth = 200
-            lTreeView.AppendColumn(lFileColumn)
-            
-            ' Line column
-            Dim lLineRenderer As New CellRendererText()
-            Dim lLineColumn As New TreeViewColumn("Line", lLineRenderer, "Text", 2)
-            lLineColumn.Resizable = True
-            lLineColumn.MinWidth = 60
-            lTreeView.AppendColumn(lLineColumn)
-            
-            ' Text column
-            Dim lTextRenderer As New CellRendererText()
-            Dim lTextColumn As New TreeViewColumn("Text", lTextRenderer, "Text", 1)
-            lTextColumn.Resizable = True
-            lTextColumn.MinWidth = 300
-            lTreeView.AppendColumn(lTextColumn)
-            
-            ' Configure tree view
-            lTreeView.EnableSearch = True
-            lTreeView.SearchColumn = 1
-            lTreeView.HeadersVisible = True
-            lTreeView.EnableGridLines = TreeViewGridLines.Horizontal
-            
-            Return lTreeView
+            Try
+                ' Create tree view
+                Dim lTreeView As New TreeView()
+                
+                ' Create model (FilePath, LineText, LineNumber, ColumnNumber, MatchText)
+                pResultsStore = New ListStore(GetType(String), GetType(String), GetType(Integer), GetType(Integer), GetType(String))
+                lTreeView.Model = pResultsStore
+                
+                ' File column - FIXED: Use proper GTK# 3 syntax
+                Dim lFileRenderer As New CellRendererText()
+                Dim lFileColumn As New TreeViewColumn()
+                lFileColumn.Title = "File"
+                lFileColumn.PackStart(lFileRenderer, True)
+                lFileColumn.AddAttribute(lFileRenderer, "text", 0)  ' Use lowercase "text"
+                lFileColumn.Resizable = True
+                lFileColumn.MinWidth = 200
+                lTreeView.AppendColumn(lFileColumn)
+                
+                ' Line column - FIXED: Use proper GTK# 3 syntax
+                Dim lLineRenderer As New CellRendererText()
+                Dim lLineColumn As New TreeViewColumn()
+                lLineColumn.Title = "Line"
+                lLineColumn.PackStart(lLineRenderer, False)
+                lLineColumn.AddAttribute(lLineRenderer, "text", 2)  ' Use lowercase "text"
+                lLineColumn.Resizable = True
+                lLineColumn.MinWidth = 60
+                lTreeView.AppendColumn(lLineColumn)
+                
+                ' Text column - FIXED: Use proper GTK# 3 syntax
+                Dim lTextRenderer As New CellRendererText()
+                Dim lTextColumn As New TreeViewColumn()
+                lTextColumn.Title = "Text"
+                lTextColumn.PackStart(lTextRenderer, True)
+                lTextColumn.AddAttribute(lTextRenderer, "text", 1)  ' Use lowercase "text"
+                lTextColumn.Resizable = True
+                lTextColumn.MinWidth = 300
+                lTreeView.AppendColumn(lTextColumn)
+                
+                ' Configure tree view
+                lTreeView.EnableSearch = True
+                lTreeView.SearchColumn = 1
+                lTreeView.HeadersVisible = True
+                lTreeView.EnableGridLines = TreeViewGridLines.Horizontal
+                
+                Return lTreeView
+                
+            Catch ex As Exception
+                Console.WriteLine($"CreateResultsView error: {ex.Message}")
+                Return New TreeView()
+            End Try
         End Function
-
+        
+        ''' <summary>
+        ''' Connects all event handlers for the FindReplacePanel controls
+        ''' </summary>
         Private Sub ConnectEvents()
-            ' Search events
-            AddHandler pFindEntry.Changed, AddressOf OnFindEntryChanged
-            AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
-            AddHandler pFindButton.Clicked, AddressOf OnFindAll
-            AddHandler pFindNextButton.Clicked, AddressOf OnFindNext
-            AddHandler pFindPreviousButton.Clicked, AddressOf OnFindPrevious
-            
-            ' Replace events
-            AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnReplaceEntryKeyPress
-            AddHandler pReplaceButton.Clicked, AddressOf OnReplace
-            AddHandler pReplaceAllButton.Clicked, AddressOf OnReplaceAll
-            
-            ' Other events
-            AddHandler pCancelButton.Clicked, AddressOf OnCancel
-            AddHandler pRefreshButton.Clicked, AddressOf OnRefresh
-            AddHandler pCloseButton.Clicked, AddressOf OnClose
-            AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
+            Try
+                ' Entry key press events
+                AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
+                AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnReplaceEntryKeyPress
+                
+                ' ADDED: Entry Activated event (Enter key specific)
+                AddHandler pFindEntry.Activated, AddressOf OnFindEntryActivated
+                AddHandler pReplaceEntry.Activated, AddressOf OnReplaceEntryActivated
+                
+                ' Entry change events for live updates
+                AddHandler pFindEntry.Changed, AddressOf OnFindEntryChanged
+                
+                ' Button events - Updated to use optimized handlers
+                AddHandler pFindButton.Clicked, AddressOf OnFind  ' Will now use ExecuteSearchOptimized
+                AddHandler pFindNextButton.Clicked, AddressOf OnFindNext
+                AddHandler pFindPreviousButton.Clicked, AddressOf OnFindPrevious
+                AddHandler pReplaceButton.Clicked, AddressOf OnReplace
+                AddHandler pReplaceAllButton.Clicked, AddressOf OnReplaceAll
+                AddHandler pCancelButton.Clicked, AddressOf OnCancelOptimized  ' Use optimized cancel
+                AddHandler pRefreshButton.Clicked, AddressOf OnRefresh
+                AddHandler pCloseButton.Clicked, AddressOf OnClose
+                
+                ' Results selection
+                AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
+                
+                ' Radio button changes - ENABLE for auto-search on scope change
+                AddHandler pInFileRadio.Toggled, AddressOf OnScopeChanged
+                AddHandler pInProjectRadio.Toggled, AddressOf OnScopeChanged
+                
+                ' Options changes - auto-search when options change
+                AddHandler pCaseSensitiveCheck.Toggled, AddressOf OnOptionsChanged
+                AddHandler pWholeWordCheck.Toggled, AddressOf OnOptionsChanged
+                AddHandler pRegexCheck.Toggled, AddressOf OnOptionsChanged
+        
+                AddHandler pResultsView.ButtonPressEvent, AddressOf OnResultsButtonPress
+                AddHandler pResultsView.KeyPressEvent, AddressOf OnResultsKeyPress
+                
+            Catch ex As Exception
+                Console.WriteLine($"ConnectEvents error: {ex.Message}")
+            End Try
         End Sub
 
         ' ===== Event Handlers =====
         
-        Private Function OnFindEntryKeyPress(vSender As Object, vE As KeyPressEventArgs) As Boolean
+        ''' <summary>
+        ''' Handles the Activated event (Enter key) for the find entry
+        ''' </summary>
+        Private Sub OnFindEntryActivated(vSender As Object, vArgs As EventArgs)
             Try
-                If vE.Event.key = Gdk.key.Return OrElse vE.Event.key = Gdk.key.KP_Enter Then
-                    OnFindAll(Nothing, Nothing)
-                    Return True
-                ElseIf vE.Event.key = Gdk.key.Escape Then
-                    RaiseEvent CloseRequested()
-                    Return True
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"error handling Find entry key press: {ex.Message}")
-            End Try
-            Return False
-        End Function
-
-        Private Sub OnFindEntryChanged(vSender As Object, vE As EventArgs)
-            Try
-                UpdateButtonStates()
-                ' Clear current search results when text changes
-                pCurrentMatches = Nothing
-                pCurrentMatchIndex = -1
-            Catch ex As Exception
-                Console.WriteLine($"error handling Find entry changed: {ex.Message}")
-            End Try
-        End Sub
-
-        Private Function OnReplaceEntryKeyPress(vSender As Object, vE As KeyPressEventArgs) As Boolean
-            Try
-                If vE.Event.key = Gdk.key.Return OrElse vE.Event.key = Gdk.key.KP_Enter Then
-                    OnReplace(Nothing, Nothing)
-                    Return True
-                ElseIf vE.Event.key = Gdk.key.Escape Then
-                    RaiseEvent CloseRequested()
-                    Return True
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"error handling Replace entry key press: {ex.Message}")
-            End Try
-            Return False
-        End Function
-
-        Private Sub OnResultActivated(vSender As Object, vE As RowActivatedArgs)
-            Try
-                Dim lModel As Object = Nothing
-                Dim lIter As TreeIter
+                Console.WriteLine("OnFindEntryActivated: Enter pressed via Activated event!")
                 
-                If pResultsView.Selection.GetSelected(lModel, lIter) Then
-                    Dim lFilePath As String = CStr(lModel.GetValue(lIter, 0))
-                    Dim lLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
-                    Dim lColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
-                    
-                    RaiseEvent ResultSelected(lFilePath, lLineNumber, lColumnNumber)
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"error handling Result activation: {ex.Message}")
-            End Try
-        End Sub
-
-        Private Sub OnFindAll(vSender As Object, vE As EventArgs)
-            ExecuteSearch()
-        End Sub
-
-        Private Sub OnFindNext(vSender As Object, vE As EventArgs)
-            Try
-                If String.IsNullOrEmpty(pFindEntry.Text) Then
-                    pStatusLabel.Text = "Please enter search Text"
-                    Return
-                End If
-                
-                ' Get current editor if we don't have matches
-                If pCurrentMatches Is Nothing OrElse pCurrentMatches.Count = 0 Then
-                    Dim lTab As TabInfo = GetCurrentTab()
-                    If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
-                        pStatusLabel.Text = "No file open to search"
-                        Return
-                    End If
-                    
-                    pCurrentEditor = lTab.Editor
-                    pCurrentFilePath = lTab.FilePath
-                    
-                    ' Find all matches
-                    pCurrentMatches = New List(Of EditorPosition)(
-                        pCurrentEditor.Find(pFindEntry.Text, pCaseSensitiveCheck.Active, 
-                                          pWholeWordCheck.Active, pRegexCheck.Active))
-                    
-                    If pCurrentMatches.Count = 0 Then
-                        pStatusLabel.Text = "No matches found"
-                        Return
-                    End If
-                    
-                    pCurrentMatchIndex = -1
-                End If
-                
-                ' Move to next match
-                pCurrentMatchIndex += 1
-                If pCurrentMatchIndex >= pCurrentMatches.Count Then
-                    pCurrentMatchIndex = 0
-                End If
-                
-                NavigateToMatch(pCurrentMatchIndex)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnFindNext error: {ex.Message}")
-                pStatusLabel.Text = "error: " & ex.Message
-            End Try
-        End Sub
-
-        Private Sub OnFindPrevious(vSender As Object, vE As EventArgs)
-            Try
-                If String.IsNullOrEmpty(pFindEntry.Text) Then
-                    pStatusLabel.Text = "Please enter search Text"
-                    Return
-                End If
-                
-                ' Get current editor if we don't have matches
-                If pCurrentMatches Is Nothing OrElse pCurrentMatches.Count = 0 Then
-                    Dim lTab As TabInfo = GetCurrentTab()
-                    If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
-                        pStatusLabel.Text = "No file open to search"
-                        Return
-                    End If
-                    
-                    pCurrentEditor = lTab.Editor
-                    pCurrentFilePath = lTab.FilePath
-                    
-                    ' Find all matches
-                    pCurrentMatches = New List(Of EditorPosition)(
-                        pCurrentEditor.Find(pFindEntry.Text, pCaseSensitiveCheck.Active, 
-                                          pWholeWordCheck.Active, pRegexCheck.Active))
-                    
-                    If pCurrentMatches.Count = 0 Then
-                        pStatusLabel.Text = "No matches found"
-                        Return
-                    End If
-                    
-                    pCurrentMatchIndex = pCurrentMatches.Count
-                End If
-                
-                ' Move to previous match
-                pCurrentMatchIndex -= 1
-                If pCurrentMatchIndex < 0 Then
-                    pCurrentMatchIndex = pCurrentMatches.Count - 1
-                End If
-                
-                NavigateToMatch(pCurrentMatchIndex)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnFindPrevious error: {ex.Message}")
-                pStatusLabel.Text = "error: " & ex.Message
-            End Try
-        End Sub
-
-        Private Sub OnReplace(vSender As Object, vE As EventArgs)
-            Try
-                If String.IsNullOrEmpty(pFindEntry.Text) Then
-                    pStatusLabel.Text = "Please enter search Text"
-                    Return
-                End If
-                
-                Dim lTab As TabInfo = GetCurrentTab()
-                If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
-                    pStatusLabel.Text = "No file open to Replace in"
-                    Return
-                End If
-                
-                ' Check if current selection matches search text
-                If lTab.Editor.HasSelection Then
-                    Dim lSelectedText As String = lTab.Editor.SelectedText
-                    Dim lMatches As Boolean = False
-                    
-                    If pRegexCheck.Active Then
-                        Try
-                            Dim lRegex As New Regex(pFindEntry.Text, 
-                                If(pCaseSensitiveCheck.Active, RegexOptions.None, RegexOptions.IgnoreCase))
-                            lMatches = lRegex.IsMatch(lSelectedText)
-                        Catch ex As Exception
-                            pStatusLabel.Text = "Invalid regex Pattern"
-                            Return
-                        End Try
-                    ElseIf pWholeWordCheck.Active Then
-                        lMatches = IsWholeWordMatch(lSelectedText, pFindEntry.Text, pCaseSensitiveCheck.Active)
-                    ElseIf pCaseSensitiveCheck.Active Then
-                        lMatches = lSelectedText = pFindEntry.Text
-                    Else
-                        lMatches = String.Equals(lSelectedText, pFindEntry.Text, StringComparison.OrdinalIgnoreCase)
-                    End If
-                    
-                    If lMatches Then
-                        ' Replace current selection
-                        lTab.Editor.ReplaceSelection(pReplaceEntry.Text)
-                        pStatusLabel.Text = "Replaced 1 occurrence"
-                        
-                        ' Clear search results as text has changed
-                        pCurrentMatches = Nothing
-                        pCurrentMatchIndex = -1
-                    End If
-                End If
-                
-                ' Find next occurrence
-                OnFindNext(Nothing, Nothing)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnReplace error: {ex.Message}")
-                pStatusLabel.Text = "Replace error: " & ex.Message
-            End Try
-        End Sub
-
-        Private Sub OnReplaceAll(vSender As Object, vE As EventArgs)
-            Try
-                If String.IsNullOrEmpty(pFindEntry.Text) Then
-                    pStatusLabel.Text = "Please enter search Text"
-                    Return
-                End If
-                
-                If pInFileRadio.Active Then
-                    ' Replace in current file
-                    ReplaceAllInCurrentFile()
+                ' Execute Find All if we have text
+                If Not String.IsNullOrEmpty(pFindEntry.Text) Then
+                    OnFind(Nothing, Nothing)
                 Else
-                    ' Replace in project
-                    ReplaceAllInProject()
+                    pStatusLabel.Text = "Please enter search text"
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"OnReplaceAll error: {ex.Message}")
-                pStatusLabel.Text = "Replace all error: " & ex.Message
+                Console.WriteLine($"OnFindEntryActivated error: {ex.Message}")
             End Try
         End Sub
+        
 
-        Private Sub OnCancel(vSender As Object, vE As EventArgs)
-            pIsSearching = False
-            pCancelButton.Visible = False
-            pProgressBar.Visible = False
-            pStatusLabel.Text = "Search cancelled"
-        End Sub
+        
 
-        Private Sub OnRefresh(vSender As Object, vE As EventArgs)
-            If pLastSearchOptions.SearchText IsNot Nothing Then
-                ExecuteSearch()
-            Else
-                pStatusLabel.Text = "No previous search to Refresh"
-            End If
-        End Sub
+
+
+
 
         Private Sub OnClose(vSender As Object, vE As EventArgs)
             RaiseEvent CloseRequested()
@@ -552,7 +520,7 @@ Namespace Widgets
                 End If
                 
                 ' Save search options
-                pLastSearchOptions = New SearchOptions With {
+                pLastSearchOptions = New SearchOptions with {
                     .SearchText = pFindEntry.Text,
                     .ReplaceText = pReplaceEntry.Text,
                     .MatchCase = pCaseSensitiveCheck.Active,
@@ -600,7 +568,8 @@ Namespace Widgets
                     Return
                 End If
                 
-                ' Add results to list
+                ' Build FindResult list
+                pSearchResults.Clear()
                 For Each lMatch In pCurrentMatches
                     Dim lLineText As String = lTab.Editor.GetLineText(lMatch.Line)
                     Dim lResult As New FindResult With {
@@ -608,20 +577,15 @@ Namespace Widgets
                         .LineNumber = lMatch.Line + 1,  ' Convert to 1-based
                         .ColumnNumber = lMatch.Column + 1,
                         .LineText = lLineText.Trim(),
-                        .MatchLength = pLastSearchOptions.SearchText.Length
+                        .MatchLength = pLastSearchOptions.SearchText.Length,
+                        .MatchText = pLastSearchOptions.SearchText
                     }
                     
                     pSearchResults.Add(lResult)
-                    
-                    ' Add to tree view
-                    pResultsStore.AppendValues(
-                        System.IO.Path.GetFileName(lResult.FilePath),
-                        lResult.LineText,
-                        lResult.LineNumber,
-                        lResult.ColumnNumber,
-                        pLastSearchOptions.SearchText
-                    )
                 Next
+                
+                ' Use the new sortable population method
+                PopulateSortableResults(pSearchResults)
                 
                 pStatusLabel.Text = $"Found {pCurrentMatches.Count} match(es) in current file"
                 
@@ -642,6 +606,9 @@ Namespace Widgets
                 pProgressBar.Visible = True
                 pCancelButton.Visible = True
                 pIsSearching = True
+                
+                ' Clear previous results
+                pSearchResults.Clear()
                 
                 ' Get all project files
                 Dim lFiles As New List(Of String)()
@@ -668,6 +635,9 @@ Namespace Widgets
                     lFilesSearched += 1
                 Next
                 
+                ' Populate results with sorting support
+                PopulateSortableResults(pSearchResults)
+                
                 ' Hide progress
                 pProgressBar.Visible = False
                 pCancelButton.Visible = False
@@ -687,7 +657,7 @@ Namespace Widgets
         Private Function SearchFile(vFilePath As String) As Integer
             Try
                 ' Read file content
-                Dim lContent As String = File.ReadAllText(vFilePath)
+                Dim lContent As String = System.IO.File.ReadAllText(vFilePath)
                 Dim lLines() As String = lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
                 
                 Dim lMatchCount As Integer = 0
@@ -703,20 +673,11 @@ Namespace Widgets
                             .LineNumber = lLineIndex + 1,
                             .ColumnNumber = lColumn + 1,
                             .LineText = lLine.Trim(),
-                            .MatchLength = pLastSearchOptions.SearchText.Length
+                            .MatchLength = pLastSearchOptions.SearchText.Length,
+                            .MatchText = pLastSearchOptions.SearchText
                         }
                         
                         pSearchResults.Add(lResult)
-                        
-                        ' Add to tree view
-                        pResultsStore.AppendValues(
-                            System.IO.Path.GetFileName(lResult.FilePath),
-                            lResult.LineText,
-                            lResult.LineNumber,
-                            lResult.ColumnNumber,
-                            pLastSearchOptions.SearchText
-                        )
-                        
                         lMatchCount += 1
                     Next
                 Next
@@ -738,7 +699,7 @@ Namespace Widgets
                     Dim lRegex As New Regex(vOptions.SearchText, 
                         If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
                     
-                    For Each lMatch As Match In lRegex.Matches(vLine)
+                    for each lMatch As Match in lRegex.Matches(vLine)
                         lMatches.Add(lMatch.Index)
                     Next
                 Else
@@ -812,7 +773,7 @@ Namespace Widgets
                     Dim lReplaceText As String = pReplaceEntry.Text
                     
                     ' Replace from end to beginning to maintain positions
-                    For i As Integer = lMatches.Count - 1 To 0 Step -1
+                    for i As Integer = lMatches.Count - 1 To 0 Step -1
                         Dim lPosition As EditorPosition = lMatches(i)
                         
                         ' Calculate end position
@@ -1020,7 +981,7 @@ Namespace Widgets
                 pCurrentEditor.SetSelection(New EditorPosition(lMatch.Line, lMatch.Column), New EditorPosition(lMatch.Line, lEndColumn))
                 
                 ' Update status
-                pStatusLabel.Text = $"Match {vIndex + 1} of {pCurrentMatches.Count}"
+                pStatusLabel.Text = $"Match {vIndex + 1} Of {pCurrentMatches.Count}"
                 
                 ' Ensure editor has focus
                 pCurrentEditor.Widget.GrabFocus()
@@ -1064,15 +1025,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        Private Sub UpdateButtonStates()
-            Dim lHasText As Boolean = Not String.IsNullOrEmpty(pFindEntry.Text)
-            pFindButton.Sensitive = lHasText
-            pFindNextButton.Sensitive = lHasText AndAlso pSearchResults.Count > 0
-            pFindPreviousButton.Sensitive = lHasText AndAlso pSearchResults.Count > 0
-            pReplaceButton.Sensitive = lHasText AndAlso Not String.IsNullOrEmpty(pReplaceEntry.Text)
-            pReplaceAllButton.Sensitive = lHasText AndAlso Not String.IsNullOrEmpty(pReplaceEntry.Text)
-            pRefreshButton.Sensitive = pSearchResults.Count > 0
-        End Sub
         
         ' ===== Public Methods =====
         
@@ -1129,6 +1081,31 @@ Namespace Widgets
                 Return pIsSearching
             End Get
         End Property
+
+        ' Replace: SimpleIDE.Widgets.FindReplacePanel.OnFind
+        Public Sub OnFind(vSender As Object, vE As EventArgs)
+            Try
+                ' Use optimized search
+                ExecuteSearchOptimized()
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnFind error: {ex.Message}")
+                pStatusLabel.Text = "Search error: " & ex.Message
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Focuses the search entry without selecting its contents
+        ''' </summary>
+        Public Sub FocusSearchEntryNoSelect()
+            Try
+                pFindEntry.GrabFocus()
+                ' Move cursor to end of text without selecting
+                pFindEntry.Position = pFindEntry.Text.Length
+            Catch ex As Exception
+                Console.WriteLine($"FocusSearchEntryNoSelect error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
 End Namespace

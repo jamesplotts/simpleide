@@ -122,6 +122,8 @@
     <Compile Include="Widgets/AIAssistantPanel.vb" />
     <Compile Include="Widgets/BuildOutputPanel.vb" />
     <Compile Include="Widgets/FindReplacePanel.vb" />
+    <Compile Include="Widgets/FindReplacePanel.InMemorySearch.vb" />
+    <Compile Include="Widgets/FindReplacePanel.Events.vb" />
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
@@ -239,6 +241,7 @@
     <Compile Include="Models/UndoGroup.vb" />
     <Compile Include="Models/EditorPosition.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
+    <Compile Include="Widgets/FindReplacePanel.SortableResults.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

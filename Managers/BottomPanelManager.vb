@@ -182,29 +182,6 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create Find Results tab
-        Private Sub CreateFindResultsTab()
-            Try
-                pFindPanel = New FindReplacePanel()
-                
-                ' Connect events - FIXED: Use proper delegate syntax
-                AddHandler pFindPanel.ResultSelected, 
-                    Sub(vPath As String, vLine As Integer, vCol As Integer)
-                        RaiseEvent FindResultSelected(vPath, vLine, vCol)
-                    End Sub
-                
-                AddHandler pFindPanel.CloseRequested, 
-                    Sub()
-                        HidePanel()
-                    End Sub
-                
-                ' Find panel has its own close button, so just use simple label
-                pNotebook.AppendPage(pFindPanel, New Label("Find Results"))
-                
-            Catch ex As Exception
-                Console.WriteLine($"CreateFindResultsTab error: {ex.Message}")
-            End Try
-        End Sub
         
         ' Update build output - PUBLIC METHOD
         Public Sub UpdateBuildOutput(vText As String, vIsError As Boolean)
@@ -792,6 +769,37 @@ Namespace Managers
                 End If
             Catch ex As Exception
                 Console.WriteLine($"ToggleErrorListPanel error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Creates the Find Results tab with a close button
+        ''' </summary>
+        Private Sub CreateFindResultsTab()
+            Try
+                pFindPanel = New FindReplacePanel()
+                
+                ' Connect events - FIXED: Use proper delegate syntax
+                AddHandler pFindPanel.ResultSelected, 
+                    Sub(vPath As String, vLine As Integer, vCol As Integer)
+                        RaiseEvent FindResultSelected(vPath, vLine, vCol)
+                    End Sub
+                
+                AddHandler pFindPanel.CloseRequested, 
+                    Sub()
+                        HidePanel()
+                    End Sub
+                
+                ' Create tab with close button (matching other tabs)
+                Dim lTabLabel As Widget = CreateTabWithCloseButton("Find/Replace", 
+                    Sub() 
+                        HidePanel()
+                    End Sub)
+                
+                pNotebook.AppendPage(pFindPanel, lTabLabel)
+                
+            Catch ex As Exception
+                Console.WriteLine($"CreateFindResultsTab error: {ex.Message}")
             End Try
         End Sub
 

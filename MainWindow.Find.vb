@@ -11,37 +11,55 @@ Partial Public Class MainWindow
     
     ' ===== Find Panel Integration =====
     
-    ' Initialize find panel event handlers (now using BottomPanelManager)
+
+    ''' <summary>
+    ''' Enhanced initialization that connects FindReplacePanel with ProjectManager
+    ''' </summary>
     Private Sub InitializeFindPanelEvents()
         Try
             If pBottomPanelManager?.FindPanel IsNot Nothing Then
                 Dim lFindPanel As FindReplacePanel = pBottomPanelManager.FindPanel
                 
-                ' Handle request for current tab
+                ' Existing event handlers
                 AddHandler lFindPanel.OnRequestCurrentTab, AddressOf OnFindPanelRequestCurrentTab
-                
-                ' Handle request for open tabs
                 AddHandler lFindPanel.OnRequestOpenTabs, AddressOf OnFindPanelRequestOpenTabs
-                
-                ' Handle file open request
                 AddHandler lFindPanel.OpenFileRequested, AddressOf OnFindPanelOpenFileRequested
-                
-                ' Handle close request
                 AddHandler lFindPanel.CloseRequested, AddressOf OnFindPanelCloseRequested
+                
+                ' NEW: Handle ProjectManager request
+                AddHandler lFindPanel.OnRequestProjectManager, AddressOf OnFindPanelRequestProjectManager
+                
+                ' NEW: Set ProjectManager if already available
+                If pProjectManager IsNot Nothing Then
+                    lFindPanel.SetProjectManager(pProjectManager)
+                End If
             End If
             
         Catch ex As Exception
-            Console.WriteLine($"InitializeFindPanelEvents error: {ex.Message}")
+            Console.WriteLine($"InitializeFindPanelOptimized error: {ex.Message}")
         End Try
     End Sub
-
-
 
     Public Sub OnFindPanelRequestCurrentTab(vTabInfoEventArgs As FindReplacePanel.TabInfoEventArgs)
         vTabInfoEventArgs.TabInfo = GetCurrentTabInfo()
     End Sub
+
+    ''' <summary>
+    ''' Handles FindReplacePanel's request for ProjectManager
+    ''' </summary>
+    Private Sub OnFindPanelRequestProjectManager(vSender As Object, vArgs As FindReplacePanel.ProjectManagerEventArgs)
+        Try
+            vArgs.ProjectManager = pProjectManager
+            Console.WriteLine($"MainWindow: Provided ProjectManager to FindReplacePanel")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnFindPanelRequestProjectManager error: {ex.Message}")
+        End Try
+    End Sub
     
-    ' Show the find panel
+    ''' <summary>
+    ''' Shows the find panel and executes search if text is selected (for Ctrl+F)
+    ''' </summary>
     Public Sub ShowFindPanel()
         Try
             ' Show bottom panel if hidden
@@ -59,17 +77,44 @@ Partial Public Class MainWindow
                 pFindPanel.SetProjectRoot(System.IO.Path.GetDirectoryName(pCurrentProject))
             End If
             
-            ' Focus search entry
-            pFindPanel.FocusSearchEntry()
+            Dim lHasSelection As Boolean = False
+            Dim lWordAtCursor As String = ""
             
             ' Pre-populate with selected text if any
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing AndAlso lEditor.HasSelection Then
                 Dim lSelectedText As String = lEditor.SelectedText
+                
                 ' Only use if it's a single line
-                If Not lSelectedText.Contains(vbLf) AndAlso Not lSelectedText.Contains(vbCr) Then
+                If Not String.IsNullOrEmpty(lSelectedText) AndAlso 
+                   Not lSelectedText.Contains(vbLf) AndAlso 
+                   Not lSelectedText.Contains(vbCr) Then
+                    
+                    lHasSelection = True
                     pFindPanel.SetSearchText(lSelectedText)
+                    
+                    ' Execute the find with current options
+                    pFindPanel.OnFind(Nothing, Nothing)
                 End If
+            ElseIf lEditor IsNot Nothing Then
+                ' No selection - get word at cursor
+                lWordAtCursor = lEditor.GetWordAtCursor()
+                
+                ' If there's a word at cursor, use it as search text
+                If Not String.IsNullOrEmpty(lWordAtCursor) Then
+                    pFindPanel.SetSearchText(lWordAtCursor)
+                    ' Don't execute search yet - let user confirm
+                End If
+            End If
+            
+            ' Focus search entry based on context
+            If String.IsNullOrEmpty(lWordAtCursor) AndAlso Not lHasSelection Then
+                ' No word at cursor and no selection - select all existing text
+                pFindPanel.FocusSearchEntry() ' This selects all via SelectRegion(0, -1)
+            Else
+                ' Has word at cursor or selection - focus without selecting
+                pFindPanel.FocusSearchEntryNoSelect()
+                pFindPanel.OnFind(Nothing, Nothing)
             End If
             
         Catch ex As Exception
@@ -282,6 +327,28 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"UpdateFindMenuStates error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Updates FindReplacePanel when project is loaded
+    ''' </summary>
+    Private Sub UpdateFindPanelAfterProjectLoad()
+        Try
+            If pBottomPanelManager?.FindPanel IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                ' Set the ProjectManager in FindReplacePanel
+                pBottomPanelManager.FindPanel.SetProjectManager(pProjectManager)
+                
+                ' Set the project root path
+                If pProjectManager.CurrentProjectInfo IsNot Nothing Then
+                    pBottomPanelManager.FindPanel.SetProjectRoot(pProjectManager.CurrentProjectInfo.ProjectDirectory)
+                End If
+                
+                Console.WriteLine("FindReplacePanel updated with ProjectManager after project load")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateFindPanelAfterProjectLoad error: {ex.Message}")
         End Try
     End Sub
     

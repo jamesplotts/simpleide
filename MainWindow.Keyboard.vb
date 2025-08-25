@@ -437,5 +437,5 @@ Console.WriteLine("Next Compilation Error - Not yet implemented")
             Console.WriteLine($"ShowHelpPanel error: {ex.Message}")
         End Try
     End Sub
-    
+
 End Class

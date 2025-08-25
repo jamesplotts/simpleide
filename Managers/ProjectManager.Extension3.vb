@@ -367,6 +367,127 @@ Namespace Managers
             End Try
         End Sub       
 
+        ''' <summary>
+        ''' Ensures all project source files are loaded into memory
+        ''' </summary>
+        ''' <returns>Number of files loaded</returns>
+        Public Function EnsureAllFilesLoaded() As Integer
+            Try
+                Dim lLoadedCount As Integer = 0
+                
+                If pCurrentProjectInfo Is Nothing Then
+                    Console.WriteLine("EnsureAllFilesLoaded: No project loaded")
+                    Return 0
+                End If
+                
+                ' Get list of all compile items from project
+                Dim lCompileItems As List(Of String) = pCurrentProjectInfo.CompileItems
+                If lCompileItems Is Nothing Then
+                    Console.WriteLine("EnsureAllFilesLoaded: No compile items found")
+                    Return 0
+                End If
+                
+                Console.WriteLine($"EnsureAllFilesLoaded: Checking {lCompileItems.Count} compile items")
+                
+                For Each lRelativePath In lCompileItems
+                    Try
+                        ' Convert to absolute path
+                        Dim lFullPath As String = System.IO.Path.Combine(
+                            pCurrentProjectInfo.ProjectDirectory, 
+                            lRelativePath
+                        )
+                        lFullPath = System.IO.Path.GetFullPath(lFullPath)
+                        
+                        ' Check if file exists
+                        If Not System.IO.File.Exists(lFullPath) Then
+                            Console.WriteLine($"  File not found: {lRelativePath}")
+                            Continue For
+                        End If
+                        
+                        ' Check if already loaded
+                        If pSourceFiles.ContainsKey(lFullPath) Then
+                            Dim lSourceFile As SourceFileInfo = pSourceFiles(lFullPath)
+                            If lSourceFile.IsLoaded AndAlso lSourceFile.TextLines IsNot Nothing Then
+                                lLoadedCount += 1
+                                Continue For
+                            End If
+                        End If
+                        
+                        ' Load the file
+                        Console.WriteLine($"  Loading: {lRelativePath}")
+                        Dim lNewSourceFile As New SourceFileInfo(lFullPath, pCurrentProjectInfo.ProjectDirectory)
+                        
+                        ' Read file content
+                        Dim lContent As String = System.IO.File.ReadAllText(lFullPath)
+                        lNewSourceFile.Content = lContent
+                        lNewSourceFile.TextLines = New List(Of String)(
+                            lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+                        )
+                        If lNewSourceFile.TextLines.Count = 0 Then
+                            lNewSourceFile.TextLines.Add("")
+                        End If
+                        lNewSourceFile.IsLoaded = True
+                        lNewSourceFile.RelativePath = lRelativePath
+                        
+                        ' Add or update in dictionary
+                        pSourceFiles(lFullPath) = lNewSourceFile
+                        lLoadedCount += 1
+                        
+                    Catch ex As Exception
+                        Console.WriteLine($"  Error loading {lRelativePath}: {ex.Message}")
+                    End Try
+                Next
+                
+                Console.WriteLine($"EnsureAllFilesLoaded: {lLoadedCount} files loaded successfully")
+                Return lLoadedCount
+                
+            Catch ex As Exception
+                Console.WriteLine($"EnsureAllFilesLoaded error: {ex.Message}")
+                Return 0
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Gets statistics about loaded files
+        ''' </summary>
+        ''' <returns>Tuple of (TotalFiles, LoadedFiles, TotalLines)</returns>
+        Public Function GetLoadedFileStats() As (TotalFiles As Integer, LoadedFiles As Integer, TotalLines As Integer)
+            Try
+                Dim lTotalFiles As Integer = pSourceFiles.Count
+                Dim lLoadedFiles As Integer = 0
+                Dim lTotalLines As Integer = 0
+                
+                For Each lEntry In pSourceFiles
+                    If lEntry.Value.IsLoaded AndAlso lEntry.Value.TextLines IsNot Nothing Then
+                        lLoadedFiles += 1
+                        lTotalLines += lEntry.Value.TextLines.Count
+                    End If
+                Next
+                
+                Return (lTotalFiles, lLoadedFiles, lTotalLines)
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetLoadedFileStats error: {ex.Message}")
+                Return (0, 0, 0)
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Checks if a file is loaded in memory
+        ''' </summary>
+        ''' <param name="vFilePath">The file path to check</param>
+        ''' <returns>True if the file is loaded, False otherwise</returns>
+        Public Function IsFileLoaded(vFilePath As String) As Boolean
+            Try
+                Return pSourceFiles.ContainsKey(vFilePath) AndAlso 
+                       pSourceFiles(vFilePath).IsLoaded AndAlso
+                       pSourceFiles(vFilePath).TextLines IsNot Nothing
+                       
+            Catch ex As Exception
+                Console.WriteLine($"IsFileLoaded error: {ex.Message}")
+                Return False
+            End Try
+        End Function
         
     End Class
 

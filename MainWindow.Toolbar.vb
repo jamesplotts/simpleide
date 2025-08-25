@@ -5,6 +5,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Interfaces
 
 Partial Public Class MainWindow
     
@@ -358,6 +359,12 @@ Partial Public Class MainWindow
     End Function
     
     ' Toolbar event handlers
+
+    ''' <summary>
+    ''' Handles the Find toolbar button click - shows find panel and executes search if text is selected
+    ''' </summary>
+    ''' <param name="vSender">The sender of the event</param>
+    ''' <param name="vArgs">Event arguments</param>
     Private Sub OnShowFindPanel(vSender As Object, vArgs As EventArgs)
         Try
             ' Show bottom panel with Find tab
@@ -368,8 +375,47 @@ Partial Public Class MainWindow
                 ShowBottomPanel(1) ' Find Results tab
             End If
             
-            ' Focus find entry
-            pBottomPanelManager?.FindPanel?.FocusSearchEntry()
+            ' Get the current editor
+            Dim lEditor As IEditor = GetCurrentEditor()
+            Dim lHasSelection As Boolean = False
+            Dim lWordAtCursor As String = ""
+            
+            ' Check if there's selected text
+            If lEditor IsNot Nothing AndAlso lEditor.HasSelection Then
+                Dim lSelectedText As String = lEditor.SelectedText
+                
+                ' Only use if it's a single line
+                If Not String.IsNullOrEmpty(lSelectedText) AndAlso 
+                   Not lSelectedText.Contains(vbLf) AndAlso 
+                   Not lSelectedText.Contains(vbCr) Then
+                    
+                    lHasSelection = True
+                    
+                    ' Set the search text in the find panel
+                    pBottomPanelManager?.FindPanel?.SetSearchText(lSelectedText)
+                    
+                    ' Execute the find with current options
+                    pBottomPanelManager?.FindPanel?.OnFind(Nothing, Nothing)
+                End If
+            ElseIf lEditor IsNot Nothing Then
+                ' No selection - get word at cursor
+                lWordAtCursor = lEditor.GetWordAtCursor()
+                
+                ' If there's a word at cursor, use it as search text
+                If Not String.IsNullOrEmpty(lWordAtCursor) Then
+                    pBottomPanelManager?.FindPanel?.SetSearchText(lWordAtCursor)
+                    ' Don't execute search yet - let user confirm
+                End If
+            End If
+            
+            ' Focus search entry based on context
+            If String.IsNullOrEmpty(lWordAtCursor) AndAlso Not lHasSelection Then
+                ' No word at cursor and no selection - select all existing text
+                pBottomPanelManager?.FindPanel?.FocusSearchEntry() ' Selects all
+            Else
+                ' Has word at cursor or selection - don't select text
+                pBottomPanelManager?.FindPanel?.FocusSearchEntryNoSelect()
+            End If
             
         Catch ex As Exception
             Console.WriteLine($"OnShowFindPanel error: {ex.Message}")
