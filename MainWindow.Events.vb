@@ -170,10 +170,16 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ' Replace: SimpleIDE.MainWindow.OnGoToLine
+    ''' <summary>
+    ''' Handles the Go To Line command by focusing the line number entry in the status bar
+    ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Event arguments</param>
     Public Sub OnGoToLine(vSender As Object, vArgs As EventArgs)
         Try
-            ' Implemented in MainWindow.Navigation.vb
-            ShowGoToLineDialog()
+            ' Focus the line number entry in the status bar instead of showing a dialog
+            FocusLineNumberEntry()
         Catch ex As Exception
             Console.WriteLine($"OnGoToLine error: {ex.Message}")
         End Try

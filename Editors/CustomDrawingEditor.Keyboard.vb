@@ -12,44 +12,14 @@ Namespace Editors
     Partial Public Class CustomDrawingEditor
         Inherits Box
         Implements IEditor
-        
-' ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-' ''' <summary>
-' ''' DIAGNOSTIC VERSION - Handles key press events with mouse cursor auto-hide
-' ''' </summary>
-' Private Function OnKeyPress(vSender As Object, vArgs As KeyPressEventArgs) As Boolean
-'     Try
-'         Console.WriteLine($"=== OnKeyPress DIAGNOSTIC ===")
-'         Console.WriteLine($"  KeyValue: {vArgs.Event.KeyValue}")
-'         Console.WriteLine($"  Key (raw): {vArgs.Event.Key}")
-'         Console.WriteLine($"  State: {vArgs.Event.State}")
-'         
-'         ' Try to get the key
-'         Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
-'         Console.WriteLine($"  Key (enum): {lKey}")
-'         
-'         ' Check if it's a function key
-'         Select Case lKey
-'             Case Gdk.Key.F1 To Gdk.Key.F12
-'                 Console.WriteLine($"  >>> FUNCTION KEY DETECTED: {lKey}")
-'                 Console.WriteLine($"  >>> Setting RetVal = False and Returning False")
-'                 vArgs.RetVal = False
-'                 Return False  ' Let it bubble up
-'         End Select
-'         
-'         ' For all other keys, just consume them for now
-'         Console.WriteLine($"  >>> NOT a function key, consuming event")
-'         vArgs.RetVal = True
-'         Return True
-'         
-'     Catch ex As Exception
-'         Console.WriteLine($"OnKeyPress DIAGNOSTIC error: {ex.Message}")
-'         vArgs.RetVal = False
-'         Return False
-'     End Try
-' End Function
 
 
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
         ''' <summary>
         ''' Handles key press events with mouse cursor auto-hide
         ''' </summary>
@@ -68,6 +38,44 @@ Namespace Editors
                 Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
                 Dim lModifiers As ModifierType = vArgs.Event.State
                 
+                ' Debug output for Tab keys
+                If lKey = Gdk.Key.Tab OrElse lKey = Gdk.Key.ISO_Left_Tab Then
+                    Console.WriteLine($"Editor Tab Detection: Key={lKey}, KeyValue={vArgs.Event.KeyValue}, Modifiers={lModifiers}")
+                End If
+                
+                ' SPECIAL HANDLING FOR TAB AND SHIFT+TAB (by KeyValue to avoid enum issues)
+                ' Tab = 65289 (0xFF09), ISO_Left_Tab = 65056 (0xFE20)
+                If vArgs.Event.KeyValue = 65289 Then
+                    ' Regular Tab key
+                    If Not pIsReadOnly Then
+                        If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                            ' Shift+Tab - Always outdent
+                            Console.WriteLine("Tab with Shift modifier - calling OutdentSelection()")
+                            OutdentSelection()
+                        Else
+                            ' Regular Tab
+                            Console.WriteLine($"Regular Tab - SelectionActive={pSelectionActive}, HasSelection={pHasSelection}")
+                            If pSelectionActive OrElse pHasSelection Then
+                                Console.WriteLine("Has selection - calling IndentSelection()")
+                                IndentSelection()
+                            Else
+                                Console.WriteLine("No selection - inserting Tab character")
+                                InsertText(vbTab)
+                            End If
+                        End If
+                    End If
+                    vArgs.RetVal = True
+                    Return True
+                ElseIf vArgs.Event.KeyValue = 65056 Then
+                    ' ISO_Left_Tab (this IS Shift+Tab on many systems)
+                    If Not pIsReadOnly Then
+                        Console.WriteLine("ISO_Left_Tab (Shift+Tab) detected - calling OutdentSelection()")
+                        OutdentSelection()
+                    End If
+                    vArgs.RetVal = True
+                    Return True
+                End If
+                
                 ' CRITICAL FIX: Allow function keys to bubble up to MainWindow
                 ' F1-F12 keys should not be consumed by the editor
                 Select Case lKey
@@ -82,7 +90,7 @@ Namespace Editors
                 ' Check for Control key combinations first (shortcuts)
                 If (lModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
                     ' Handle keyboard shortcuts using keyval to avoid ambiguity
-                    ' Using ASCII values: a=97, c=99, f=102, r=114, s=115, v=118, x=120, y=121, z=122
+                    ' Using ASCII values: a=97, c=99, f=102, g=103, r=114, s=115, v=118, x=120, y=121, z=122
                     Select Case vArgs.Event.KeyValue
                         ' Undo - Ctrl+Z (122)
                         Case 122, 90  ' z or Z
@@ -140,6 +148,12 @@ Namespace Editors
                             
                         ' Find - Ctrl+F (102)
                         Case 102, 70  ' f or F
+                            ' Let this bubble up to MainWindow
+                            vArgs.RetVal = False
+                            Return False
+                            
+                        ' Go to Line - Ctrl+G (103)
+                        Case 103, 71  ' g or G
                             ' Let this bubble up to MainWindow
                             vArgs.RetVal = False
                             Return False
@@ -253,23 +267,6 @@ Namespace Editors
                         vArgs.RetVal = True
                         Return True
                         
-                    Case Gdk.Key.Tab
-                        If Not pIsReadOnly Then
-                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-                                ' Shift+Tab - Unindent
-                                OutdentSelection()
-                            Else
-                                ' Tab - Indent or insert tab
-                                If HasSelection() Then
-                                    IndentSelection()
-                                Else
-                                    InsertText(vbTab)
-                                End If
-                            End If
-                        End If
-                        vArgs.RetVal = True
-                        Return True
-                        
                     Case Gdk.Key.Return, Gdk.Key.KP_Enter
                         If Not pIsReadOnly Then
                             HandleReturn()
@@ -288,17 +285,27 @@ Namespace Editors
                                 DeleteSelection()
                             End If
                             
-                            ' Insert the character
-                            InsertText(lChar.ToString())
+                            If pInsertMode OrElse pCursorColumn >= pTextLines(pCursorLine).Length Then
+                                ' Insert mode or at end of line
+                                InsertText(lChar.ToString())
+                            Else
+                                ' Overwrite mode
+                                pTextLines(pCursorLine) = pTextLines(pCursorLine).Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.ToString())
+                                SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                                InvalidateLine(pCursorLine)
+                                RaiseEvent TextChanged(Me, New EventArgs)
+                            End If
                             
                             vArgs.RetVal = True
                             Return True
+                        Else
+                            ' Debug: Log any unhandled keys
+                            Console.WriteLine($"Editor Unhandled Key: Key={lKey}, KeyValue={vArgs.Event.KeyValue}, Modifiers={lModifiers}")
+                            ' Let unhandled keys pass through
+                            vArgs.RetVal = False
+                            Return False
                         End If
                 End Select
-                
-                ' Let unhandled keys bubble up
-                vArgs.RetVal = False
-                Return False
                 
             Catch ex As Exception
                 Console.WriteLine($"OnKeyPress error: {ex.Message}")

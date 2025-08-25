@@ -33,10 +33,6 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnToggleComment error: {ex.Message}")
         End Try
     End Sub
-
-    
-    
-
     
     ' Find start of line containing position
     Private Function FindLineStart(vContent As String, vPosition As Integer) As Integer
@@ -45,7 +41,7 @@ Partial Public Class MainWindow
             If vPosition >= vContent.Length Then vPosition = vContent.Length - 1
             
             ' Search backwards for line break
-            For i As Integer = vPosition To 0 Step -1
+            for i As Integer = vPosition To 0 Step -1
                 If i = 0 Then Return 0
                 If vContent(i - 1) = vbLf OrElse vContent(i - 1) = vbCr Then
                     Return i
@@ -67,7 +63,7 @@ Partial Public Class MainWindow
             If vPosition >= vContent.Length Then Return vContent.Length
             
             ' Search forwards for line break
-            For i As Integer = vPosition To vContent.Length - 1
+            for i As Integer = vPosition To vContent.Length - 1
                 If vContent(i) = vbLf OrElse vContent(i) = vbCr Then
                     Return i
                 End If

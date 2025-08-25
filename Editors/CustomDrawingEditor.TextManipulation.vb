@@ -413,9 +413,15 @@ Namespace Editors
         
         ' ===== Updated Selection Methods (REPLACE EXISTING) =====
         
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
         ''' <summary>
         ''' Indents the selected lines or current line
         ''' </summary>
+        ''' <remarks>
+        ''' When selection ends at column 0 of a line, that line is excluded from indentation
+        ''' to match standard editor behavior
+        ''' </remarks>
         Public Sub IndentSelection() Implements IEditor.IndentSelection
             Try
                 If pIsReadOnly Then Return
@@ -425,10 +431,26 @@ Namespace Editors
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                If pSelectionActive Then
+                ' Check both selection flags for compatibility
+                If pSelectionActive OrElse pHasSelection Then
                     ' Get selection bounds
                     Dim lStartLine As Integer = Math.Min(pSelectionStartLine, pSelectionEndLine)
                     Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
+                    
+                    ' CRITICAL FIX: If selection ends at column 0 of a line, don't include that line
+                    ' This matches standard editor behavior where selecting to the beginning of a line
+                    ' doesn't include that line in the operation
+                    If pSelectionEndColumn = 0 AndAlso pSelectionEndLine <> pSelectionStartLine Then
+                        lEndLine = lEndLine - 1
+                    End If
+                    
+                    ' Validate bounds
+                    lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
+                    lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
+                    
+                    ' Store original cursor position relative to line start
+                    Dim lCursorWasAtColumn As Integer = pCursorColumn
+                    Dim lCursorWasAtLine As Integer = pCursorLine
                     
                     ' Indent each line in selection
                     for i As Integer = lStartLine To lEndLine
@@ -436,10 +458,22 @@ Namespace Editors
                     Next
                     
                     ' Adjust selection to include the indentation
-                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                    ' After indenting, select from start of first line to end of last line
+                    SetSelection(New EditorPosition(lStartLine, 0), 
+                                New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                    
+                    ' If cursor was at column 0 of the line after the selection, keep it there
+                    If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then
+                        SetCursorPosition(lCursorWasAtLine, 0)
+                    End If
                 Else
-                    ' Just indent current line
+                    ' No selection - indent current line
+                    Dim lOldColumn As Integer = pCursorColumn
                     IndentLinePrivate(pCursorLine)
+                    
+                    ' Adjust cursor position to maintain relative position
+                    Dim lIndentSize As Integer = If(pUseTabs, 1, pTabWidth)
+                    SetCursorPosition(pCursorLine, lOldColumn + lIndentSize)
                 End If
                 
                 ' End undo group
@@ -458,9 +492,14 @@ Namespace Editors
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentSelection
         ''' <summary>
         ''' Outdents the selected lines or current line
         ''' </summary>
+        ''' <remarks>
+        ''' When selection ends at column 0 of a line, that line is excluded from outdenting
+        ''' to match standard editor behavior
+        ''' </remarks>
         Public Sub OutdentSelection() Implements IEditor.OutdentSelection
             Try
                 If pIsReadOnly Then Return
@@ -470,21 +509,50 @@ Namespace Editors
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                If pSelectionActive Then
+                ' Check if there's a selection (using same check as IndentSelection)
+                If pSelectionActive OrElse pHasSelection Then
                     ' Get selection bounds
                     Dim lStartLine As Integer = Math.Min(pSelectionStartLine, pSelectionEndLine)
                     Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
+                    
+                    ' CRITICAL FIX: If selection ends at column 0 of a line, don't include that line
+                    ' This matches standard editor behavior where selecting to the beginning of a line
+                    ' doesn't include that line in the operation
+                    If pSelectionEndColumn = 0 AndAlso pSelectionEndLine <> pSelectionStartLine Then
+                        lEndLine = lEndLine - 1
+                    End If
+                    
+                    ' Validate bounds
+                    lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
+                    lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
+                    
+                    ' Store original cursor position
+                    Dim lCursorWasAtColumn As Integer = pCursorColumn
+                    Dim lCursorWasAtLine As Integer = pCursorLine
                     
                     ' Outdent each line in selection
                     for i As Integer = lStartLine To lEndLine
                         OutdentLinePrivate(i)
                     Next
                     
-                    ' Adjust selection
-                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                    ' Adjust selection to full lines after outdenting
+                    SetSelection(New EditorPosition(lStartLine, 0), 
+                                New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                    
+                    ' If cursor was at column 0 of the line after the selection, keep it there
+                    If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then
+                        SetCursorPosition(lCursorWasAtLine, 0)
+                    End If
                 Else
-                    ' Just outdent current line
+                    ' No selection - outdent current line
                     OutdentLinePrivate(pCursorLine)
+                    
+                    ' Adjust cursor position if it was in the removed indentation
+                    If pCursorColumn > 0 AndAlso pCursorColumn <= GetLineIndentation(pCursorLine).Length Then
+                        ' Move cursor to start of text after outdenting
+                        Dim lNewIndent As String = GetLineIndentation(pCursorLine)
+                        SetCursorPosition(pCursorLine, lNewIndent.Length)
+                    End If
                 End If
                 
                 ' End undo group

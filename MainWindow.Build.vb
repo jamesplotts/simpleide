@@ -71,13 +71,13 @@ Partial Public Class MainWindow
     Public Sub BuildProject()
         Try
             ' DEBUG: Simple console output to verify method is called
-            Console.WriteLine("===============================================")
-            Console.WriteLine("BUILD PROJECT CALLED!")
-            Console.WriteLine($"Project Path: {pCurrentProject}")
-            Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
-            Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
-            Console.WriteLine("===============================================")
-             
+                Console.WriteLine("===============================================")
+                Console.WriteLine("BUILD PROJECT CALLED!")
+                Console.WriteLine($"Project Path: {pCurrentProject}")
+                Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
+                Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
+                Console.WriteLine("===============================================")
+                 
             If String.IsNullOrEmpty(pCurrentProject) Then
                 ShowError("No project", "Please open a project before building.")
                 Return

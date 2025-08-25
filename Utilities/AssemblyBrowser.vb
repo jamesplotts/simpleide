@@ -58,7 +58,7 @@ Namespace Utilities
                 }
                 
                 ' Try to load common assemblies
-                For Each lAssemblyName In lCommonAssemblies
+                for each lAssemblyName in lCommonAssemblies
                     Try
                         Dim lAssembly As Assembly = Assembly.Load(lAssemblyName)
                         Dim lInfo As New AssemblyInfo()
@@ -78,13 +78,13 @@ Namespace Utilities
                 ' Also check for assemblies in the runtime directory
                 If Directory.Exists(lRuntimeDir) Then
                     Dim lFiles() As String = Directory.GetFiles(lRuntimeDir, "*.dll")
-                    For Each lFile In lFiles
+                    for each lFile in lFiles
                         Try
                             Dim lAssemblyName As AssemblyName = AssemblyName.GetAssemblyName(lFile)
                             
                             ' Skip if already added
                             If lAssemblies.any(Function(a) a.Name = lAssemblyName.Name) Then
-                                Continue For
+                                Continue for
                             End If
                             
                             Dim lInfo As New AssemblyInfo()
@@ -122,7 +122,7 @@ Namespace Utilities
                 End If
                 
                 Dim lFiles() As String = Directory.GetFiles(vDirectory, "*.dll")
-                For Each lFile In lFiles
+                for each lFile in lFiles
                     Try
                         Dim lAssemblyName As AssemblyName = AssemblyName.GetAssemblyName(lFile)
                         

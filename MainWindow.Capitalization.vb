@@ -17,29 +17,29 @@ Partial Public Class MainWindow
     ' ===== Initialization =====
     
     ' Replace: SimpleIDE.MainWindow.InitializeCapitalizationManager
-    ''' <summary>
-    ''' Initialize capitalization management system
-    ''' </summary>
-    Private Sub InitializeCapitalizationManager()
-        Try
-            ' Create manager
-            pCapitalizationManager = New IdentifierCapitalizationManager(pProjectManager, Me)
-            
-            ' Subscribe to events
-            AddHandler pCapitalizationManager.IndexingStarted, AddressOf OnIndexingStarted
-            AddHandler pCapitalizationManager.IndexingCompleted, AddressOf OnIndexingCompleted
-            
-            ' Add menu items (simplified)
-            AddCapitalizationMenuItems()
-            
-            ' REMOVED: Status bar widget for auto-correction
-            ' The user is experienced with VB and knows that a VB IDE automatically corrects case
-            ' AddCapitalizationStatusWidget()
-            
-        Catch ex As Exception
-            Console.WriteLine($"InitializeCapitalizationManager error: {ex.Message}")
-        End Try
-    End Sub
+                    ''' <summary>
+                    ''' Initialize capitalization management system
+                    ''' </summary>
+                    Private Sub InitializeCapitalizationManager()
+                        Try
+                            ' Create manager
+                            pCapitalizationManager = New IdentifierCapitalizationManager(pProjectManager, Me)
+                            
+                            ' Subscribe to events
+                            AddHandler pCapitalizationManager.IndexingStarted, AddressOf OnIndexingStarted
+                            AddHandler pCapitalizationManager.IndexingCompleted, AddressOf OnIndexingCompleted
+                            
+                            ' Add menu items (simplified)
+                            AddCapitalizationMenuItems()
+                            
+                            ' REMOVED: Status bar widget for auto-correction
+                            ' The user is experienced with VB and knows that a VB IDE automatically corrects case
+                            ' AddCapitalizationStatusWidget()
+                            
+                        Catch ex As Exception
+                            Console.WriteLine($"InitializeCapitalizationManager error: {ex.Message}")
+                        End Try
+                    End Sub
 
     ''' <summary>
     ''' Add simplified capitalization menu items

@@ -60,7 +60,7 @@ Partial Public Class MainWindow
                 Dim lProjectInfo As ProjectFileParser.ProjectInfo = ProjectFileParser.ParseProjectFile(pCurrentProject)
                 
                 ' Add assembly references
-                For Each lRef In lProjectInfo.References
+                for each lRef in lProjectInfo.References
                     Try
                         pCodeSenseEngine.AddReference(lRef.Name)
                     Catch ex As Exception
@@ -69,7 +69,7 @@ Partial Public Class MainWindow
                 Next
                 
                 ' Add package references
-                For Each lPackage In lProjectInfo.PackageReferences
+                for each lPackage in lProjectInfo.PackageReferences
                     Try
                         pCodeSenseEngine.AddReference(lPackage.Name)
                     Catch ex As Exception
@@ -161,7 +161,7 @@ Partial Public Class MainWindow
         Dim lOffset As Integer = 0
         
         ' Add lengths of all lines before the current line
-        For i As Integer = 0 To Math.Min(vLine - 1, lLines.Length - 1)
+        for i As Integer = 0 To Math.Min(vLine - 1, lLines.Length - 1)
             lOffset += lLines(i).Length + 1 ' +1 for Line break
         Next
         
@@ -178,7 +178,7 @@ Partial Public Class MainWindow
         Dim lLines() As String = vText.Split({vbLf, vbCr}, StringSplitOptions.None)
         Dim lCurrentOffset As Integer = 0
         
-        For lLine As Integer = 0 To lLines.Length - 1
+        for lLine As Integer = 0 To lLines.Length - 1
             Dim lLineLength As Integer = lLines(lLine).Length
             
             If lCurrentOffset + lLineLength >= vOffset Then
@@ -213,7 +213,7 @@ Partial Public Class MainWindow
             ' Update list store
             pCodeSenseListStore.Clear()
             
-            For Each lSuggestion In lSuggestions
+            for each lSuggestion in lSuggestions
                 pCodeSenseListStore.AppendValues(
                     lSuggestion.Icon,
                     lSuggestion.Text,           ' Use Text instead of Name

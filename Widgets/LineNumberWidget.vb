@@ -276,10 +276,11 @@ Namespace Widgets
         
         ' ===== Mouse Event Handlers =====
         
+        ' Replace: SimpleIDE.Widgets.LineNumberWidget.OnButtonPress
         ''' <summary>
-        ''' Handles mouse button press events including double-click to select method
+        ''' Handles mouse button press events
         ''' </summary>
-        ''' <param name="vSender">The sender of the event</param>
+        ''' <param name="vSender">Event sender</param>
         ''' <param name="vArgs">Button press event arguments</param>
         Private Function OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs) As Boolean
             Try
@@ -304,20 +305,28 @@ Namespace Widgets
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: TRIPLE-CLICK detected on line {lClickedLine}")
                             ' Triple-click - select entire line (GTK standard behavior)
                             pEditor.SelectLine(lClickedLine)
+                            ' Grab focus for the drawing area after selection
+                            pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.TwoButtonPress Then
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: DOUBLE-CLICK detected on line {lClickedLine}")
                             ' Double-click - check if it's a method declaration and select entire method
                             HandleDoubleClick(lClickedLine)
+                            ' Grab focus for the drawing area after selection
+                            pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.ButtonPress Then
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: Single-click on line {lClickedLine}")
                             ' Single click - select line (only if not double-click)
                             pEditor.SelectLine(lClickedLine)
                             pEditor.StartLineNumberDrag(lClickedLine)
+                            ' Grab focus for the drawing area after selection
+                            pEditor.GrabFocus()
                         End If
                     ElseIf vArgs.Event.Button = 3 Then
                         Console.WriteLine($"LineNumberWidget.OnButtonPress: Right-click on line {lClickedLine}")
                         ' Right click - show context menu
                         pEditor.ShowLineNumberContextMenu(CInt(vArgs.Event.X), CInt(vArgs.Event.Y))
+                        ' Also grab focus for context menu operations
+                        pEditor.GrabFocus()
                     End If
                 End If
                 
@@ -392,6 +401,7 @@ Namespace Widgets
             End Try
         End Function
 
+        ' Replace: SimpleIDE.Widgets.LineNumberWidget.HandleDoubleClick
         ''' <summary>
         ''' Handles double-click on a line number to select entire method if applicable
         ''' </summary>
@@ -404,6 +414,8 @@ Namespace Widgets
                     Console.WriteLine($"LineNumberWidget.HandleDoubleClick: Invalid line index {vLineIndex} or no editor")
                     ' Invalid line - just select the single line
                     pEditor.SelectLine(vLineIndex)
+                    ' Grab focus for the drawing area
+                    pEditor.GrabFocus()
                     Return
                 End If
                 
@@ -413,6 +425,8 @@ Namespace Widgets
                     Console.WriteLine("LineNumberWidget.HandleDoubleClick: Empty line")
                     ' Empty line - just select it
                     pEditor.SelectLine(vLineIndex)
+                    ' Grab focus for the drawing area
+                    pEditor.GrabFocus()
                     Return
                 End If
                 
@@ -423,7 +437,6 @@ Namespace Widgets
                 ' Check for method/property declaration patterns
                 If IsMethodDeclaration(lTrimmed) Then
                     Console.WriteLine("LineNumberWidget.HandleDoubleClick: Is a method declaration!")
-                    
                     ' Determine if we're in an interface
                     Dim lIsInterface As Boolean = IsInInterface(vLineIndex)
                     Console.WriteLine($"LineNumberWidget.HandleDoubleClick: IsInterface = {lIsInterface}")
@@ -459,12 +472,12 @@ Namespace Widgets
                     pEditor.SelectLine(vLineIndex)
                 End If
                 
+                ' CRITICAL: Grab focus for the drawing area after any selection
+                pEditor.GrabFocus()
+                Console.WriteLine("LineNumberWidget.HandleDoubleClick: Focus grabbed for drawing area")
+                
             Catch ex As Exception
                 Console.WriteLine($"LineNumberWidget.HandleDoubleClick error: {ex.Message}")
-                ' On error, fall back to selecting just the clicked line
-                If pEditor IsNot Nothing Then
-                    pEditor.SelectLine(vLineIndex)
-                End If
             End Try
         End Sub
         

@@ -44,7 +44,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                     Console.WriteLine($"After build: {pVisibleNodes.Count} visible nodes")
                     
                     ' List first few nodes
-                    For i As Integer = 0 To Math.Min(5, pVisibleNodes.Count - 1)
+                    for i As Integer = 0 To Math.Min(5, pVisibleNodes.Count - 1)
                         Dim lNode As VisualNode = pVisibleNodes(i)
                         Console.WriteLine($"  [{i}] Level={lNode.Level}, Name={lNode.Node.Name}, Type={lNode.Node.NodeType}")
                     Next
@@ -80,7 +80,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                 ' FIXED: Special handling for root document nodes in debug mode
                 If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
                     Console.WriteLine($"{lIndent}  Root is eDocument - processing children directly")
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         BuildVisualNodesDebug(lChild, vParent, vLevel, vParentPath, vDepth)
                     Next
                     Return
@@ -93,7 +93,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                 If Not lShouldDisplay Then Return
                 
                 ' Create visual node
-                Dim lVisualNode As New VisualNode() With {
+                Dim lVisualNode As New VisualNode() with {
                     .Node = vNode,
                     .Level = vLevel,
                     .Parent = vParent,
@@ -130,7 +130,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                 ' Process children if expanded
                 If lVisualNode.IsExpanded AndAlso lVisualNode.HasChildren Then
                     Console.WriteLine($"{lIndent}  Processing {vNode.Children.Count} children...")
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         BuildVisualNodesDebug(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath, vDepth + 1)
                     Next
                 End If

@@ -40,7 +40,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateDebugButtonStates error: {ex.Message}")
         End Try
     End Sub
-
+    
 End Class
 
 
