@@ -20,8 +20,19 @@ Namespace Widgets
         ''' </summary>
         Private Sub RebuildVisualTree()
             Try
+                ' Store the path of the currently selected node before clearing
+                Dim lSelectedPath As String = Nothing
+                If pSelectedNode IsNot Nothing Then
+                    lSelectedPath = GetNodePath(pSelectedNode.Node)
+                    Console.WriteLine($"RebuildVisualTree: Preserving selection for path '{lSelectedPath}'")
+                End If
+                
+                ' Clear the visual nodes
                 pVisibleNodes.Clear()
                 pNodeCache.Clear()
+                
+                ' Reset selection reference (will be restored later)
+                pSelectedNode = Nothing
                 
                 If pRootNode Is Nothing Then
                     UpdateScrollbars()
@@ -39,6 +50,22 @@ Namespace Widgets
                     pContentWidth = Math.Max(pContentWidth, lNode.X + lNode.Width)
                 Next
                 
+                ' Restore selection if we had one
+                If Not String.IsNullOrEmpty(lSelectedPath) Then
+                    ' Find the node with the matching path
+                    For Each lNode In pVisibleNodes
+                        If GetNodePath(lNode.Node) = lSelectedPath Then
+                            pSelectedNode = lNode
+                            Console.WriteLine($"RebuildVisualTree: Restored selection for '{lNode.Node.Name}'")
+                            Exit for
+                        End If
+                    Next
+                    
+                    If pSelectedNode Is Nothing Then
+                        Console.WriteLine($"RebuildVisualTree: Could not restore selection for path '{lSelectedPath}'")
+                    End If
+                End If
+                
                 ' Update scrollbars
                 UpdateScrollbars()
                 
@@ -47,9 +74,6 @@ Namespace Widgets
             End Try
         End Sub
         
-' Widgets/CustomDrawProjectExplorer.Navigation.vb - Fixed BuildVisualNodes method
-' This method should replace the existing BuildVisualNodes method
-
         ''' <summary>
         ''' Recursively builds visual nodes with proper alignment
         ''' </summary>
@@ -75,7 +99,7 @@ Namespace Widgets
                 Dim lHasChildren As Boolean = vNode.Children.Count > 0
                 
                 ' Create visual node with correct depth
-                Dim lVisualNode As New VisualProjectNode() With {
+                Dim lVisualNode As New VisualProjectNode() with {
                     .Node = vNode,
                     .X = lBaseX,
                     .Y = vY,
@@ -128,7 +152,7 @@ Namespace Widgets
                     Console.WriteLine($"  Processing {vNode.Children.Count} children...")
                     
                     ' Children are always at the next depth level
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         BuildVisualNodes(lChild, vDepth + 1, vY)
                     Next
                 End If
@@ -507,7 +531,7 @@ Namespace Widgets
         ''' </summary>
         Private Function FindNodeAtPosition(vX As Integer, vY As Integer) As VisualProjectNode
             Try
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     If vY >= lNode.Y AndAlso vY < lNode.Y + lNode.Height Then
                         Return lNode
                     End If
@@ -704,7 +728,7 @@ Namespace Widgets
         ''' <returns>The VisualProjectNode at the specified position, or Nothing if no node found</returns>
         Private Function GetNodeAtPosition(vX As Integer, vY As Integer) As VisualProjectNode
             Try
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     If vY >= lNode.Y AndAlso vY < lNode.Y + lNode.Height Then
                         Return lNode
                     End If

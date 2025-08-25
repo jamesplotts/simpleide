@@ -212,9 +212,9 @@ Namespace Widgets
                     End If
                     
                     ' Draw each visible line number
-                    For i As Integer = lFirstVisibleLine To lLastLine
+                    for i As Integer = lFirstVisibleLine To lLastLine
                         ' Calculate Y position (account for scroll)
-                        Dim lY As Integer = ((i - lFirstVisibleLine) * pLineHeight) + pTopPadding
+                        Dim lY As Integer = ((i - lFirstVisibleLine) * pLineHeight) + pTopPadding - 4
                         
                         ' Set text (1-based line numbers)
                         lLayout.SetText((i + 1).ToString())
