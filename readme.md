@@ -9,9 +9,9 @@ A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red)
 
-## Discord
+## Discord Channel
 
-![Discord Channel}(https://discordapp.com/channels/682603493386747904/1408457691734737007)
+https://discordapp.com/channels/682603493386747904/1408457691734737007
 
 ## Features
 
