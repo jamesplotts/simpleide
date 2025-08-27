@@ -65,21 +65,40 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+
+
+
+    Private pIsBuildingNow As Boolean
+
+    ' Replace: SimpleIDE.MainWindow.BuildProject
     ''' <summary>
     ''' Build the current project - Main entry point for F6
     ''' </summary>
+    ''' <remarks>
+    ''' Simplified to use only instance-level flag without static variable
+    ''' </remarks>
     Public Sub BuildProject()
         Try
+            ' Check if already building
+            If pIsBuildingNow = True Then
+                Console.WriteLine("BuildProject: Already building (early exit)")
+                Return
+            End If
+            
+            ' Set flag immediately
+            pIsBuildingNow = True
+            
             ' DEBUG: Simple console output to verify method is called
-                Console.WriteLine("===============================================")
-                Console.WriteLine("BUILD PROJECT CALLED!")
-                Console.WriteLine($"Project Path: {pCurrentProject}")
-                Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
-                Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
-                Console.WriteLine("===============================================")
-                 
+            Console.WriteLine("===============================================")
+            Console.WriteLine("BUILD PROJECT CALLED!")
+            Console.WriteLine($"Project Path: {pCurrentProject}")
+            Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
+            Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
+            Console.WriteLine("===============================================")
+             
             If String.IsNullOrEmpty(pCurrentProject) Then
                 ShowError("No project", "Please open a project before building.")
+                pIsBuildingNow = False
                 Return
             End If
     
@@ -93,19 +112,22 @@ Partial Public Class MainWindow
             If pBuildManager Is Nothing Then
                 Console.WriteLine("BuildProject: ERROR - BuildManager is Nothing after initialization")
                 ShowError("Build Error", "Failed to initialize build system")
+                pIsBuildingNow = False
                 Return
             End If
             
             If pBuildConfiguration Is Nothing Then
                 Console.WriteLine("BuildProject: ERROR - BuildConfiguration is Nothing after initialization")
                 ShowError("Build Error", "Failed to initialize build configuration")
+                pIsBuildingNow = False
                 Return
             End If
     
             ' Check if already building - use the BuildManager's IsBuilding property
             If pBuildManager.IsBuilding Then
-                Console.WriteLine("BuildProject: Build already in progress, exiting")
+                Console.WriteLine("BuildProject: Build already in progress (BuildManager check)")
                 ShowInfo("Build in Progress", "A build is already in progress.")
+                pIsBuildingNow = False
                 Return
             End If
     
@@ -126,7 +148,7 @@ Partial Public Class MainWindow
             ' Ensure configuration is set
             Console.WriteLine($"BuildProject: Setting configuration = {pBuildConfiguration.Configuration}")
             pBuildManager.Configuration = pBuildConfiguration
-            
+    
             ' Start async build - Pass the configuration explicitly
             Console.WriteLine("BuildProject: Starting async build")
             Task.Run(Async Function() 
@@ -134,9 +156,14 @@ Partial Public Class MainWindow
                     Console.WriteLine("BuildProject: Async task started")
                     Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
                     Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
+                    
+                    ' Reset building flag when complete
+                    pIsBuildingNow = False
+                    
                     Return lResult
                 Catch ex As Exception
                     Console.WriteLine($"BuildProject: Async task error: {ex.Message}")
+                    pIsBuildingNow = False
                     Return Nothing
                 End Try
             End Function)
@@ -145,8 +172,117 @@ Partial Public Class MainWindow
             Console.WriteLine($"BuildProject error: {ex.Message}")
             ShowError("Build Error", ex.Message)
             SetBuildButtonsEnabled(True)
+            pIsBuildingNow = False
         End Try
     End Sub
+
+'     ''' <summary>
+'     ''' Build the current project - Main entry point for F6
+'     ''' </summary>
+'     Public Sub BuildProject()
+'         Static bolAlreadyRunning As Boolean
+'         If Not bolAlreadyRunning Then
+'             bolAlreadyRunning = True
+'         Else
+'             Exit Sub
+'         End If 
+'         Try
+'             ' Use instance flag with immediate set to prevent race conditions
+'             If pIsBuildingNow = True Then 
+'                 Console.WriteLine("BuildProject: Already building (prevented duplicate)")
+'                 Exit Sub
+'             End If
+'             pIsBuildingNow = True
+' 
+'             If pIsBuildingNow = True Then Exit Sub
+'             pIsBuildingNow = True
+'             ' DEBUG: Simple console output to verify method is called
+'             Console.WriteLine("===============================================")
+'             Console.WriteLine("BUILD PROJECT CALLED!")
+'             Console.WriteLine($"Project Path: {pCurrentProject}")
+'             Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
+'             Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
+'             Console.WriteLine("===============================================")
+'                  
+'             If String.IsNullOrEmpty(pCurrentProject) Then
+'                 ShowError("No project", "Please open a project before building.")
+'                 Return
+'             End If
+'     
+'             ' Initialize build system if needed
+'             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
+'                 Console.WriteLine("BuildProject: Initializing build system")
+'                 InitializeBuildSystem()
+'             End If
+'             
+'             ' Verify initialization succeeded
+'             If pBuildManager Is Nothing Then
+'                 Console.WriteLine("BuildProject: ERROR - BuildManager is Nothing after initialization")
+'                 ShowError("Build Error", "Failed to initialize build system")
+'                 Return
+'             End If
+'             
+'             If pBuildConfiguration Is Nothing Then
+'                 Console.WriteLine("BuildProject: ERROR - BuildConfiguration is Nothing after initialization")
+'                 ShowError("Build Error", "Failed to initialize build configuration")
+'                 Return
+'             End If
+'     
+'             ' Check if already building - use the BuildManager's IsBuilding property
+'             If pBuildManager.IsBuilding Then
+'                 Console.WriteLine("BuildProject: Build already in progress, exiting")
+'                 ShowInfo("Build in Progress", "A build is already in progress.")
+'                 Return
+'             End If
+'     
+'             ' Auto-increment version if enabled
+'             TryIncrementVersionBeforeBuild()
+'     
+'             ' Start the build
+'             SetBuildButtonsEnabled(False)
+'             UpdateStatusBar("Building project...")
+'     
+'             ' Save all open files before building
+'             SaveAllFiles()
+'     
+'             ' Set project path and configuration for build manager
+'             Console.WriteLine($"BuildProject: Setting project path = {pCurrentProject}")
+'             pBuildManager.ProjectPath = pCurrentProject
+'             
+'             ' Ensure configuration is set
+'             Console.WriteLine($"BuildProject: Setting configuration = {pBuildConfiguration.Configuration}")
+'             pBuildManager.Configuration = pBuildConfiguration
+'             
+' 
+' 
+'             ' Start async build - Pass the configuration explicitly
+'             Console.WriteLine("BuildProject: Starting async build")
+'             Task.Run(Async Function() 
+'                 Try
+'                     Console.WriteLine("BuildProject: Async task started")
+'                     Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
+'                     Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
+'                     
+'                     ' Reset the building flag after completion
+'                     pIsBuildingNow = False
+'                     
+'                     Return lResult
+'                 Catch ex As Exception
+'                     Console.WriteLine($"BuildProject: Async task error: {ex.Message}")
+'                     pIsBuildingNow = False
+'                     Return Nothing
+'                 End Try
+'             End Function)            
+' 
+'         Catch ex As Exception
+'             Console.WriteLine($"BuildProject error: {ex.Message}")
+'             ShowError("Build Error", ex.Message)
+'             SetBuildButtonsEnabled(True)
+'         Finally
+'             bolAlreadyRunning = False
+'             pIsBuildingNow = False
+'         End Try
+'     End Sub
 
     ''' <summary>
     ''' Try to increment version before build if enabled
@@ -279,7 +415,7 @@ Partial Public Class MainWindow
                     UpdateStatusBar("Build failed - run cancelled")
                 End If
             End If
-            
+            pIsBuildingNow = False
         Catch ex As Exception
             Console.WriteLine($"OnBuildCompletedForRun error: {ex.Message}")
         End Try
@@ -310,6 +446,7 @@ Partial Public Class MainWindow
     
     ' ===== Build Event Handlers =====
     
+    ' Replace: SimpleIDE.MainWindow.OnBuildStarted
     ''' <summary>
     ''' Build event handler - build started
     ''' </summary>
@@ -336,6 +473,11 @@ Partial Public Class MainWindow
                     If pBottomPanelManager IsNot Nothing Then
                         pBottomPanelManager.Show()
                         pBottomPanelManager.ShowTab(0) ' Build output is tab 0
+                    End If
+                    
+                    ' ADDED: Switch BuildOutputPanel's internal notebook to Output tab
+                    If pBuildOutputPanel IsNot Nothing Then
+                        pBuildOutputPanel.SwitchToOutputTab()
                     End If
                     
                     SetBuildButtonsEnabled(False)
@@ -423,6 +565,7 @@ Partial Public Class MainWindow
         Catch ex As Exception
             Console.WriteLine($"OnBuildCompleted error: {ex.Message}")
         End Try
+        pIsBuildingNow = False
     End Sub
     
     ''' <summary>
@@ -431,22 +574,13 @@ Partial Public Class MainWindow
     Private Sub OnBuildError(vSender As Object, vError As String)
         Try
             Application.Invoke(Sub()
-                pBuildOutputPanel?.AppendOutput($"ERROR: {vError}")
+                'pBuildOutputPanel?.AppendOutput($"ERROR: {vError}")
             End Sub)
         Catch ex As Exception
             Console.WriteLine($"OnBuildError error: {ex.Message}")
         End Try
     End Sub
-'    
-'    Private Sub OnBuildError(vSender As Object, vE As BuildOutputEventArgs)
-'        Try
-'            Application.Invoke(Sub()
-'                pBuildOutputPanel?.AppendOutput($"ERROR: {vE.Text}")
-'            End Sub)
-'        Catch ex As Exception
-'            Console.WriteLine($"OnBuildError error: {ex.Message}")
-'        End Try
-'    End Sub
+
     
     ' ===== Helper Methods =====
     
@@ -532,29 +666,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Re-initialize build system with corrected event handlers
-    Private Sub InitializeBuildSystemFixed()
-        Try
-            ' Create build manager if needed
-            If pBuildManager Is Nothing Then
-                pBuildManager = New BuildManager()
-                
-                ' Add event handlers with correct signatures
-                AddHandler pBuildManager.BuildStarted, AddressOf OnBuildStarted
-                AddHandler pBuildManager.BuildCompleted, AddressOf OnBuildCompleted
-                AddHandler pBuildManager.OutputReceived, AddressOf OnBuildOutput
-                AddHandler pBuildManager.ErrorReceived, AddressOf OnBuildError
-            End If
-            
-            ' Create build configuration
-            If pBuildConfiguration Is Nothing Then
-                pBuildConfiguration = New BuildConfiguration()
-                LoadBuildConfiguration()
-            End If
-        Catch ex As Exception
-            Console.WriteLine($"InitializeBuildSystemFixed error: {ex.Message}")
-        End Try
-    End Sub
     
     ''' <summary>
     ''' Starts a timer to auto-hide the bottom panel after 5 seconds
@@ -589,12 +700,15 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Timer callback to hide the bottom panel
+    ''' Timer callback to hide the bottom panel and return focus to editor
     ''' </summary>
     ''' <returns>False to stop the timer</returns>
+    ''' <remarks>
+    ''' Hides the bottom panel after timeout and returns focus to the current editor
+    ''' </remarks>
     Private Function OnAutoHideBottomPanelTimeout() As Boolean
         Try
-            ' Hide the bottom panel
+            ' Hide the bottom panel (this will also return focus to editor)
             HideBottomPanel()
             UpdateStatusBar("Build output hidden (build succeeded)")
             

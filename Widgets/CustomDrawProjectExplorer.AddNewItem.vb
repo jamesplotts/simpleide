@@ -412,9 +412,13 @@ Namespace Widgets
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.ShowAddNewItemSelector
         ''' <summary>
-        ''' Shows item type selector dialog
+        ''' Shows item type selector dialog with all available item types
         ''' </summary>
+        ''' <remarks>
+        ''' Displays a dialog with a list of item types the user can add to the project
+        ''' </remarks>
         Private Sub ShowAddNewItemSelector()
             Try
                 ' Create dialog
@@ -427,67 +431,116 @@ Namespace Widgets
                 ' Create list of item types
                 Dim lListStore As New ListStore(GetType(String), GetType(String))
                 
-                ' Add item types
-                lListStore.AppendValues("Class", "Creates a new VB.NET class")
-                lListStore.AppendValues("Module", "Creates a new VB.NET module")
-                lListStore.AppendValues("Interface", "Creates a new VB.NET interface")
-                lListStore.AppendValues("Windows Form", "Creates a new Windows Form")
-                lListStore.AppendValues("User Control", "Creates a new User Control")
+                ' Add all available item types
+                lListStore.AppendValues("Class", "Creates a New VB.NET Class")
+                lListStore.AppendValues("Module", "Creates a New VB.NET Module")
+                lListStore.AppendValues("Interface", "Creates a New VB.NET Interface")
+                lListStore.AppendValues("Form", "Creates a New Windows Form")
+                lListStore.AppendValues("User Control", "Creates a New User Control")
+                lListStore.AppendValues("Component", "Creates a New component Class")
+                lListStore.AppendValues("Enum", "Creates a New enumeration")
+                lListStore.AppendValues("Structure", "Creates a New Structure")
+                lListStore.AppendValues("Text File", "Creates a blank text file")
+                lListStore.AppendValues("XML File", "Creates a New XML file")
+                lListStore.AppendValues("Configuration File", "Creates an app.config file")
+                lListStore.AppendValues("Resource File", "Creates a .resx resource file")
                 
                 ' Create tree view
                 Dim lTreeView As New TreeView(lListStore)
+                lTreeView.HeadersVisible = True
                 
                 ' Add columns
                 Dim lTypeColumn As New TreeViewColumn("Item Type", New CellRendererText(), "text", 0)
+                lTypeColumn.MinWidth = 120
                 lTreeView.AppendColumn(lTypeColumn)
                 
                 Dim lDescColumn As New TreeViewColumn("Description", New CellRendererText(), "text", 1)
+                lDescColumn.Expand = True
                 lTreeView.AppendColumn(lDescColumn)
+                
+                ' Select first item by default
+                Dim lPath As New TreePath("0")
+                lTreeView.Selection.SelectPath(lPath)
                 
                 ' Scrolled window
                 Dim lScrolled As New ScrolledWindow()
                 lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 lScrolled.Add(lTreeView)
+                lScrolled.MinContentHeight = 200
                 
                 ' Add to dialog
-                lDialog.ContentArea.Add(lScrolled)
+                lDialog.ContentArea.PackStart(lScrolled, True, True, 0)
                 
                 ' Add buttons
                 lDialog.AddButton("Cancel", ResponseType.Cancel)
-                lDialog.AddButton("Next", ResponseType.Ok)
+                Dim lNextButton As Widget = lDialog.AddButton("Next", ResponseType.Ok)
+                lDialog.DefaultResponse = ResponseType.Ok
                 
+                ' Enable double-click to select - use Respond method instead of Response event
+                AddHandler lTreeView.RowActivated, Sub(sender, args)
+                    lDialog.Respond(ResponseType.Ok)
+                End Sub           
+     
                 ' Show all
                 lDialog.ShowAll()
                 
                 ' Handle response
-                If lDialog.Run() = ResponseType.Ok Then
+                If lDialog.Run() = CInt(ResponseType.Ok) Then
                     Dim lSelection As TreeSelection = lTreeView.Selection
-                    Dim lIter As TreeIter
+                    Dim lModel As ITreeModel = Nothing
+                    Dim lIter As TreeIter = Nothing
                     
-                    If lSelection.GetSelected(lIter) Then
+                    If lSelection.GetSelected(lModel, lIter) Then
                         Dim lItemType As String = CStr(lListStore.GetValue(lIter, 0))
                         
-                        ' Close this dialog and show specific dialog
+                        ' Close this dialog first
                         lDialog.Destroy()
                         
+                        ' Show specific dialog based on selection
                         Select Case lItemType
                             Case "Class"
-                                OnContextMenuAddClass(Nothing, EventArgs.Empty)
+                                ShowAddNewItemDialog("Class", ".vb", AddressOf GenerateClassCode)
+                                
                             Case "Module"
-                                OnContextMenuAddModule(Nothing, EventArgs.Empty)
+                                ShowAddNewItemDialog("Module", ".vb", AddressOf GenerateModuleCode)
+                                
                             Case "Interface"
-                                OnContextMenuAddInterface(Nothing, EventArgs.Empty)
-                            Case "Windows Form"
-                                OnContextMenuAddForm(Nothing, EventArgs.Empty)
+                                ShowAddNewItemDialog("Interface", ".vb", AddressOf GenerateInterfaceCode)
+                                
+                            Case "Form"
+                                ShowAddNewItemDialog("Form", ".vb", AddressOf GenerateFormCode)
+                                
                             Case "User Control"
-                                OnContextMenuAddUserControl(Nothing, EventArgs.Empty)
+                                ShowAddNewItemDialog("UserControl", ".vb", AddressOf GenerateUserControlCode)
+                                
+                            Case "Component"
+                                ShowAddNewItemDialog("Component", ".vb", AddressOf GenerateComponentCode)
+                                
+                            Case "Enum"
+                                ShowAddNewItemDialog("Enum", ".vb", AddressOf GenerateEnumCode)
+                                
+                            Case "Structure"
+                                ShowAddNewItemDialog("Structure", ".vb", AddressOf GenerateStructureCode)
+                                
+                            Case "Text File"
+                                ShowAddNewItemDialog("TextFile", ".txt", Function(name, ns) "")
+                                
+                            Case "XML File"
+                                ShowAddNewItemDialog("XMLFile", ".xml", Function(name, ns) "<?xml version=""1.0"" encoding=""utf-8""?>" & vbCrLf & "<root>" & vbCrLf & vbCrLf & "</root>")
+                                
+                            Case "Configuration File"
+                                ShowAddNewItemDialog("ConfigFile", ".config", AddressOf GenerateConfigFileCode)
+                                
+                            Case "Resource File"
+                                ShowAddNewItemDialog("ResourceFile", ".resx", AddressOf GenerateResourceFileCode)
+                                
+                            Case Else
+                                Console.WriteLine($"Unknown item type selected: {lItemType}")
                         End Select
-                        
-                        Return
                     End If
+                Else
+                    lDialog.Destroy()
                 End If
-                
-                lDialog.Destroy()
                 
             Catch ex As Exception
                 Console.WriteLine($"ShowAddNewItemSelector error: {ex.Message}")
@@ -642,7 +695,7 @@ Namespace Widgets
         Private Sub CreateNewItem(vName As String, vExtension As String, vRelativePath As String, vCodeGenerator As Func(Of String, String, String))
             Try
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
-                    ShowErrorDialog("No project is currently open")
+                    ShowErrorDialog("No project Is currently open")
                     Return
                 End If
                 
@@ -734,7 +787,7 @@ Namespace Widgets
                 
                 ' Build the namespace/folder parts (everything except the class name)
                 Dim lNamespaceParts As New List(Of String)()
-                For i As Integer = 0 To lParts.Length - 2
+                for i As Integer = 0 To lParts.Length - 2
                     lNamespaceParts.Add(lParts(i))
                 Next
                 
@@ -752,7 +805,7 @@ Namespace Widgets
                 End If
                 
                 ' Build folder structure from remaining parts
-                For i As Integer = lStartIndex To lNamespaceParts.Count - 1
+                for i As Integer = lStartIndex To lNamespaceParts.Count - 1
                     lFolderParts.Add(lNamespaceParts(i))
                 Next
                 
@@ -800,7 +853,7 @@ Namespace Widgets
                 ' Create folder
                 System.IO.Directory.CreateDirectory(lFullPath)
                 
-                Console.WriteLine($"Created new folder: {lFullPath}")
+                Console.WriteLine($"Created New folder: {lFullPath}")
                 
                 ' Refresh project explorer
                 pProjectManager.LoadProject(pProjectFile)
@@ -810,7 +863,7 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateNewFolder error: {ex.Message}")
-                ShowErrorDialog($"Failed to create folder: {ex.Message}")
+                ShowErrorDialog($"Failed To create folder: {ex.Message}")
             End Try
         End Sub
         
@@ -821,7 +874,7 @@ Namespace Widgets
         Private Sub AddExistingItem(vFilePath As String)
             Try
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
-                    ShowErrorDialog("No project is currently open")
+                    ShowErrorDialog("No project Is currently open")
                     Return
                 End If
                 
@@ -835,7 +888,7 @@ Namespace Widgets
                 
                 ' Check if successfully added
                 If lDocModel IsNot Nothing Then
-                    Console.WriteLine($"Added existing file to project: {vFilePath}")
+                    Console.WriteLine($"Added existing file To project: {vFilePath}")
                     
                     ' Refresh project explorer by calling LoadProjectFromManager
                     ' This will reload the tree from the ProjectManager's current state
@@ -847,35 +900,37 @@ Namespace Widgets
                     ' Open the file in the editor
                     RaiseEvent FileSelected(vFilePath)
                 Else
-                    Console.WriteLine($"Failed to add existing file to project: {vFilePath}")
-                    ShowErrorDialog($"Failed to add file to project")
+                    Console.WriteLine($"Failed To add existing file To project: {vFilePath}")
+                    ShowErrorDialog($"Failed To add file To project")
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"AddExistingItem error: {ex.Message}")
-                ShowErrorDialog($"Failed to add existing item: {ex.Message}")
+                ShowErrorDialog($"Failed To add existing item: {ex.Message}")
             End Try
         End Sub
         
         ''' <summary>
-        ''' Gets the namespace for a given path in the project
+        ''' Gets the namespace declaration string for a given path in the project
         ''' </summary>
         ''' <param name="vRelativePath">Relative path from project root</param>
-        ''' <returns>Namespace string</returns>
+        ''' <returns>Namespace declaration string (empty for root, relative for subfolders)</returns>
+        ''' <remarks>
+        ''' This method handles implicit root namespace correctly:
+        ''' - Returns empty string for root folder (no namespace declaration needed)
+        ''' - Returns relative namespace for subfolders (e.g., "Managers" not "SimpleIDE.Managers")
+        ''' </remarks>
         Private Function GetNamespaceForPath(vRelativePath As String) As String
             Try
-                ' Get project name as root namespace from project file
-                Dim lRootNamespace As String = GetProjectRootNamespace()
-                
-                ' If no relative path, return root namespace
+                ' If no relative path, we're in the root - no namespace declaration needed
                 If String.IsNullOrEmpty(vRelativePath) Then
-                    Return lRootNamespace
+                    Return ""  ' No namespace declaration for root
                 End If
                 
                 ' Convert path to namespace (replace separators with dots)
+                ' This will be the relative namespace from root
                 Dim lPathParts As String() = vRelativePath.Split(System.IO.Path.DirectorySeparatorChar)
                 Dim lNamespaceParts As New List(Of String)()
-                lNamespaceParts.Add(lRootNamespace)
                 
                 For Each lPart As String In lPathParts
                     If Not String.IsNullOrEmpty(lPart) Then
@@ -883,11 +938,13 @@ Namespace Widgets
                     End If
                 Next
                 
+                ' Return the relative namespace path (not including root namespace)
+                ' e.g., for "Managers" folder, return "Managers" not "SimpleIDE.Managers"
                 Return String.Join(".", lNamespaceParts)
                 
             Catch ex As Exception
                 Console.WriteLine($"GetNamespaceForPath error: {ex.Message}")
-                Return "MyApplication"
+                Return ""
             End Try
         End Function
         
@@ -967,12 +1024,13 @@ Namespace Widgets
         
         ' ===== Code Generation Methods =====
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.GenerateClassCode
         ''' <summary>
-        ''' Generates code for a new class
+        ''' Generates code for a new class with proper namespace handling
         ''' </summary>
         ''' <param name="vClassName">Name of the class</param>
-        ''' <param name="vNamespace">Full namespace for the class</param>
-        ''' <returns>Generated code</returns>
+        ''' <param name="vNamespace">Relative namespace path (empty for root)</param>
+        ''' <returns>Generated code following VB.NET implicit root namespace rules</returns>
         Private Function GenerateClassCode(vClassName As String, vNamespace As String) As String
             Dim lBuilder As New System.Text.StringBuilder()
             
@@ -982,25 +1040,28 @@ Namespace Widgets
             lBuilder.AppendLine("Imports System")
             lBuilder.AppendLine()
             
-            ' Always declare the full namespace for clarity and portability
+            ' Only declare namespace if NOT in root (following implicit root namespace rules)
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine($"Namespace {vNamespace}")
                 lBuilder.AppendLine()
             End If
             
-            lBuilder.AppendLine($"    ''' <summary>")
-            lBuilder.AppendLine($"    ''' {vClassName} class implementation")
-            lBuilder.AppendLine($"    ''' </summary>")
-            lBuilder.AppendLine($"    Public Class {vClassName}")
+            ' Add proper indentation based on whether we're in a namespace
+            Dim lIndent As String = If(String.IsNullOrEmpty(vNamespace), "", "    ")
+            
+            lBuilder.AppendLine($"{lIndent}''' <summary>")
+            lBuilder.AppendLine($"{lIndent}''' {vClassName} class implementation")
+            lBuilder.AppendLine($"{lIndent}''' </summary>")
+            lBuilder.AppendLine($"{lIndent}Public Class {vClassName}")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"        ''' <summary>")
-            lBuilder.AppendLine($"        ''' Initializes a new instance of the {vClassName} class")
-            lBuilder.AppendLine($"        ''' </summary>")
-            lBuilder.AppendLine($"        Public Sub New()")
-            lBuilder.AppendLine($"            ' TODO: Initialize your class here")
-            lBuilder.AppendLine($"        End Sub")
+            lBuilder.AppendLine($"{lIndent}    ''' <summary>")
+            lBuilder.AppendLine($"{lIndent}    ''' Initializes a new instance of the {vClassName} class")
+            lBuilder.AppendLine($"{lIndent}    ''' </summary>")
+            lBuilder.AppendLine($"{lIndent}    Public Sub New()")
+            lBuilder.AppendLine($"{lIndent}        ' TODO: Initialize your class here")
+            lBuilder.AppendLine($"{lIndent}    End Sub")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"    End Class")
+            lBuilder.AppendLine($"{lIndent}End Class")
             
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine()
@@ -1011,11 +1072,11 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Generates code for a new module
+        ''' Generates code for a new module with proper namespace handling
         ''' </summary>
         ''' <param name="vModuleName">Name of the module</param>
-        ''' <param name="vNamespace">Full namespace for the module</param>
-        ''' <returns>Generated code</returns>
+        ''' <param name="vNamespace">Relative namespace path (empty for root)</param>
+        ''' <returns>Generated code following VB.NET implicit root namespace rules</returns>
         Private Function GenerateModuleCode(vModuleName As String, vNamespace As String) As String
             Dim lBuilder As New System.Text.StringBuilder()
             
@@ -1025,20 +1086,23 @@ Namespace Widgets
             lBuilder.AppendLine("Imports System")
             lBuilder.AppendLine()
             
-            ' Always declare the full namespace for clarity and portability
+            ' Only declare namespace if NOT in root (following implicit root namespace rules)
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine($"Namespace {vNamespace}")
                 lBuilder.AppendLine()
             End If
             
-            lBuilder.AppendLine($"    ''' <summary>")
-            lBuilder.AppendLine($"    ''' {vModuleName} module implementation")
-            lBuilder.AppendLine($"    ''' </summary>")
-            lBuilder.AppendLine($"    Public Module {vModuleName}")
+            ' Add proper indentation based on whether we're in a namespace
+            Dim lIndent As String = If(String.IsNullOrEmpty(vNamespace), "", "    ")
+            
+            lBuilder.AppendLine($"{lIndent}''' <summary>")
+            lBuilder.AppendLine($"{lIndent}''' {vModuleName} module implementation")
+            lBuilder.AppendLine($"{lIndent}''' </summary>")
+            lBuilder.AppendLine($"{lIndent}Public Module {vModuleName}")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"        ' TODO: Add your module members here")
+            lBuilder.AppendLine($"{lIndent}    ' TODO: Add your module members here")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"    End Module")
+            lBuilder.AppendLine($"{lIndent}End Module")
             
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine()
@@ -1048,12 +1112,13 @@ Namespace Widgets
             Return lBuilder.ToString()
         End Function
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.GenerateInterfaceCode
         ''' <summary>
-        ''' Generates code for a new interface
+        ''' Generates code for a new interface with proper namespace handling
         ''' </summary>
         ''' <param name="vInterfaceName">Name of the interface</param>
-        ''' <param name="vNamespace">Full namespace for the interface</param>
-        ''' <returns>Generated code</returns>
+        ''' <param name="vNamespace">Relative namespace path (empty for root)</param>
+        ''' <returns>Generated code following VB.NET implicit root namespace rules</returns>
         Private Function GenerateInterfaceCode(vInterfaceName As String, vNamespace As String) As String
             Dim lBuilder As New System.Text.StringBuilder()
             
@@ -1069,20 +1134,23 @@ Namespace Widgets
             lBuilder.AppendLine("Imports System")
             lBuilder.AppendLine()
             
-            ' Always declare the full namespace for clarity and portability
+            ' Only declare namespace if NOT in root (following implicit root namespace rules)
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine($"Namespace {vNamespace}")
                 lBuilder.AppendLine()
             End If
             
-            lBuilder.AppendLine($"    ''' <summary>")
-            lBuilder.AppendLine($"    ''' {lInterfaceName} interface definition")
-            lBuilder.AppendLine($"    ''' </summary>")
-            lBuilder.AppendLine($"    Public Interface {lInterfaceName}")
+            ' Add proper indentation based on whether we're in a namespace
+            Dim lIndent As String = If(String.IsNullOrEmpty(vNamespace), "", "    ")
+            
+            lBuilder.AppendLine($"{lIndent}''' <summary>")
+            lBuilder.AppendLine($"{lIndent}''' {lInterfaceName} interface definition")
+            lBuilder.AppendLine($"{lIndent}''' </summary>")
+            lBuilder.AppendLine($"{lIndent}Public Interface {lInterfaceName}")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"        ' TODO: Define your interface members here")
+            lBuilder.AppendLine($"{lIndent}    ' TODO: Define your interface members here")
             lBuilder.AppendLine()
-            lBuilder.AppendLine($"    End Interface")
+            lBuilder.AppendLine($"{lIndent}End Interface")
             
             If Not String.IsNullOrEmpty(vNamespace) Then
                 lBuilder.AppendLine()
@@ -1234,6 +1302,218 @@ Namespace Widgets
                 lBuilder.AppendLine()
                 lBuilder.AppendLine("End Namespace")
             End If
+            
+            Return lBuilder.ToString()
+        End Function
+
+        ''' <summary>
+        ''' Generates code for a new enumeration
+        ''' </summary>
+        ''' <param name="vName">Name of the enum</param>
+        ''' <param name="vNamespace">Namespace for the enum</param>
+        ''' <returns>Generated VB.NET code for the enum</returns>
+        Private Function GenerateEnumCode(vName As String, vNamespace As String) As String
+            Dim lBuilder As New System.Text.StringBuilder()
+            
+            ' Add header comment
+            lBuilder.AppendLine($"' {vName}.vb")
+            lBuilder.AppendLine($"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+            lBuilder.AppendLine()
+            
+            ' Add imports
+            lBuilder.AppendLine("Imports System")
+            lBuilder.AppendLine()
+            
+            ' Add namespace if specified
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine($"Namespace {vNamespace}")
+                lBuilder.AppendLine()
+            End If
+            
+            ' Add XML documentation
+            lBuilder.AppendLine($"    ''' <summary>")
+            lBuilder.AppendLine($"    ''' Represents the {vName} enumeration")
+            lBuilder.AppendLine($"    ''' </summary>")
+            lBuilder.AppendLine($"    Public Enum {vName}")
+            lBuilder.AppendLine($"        eUnspecified")
+            lBuilder.AppendLine($"        eFirstValue")
+            lBuilder.AppendLine($"        eSecondValue")
+            lBuilder.AppendLine($"        eLastValue")
+            lBuilder.AppendLine($"    End Enum")
+            
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine()
+                lBuilder.AppendLine("End Namespace")
+            End If
+            
+            Return lBuilder.ToString()
+        End Function
+        
+        ''' <summary>
+        ''' Generates code for a new structure
+        ''' </summary>
+        ''' <param name="vName">Name of the structure</param>
+        ''' <param name="vNamespace">Namespace for the structure</param>
+        ''' <returns>Generated VB.NET code for the structure</returns>
+        Private Function GenerateStructureCode(vName As String, vNamespace As String) As String
+            Dim lBuilder As New System.Text.StringBuilder()
+            
+            ' Add header comment
+            lBuilder.AppendLine($"' {vName}.vb")
+            lBuilder.AppendLine($"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+            lBuilder.AppendLine()
+            
+            ' Add imports
+            lBuilder.AppendLine("Imports System")
+            lBuilder.AppendLine()
+            
+            ' Add namespace if specified
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine($"Namespace {vNamespace}")
+                lBuilder.AppendLine()
+            End If
+            
+            ' Add XML documentation
+            lBuilder.AppendLine($"    ''' <summary>")
+            lBuilder.AppendLine($"    ''' Represents the {vName} structure")
+            lBuilder.AppendLine($"    ''' </summary>")
+            lBuilder.AppendLine($"    Public Structure {vName}")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"        ' ===== Private Fields =====")
+            lBuilder.AppendLine($"        Private pValue As String")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"        ' ===== Properties =====")
+            lBuilder.AppendLine($"        ''' <summary>")
+            lBuilder.AppendLine($"        ''' Gets or sets the value")
+            lBuilder.AppendLine($"        ''' </summary>")
+            lBuilder.AppendLine($"        Public Property Value As String")
+            lBuilder.AppendLine($"            Get")
+            lBuilder.AppendLine($"                Return pValue")
+            lBuilder.AppendLine($"            End Get")
+            lBuilder.AppendLine($"            Set(value As String)")
+            lBuilder.AppendLine($"                pValue = value")
+            lBuilder.AppendLine($"            End Set")
+            lBuilder.AppendLine($"        End Property")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"    End Structure")
+            
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine()
+                lBuilder.AppendLine("End Namespace")
+            End If
+            
+            Return lBuilder.ToString()
+        End Function
+        
+        ''' <summary>
+        ''' Generates code for a new component class
+        ''' </summary>
+        ''' <param name="vName">Name of the component</param>
+        ''' <param name="vNamespace">Namespace for the component</param>
+        ''' <returns>Generated VB.NET code for the component</returns>
+        Private Function GenerateComponentCode(vName As String, vNamespace As String) As String
+            Dim lBuilder As New System.Text.StringBuilder()
+            
+            ' Add header comment
+            lBuilder.AppendLine($"' {vName}.vb")
+            lBuilder.AppendLine($"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+            lBuilder.AppendLine()
+            
+            ' Add imports
+            lBuilder.AppendLine("Imports System")
+            lBuilder.AppendLine("Imports System.ComponentModel")
+            lBuilder.AppendLine()
+            
+            ' Add namespace if specified
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine($"Namespace {vNamespace}")
+                lBuilder.AppendLine()
+            End If
+            
+            ' Add XML documentation
+            lBuilder.AppendLine($"    ''' <summary>")
+            lBuilder.AppendLine($"    ''' Represents the {vName} component")
+            lBuilder.AppendLine($"    ''' </summary>")
+            lBuilder.AppendLine($"    Public Class {vName}")
+            lBuilder.AppendLine($"        Inherits Component")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"        ''' <summary>")
+            lBuilder.AppendLine($"        ''' Initializes a new instance of the {vName} class")
+            lBuilder.AppendLine($"        ''' </summary>")
+            lBuilder.AppendLine($"        Public Sub New()")
+            lBuilder.AppendLine($"            MyBase.New()")
+            lBuilder.AppendLine($"            InitializeComponent()")
+            lBuilder.AppendLine($"        End Sub")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"        ''' <summary>")
+            lBuilder.AppendLine($"        ''' Initializes the component")
+            lBuilder.AppendLine($"        ''' </summary>")
+            lBuilder.AppendLine($"        Private Sub InitializeComponent()")
+            lBuilder.AppendLine($"            ' TODO: Add initialization code here")
+            lBuilder.AppendLine($"        End Sub")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine($"    End Class")
+            
+            If Not String.IsNullOrEmpty(vNamespace) Then
+                lBuilder.AppendLine()
+                lBuilder.AppendLine("End Namespace")
+            End If
+            
+            Return lBuilder.ToString()
+        End Function
+        
+        ''' <summary>
+        ''' Generates content for a configuration file
+        ''' </summary>
+        ''' <param name="vName">Name of the file (not used)</param>
+        ''' <param name="vNamespace">Namespace (not used)</param>
+        ''' <returns>Generated XML configuration content</returns>
+        Private Function GenerateConfigFileCode(vName As String, vNamespace As String) As String
+            Dim lBuilder As New System.Text.StringBuilder()
+            
+            lBuilder.AppendLine("<?xml version=""1.0"" encoding=""utf-8""?>")
+            lBuilder.AppendLine("<configuration>")
+            lBuilder.AppendLine("    <startup>")
+            lBuilder.AppendLine("        <supportedRuntime version=""v4.0"" sku="".NETFramework,Version=v4.8""/>")
+            lBuilder.AppendLine("    </startup>")
+            lBuilder.AppendLine("    ")
+            lBuilder.AppendLine("    <appSettings>")
+            lBuilder.AppendLine("        <!-- Add application settings here -->")
+            lBuilder.AppendLine("    </appSettings>")
+            lBuilder.AppendLine("    ")
+            lBuilder.AppendLine("    <connectionStrings>")
+            lBuilder.AppendLine("        <!-- Add connection strings here -->")
+            lBuilder.AppendLine("    </connectionStrings>")
+            lBuilder.AppendLine("</configuration>")
+            
+            Return lBuilder.ToString()
+        End Function
+        
+        ''' <summary>
+        ''' Generates content for a resource file
+        ''' </summary>
+        ''' <param name="vName">Name of the file (not used)</param>
+        ''' <param name="vNamespace">Namespace (not used)</param>
+        ''' <returns>Generated XML resource content</returns>
+        Private Function GenerateResourceFileCode(vName As String, vNamespace As String) As String
+            ' For .resx files, return minimal valid XML
+            ' The actual resource editing would need a dedicated editor
+            Dim lBuilder As New System.Text.StringBuilder()
+            
+            lBuilder.AppendLine("<?xml version=""1.0"" encoding=""utf-8""?>")
+            lBuilder.AppendLine("<root>")
+            lBuilder.AppendLine("  <xsd:schema id=""root"" xmlns="""" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"">")
+            lBuilder.AppendLine("    <xsd:element name=""root"" msdata:IsDataSet=""True"">")
+            lBuilder.AppendLine("    </xsd:element>")
+            lBuilder.AppendLine("  </xsd:schema>")
+            lBuilder.AppendLine("  <resheader name=""resmimetype"">")
+            lBuilder.AppendLine("    <value>text/microsoft-resx</value>")
+            lBuilder.AppendLine("  </resheader>")
+            lBuilder.AppendLine("  <resheader name=""version"">")
+            lBuilder.AppendLine("    <value>2.0</value>")
+            lBuilder.AppendLine("  </resheader>")
+            lBuilder.AppendLine("  <!-- Add resources here -->")
+            lBuilder.AppendLine("</root>")
             
             Return lBuilder.ToString()
         End Function

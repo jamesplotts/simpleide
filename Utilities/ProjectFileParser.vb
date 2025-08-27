@@ -4,6 +4,7 @@ Imports System.Xml
 Imports System.Collections.Generic
 
 Namespace Utilities
+
     Public Class ProjectFileParser
         
         Public Class ProjectInfo
@@ -97,7 +98,7 @@ Namespace Utilities
                 lCompileNodes = vDoc.SelectNodes("//Compile[@Include]")
             End If
             
-            For Each lNode As XmlNode In lCompileNodes
+            for each lNode As XmlNode in lCompileNodes
                 Dim lInclude As String = lNode.Attributes("Include").Value
                 vInfo.CompileItems.Add(lInclude)
             Next
@@ -109,7 +110,7 @@ Namespace Utilities
                 lReferenceNodes = vDoc.SelectNodes("//Reference[@Include]")
             End If
             
-            For Each lNode As XmlNode In lReferenceNodes
+            for each lNode As XmlNode in lReferenceNodes
                 Dim lRef As New ReferenceInfo()
                 Dim lIncludeValue As String = lNode.Attributes("Include").Value
                 
@@ -118,7 +119,7 @@ Namespace Utilities
                 lRef.Name = lParts(0).Trim()
                 
                 ' Extract version if present
-                For i As Integer = 1 To lParts.Length - 1
+                for i As Integer = 1 To lParts.Length - 1
                     If lParts(i).Trim().StartsWith("Version=") Then
                         lRef.Version = lParts(i).Trim().Substring(8)
                     End If
@@ -141,7 +142,7 @@ Namespace Utilities
             ' Package references (for newer SDK-style projects)
             Dim lPackageNodes As XmlNodeList = vDoc.SelectNodes("//PackageReference[@Include]")
             
-            For Each lNode As XmlNode In lPackageNodes
+            for each lNode As XmlNode in lPackageNodes
                 Dim lPackage As New PackageInfo()
                 lPackage.Name = lNode.Attributes("Include").Value
                 

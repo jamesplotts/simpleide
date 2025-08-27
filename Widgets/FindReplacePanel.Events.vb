@@ -42,7 +42,29 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"OnFindEntryKeyPress error: {ex.Message}")
             End Try
-        End Sub      
+        End Sub  
+
+        ''' <summary>
+        ''' Key press handler for FindReplacePanel widgets
+        ''' </summary>
+        Private Sub OnFindPanelKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+            Try
+                If vArgs.Event.Key = Gdk.Key.Escape Then
+                    ' Try to handle internally first
+                    If HandleEscapeKey() Then
+                        vArgs.RetVal = True
+                        Return
+                    End If
+                    
+                    ' Not handled internally - request close
+                    RaiseEvent CloseRequested()
+                    vArgs.RetVal = True
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnFindPanelKeyPress error: {ex.Message}")
+            End Try
+        End Sub    
   
         Private Sub OnReplaceEntryKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
             Try
@@ -129,8 +151,20 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles double-click or Enter key activation in the results tree view
+        ''' This provides an alternative way to navigate to results
+        ''' </summary>
+        ''' <param name="vSender">The sender of the event</param>
+        ''' <param name="vArgs">Row activated event arguments</param>
         Private Sub OnResultActivated(vSender As Object, vArgs As RowActivatedArgs)
             Try
+                ' Since we're handling navigation on single-click (CursorChanged),
+                ' this handler can be used for additional actions like:
+                ' - Setting focus to the editor
+                ' - Closing the find panel (optional)
+                ' - Or just as a fallback navigation method
+                
                 Dim lSelection As TreeSelection = pResultsView.Selection
                 Dim lModel As ITreeModel = Nothing
                 Dim lIter As TreeIter = Nothing
@@ -143,18 +177,21 @@ Namespace Widgets
                     
                     ' Find the full path from results
                     Dim lResult As FindResult = Nothing
-                    For Each lRes In pSearchResults
+                    for each lRes in pSearchResults
                         If lRes.LineNumber = lLineNumber AndAlso 
                            lRes.ColumnNumber = lColumnNumber AndAlso
                            lRes.FileName = lFileName Then
                             lResult = lRes
-                            Exit For
+                            Exit for
                         End If
                     Next
                     
                     If lResult IsNot Nothing Then
-                        ' Navigate to result
+                        ' Navigate to result (useful if single-click navigation is disabled)
                         RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
+                        
+                        ' Optionally, you could close the find panel on double-click/Enter
+                        ' RaiseEvent CloseRequested()
                     End If
                 End If
                 
@@ -279,7 +316,7 @@ Namespace Widgets
             Try
                 pResultsStore.Clear()
                 
-                For Each lResult In pSearchResults
+                for each lResult in pSearchResults
                     pResultsStore.AppendValues(
                         System.IO.Path.GetFileName(lResult.FilePath),
                         lResult.LineText,
@@ -302,16 +339,16 @@ Namespace Widgets
             
             Try
                 Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vFilePath)
-                If lSourceFileInfo is Nothing then return lResults
+                If lSourceFileInfo Is Nothing Then Return lResults
                 
                 ' Search each line
-                For lLineIndex As Integer = 0 To lSourceFileInfo.TextLines.Count - 1
+                for lLineIndex As Integer = 0 To lSourceFileInfo.TextLines.Count - 1
                     Dim lLine As String = lSourceFileInfo.TextLines(lLineIndex)
                     Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions)
                     
                     
-                    For Each lColumn In lMatches
-                        Dim lResult As New FindResult() With {
+                    for each lColumn in lMatches
+                        Dim lResult As New FindResult() with {
                             .FilePath = vFilePath,
                             .LineNumber = lLineIndex + 1,
                             .ColumnNumber = lColumn + 1,
@@ -565,6 +602,49 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"OnReplaceEntryActivated error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles single-click selection in the results tree view for immediate navigation
+        ''' </summary>
+        ''' <param name="vSender">The sender of the event</param>
+        ''' <param name="vArgs">Event arguments</param>
+        Private Sub OnResultsCursorChanged(vSender As Object, vArgs As EventArgs)
+            Try
+                Dim lSelection As TreeSelection = pResultsView.Selection
+                Dim lModel As ITreeModel = Nothing
+                Dim lIter As TreeIter = Nothing
+                
+                If lSelection.GetSelected(lModel, lIter) Then
+                    ' Get result details
+                    Dim lFileName As String = CStr(lModel.GetValue(lIter, 0))
+                    Dim lLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
+                    Dim lColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
+                    
+                    ' Find the full path from results
+                    Dim lResult As FindResult = Nothing
+                    for each lRes in pSearchResults
+                        If lRes.LineNumber = lLineNumber AndAlso 
+                           lRes.ColumnNumber = lColumnNumber AndAlso
+                           lRes.FileName = lFileName Then
+                            lResult = lRes
+                            Exit for
+                        End If
+                    Next
+                    
+                    If lResult IsNot Nothing Then
+                        ' Navigate to result immediately on single-click
+                        RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
+                        
+                        ' Update status to show current result
+                        Dim lIndex As Integer = pSearchResults.IndexOf(lResult) + 1
+                        UpdateStatus($"Result {lIndex} of {pSearchResults.Count} - Line {lResult.LineNumber}, Column {lResult.ColumnNumber}")
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnResultsCursorChanged error: {ex.Message}")
             End Try
         End Sub
         

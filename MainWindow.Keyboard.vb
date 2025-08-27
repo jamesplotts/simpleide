@@ -8,6 +8,10 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
+
+
+    Private pLastKeyEventTime As DateTime = DateTime.MinValue
+    Private pLastKeyEventKey As Gdk.Key = Gdk.Key.VoidSymbol
     
     ''' <summary>
     ''' Setup keyboard handling - simplified without accelerators
@@ -26,11 +30,40 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ' Replace: SimpleIDE.MainWindow.OnWindowKeyPress
+    ' Replace: SimpleIDE.MainWindow.OnWindowKeyPress
     ''' <summary>
-    ''' Main keyboard handler for all window-level shortcuts
+    ''' Main keyboard handler for all window-level shortcuts with fixed duplicate prevention
     ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Key press event arguments</param>
+    ''' <remarks>
+    ''' Fixed to prevent duplicates BEFORE calling event handlers
+    ''' </remarks>
     Private Sub OnWindowKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+        ' Static variables for duplicate prevention
+        Static sLastKeyTime As DateTime = DateTime.MinValue
+        Static sLastKey As UInteger = 0
+        
         Try
+            ' Get current key and time
+            Dim lCurrentTime As DateTime = DateTime.Now
+            Dim lCurrentKey As UInteger = vArgs.Event.KeyValue
+            
+            ' Check for duplicate event FIRST (before processing)
+            If lCurrentKey = sLastKey Then
+                Dim lTimeDiff As TimeSpan = lCurrentTime - sLastKeyTime
+                If lTimeDiff.TotalMilliseconds < 50 Then
+                    Console.WriteLine($"Duplicate key event prevented: KeyValue={lCurrentKey}, TimeDiff={lTimeDiff.TotalMilliseconds:F4}ms")
+                    vArgs.RetVal = True
+                    Return  ' Exit early to prevent duplicate processing
+                End If
+            End If
+            
+            ' Update tracking variables
+            sLastKeyTime = lCurrentTime
+            sLastKey = lCurrentKey
+            
             ' Get key info
             Dim lKeyString As String = KeyboardHelper.GetKeyString(vArgs.Event.KeyValue)
             Dim lModifiers As ModifierType = vArgs.Event.State
@@ -39,13 +72,11 @@ Partial Public Class MainWindow
             Console.WriteLine($"MainWindow Key: {lKeyString}, Modifiers: {lModifiers}")
             
             ' Filter out lock key modifiers (NumLock, CapsLock, ScrollLock) and Release mask
-            ' These shouldn't affect function key detection
             Dim lCleanModifiers As ModifierType = lModifiers and Not (ModifierType.LockMask Or 
                                                                       ModifierType.Mod2Mask Or 
                                                                       ModifierType.ReleaseMask)
-            
+    
             ' ===== Handle Function Keys (F1-F12) without modifiers first =====
-            ' Check if no meaningful modifiers are pressed (ignoring NumLock, etc.)
             If lCleanModifiers = ModifierType.None Then
                 Select Case lKeyString
                     Case "F5"
@@ -99,165 +130,84 @@ Partial Public Class MainWindow
                (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
                 Select Case lKeyString
                     Case "F5"
-                        ' Ctrl+F5 - Run without debugging (just run, don't build)
-                        Task.Run(Async Function()
-                            Await RunProject()
-                            Return Nothing
-                        End Function)
+                        ' Ctrl+F5 - Run without debugging
+                        ' TODO: OnRunWithoutDebugger(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "s"
+                        ' Ctrl+S - Save
+                        OnSaveFile(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "a"
+                        ' Ctrl+A - Select All
+                        OnSelectAll(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "f"
+                        ' Ctrl+F - Find
+                        OnFind(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "h"
+                        ' Ctrl+H - Replace
+                        OnReplace(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "g"
+                        ' Ctrl+G - Go to Line
+                        OnGoToLine(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "b"
+                        ' Ctrl+B - Build
+                        OnBuildProject(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "e"
+                        ' Ctrl+E - Toggle Project Explorer
+                        ToggleProjectExplorer()
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "tab"
+                        ' Ctrl+Tab - Next Tab
+                        SwitchToNextTab()
                         vArgs.RetVal = True
                         Return
                 End Select
             End If
             
-            ' ===== Handle Ctrl key combinations =====
-            If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
-                ' Handle Ctrl+Shift combinations first
-                If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-                    Select Case lKeyString.ToLower()
-                        ' Ctrl+Shift+Z - Redo (standard alternative)
-                        Case "z"
-                            OnRedo(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Ctrl+Shift+B - Build Solution
-                        Case "b"
-                            RebuildProject
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Ctrl+Shift+F - Find in Files
-                        Case "f"
-                            OnFind(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Ctrl+Shift+Tab - Previous Tab
-                        Case "tab", "iso_left_tab"
-                            SwitchToPreviousTab()
-                            vArgs.RetVal = True
-                            Return
-                    End Select
-                End If
+            ' ===== Handle Ctrl+Shift combinations =====
+            If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask AndAlso
+               (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
                 
-                ' Handle regular Ctrl combinations (no Shift)
-                If (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
-                    Select Case lKeyString.ToLower()
-                        ' File operations
-                        Case "n"
-                            ' Ctrl+N - New File
-                            OnNewFile(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "o"
-                            ' Ctrl+O - Open File
-                            OnOpenFile(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "s"
-                            ' Ctrl+S - Save File
-                            OnSaveFile(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "w"
-                            ' Ctrl+W - Close Tab
-                            CloseCurrentTab()
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "q"
-                            ' Ctrl+Q - Quit
-                            OnWindowDelete(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Edit operations
-                        Case "z"
-                            ' Ctrl+Z - Undo
-                            OnUndo(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "r"
-                            ' Ctrl+R - Redo
-                            OnRedo(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "y"
-                            ' Ctrl+Y - Cut Line (VB.NET tradition)
-                            OnCutLine(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "x"
-                            ' Ctrl+X - Cut
-                            OnCut(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "c"
-                            ' Ctrl+C - Copy
-                            OnCopy(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "v"
-                            ' Ctrl+V - Paste
-                            OnPaste(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "a"
-                            ' Ctrl+A - Select All
-                            OnSelectAll(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Search operations
-                        Case "f"
-                            ' Ctrl+F - Find
-                            OnFind(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "h"
-                            ' Ctrl+H - Replace
-                            OnReplace(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        Case "g"
-                            ' Ctrl+G - Go to Line
-                            OnGoToLine(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Build operations
-                        Case "b"
-                            ' Ctrl+B - Build
-                            OnBuildProject(Nothing, Nothing)
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' View operations
-                        Case "e"
-                            ' Ctrl+E - Toggle Project Explorer
-                            ToggleProjectExplorer()
-                            vArgs.RetVal = True
-                            Return
-                            
-                        ' Tab navigation
-                        Case "tab"
-                            ' Ctrl+Tab - Next Tab
-                            SwitchToNextTab()
-                            vArgs.RetVal = True
-                            Return
-                    End Select
-                End If
+                Select Case lKeyString
+                    Case "s"
+                        ' Ctrl+Shift+S - Save All
+                        OnSaveAll(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "f"
+                        ' Ctrl+Shift+F - Find in Files
+                        ' TODO: OnFindInFiles(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                        
+                    Case "b"
+                        ' Ctrl+Shift+B - Build Solution
+                         ' TODO: OnBuildSolution(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+                End Select
             End If
             
             ' Let unhandled keys pass through to focused widget
@@ -268,6 +218,247 @@ Partial Public Class MainWindow
             vArgs.RetVal = False
         End Try
     End Sub
+
+'     Private Sub OnWindowKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+'         Try
+'             ' Get key info
+'             Dim lKeyString As String = KeyboardHelper.GetKeyString(vArgs.Event.KeyValue)
+'             Dim lModifiers As ModifierType = vArgs.Event.State
+'             
+'             ' Debug output for testing
+'             Console.WriteLine($"MainWindow Key: {lKeyString}, Modifiers: {lModifiers}")
+'             
+'             ' Filter out lock key modifiers (NumLock, CapsLock, ScrollLock) and Release mask
+'             ' These shouldn't affect function key detection
+'             Dim lCleanModifiers As ModifierType = lModifiers and Not (ModifierType.LockMask Or 
+'                                                                       ModifierType.Mod2Mask Or 
+'                                                                       ModifierType.ReleaseMask)
+' 
+'             
+'             ' ===== Handle Function Keys (F1-F12) without modifiers first =====
+'             ' Check if no meaningful modifiers are pressed (ignoring NumLock, etc.)
+'             If lCleanModifiers = ModifierType.None Then
+'                 Select Case lKeyString
+'                     Case "F5"
+'                         ' F5 - Build and Run
+'                         Console.WriteLine("F5 pressed - Build and Run")
+'                         OnBuildAndRun(Nothing, Nothing)
+'                         vArgs.RetVal = True
+'                         Return
+'                         
+'                     Case "F6"
+'                         ' F6 - Build Project
+'                         Console.WriteLine("F6 pressed - Build Project")
+'                         OnBuildProject(Nothing, Nothing)
+'                         vArgs.RetVal = True
+'                         Return
+'                         
+'                     Case "F1"
+'                         ' F1 - Show Help
+'                         ShowContextHelp("")
+'                         vArgs.RetVal = True
+'                         Return
+'                         
+'                     Case "F11"
+'                         ' F11 - Toggle Full Screen
+'                         OnToggleFullScreen(Nothing, Nothing)
+'                         vArgs.RetVal = True
+'                         Return
+'                         
+'                     Case "F12"
+'                         ' F12 - Go to Definition
+'                         GoToDefinition()
+'                         vArgs.RetVal = True
+'                         Return
+'                 End Select
+'             End If
+'             
+'             ' ===== Handle Shift + Function Key combinations =====
+'             If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask AndAlso
+'                (lCleanModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
+'                 Select Case lKeyString
+'                     Case "F5"
+'                         ' Shift+F5 - Stop Debugging
+'                         OnStopDebugging(Nothing, Nothing)
+'                         vArgs.RetVal = True
+'                         Return
+'                 End Select
+'             End If
+'             
+'             ' ===== Handle Ctrl + Function Key combinations =====
+'             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask AndAlso
+'                (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
+'                 Select Case lKeyString
+'                     Case "F5"
+'                         ' Ctrl+F5 - Run without debugging (just run, don't build)
+'                         Task.Run(Async Function()
+'                             Await RunProject()
+'                             Return Nothing
+'                         End Function)
+'                         vArgs.RetVal = True
+'                         Return
+'                 End Select
+'             End If
+'             
+'             ' ===== Handle Ctrl key combinations =====
+'             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
+'                 ' Handle Ctrl+Shift combinations first
+'                 If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+'                     Select Case lKeyString.ToLower()
+'                         ' Ctrl+Shift+Z - Redo (standard alternative)
+'                         Case "z"
+'                             OnRedo(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Ctrl+Shift+B - Build Solution
+'                         Case "b"
+'                             RebuildProject
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Ctrl+Shift+F - Find in Files
+'                         Case "f"
+'                             OnFind(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Ctrl+Shift+Tab - Previous Tab
+'                         Case "tab", "iso_left_tab"
+'                             SwitchToPreviousTab()
+'                             vArgs.RetVal = True
+'                             Return
+'                     End Select
+'                 End If
+'                 
+'                 ' Handle regular Ctrl combinations (no Shift)
+'                 If (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
+'                     Select Case lKeyString.ToLower()
+'                         ' File operations
+'                         Case "n"
+'                             ' Ctrl+N - New File
+'                             OnNewFile(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "o"
+'                             ' Ctrl+O - Open File
+'                             OnOpenFile(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "s"
+'                             ' Ctrl+S - Save File
+'                             OnSaveFile(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "w"
+'                             ' Ctrl+W - Close Tab
+'                             CloseCurrentTab()
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "q"
+'                             ' Ctrl+Q - Quit
+'                             OnWindowDelete(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Edit operations
+'                         Case "z"
+'                             ' Ctrl+Z - Undo
+'                             OnUndo(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "r"
+'                             ' Ctrl+R - Redo
+'                             OnRedo(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "y"
+'                             ' Ctrl+Y - Cut Line (VB.NET tradition)
+'                             OnCutLine(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "x"
+'                             ' Ctrl+X - Cut
+'                             OnCut(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "c"
+'                             ' Ctrl+C - Copy
+'                             OnCopy(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "v"
+'                             ' Ctrl+V - Paste
+'                             OnPaste(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "a"
+'                             ' Ctrl+A - Select All
+'                             OnSelectAll(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Search operations
+'                         Case "f"
+'                             ' Ctrl+F - Find
+'                             OnFind(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "h"
+'                             ' Ctrl+H - Replace
+'                             OnReplace(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         Case "g"
+'                             ' Ctrl+G - Go to Line
+'                             OnGoToLine(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Build operations
+'                         Case "b"
+'                             ' Ctrl+B - Build
+'                             OnBuildProject(Nothing, Nothing)
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' View operations
+'                         Case "e"
+'                             ' Ctrl+E - Toggle Project Explorer
+'                             ToggleProjectExplorer()
+'                             vArgs.RetVal = True
+'                             Return
+'                             
+'                         ' Tab navigation
+'                         Case "tab"
+'                             ' Ctrl+Tab - Next Tab
+'                             SwitchToNextTab()
+'                             vArgs.RetVal = True
+'                             Return
+'                     End Select
+'                 End If
+'             End If
+'             
+'             ' Let unhandled keys pass through to focused widget
+'             vArgs.RetVal = False
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"OnWindowKeyPress error: {ex.Message}")
+'             vArgs.RetVal = False
+'         End Try
+'     End Sub
     
     ' ===== Helper Methods =====
 

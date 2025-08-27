@@ -21,7 +21,7 @@ Namespace Widgets
         ''' <summary>
         ''' Debug method to trace why nodes aren't being displayed
         ''' </summary>
-        Public Sub DebugTreeBuilding()
+        Public Sub DebugTreeBuilxding()
             Try
                 Console.WriteLine("========== DEBUG TREE BUILDING ==========")
                 Console.WriteLine($"Root Node: {If(pRootNode IsNot Nothing, pRootNode.Name & " (" & pRootNode.NodeType.ToString() & ")", "Nothing")}")
@@ -39,7 +39,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                     pNodeCache.Clear()
                     
                     ' Add debug output to build process
-                    BuildVisualNodesDebug(pRootNode, Nothing, 0, "", 0)
+                    'BuildVisualNodesDebug(pRootNode, Nothing, 0, "", 0)
                     
                     Console.WriteLine($"After build: {pVisibleNodes.Count} visible nodes")
                     
@@ -67,7 +67,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
         ''' <summary>
         ''' Debug version of BuildVisualNodes with console output - Fixed for document roots
         ''' </summary>
-        Private Sub BuildVisualNodesDebug(vNode As SyntaxNode, vParent As VisualNode, vLevel As Integer, vParentPath As String, vDepth As Integer)
+        Private Sub BuildVisualNodesxDebug(vNode As SyntaxNode, vParent As VisualNode, vLevel As Integer, vParentPath As String, vDepth As Integer)
             Try
                 If vNode Is Nothing Then
                     Console.WriteLine($"{New String(" "c, vDepth * 2)}Node is Nothing")
@@ -81,7 +81,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                 If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
                     Console.WriteLine($"{lIndent}  Root is eDocument - processing children directly")
                     for each lChild in vNode.Children
-                        BuildVisualNodesDebug(lChild, vParent, vLevel, vParentPath, vDepth)
+                        'BuildVisualNodesxDebug(lChild, vParent, vLevel, vParentPath, vDepth)
                     Next
                     Return
                 End If
@@ -131,7 +131,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
                 If lVisualNode.IsExpanded AndAlso lVisualNode.HasChildren Then
                     Console.WriteLine($"{lIndent}  Processing {vNode.Children.Count} children...")
                     for each lChild in vNode.Children
-                        BuildVisualNodesDebug(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath, vDepth + 1)
+                        ''BuildVisualNodesDebug(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath, vDepth + 1)
                     Next
                 End If
                 
@@ -195,7 +195,7 @@ Console.WriteLine($"DebugTreeBuilding  pVisibleNodesClear()")
         ''' <summary>
         ''' Force refresh with debugging
         ''' </summary>
-        Public Sub ForceRefreshWithDebug()
+        Public Sub ForceRefreshWithDxebug()
             Try
                 Console.WriteLine("=== FORCE REFRESH WITH DEBUG ===")
                 
@@ -220,7 +220,7 @@ Console.WriteLine($"ForceRefreshWithDebug  pVisibleNodesClear()")
                     End If
                     
                     ' Rebuild with debug
-                    DebugTreeBuilding()
+                    'DebugTreeBuilding()
                 End If
                 
                 ' Update display
@@ -232,6 +232,141 @@ Console.WriteLine($"ForceRefreshWithDebug  pVisibleNodesClear()")
                 
             Catch ex As Exception
                 Console.WriteLine($"ForceRefreshWithDebug error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Diagnoses partial class merge issues in the Object Explorer
+        ''' </summary>
+        Public Sub DiagnoseMergeIssue()
+            Try
+                Console.WriteLine("=== OBJECT EXPLORER MERGE DIAGNOSIS ===")
+                
+                If pRootNode Is Nothing Then
+                    Console.WriteLine("No root node loaded")
+                    Return
+                End If
+                
+                Console.WriteLine($"Root node: {pRootNode.Name} ({pRootNode.NodeType})")
+                Console.WriteLine($"Root children: {pRootNode.Children.Count}")
+                
+                ' Check for namespaces with duplicate class names
+                Dim lNamespaces As New Dictionary(Of String, SyntaxNode)()
+                Dim lClassesByNamespace As New Dictionary(Of String, Dictionary(Of String, List(Of SyntaxNode)))()
+                
+                ' Collect all namespaces and classes
+                CollectNamespacesAndClasses(pRootNode, "", lNamespaces, lClassesByNamespace)
+                
+                ' Report findings
+                Console.WriteLine($"Found {lNamespaces.Count} namespaces:")
+                
+                for each lNsKvp in lNamespaces
+                    Dim lNamespaceName As String = lNsKvp.Key
+                    Dim lNamespaceNode As SyntaxNode = lNsKvp.Value
+                    
+                    Console.WriteLine($"  Namespace: {If(String.IsNullOrEmpty(lNamespaceName), "[root]", lNamespaceName)}")
+                    
+                    If lClassesByNamespace.ContainsKey(lNamespaceName) Then
+                        Dim lClasses As Dictionary(Of String, List(Of SyntaxNode)) = lClassesByNamespace(lNamespaceName)
+                        
+                        for each lClassKvp in lClasses
+                            Dim lClassName As String = lClassKvp.Key
+                            Dim lClassNodes As List(Of SyntaxNode) = lClassKvp.Value
+                            
+                            If lClassNodes.Count > 1 Then
+                                ' PROBLEM: Multiple nodes with same class name
+                                Console.WriteLine($"    *** MERGE ISSUE: Class '{lClassName}' has {lClassNodes.Count} separate nodes!")
+                                For Each lNode In lClassNodes
+                                    Dim lFileInfo As String = ""
+                                    If lNode.Attributes IsNot Nothing Then
+                                        If lNode.Attributes.ContainsKey("FilePaths") Then
+                                            lFileInfo = $" Files: {lNode.Attributes("FilePaths")}"
+                                        ElseIf lNode.Attributes.ContainsKey("FilePath") Then
+                                            lFileInfo = $" File: {lNode.Attributes("FilePath")}"
+                                        End If
+                                    End If
+                                    Console.WriteLine($"      - Node with {lNode.Children.Count} members, IsPartial={lNode.IsPartial}{lFileInfo}")
+                                Next
+                            Else
+                                ' Single node - check if it's a properly merged partial class
+                                Dim lNode As SyntaxNode = lClassNodes(0)
+                                If lNode.IsPartial Then
+                                    Dim lFileCount As Integer = 1
+                                    If lNode.Attributes IsNot Nothing AndAlso lNode.Attributes.ContainsKey("FilePaths") Then
+                                        lFileCount = lNode.Attributes("FilePaths").Split(";"c).Length
+                                    End If
+                                    Console.WriteLine($"    OK: Class '{lClassName}' [PARTIAL] with {lNode.Children.Count} members from {lFileCount} files")
+                                Else
+                                    Console.WriteLine($"    OK: Class '{lClassName}' with {lNode.Children.Count} members")
+                                End If
+                            End If
+                        Next
+                    End If
+                Next
+                
+                Console.WriteLine("=== End DIAGNOSIS ===")
+                
+            Catch ex As Exception
+                Console.WriteLine($"DiagnoseMergeIssue error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Helper to collect namespaces and classes for diagnosis
+        ''' </summary>
+        Private Sub CollectNamespacesAndClasses(vNode As SyntaxNode, 
+                                               vCurrentNamespace As String,
+                                               vNamespaces As Dictionary(Of String, SyntaxNode),
+                                               vClasses As Dictionary(Of String, Dictionary(Of String, List(Of SyntaxNode))))
+            Try
+                If vNode Is Nothing Then Return
+                
+                Select Case vNode.NodeType
+                    Case CodeNodeType.eDocument
+                        ' Process document children
+                        For Each lChild In vNode.Children
+                            CollectNamespacesAndClasses(lChild, vCurrentNamespace, vNamespaces, vClasses)
+                        Next
+                        
+                    Case CodeNodeType.eNamespace
+                        ' Track namespace
+                        Dim lNamespaceName As String = vNode.Name
+                        If Not String.IsNullOrEmpty(vCurrentNamespace) Then
+                            lNamespaceName = vCurrentNamespace & "." & lNamespaceName
+                        End If
+                        
+                        If Not vNamespaces.ContainsKey(lNamespaceName) Then
+                            vNamespaces(lNamespaceName) = vNode
+                        End If
+                        
+                        ' Process namespace children
+                        For Each lChild In vNode.Children
+                            CollectNamespacesAndClasses(lChild, lNamespaceName, vNamespaces, vClasses)
+                        Next
+                        
+                    Case CodeNodeType.eClass, CodeNodeType.eModule
+                        ' Track class/module
+                        If Not vClasses.ContainsKey(vCurrentNamespace) Then
+                            vClasses(vCurrentNamespace) = New Dictionary(Of String, List(Of SyntaxNode))()
+                        End If
+                        
+                        If Not vClasses(vCurrentNamespace).ContainsKey(vNode.Name) Then
+                            vClasses(vCurrentNamespace)(vNode.Name) = New List(Of SyntaxNode)()
+                        End If
+                        
+                        vClasses(vCurrentNamespace)(vNode.Name).Add(vNode)
+                        
+                        ' Process nested types
+                        For Each lChild In vNode.Children
+                            If lChild.NodeType = CodeNodeType.eClass OrElse 
+                               lChild.NodeType = CodeNodeType.eModule Then
+                                CollectNamespacesAndClasses(lChild, vCurrentNamespace, vNamespaces, vClasses)
+                            End If
+                        Next
+                End Select
+                
+            Catch ex As Exception
+                Console.WriteLine($"CollectNamespacesAndClasses error: {ex.Message}")
             End Try
         End Sub
 

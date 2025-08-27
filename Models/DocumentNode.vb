@@ -95,7 +95,8 @@ Namespace Models
     
     ' Result of parsing a document
     Public Class ParseResult
-        
+        Public Property RootNode As SyntaxNode
+       
         Public Property Objects As New List(Of CodeObject)()
         Public Property members As New List(Of CodeMember)()
         Public Property DocumentNodes As New Dictionary(Of String, DocumentNode)()

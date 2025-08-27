@@ -264,9 +264,13 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ' Replace: SimpleIDE.MainWindow.BuildAndRun
     ''' <summary>
     ''' Build and run the current project
     ''' </summary>
+    ''' <remarks>
+    ''' Simplified to rely on BuildProject's own checking
+    ''' </remarks>
     Public Sub BuildAndRun()
         Try
             Console.WriteLine("BuildAndRun called")
@@ -282,17 +286,10 @@ Partial Public Class MainWindow
                 InitializeBuildSystem()
             End If
             
-            ' Check if already building
-            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
-                Console.WriteLine("BuildAndRun: Build already in progress")
-                ShowInfo("Build in Progress", "A build is already in progress.")
-                Return
-            End If
-            
             ' Store flag to run after build
             pRunAfterBuild = True
             
-            ' Start the build
+            ' Start the build (BuildProject handles its own checking)
             Console.WriteLine("BuildAndRun: Calling BuildProject")
             BuildProject()
             

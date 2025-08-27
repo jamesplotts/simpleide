@@ -481,5 +481,69 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+        
+    ''' <summary>
+    ''' Handles Quick Find from Clipboard button click - opens Find panel, pastes clipboard text, and executes Find All
+    ''' </summary>
+    ''' <param name="vSender">The sender of the event</param>
+    ''' <param name="vArgs">Event arguments</param>
+    Private Sub OnQuickFindFromClipboard(vSender As Object, vArgs As EventArgs)
+        Try
+            Console.WriteLine("OnQuickFindFromClipboard: Starting quick find from clipboard operation")
+            
+            ' Get clipboard text
+            Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
+            Dim lClipboardText As String = lClipboard.WaitForText()
+            
+            If String.IsNullOrEmpty(lClipboardText) Then
+                Console.WriteLine("OnQuickFindFromClipboard: Clipboard Is empty")
+                ShowError("Quick Find", "Clipboard Is empty. Please copy some text To search for.")
+                Return
+            End If
+            
+            Console.WriteLine($"OnQuickFindFromClipboard: Got clipboard text: {lClipboardText.Substring(0, Math.Min(50, lClipboardText.Length))}...")
+            
+            ' Show bottom panel if hidden
+            If Not pBottomPanelVisible Then
+                Console.WriteLine("OnQuickFindFromClipboard: Showing bottom panel")
+                ToggleBottomPanel()
+            End If
+            
+            ' Switch to Find Results tab
+            If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                Console.WriteLine("OnQuickFindFromClipboard: Switching To Find Results tab")
+                pBottomPanelManager.ShowTabForPanel(pFindPanel)
+            End If
+            
+            ' Set project root if available
+            If Not String.IsNullOrEmpty(pCurrentProject) Then
+                Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+                Console.WriteLine($"OnQuickFindFromClipboard: Setting project root To {lProjectDir}")
+                pFindPanel.SetProjectRoot(lProjectDir)
+            End If
+            
+            ' Set the clipboard text into the Find field
+            Console.WriteLine("OnQuickFindFromClipboard: Setting search text from clipboard")
+            pFindPanel.SetSearchText(lClipboardText)
+            
+            ' Set search scope to Entire Project for better results
+            Console.WriteLine("OnQuickFindFromClipboard: Setting search scope To Entire Project")
+                pFindPanel.SetSearchScope(FindReplacePanel.SearchScope.eProject)
+                
+                ' Focus the find panel (without selecting text since we want to keep what we just set)
+                pFindPanel.FocusSearchEntryNoSelect()
+                
+                ' Execute Find All operation
+                Console.WriteLine("OnQuickFindFromClipboard: Executing Find All")
+                pFindPanel.OnFind(Nothing, Nothing)
+                
+                Console.WriteLine("OnQuickFindFromClipboard: Quick find from clipboard completed successfully")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnQuickFindFromClipboard error: {ex.Message}")
+                ShowError("Quick Find error", $"Failed To perform quick find from clipboard: {ex.Message}")
+            End Try
+        End Sub
+
     
 End Class

@@ -267,11 +267,29 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles refresh button click
+        ''' Handles refresh button click - requests fresh parse from ProjectManager
         ''' </summary>
         Private Sub OnRefreshClicked(vSender As Object, vE As EventArgs)
             Try
-                RefreshStructure()
+                Console.WriteLine("Object Explorer: Refresh button clicked")
+                
+                ' Request a fresh parse from ProjectManager if available
+                If pProjectManager IsNot Nothing Then
+                    Console.WriteLine("  Requesting project structure refresh from ProjectManager...")
+                    
+                    ' Force the ProjectManager to refresh its structure
+                    pProjectManager.RefreshProjectStructure()
+                    
+                    ' The ParseCompleted or ProjectStructureLoaded events will trigger
+                    ' and update the Object Explorer automatically
+                ElseIf pRootNode IsNot Nothing Then
+                    ' No ProjectManager, just rebuild the visual tree from existing data
+                    Console.WriteLine("  No ProjectManager - rebuilding visual tree from existing data")
+                    RefreshStructure()
+                Else
+                    Console.WriteLine("  No data to refresh")
+                End If
+                
             Catch ex As Exception
                 Console.WriteLine($"OnRefreshClicked error: {ex.Message}")
             End Try

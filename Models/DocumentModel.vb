@@ -66,6 +66,13 @@ Namespace Models
         Private pTokenCache As Dictionary(Of Integer, List(Of SyntaxToken))
         Private pDeclarationRegistry As Dictionary(Of String, DeclarationInfo)
         Private pCrossReferences As Dictionary(Of String, List(Of ReferenceInfo))
+
+
+        ''' <summary>
+        ''' Cached reference to ProjectManager obtained via event
+        ''' </summary>
+        Private pCachedProjectManager As Object
+
         
         ' ===== Events =====
         
@@ -93,9 +100,19 @@ Namespace Models
         ''' Raised when modified state changes
         ''' </summary>
         Public Event ModifiedStateChanged(vIsModified As Boolean)
+
+        ''' <summary>
+        ''' Event to request ProjectManager reference
+        ''' </summary>
+        Public Event RequestProjectManager As EventHandler(Of ProjectManagerRequestEventArgs)
+
         
         ' ===== Constructor =====
         
+        ''' <summary>
+        ''' Creates a new DocumentModel instance without local parser
+        ''' </summary>
+        ''' <param name="vFilePath">Optional file path for the document</param>
         Public Sub New(Optional vFilePath As String = "")
             Try
                 pFilePath = vFilePath
@@ -105,13 +122,16 @@ Namespace Models
                 pMethodBoundaryCache = New Dictionary(Of Integer, DocumentNode)()
                 pScopeCache = New Dictionary(Of Integer, ScopeInfo)()
                 pAttachedEditors = New List(Of IEditor)()
-                'pParser = New VBCodeParser()
+                ' NOTE: Removed pParser = New VBCodeParser() - now using centralized parser
                 pTokenCache = New Dictionary(Of Integer, List(Of SyntaxToken))()
                 pDeclarationRegistry = New Dictionary(Of String, DeclarationInfo)(StringComparer.OrdinalIgnoreCase)
                 pCrossReferences = New Dictionary(Of String, List(Of ReferenceInfo))(StringComparer.OrdinalIgnoreCase)
                 
                 ' Initialize with one empty line
                 pDocumentLines.Add(New DocumentLine())
+                
+                ' Subscribe to ProjectManager parse events if available
+                SubscribeToProjectManagerEvents()
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel constructor error: {ex.Message}")
@@ -869,64 +889,187 @@ Namespace Models
         ' ===== Parsing Methods =====
         
         ''' <summary>
-        ''' Parse the entire document
+        ''' Parse the entire document using centralized ProjectManager.Parser
         ''' </summary>
         Public Sub ParseDocument()
             Try
                 ' Get full text
                 Dim lFullText As String = GetAllText()
                 
-                Dim lParser As New VBParser()
-                Dim lParseResult As VBParser.ParseResult = lParser.Parse(lFullText, "SimpleIDE", pFilePath)
+                ' Request ProjectManager through event
+                Dim lProjectManager = GetProjectManager()
+                If lProjectManager Is Nothing Then
+                    Console.WriteLine("DocumentModel.ParseDocument: ProjectManager not available")
+                    Return
+                End If
                 
-                If lParseResult IsNot Nothing AndAlso lParseResult.DocumentNodes.Count > 0 Then
-                    ' Update node lookup
-                    pNodeLookup.Clear()
-                    For Each lKvp In lParseResult.DocumentNodes
-                        pNodeLookup(lKvp.key) = lKvp.Value
-                    Next
+                ' Use centralized ProjectParser to parse content
+                Dim lParserProperty = lProjectManager.GetType().GetProperty("Parser")
+                If lParserProperty Is Nothing Then
+                    Console.WriteLine("DocumentModel.ParseDocument: Parser property not found")
+                    Return
+                End If
+                
+                Dim lParser = lParserProperty.GetValue(lProjectManager)
+                If lParser Is Nothing Then
+                    Console.WriteLine("DocumentModel.ParseDocument: ProjectParser not available")
+                    Return
+                End If
+                
+                ' Get RootNamespace from ProjectManager
+                Dim lRootNamespaceProperty = lProjectManager.GetType().GetProperty("RootNamespace")
+                Dim lRootNamespace As String = "SimpleIDE" ' Default
+                If lRootNamespaceProperty IsNot Nothing Then
+                    lRootNamespace = CStr(lRootNamespaceProperty.GetValue(lProjectManager))
+                End If
+                
+                ' Parse using ProjectParser's ParseContent method via reflection
+                Dim lParseContentMethod = lParser.GetType().GetMethod("ParseContent")
+                If lParseContentMethod IsNot Nothing Then
+                    Dim lParseResult = lParseContentMethod.Invoke(lParser, New Object() {lFullText, lRootNamespace, pFilePath})
                     
-                    ' Find root nodes
-                    Dim lRootNodes As New List(Of DocumentNode)()
-                    For Each lNode In lParseResult.DocumentNodes.Values
-                        If lNode.Parent Is Nothing Then
-                            lRootNodes.Add(lNode)
+                    If lParseResult IsNot Nothing Then
+                        ' Extract the root node from parse result
+                        Dim lResultType = lParseResult.GetType()
+                        Dim lRootNodeProperty = lResultType.GetProperty("RootNode")
+                        
+                        If lRootNodeProperty IsNot Nothing Then
+                            Dim lRootNode = lRootNodeProperty.GetValue(lParseResult)
+                            If lRootNode IsNot Nothing Then
+                                ' Convert to DocumentNode if needed
+                                pRootNode = ConvertToDocumentNode(lRootNode)
+                                
+                                ' Update node lookup
+                                pNodeLookup.Clear()
+                                BuildNodeLookup(pRootNode)
+                                
+                                ' Update line metadata with nodes
+                                UpdateLineNodeReferences()
+                                
+                                ' Update parse state for all lines
+                                For Each lLine In pDocumentLines
+                                    If lLine.ParseState <> LineParseState.eBeingEdited Then
+                                        lLine.ParseState = LineParseState.eParsed
+                                    End If
+                                Next
+                                
+                                ' Build indices
+                                BuildIndices()
+                                
+                                ' Raise parsed event
+                                RaiseEvent DocumentParsed(pRootNode)
+                                
+                                Console.WriteLine($"DocumentModel.ParseDocument: Successfully parsed {pFilePath}")
+                            End If
                         End If
-                    Next
-                    
-                    ' Create a document root if needed
-                    If lRootNodes.Count = 1 Then
-                        pRootNode = lRootNodes(0)
-                    Else
-                        pRootNode = New DocumentNode()
-                        pRootNode.Name = "document"
-                        pRootNode.NodeType = CodeNodeType.eDocument
-                        pRootNode.StartLine = 0
-                        pRootNode.EndLine = pDocumentLines.Count - 1
-                        For Each lRoot In lRootNodes
-                            pRootNode.Children.Add(lRoot)
-                            lRoot.Parent = pRootNode
-                        Next
+                        
+                        ' Extract any errors
+                        Dim lErrorsProperty = lResultType.GetProperty("Errors")
+                        If lErrorsProperty IsNot Nothing Then
+                            Dim lErrors = TryCast(lErrorsProperty.GetValue(lParseResult), IEnumerable)
+                            If lErrors IsNot Nothing Then
+                                For Each lError In lErrors
+                                    Console.WriteLine($"Parse error: {lError}")
+                                Next
+                            End If
+                        End If
                     End If
-                    
-                    ' Update line metadata with nodes
-                    UpdateLineNodeReferences()
-                    
-                    ' Update parse state for all lines
-                    For Each lLine In pDocumentLines
-                        If lLine.ParseState <> LineParseState.eBeingEdited Then
-                            lLine.ParseState = LineParseState.eParsed
-                        End If
-                    Next
-                    
-                    ' Raise parsed event
-                    RaiseEvent DocumentParsed(pRootNode)
+                Else
+                    Console.WriteLine("DocumentModel.ParseDocument: ParseContent method not found")
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.ParseDocument error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Build node lookup dictionary from root node
+        ''' </summary>
+        Private Sub BuildNodeLookup(vNode As DocumentNode)
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Add to lookup if it has a full name
+                If Not String.IsNullOrEmpty(vNode.FullName) Then
+                    pNodeLookup(vNode.FullName) = vNode
+                End If
+                
+                ' Process children recursively
+                For Each lChild In vNode.Children
+                    BuildNodeLookup(lChild)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"BuildNodeLookup error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Helper method to convert SyntaxNode to DocumentNode
+        ''' </summary>
+        Private Function ConvertToDocumentNode(vSyntaxNode As Object) As DocumentNode
+            Try
+                If vSyntaxNode Is Nothing Then Return Nothing
+                
+                Dim lDocNode As New DocumentNode()
+                
+                ' Use reflection to get properties from SyntaxNode
+                Dim lType = vSyntaxNode.GetType()
+                
+                ' Copy basic properties
+                Dim lNameProp = lType.GetProperty("Name")
+                If lNameProp IsNot Nothing Then
+                    lDocNode.Name = CStr(lNameProp.GetValue(vSyntaxNode))
+                End If
+                
+                Dim lNodeTypeProp = lType.GetProperty("NodeType")
+                If lNodeTypeProp IsNot Nothing Then
+                    lDocNode.NodeType = CType(lNodeTypeProp.GetValue(vSyntaxNode), CodeNodeType)
+                End If
+                
+                Dim lStartLineProp = lType.GetProperty("StartLine")
+                If lStartLineProp IsNot Nothing Then
+                    lDocNode.StartLine = CInt(lStartLineProp.GetValue(vSyntaxNode))
+                End If
+                
+                Dim lEndLineProp = lType.GetProperty("EndLine")
+                If lEndLineProp IsNot Nothing Then
+                    lDocNode.EndLine = CInt(lEndLineProp.GetValue(vSyntaxNode))
+                End If
+                
+                Dim lStartColumnProp = lType.GetProperty("StartColumn")
+                If lStartColumnProp IsNot Nothing Then
+                    lDocNode.StartColumn = CInt(lStartColumnProp.GetValue(vSyntaxNode))
+                End If
+                
+                Dim lEndColumnProp = lType.GetProperty("EndColumn")
+                If lEndColumnProp IsNot Nothing Then
+                    lDocNode.EndColumn = CInt(lEndColumnProp.GetValue(vSyntaxNode))
+                End If
+                
+                ' Copy children recursively
+                Dim lChildrenProp = lType.GetProperty("Children")
+                If lChildrenProp IsNot Nothing Then
+                    Dim lChildren = TryCast(lChildrenProp.GetValue(vSyntaxNode), IEnumerable)
+                    If lChildren IsNot Nothing Then
+                        For Each lChild In lChildren
+                            Dim lChildDoc = ConvertToDocumentNode(lChild)
+                            If lChildDoc IsNot Nothing Then
+                                lChildDoc.Parent = lDocNode
+                                lDocNode.Children.Add(lChildDoc)
+                            End If
+                        Next
+                    End If
+                End If
+                
+                Return lDocNode
+                
+            Catch ex As Exception
+                Console.WriteLine($"ConvertToDocumentNode error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
         
         ''' <summary>
         ''' Parse a single line for tokens
@@ -1430,6 +1573,209 @@ Namespace Models
                     Return False
             End Select
         End Function
+
+        ''' <summary>
+        ''' Gets the ProjectManager through event-based request with caching
+        ''' </summary>
+        Private Function GetProjectManager() As Object
+            Try
+                ' Return cached reference if available
+                If pCachedProjectManager IsNot Nothing Then
+                    Return pCachedProjectManager
+                End If
+                
+                ' Request ProjectManager through event
+                Dim lArgs As New ProjectManagerRequestEventArgs()
+                RaiseEvent RequestProjectManager(Me, lArgs)
+                
+                If lArgs.HasProjectManager Then
+                    ' Cache the reference for future use
+                    pCachedProjectManager = lArgs.ProjectManager
+                    Return pCachedProjectManager
+                End If
+                
+                Console.WriteLine("DocumentModel: No ProjectManager provided via event")
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetProjectManager error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Subscribe to ProjectManager parse completion events
+        ''' </summary>
+        Private Sub SubscribeToProjectManagerEvents()
+            Try
+                ' Request ProjectManager through event
+                Dim lProjectManager = GetProjectManager()
+                If lProjectManager Is Nothing Then
+                    Console.WriteLine("DocumentModel: ProjectManager not available for event subscription")
+                    Return
+                End If
+                
+                ' Subscribe to parse completed event using late binding
+                Dim lProjectManagerType = lProjectManager.GetType()
+                Dim lParseCompletedEvent = lProjectManagerType.GetEvent("ParseCompleted")
+                
+                If lParseCompletedEvent IsNot Nothing Then
+                    Dim lHandler = [Delegate].CreateDelegate(
+                        lParseCompletedEvent.EventHandlerType,
+                        Me,
+                        GetType(DocumentModel).GetMethod("OnProjectManagerParseCompleted", 
+                            Reflection.BindingFlags.NonPublic Or Reflection.BindingFlags.Instance))
+                    
+                    lParseCompletedEvent.RemoveEventHandler(lProjectManager, lHandler)
+                    lParseCompletedEvent.AddEventHandler(lProjectManager, lHandler)
+                    
+                    Console.WriteLine($"DocumentModel subscribed to ProjectManager.ParseCompleted for {pFilePath}")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"SubscribeToProjectManagerEvents error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handle parse completion from ProjectManager
+        ''' </summary>
+        Private Sub OnProjectManagerParseCompleted(vFile As SourceFileInfo, vResult As Object)
+            Try
+                ' Check if this is our file
+                If vFile Is Nothing OrElse Not String.Equals(vFile.FilePath, pFilePath, StringComparison.OrdinalIgnoreCase) Then
+                    Return
+                End If
+                
+                Console.WriteLine($"DocumentModel received ParseCompleted for {pFilePath}")
+                
+                ' Extract and convert the parse result
+                If vResult IsNot Nothing Then
+                    Dim lResultType = vResult.GetType()
+                    Dim lRootNodeProperty = lResultType.GetProperty("RootNode")
+                    
+                    If lRootNodeProperty IsNot Nothing Then
+                        Dim lRootNode = lRootNodeProperty.GetValue(vResult)
+                        If lRootNode IsNot Nothing Then
+                            ' Convert to DocumentNode if needed
+                            pRootNode = ConvertToDocumentNode(lRootNode)
+                            
+                            ' Update node lookup
+                            pNodeLookup.Clear()
+                            BuildNodeLookup(pRootNode)
+                            
+                            ' Update line metadata with nodes
+                            UpdateLineNodeReferences()
+                            
+                            ' Update parse state for all lines
+                            For Each lLine In pDocumentLines
+                                If lLine.ParseState <> LineParseState.eBeingEdited Then
+                                    lLine.ParseState = LineParseState.eParsed
+                                End If
+                            Next
+                            
+                            ' Build indices
+                            BuildIndices()
+                            
+                            ' Raise parsed event
+                            RaiseEvent DocumentParsed(pRootNode)
+                            
+                            Console.WriteLine($"DocumentModel updated from ParseCompleted: {pFilePath}")
+                        End If
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectManagerParseCompleted error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Clean up resources and unsubscribe from events
+        ''' </summary>
+        Public Sub Dispose()
+            Try
+                ' Unsubscribe from ProjectManager events
+                UnsubscribeFromProjectManagerEvents()
+                
+                ' Clear collections
+                If pDocumentLines IsNot Nothing Then
+                    pDocumentLines.Clear()
+                End If
+                
+                If pNodeLookup IsNot Nothing Then
+                    pNodeLookup.Clear()
+                End If
+                
+                If pSymbolIndex IsNot Nothing Then
+                    pSymbolIndex.Clear()
+                End If
+                
+                If pMethodBoundaryCache IsNot Nothing Then
+                    pMethodBoundaryCache.Clear()
+                End If
+                
+                If pScopeCache IsNot Nothing Then
+                    pScopeCache.Clear()
+                End If
+                
+                If pAttachedEditors IsNot Nothing Then
+                    pAttachedEditors.Clear()
+                End If
+                
+                If pTokenCache IsNot Nothing Then
+                    pTokenCache.Clear()
+                End If
+                
+                If pDeclarationRegistry IsNot Nothing Then
+                    pDeclarationRegistry.Clear()
+                End If
+                
+                If pCrossReferences IsNot Nothing Then
+                    pCrossReferences.Clear()
+                End If
+                
+                ' Clear root node
+                pRootNode = Nothing
+                
+                Console.WriteLine($"DocumentModel disposed: {pFilePath}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"DocumentModel.Dispose error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Unsubscribe from ProjectManager events
+        ''' </summary>
+        Private Sub UnsubscribeFromProjectManagerEvents()
+            Try
+                ' Request ProjectManager through event
+                Dim lProjectManager = GetProjectManager()
+                If lProjectManager Is Nothing Then
+                    Return
+                End If
+                
+                ' Unsubscribe from parse completed event using late binding
+                Dim lProjectManagerType = lProjectManager.GetType()
+                Dim lParseCompletedEvent = lProjectManagerType.GetEvent("ParseCompleted")
+                
+                If lParseCompletedEvent IsNot Nothing Then
+                    Dim lHandler = [Delegate].CreateDelegate(
+                        lParseCompletedEvent.EventHandlerType,
+                        Me,
+                        GetType(DocumentModel).GetMethod("OnProjectManagerParseCompleted", 
+                            Reflection.BindingFlags.NonPublic Or Reflection.BindingFlags.Instance))
+                    
+                    lParseCompletedEvent.RemoveEventHandler(lProjectManager, lHandler)
+                    
+                    Console.WriteLine($"DocumentModel unsubscribed from ProjectManager events for {pFilePath}")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UnsubscribeFromProjectManagerEvents error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     

@@ -10,6 +10,34 @@ Imports SimpleIDE.Dialogs
 Partial Public Class MainWindow
     
     ' ===== Reference Management Integration =====
+
+    ''' <summary>
+    ''' Show the Reference Manager dialog with ProjectManager integration
+    ''' </summary>
+    Public Sub ShowReferenceManager()
+        Try
+            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                ShowError("No Project", "Please open a project first")
+                Return
+            End If
+            
+            ' Create dialog with ProjectManager
+            Dim lDialog As New ReferenceManagerDialog(Me, pProjectManager.CurrentProjectPath, pProjectManager)
+            
+            ' Handle references changed event
+            AddHandler lDialog.ReferencesChanged, Sub()
+                OnReferencesChanged()
+            End Sub
+            
+            ' Show the dialog
+            lDialog.Run()
+            lDialog.Destroy()
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShowReferenceManager error: {ex.Message}")
+            ShowError("Reference Manager Error", ex.Message)
+        End Try
+    End Sub
     
     ' Show the Reference Manager dialog
     Public Sub OnManageReferences(vSender As Object, vArgs As EventArgs, Optional vInitialTab As Integer = 0)
@@ -20,7 +48,7 @@ Partial Public Class MainWindow
             End If
             
             ' Create and show the reference manager dialog
-            Dim lDialog As New ReferenceManagerDialog(Me, pCurrentProject, pSettingsManager)
+            Dim lDialog As New ReferenceManagerDialog(Me, pCurrentProject, pProjectManager)
             
             ' Select initial tab if specified
             If vInitialTab >= 0 AndAlso vInitialTab < lDialog.Notebook.NPages Then
@@ -130,10 +158,17 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Add assembly reference
+    ''' <summary>
+    ''' Add assembly reference through ProjectManager
+    ''' </summary>
+    ''' <param name="vAssemblyPath">Path to the assembly</param>
     Private Sub AddAssemblyReference(vAssemblyPath As String)
         Try
-            Dim lReferenceManager As New ReferenceManager()
+            ' Validate we have a project manager
+            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                ShowError("No Project", "Please open a project first")
+                Return
+            End If
             
             ' Validate the reference
             Dim lValidation As ReferenceManager.ValidationResult = ValidateAssemblyPath(vAssemblyPath)
@@ -143,9 +178,9 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Add the reference
+            ' Add the reference through ProjectManager
             Dim lAssemblyName As String = System.IO.Path.GetFileNameWithoutExtension(vAssemblyPath)
-            If lReferenceManager.AddAssemblyReference(pCurrentProject, lAssemblyName, vAssemblyPath) Then
+            If pProjectManager.AddAssemblyReference(lAssemblyName, vAssemblyPath) Then
                 OnReferencesChanged()
                 UpdateStatusBar($"Added Reference to {System.IO.Path.GetFileName(vAssemblyPath)}")
             Else
@@ -158,9 +193,18 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Remove reference (called from project explorer)
+    ''' <summary>
+    ''' Remove reference through ProjectManager
+    ''' </summary>
+    ''' <param name="vReferenceInfo">Reference to remove</param>
     Public Sub RemoveReference(vReferenceInfo As ReferenceManager.ReferenceInfo)
         Try
+            ' Validate we have a project manager
+            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                ShowError("No Project", "Please open a project first")
+                Return
+            End If
+            
             Dim lDialog As New MessageDialog(
                 Me,
                 DialogFlags.Modal,
@@ -170,13 +214,12 @@ Partial Public Class MainWindow
             )
             
             If lDialog.Run() = CInt(ResponseType.Yes) Then
-                Dim lReferenceManager As New ReferenceManager()
-                
-                If lReferenceManager.RemoveReference(pCurrentProject, vReferenceInfo.Name, vReferenceInfo.Type) Then
+                ' Remove through ProjectManager
+                If pProjectManager.RemoveReference(vReferenceInfo.Name, vReferenceInfo.Type) Then
                     OnReferencesChanged()
-                    UpdateStatusBar($"Removed Reference to {vReferenceInfo.Name}")
+                    UpdateStatusBar($"Removed Reference To {vReferenceInfo.Name}")
                 Else
-                    ShowError("Remove Reference Failed", $"Failed to remove Reference to {vReferenceInfo.Name}")
+                    ShowError("Remove Reference Failed", $"Failed To remove Reference To {vReferenceInfo.Name}")
                 End If
             End If
             
@@ -188,15 +231,19 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Check for missing references
+    ''' <summary>
+    ''' Check for missing references through ProjectManager
+    ''' </summary>
+    ''' <returns>True if all references are valid</returns>
     Public Function CheckMissingReferences() As Boolean
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
+            ' Validate we have a project manager
+            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
                 Return True
             End If
             
-            Dim lReferenceManager As New ReferenceManager()
-            Dim lReferences As List(Of ReferenceManager.ReferenceInfo) = lReferenceManager.GetAllReferences(pCurrentProject)
+            ' Get references through ProjectManager
+            Dim lReferences As List(Of ReferenceManager.ReferenceInfo) = pProjectManager.ProjectReferences
             Dim lMissingRefs As New List(Of String)
             
             For Each lRef In lReferences
@@ -207,36 +254,36 @@ Partial Public Class MainWindow
             Next
             
             If lMissingRefs.Count > 0 Then
-                Dim lMessage As String = "the following References are missing:" & Environment.NewLine & Environment.NewLine
+                Dim lMessage As String = "The following References are missing:" & Environment.NewLine & Environment.NewLine
                 lMessage &= String.Join(Environment.NewLine, lMissingRefs)
-                lMessage &= Environment.NewLine & Environment.NewLine & "would you like to manage References now?"
+                lMessage &= Environment.NewLine & Environment.NewLine & "Would you Like To manage References now?"
                 
                 Dim lDialog As New MessageDialog(
                     Me,
                     DialogFlags.Modal,
-                    MessageType.Warning,
+                    MessageType.Question,
                     ButtonsType.YesNo,
                     lMessage
                 )
                 
-                Dim lResponse As Integer = lDialog.Run()
+                Dim lResult As Boolean = (lDialog.Run() = CInt(ResponseType.Yes))
                 lDialog.Destroy()
                 
-                If lResponse = CInt(ResponseType.Yes) Then
-                    OnManageReferences(Nothing, Nothing, 3) ' Show installed tab
+                If lResult Then
+                    ShowReferenceManager()
                 End If
                 
-                Return False
+                Return lMissingRefs.Count = 0
             End If
             
             Return True
             
         Catch ex As Exception
             Console.WriteLine($"CheckMissingReferences error: {ex.Message}")
-            Return True
+            Return False
         End Try
     End Function
-    
+        
     ' Initialize reference management for project explorer
     Private Sub InitializeReferenceManagement()
         Try
@@ -269,7 +316,7 @@ Partial Public Class MainWindow
             
             If Not File.Exists(vAssemblyPath) Then
                 lResult.IsValid = False
-                lResult.ErrorMessage = "Assembly file does not exist"
+                lResult.ErrorMessage = "Assembly file does Not exist"
                 Return lResult
             End If
             
@@ -277,7 +324,7 @@ Partial Public Class MainWindow
             Dim lExtension As String = System.IO.Path.GetExtension(vAssemblyPath).ToLower()
             If lExtension <> ".dll" AndAlso lExtension <> ".exe" Then
                 lResult.IsValid = False
-                lResult.ErrorMessage = "File must be a .dll or .exe assembly"
+                lResult.ErrorMessage = "File must be a .dll Or .exe assembly"
                 Return lResult
             End If
             

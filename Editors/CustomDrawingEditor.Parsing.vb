@@ -7,6 +7,7 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Managers
 
 Namespace Editors
     
@@ -18,6 +19,9 @@ Namespace Editors
        
         ' ===== Parsing Methods =====
         
+        ''' <summary>
+        ''' Raises the DocumentParsed event when parsing is complete
+        ''' </summary>
         Private Sub RaiseDocumentParsedEvent()
             Try
                 ' Only raise if we have a valid structure
@@ -29,47 +33,35 @@ Namespace Editors
                 Console.WriteLine($"RaiseDocumentParsedEvent error: {ex.Message}")
             End Try
         End Sub
-
+        
         ''' <summary>
-        ''' Request a parse of the current document
-        ''' Called by external components (like ObjectExplorer) to trigger parsing
+        ''' Force a refresh of syntax highlighting
         ''' </summary>
-        Public Sub RequestParse() Implements IEditor.RequestParse
-            Try
-                Console.WriteLine("RequestParse called")
-                
-                ' Schedule a full document parse
-                ScheduleFullDocumentParse()
-                
-            Catch ex As Exception
-                Console.WriteLine($"RequestParse error: {ex.Message}")
-            End Try
-        End Sub
-
-
-        ' RefreshSyntaxHighlighting - Force a refresh of syntax highlighting
+        ''' <remarks>
+        ''' Triggers reparsing through centralized ProjectManager.Parser
+        ''' </remarks>
         Public Sub RefreshSyntaxHighlighting() Implements IEditor.RefreshSyntaxHighlighting
             Try
                 ' Clear existing character colors
                 If pCharacterColors IsNot Nothing Then
                     ReDim Preserve pCharacterColors(pLineCount - 1)
                 Else
-                    Dim pCharacterColors(pLineCount)
+                    ReDim pCharacterColors(pLineCount - 1)
                 End If
                 
                 ' Mark all lines as changed to force re-highlighting
                 If pLineMetadata IsNot Nothing Then
-                    For i As Integer = 0 To pLineCount - 1
-                        pLineMetadata(i).MarkChanged()
+                    for i As Integer = 0 To pLineCount - 1
+                        pLineMetadata(i).IsChanged = True
                     Next
                 End If
                 
-                ' Schedule immediate parse
-                ScheduleParse()
+                ' Request parse through centralized system
+                RequestParseViaEvent()
                 
-                ' Force immediate redraw
+                ' Queue redraw
                 pDrawingArea?.QueueDraw()
-
+                
             Catch ex As Exception
                 Console.WriteLine($"RefreshSyntaxHighlighting error: {ex.Message}")
             End Try
@@ -94,7 +86,7 @@ Namespace Editors
                     ReDim Preserve pLineMetadata(Math.Max(vLineIndex, pTextLines.Count - 1))
                     
                     ' Initialize any new metadata entries
-                    For i As Integer = 0 To pLineMetadata.Length - 1
+                    for i As Integer = 0 To pLineMetadata.Length - 1
                         If pLineMetadata(i) Is Nothing Then
                             pLineMetadata(i) = New LineMetadata()
                         End If
@@ -135,7 +127,7 @@ Namespace Editors
                 End If
                 
                 ' Set default color for all characters
-                For i As Integer = 0 To lLineText.Length - 1
+                for i As Integer = 0 To lLineText.Length - 1
                     If pCharacterColors(vLineIndex)(i) Is Nothing Then
                         pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(If(pForegroundColor, "#000000"))
                     Else
@@ -226,7 +218,7 @@ Namespace Editors
                 End If
                 
                 ' Initialize all characters with default foreground color first
-                For i2 As Integer = 0 To vLineText.Length - 1
+                for i2 As Integer = 0 To vLineText.Length - 1
                     If pCharacterColors(vLineIndex)(i2) Is Nothing Then
                         pCharacterColors(vLineIndex)(i2) = New CharacterColorInfo(If(pForegroundColor, "#D4D4D4"))
                     Else
@@ -249,7 +241,7 @@ Namespace Editors
                         lCommentStart = vLineText.ToUpper().IndexOf("REM ")
                     End If
                     
-                    For i2 As Integer = lCommentStart To vLineText.Length - 1
+                    for i2 As Integer = lCommentStart To vLineText.Length - 1
                         pCharacterColors(vLineIndex)(i2).Color = lCommentColor
                     Next
                     
@@ -292,7 +284,7 @@ Namespace Editors
                             End While
                             
                             ' Color the entire string
-                            For j As Integer = lStringStart To Math.Min(i - 1, vLineText.Length - 1)
+                            for j As Integer = lStringStart To Math.Min(i - 1, vLineText.Length - 1)
                                 pCharacterColors(vLineIndex)(j).Color = lStringColor
                             Next
                             
@@ -313,7 +305,7 @@ Namespace Editors
                 Dim lWords As String() = System.Text.RegularExpressions.Regex.Split(vLineText, "\b")
                 Dim lPosition As Integer = 0
                 
-                For Each lWord As String In lWords
+                for each lWord As String in lWords
                     If Not String.IsNullOrEmpty(lWord) Then
                         ' Check if this position is already colored (string or comment)
                         Dim lAlreadyColored As Boolean = False
@@ -325,7 +317,7 @@ Namespace Editors
                         If Not lAlreadyColored Then
                             ' Check for keywords
                             If IsVBKeyword(lWord) Then
-                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                for j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
                                     pCharacterColors(vLineIndex)(j).Color = lKeywordColor
                                 Next
                                 
@@ -336,7 +328,7 @@ Namespace Editors
                                 
                             ' Check for types
                             ElseIf IsVBType(lWord) Then
-                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                for j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
                                     pCharacterColors(vLineIndex)(j).Color = lTypeColor
                                 Next
                                 
@@ -347,7 +339,7 @@ Namespace Editors
                                 
                             ' Check for numbers
                             ElseIf IsNumeric(lWord) Then
-                                For j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
+                                for j As Integer = lPosition To Math.Min(lPosition + lWord.Length - 1, vLineText.Length - 1)
                                     pCharacterColors(vLineIndex)(j).Color = lNumberColor
                                 Next
                                 
@@ -412,79 +404,79 @@ Namespace Editors
             Return lTypes.Contains(vWord)
         End Function
         
-        Private Sub ScheduleParsing()
-            Try
-                ' CRITICAL FIX: Cancel any existing parse timer with proper cleanup
-                If pParseTimer <> 0 Then
-                    Dim lTimerId As UInteger = pParseTimer
-                    pParseTimer = 0  ' Clear BEFORE removing
-                    Try
-                        GLib.Source.Remove(lTimerId)
-                    Catch
-                        ' Timer may have already expired - this is OK
-                    End Try
-                End If
-                
-                ' Schedule new parse in 500ms
-                pNeedsParse = True
-                pParseTimer = GLib.Timeout.Add(500, AddressOf PerformParsing)
-                
-            Catch ex As Exception
-                Console.WriteLine($"ScheduleParsing error: {ex.Message}")
-                pParseTimer = 0  ' Ensure it's cleared on error
-            End Try
-        End Sub
-        
-        Private Function PerformParsing() As Boolean
-            Try
-                ' CRITICAL FIX: Clear timer ID immediately since we're returning False
-                pParseTimer = 0
-                
-                If Not pNeedsParse Then Return False
-                
-                ' Parse the document - create parser as needed
-                Dim lContent As String = GetAllText()
-                
-                ' Create a new VBParser instance instead of using stored VBCodeParser
-                Dim lParser As New VBParser()
-                
-                ' Use the Parse method with proper parameters
-                Dim lParseResult As VBParser.ParseResult = lParser.Parse(lContent, "SimpleIDE", pFilePath)
-                
-                ' Extract the root SyntaxNode from the ParseResult
-                If lParseResult IsNot Nothing AndAlso lParseResult.RootNode IsNot Nothing Then
-                    pRootNode = lParseResult.RootNode
-                    
-                    ' Also update document nodes if they exist in the result
-                    If lParseResult.DocumentNodes IsNot Nothing Then
-                        pDocumentNodes = lParseResult.DocumentNodes
-                    End If
-                    
-                    If lParseResult.RootNodes IsNot Nothing Then
-                        pRootNodes = lParseResult.RootNodes
-                    End If
-                End If
-                
-                ' Clear parse flag
-                pNeedsParse = False
-                
-                ' Update display
-                UpdateLineNumberWidth()
-                pDrawingArea?.QueueDraw()
-                
-                ' Raise document parsed event
-                If pRootNode IsNot Nothing Then
-                    RaiseEvent DocumentParsed(pRootNode)
-                End If
-                
-                Return False  ' Don't repeat - timer is auto-removed
-                
-            Catch ex As Exception
-                Console.WriteLine($"PerformParsing error: {ex.Message}")
-                ' Timer is already cleared at the top
-                Return False
-            End Try
-        End Function
+'         Private Sub ScheduleParsing()
+'             Try
+'                 ' CRITICAL FIX: Cancel any existing parse timer with proper cleanup
+'                 If pParseTimer <> 0 Then
+'                     Dim lTimerId As UInteger = pParseTimer
+'                     pParseTimer = 0  ' Clear BEFORE removing
+'                     Try
+'                         GLib.Source.Remove(lTimerId)
+'                     Catch
+'                         ' Timer may have already expired - this is OK
+'                     End Try
+'                 End If
+'                 
+'                 ' Schedule new parse in 500ms
+'                 pNeedsParse = True
+'                 pParseTimer = GLib.Timeout.Add(500, AddressOf PerformParsing)
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"ScheduleParsing error: {ex.Message}")
+'                 pParseTimer = 0  ' Ensure it's cleared on error
+'             End Try
+'         End Sub
+'         
+'         Private Function PerformParsing() As Boolean
+'             Try
+'                 ' CRITICAL FIX: Clear timer ID immediately since we're returning False
+'                 pParseTimer = 0
+'                 
+'                 If Not pNeedsParse Then Return False
+'                 
+'                 ' Parse the document - create parser as needed
+'                 Dim lContent As String = GetAllText()
+'                 
+'                 ' Create a new VBParser instance instead of using stored VBCodeParser
+'                 Dim lParser As New VBParser()
+'                 
+'                 ' Use the Parse method with proper parameters
+'                 Dim lParseResult As VBParser.ParseResult = lParser.Parse(lContent, "SimpleIDE", pFilePath)
+'                 
+'                 ' Extract the root SyntaxNode from the ParseResult
+'                 If lParseResult IsNot Nothing AndAlso lParseResult.RootNode IsNot Nothing Then
+'                     pRootNode = lParseResult.RootNode
+'                     
+'                     ' Also update document nodes if they exist in the result
+'                     If lParseResult.DocumentNodes IsNot Nothing Then
+'                         pDocumentNodes = lParseResult.DocumentNodes
+'                     End If
+'                     
+'                     If lParseResult.RootNodes IsNot Nothing Then
+'                         pRootNodes = lParseResult.RootNodes
+'                     End If
+'                 End If
+'                 
+'                 ' Clear parse flag
+'                 pNeedsParse = False
+'                 
+'                 ' Update display
+'                 UpdateLineNumberWidth()
+'                 pDrawingArea?.QueueDraw()
+'                 
+'                 ' Raise document parsed event
+'                 If pRootNode IsNot Nothing Then
+'                     RaiseEvent DocumentParsed(pRootNode)
+'                 End If
+'                 
+'                 Return False  ' Don't repeat - timer is auto-removed
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"PerformParsing error: {ex.Message}")
+'                 ' Timer is already cleared at the top
+'                 Return False
+'             End Try
+'         End Function
         
         ' Helper method to create a SyntaxNode from ParseResult
         Private Function CreateSyntaxNodeFromParseResult(vParseResult As ParseResult) As SyntaxNode
@@ -497,7 +489,7 @@ Namespace Editors
                 lRootNode.EndLine = pLineCount - 1
                 
                 ' Convert DocumentNodes to SyntaxNodes
-                For Each lDocNode In vParseResult.DocumentNodes.Values
+                for each lDocNode in vParseResult.DocumentNodes.Values
                     If lDocNode.Parent Is Nothing Then ' Root Level Nodes only
                         Dim lSyntaxNode As SyntaxNode = ConvertDocumentNodeToSyntaxNode(lDocNode)
                         If lSyntaxNode IsNot Nothing Then
@@ -570,14 +562,14 @@ Namespace Editors
                 End If
                 
                 ' Copy all other attributes to the SyntaxNode's Attributes dictionary
-                For Each lAttr In vDocNode.Attributes
+                for each lAttr in vDocNode.Attributes
                     If Not lSyntaxNode.Attributes.ContainsKey(lAttr.key) Then
                         lSyntaxNode.Attributes(lAttr.key) = lAttr.Value.ToString()
                     End If
                 Next
                 
                 ' Recursively convert children
-                For Each lChildNode In vDocNode.Children
+                for each lChildNode in vDocNode.Children
                     Dim lChildSyntaxNode As SyntaxNode = ConvertDocumentNodeToSyntaxNode(lChildNode)
                     If lChildSyntaxNode IsNot Nothing Then
                         lSyntaxNode.AddChild(lChildSyntaxNode)
@@ -599,7 +591,7 @@ Namespace Editors
                 ' Update line metadata with node information
                 ' This is where we'd enhance syntax highlighting with semantic information
                 ' Mark lines as not changed since they've been parsed
-                For i As Integer = 0 To pLineCount - 1
+                for i As Integer = 0 To pLineCount - 1
                     ' Instead of HasParseData, we can use the fact that NodeReferences exist
                     ' or simply mark the line as not changed after parsing
                     pLineMetadata(i).IsChanged = False
@@ -615,6 +607,118 @@ Namespace Editors
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateMetadataFromParse error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handle parse completion from ProjectManager
+        ''' </summary>
+        ''' <param name="vFile">The parsed SourceFileInfo</param>
+        ''' <param name="vResult">Parse result from ProjectParser</param>
+        Private Sub OnProjectParseCompleted(vFile As SourceFileInfo, vResult As Object)
+            Try
+                ' Check if this parse is for our file
+                If vFile Is Nothing OrElse vFile IsNot pSourceFileInfo Then
+                    Return
+                End If
+                
+                Console.WriteLine($"CustomDrawingEditor received parse results for {vFile.FileName}")
+                
+                ' Update our syntax tree from the parsed result
+                If vFile.SyntaxTree IsNot Nothing Then
+                    pRootNode = vFile.SyntaxTree
+                    
+                    ' Update line metadata with parse information
+                    UpdateLineMetadataFromParseResult()
+                    
+                    ' Update identifier case map from parsed nodes
+                    UpdateIdentifierCaseMap()
+                    
+                    ' Apply syntax highlighting based on parse results
+                    for i As Integer = 0 To Math.Min(pLineCount - 1, pLineMetadata.Length - 1)
+                        If pLineMetadata(i).IsChanged Then
+                            ApplySyntaxHighlightingToLine(i)
+                            pLineMetadata(i).IsChanged = False
+                        End If
+                    Next
+                    
+                    ' Update line number width if needed
+                    UpdateLineNumberWidth()
+                    
+                    ' Queue redraw
+                    pDrawingArea?.QueueDraw()
+                    
+                    ' Raise document parsed event
+                    RaiseDocumentParsedEvent()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectParseCompleted error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Subscribe to ProjectManager parse events
+        ''' </summary>
+        Private Sub SubscribeToProjectParser()
+            Try
+                ' Get MainWindow instance to access ProjectManager
+                Dim lMainWindow As MainWindow = TryCast(Me.Toplevel, MainWindow)
+                If lMainWindow Is Nothing Then
+                    Console.WriteLine("SubscribeToProjectParser: MainWindow not found")
+                    Return
+                End If
+                
+                Dim lProjectManager As ProjectManager = ProjectManager
+                If lProjectManager Is Nothing Then
+                    Console.WriteLine("SubscribeToProjectParser: ProjectManager not available")
+                    Return
+                End If
+                
+                ' Subscribe to parse completed event
+                RemoveHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
+                AddHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
+                
+                Console.WriteLine("CustomDrawingEditor subscribed to ProjectManager.ParseCompleted")
+                
+            Catch ex As Exception
+                Console.WriteLine($"SubscribeToProjectParser error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Recursively update line metadata from syntax nodes
+        ''' </summary>
+        Private Sub UpdateLineMetadataFromNode(vNode As SyntaxNode)
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Add node reference to relevant lines
+                If vNode.StartLine >= 0 AndAlso vNode.StartLine < pLineCount Then
+                    For i As Integer = vNode.StartLine To Math.Min(vNode.EndLine, pLineCount - 1)
+                        If i >= 0 AndAlso i < pLineMetadata.Length Then
+                            ' Create a NodeReference from the SyntaxNode
+                            Dim lNodeRef As New NodeReference(
+                                vNode.GetFullyQualifiedName(),  ' NodeId
+                                vNode.NodeType,                  ' NodeType
+                                vNode.StartColumn,               ' StartColumn
+                                vNode.EndColumn,                 ' EndColumn
+                                i = vNode.StartLine              ' IsDefinition (true for first line)
+                            )
+                            pLineMetadata(i).NodeReferences.Add(lNodeRef)
+                        End If
+                    Next
+                End If
+                
+                ' Process children
+                If vNode.Children IsNot Nothing Then
+                    For Each lChild In vNode.Children
+                        UpdateLineMetadataFromNode(lChild)
+                    Next
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateLineMetadataFromNode error: {ex.Message}")
             End Try
         End Sub
         

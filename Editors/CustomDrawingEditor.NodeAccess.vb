@@ -87,7 +87,7 @@ Namespace Editors
         ' are now in VBCodeParser to avoid duplication
 
         ' Public method to get document nodes
-        Public Function GetDocumentNodes() As Dictionary(Of String, DocumentNode)
+        Public Function GetDocumentNodes() As Dictionary(Of String, DocumentNode) Implements IEditor.GetDocumentNodes
             Return pDocumentNodes
         End Function
         

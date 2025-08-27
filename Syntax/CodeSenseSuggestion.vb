@@ -49,7 +49,7 @@ Namespace Syntax
         End Property
         
         ' Kind is mapped from Type enum
-        Public ReadOnly Property Kind As CodeSenseSuggestionKind
+        Public Property Kind As CodeSenseSuggestionKind
             Get
                 Select Case SuggestionType
                     Case CodeSenseSuggestionType.eKeyword
@@ -76,6 +76,33 @@ Namespace Syntax
                         Return CodeSenseSuggestionKind.eOther
                 End Select
             End Get
+            Set(value as CodeSenseSuggestionKind)
+                Select Case value
+                    Case CodeSenseSuggestionKind.eKeyword
+                        SuggestionType = CodeSenseSuggestionType.eKeyword
+                    Case CodeSenseSuggestionKind.eClass
+                        SuggestionType = CodeSenseSuggestionType.eType
+                    Case CodeSenseSuggestionKind.eNamespace
+                        SuggestionType = CodeSenseSuggestionType.eNamespace
+                    Case CodeSenseSuggestionKind.eMethod
+                        SuggestionType = CodeSenseSuggestionType.eMethod
+                    Case CodeSenseSuggestionKind.eProperty
+                        SuggestionType = CodeSenseSuggestionType.eProperty
+                    Case CodeSenseSuggestionKind.eField
+                        SuggestionType = CodeSenseSuggestionType.eField
+                    Case CodeSenseSuggestionKind.eEvent
+                        SuggestionType = CodeSenseSuggestionType.eEvent
+                    Case CodeSenseSuggestionKind.eLocalVariable
+                        SuggestionType = CodeSenseSuggestionType.eVariable
+                    Case CodeSenseSuggestionKind.eParameter
+                        SuggestionType = CodeSenseSuggestionType.eParameter
+                    Case CodeSenseSuggestionKind.eSnippet
+                        SuggestionType = CodeSenseSuggestionType.eSnippet
+                    Case Else
+                        SuggestionType = CodeSenseSuggestionType.eOther
+                End Select
+
+            End Set
         End Property
 
         Private pPriority As Integer = 50

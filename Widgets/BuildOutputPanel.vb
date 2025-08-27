@@ -152,16 +152,17 @@ Namespace Widgets
             pErrorsTreeView = New TreeView(pErrorsStore)
             pErrorsTreeView.HeadersVisible = True
             
-            ' Add columns
-            pErrorsTreeView.AppendColumn("File", New CellRendererText(), "Text", 0)
-            pErrorsTreeView.AppendColumn("Line", New CellRendererText(), "Text", 1)
-            pErrorsTreeView.AppendColumn("Col", New CellRendererText(), "Text", 2)
-            pErrorsTreeView.AppendColumn("code", New CellRendererText(), "Text", 3)
+            ' Add columns - FIXED: Use lowercase "text" for attribute name
+            pErrorsTreeView.AppendColumn("File", New CellRendererText(), "text", 0)
+            pErrorsTreeView.AppendColumn("Line", New CellRendererText(), "text", 1)
+            pErrorsTreeView.AppendColumn("Col", New CellRendererText(), "text", 2)
+            pErrorsTreeView.AppendColumn("Code", New CellRendererText(), "text", 3)
             
             Dim lMessageRenderer As New CellRendererText()
-            lMessageRenderer.WrapMode = Pango.WrapMode.Word
-            lMessageRenderer.WrapWidth = 400
-            pErrorsTreeView.AppendColumn("Message", lMessageRenderer, "Text", 4)
+            ' Remove wrapping to prevent excessive row height
+            ' Use ellipsize instead to truncate long messages
+            lMessageRenderer.Ellipsize = Pango.EllipsizeMode.End
+            pErrorsTreeView.AppendColumn("Message", lMessageRenderer, "text", 4)
             
             ' Handle double-click
             AddHandler pErrorsTreeView.RowActivated, AddressOf OnErrorRowActivated
@@ -181,16 +182,17 @@ Namespace Widgets
             pWarningsTreeView = New TreeView(pWarningsStore)
             pWarningsTreeView.HeadersVisible = True
             
-            ' Add columns
-            pWarningsTreeView.AppendColumn("File", New CellRendererText(), "Text", 0)
-            pWarningsTreeView.AppendColumn("Line", New CellRendererText(), "Text", 1)
-            pWarningsTreeView.AppendColumn("Col", New CellRendererText(), "Text", 2)
-            pWarningsTreeView.AppendColumn("code", New CellRendererText(), "Text", 3)
+            ' Add columns - FIXED: Use lowercase "text" for attribute name
+            pWarningsTreeView.AppendColumn("File", New CellRendererText(), "text", 0)
+            pWarningsTreeView.AppendColumn("Line", New CellRendererText(), "text", 1)
+            pWarningsTreeView.AppendColumn("Col", New CellRendererText(), "text", 2)
+            pWarningsTreeView.AppendColumn("Code", New CellRendererText(), "text", 3)
             
             Dim lMessageRenderer As New CellRendererText()
-            lMessageRenderer.WrapMode = Pango.WrapMode.Word
-            lMessageRenderer.WrapWidth = 400
-            pWarningsTreeView.AppendColumn("Message", lMessageRenderer, "Text", 4)
+            ' Remove wrapping to prevent excessive row height
+            ' Use ellipsize instead to truncate long messages
+            lMessageRenderer.Ellipsize = Pango.EllipsizeMode.End
+            pWarningsTreeView.AppendColumn("Message", lMessageRenderer, "text", 4)
             
             ' Handle double-click
             AddHandler pWarningsTreeView.RowActivated, AddressOf OnWarningRowActivated
@@ -199,15 +201,6 @@ Namespace Widgets
             pNotebook.AppendPage(pWarningsScrolledWindow, New Label("Warnings (0)"))
         End Sub
         
-        ' Public method to append output
-        Public Sub AppendOutput(vText As String)
-            ' FIXED: Use InsertAtCursor to avoid ambiguity with Insert overloads
-            pOutputBuffer.PlaceCursor(pOutputBuffer.EndIter)
-            pOutputBuffer.InsertAtCursor(vText)
-            
-            ' Auto-scroll to bottom
-            ScrollOutputToBottom()
-        End Sub
 
         Public Sub AppendOutputLine(vText As String)
             AppendOutput(vText & Environment.NewLine)
@@ -221,8 +214,21 @@ Namespace Widgets
             Return pBuildWarnings
         End Function
         
+        ' Public method to append output
+        Public Sub AppendOutput(vText As String)
+            
+           
+            ' FIXED: Use InsertAtCursor to avoid ambiguity with Insert overloads
+            pOutputBuffer.PlaceCursor(pOutputBuffer.EndIter)
+            pOutputBuffer.InsertAtCursor(vText)
+            
+            ' Auto-scroll to bottom
+            ScrollOutputToBottom()
+        End Sub
+
         ' Public method to append output with tag
         Public Sub AppendOutput(vText As String, vTag As String)
+            
             Dim lIter As TextIter = pOutputBuffer.EndIter
             Dim lTag As TextTag = pOutputBuffer.TagTable.Lookup(vTag)
             
@@ -253,37 +259,51 @@ Namespace Widgets
             UpdateCopyButtonState()
         End Sub
                 
+        ' Replace: SimpleIDE.Widgets.BuildOutputPanel.ShowBuildResult
         ''' <summary>
         ''' Shows build result by populating error/warning lists WITHOUT adding to output
         ''' </summary>
         ''' <param name="vResult">The build result containing errors and warnings</param>
         ''' <param name="vProjectRoot">The project root path for relative path display</param>
         Public Sub ShowBuildResult(vResult As BuildResult, vProjectRoot As String)
+            Console.Writeline($"ShowBuildResult Called!")
             Try
                 pProjectRoot = vProjectRoot
                 pBuildResult = vResult
                 
-                ' Clear and repopulate the error/warning lists
+                ' Clear everything to prevent duplication
                 pBuildErrors.Clear()
                 pBuildWarnings.Clear()
+                pErrorsStore.Clear()
+                pWarningsStore.Clear()
+
                 
-                ' Add errors from BuildResult
+                ' Add errors from BuildResult and populate TreeView in one pass
                 If vResult.Errors IsNot Nothing Then
-                    for each lError in vResult.Errors
+                    Console.Writeline($"Error Count: " + vResult.Errors.Count.ToString)
+                    for each lError As BuildError in vResult.Errors
+                        ' Add to internal list
                         pBuildErrors.Add(lError)
+                        
+                        ' Add directly to TreeView store
+                        Dim lFileName As String = System.IO.Path.GetFileName(lError.FilePath)
+                        pErrorsStore.AppendValues(lFileName, lError.Line, lError.Column, 
+                                                 lError.ErrorCode, lError.Message, lError)
                     Next
                 End If
                 
-                ' Add warnings from BuildResult
+                ' Add warnings from BuildResult and populate TreeView in one pass
                 If vResult.Warnings IsNot Nothing Then
-                    for each lWarning in vResult.Warnings
+                    for each lWarning As BuildWarning in vResult.Warnings
+                        ' Add to internal list
                         pBuildWarnings.Add(lWarning)
+                        
+                        ' Add directly to TreeView store
+                        Dim lFileName As String = System.IO.Path.GetFileName(lWarning.FilePath)
+                        pWarningsStore.AppendValues(lFileName, lWarning.Line, lWarning.Column, 
+                                                   lWarning.WarningCode, lWarning.Message, lWarning)
                     Next
                 End If
-                
-                ' Update the TreeViews
-                PopulateErrorsTreeView()
-                PopulateWarningsTreeView()
                 
                 ' Update tab labels with counts
                 UpdateTabLabels()
@@ -294,10 +314,10 @@ Namespace Widgets
                     pNotebook.CurrentPage = 1
                 End If
                 
-                Console.WriteLine($"ShowBuildResult: Displayed {pBuildErrors.Count} errors, {pBuildWarnings.Count} warnings")
+                ' Silent - no console output
                 
             Catch ex As Exception
-                Console.WriteLine($"ShowBuildResult error: {ex.Message}")
+                ' Silent error handling - no console output
             End Try
         End Sub
         
@@ -318,49 +338,6 @@ Namespace Widgets
             pProjectRoot = vProjectRoot
         End Sub
         
-        ''' <summary>
-        ''' Updates build results by populating error/warning lists from already parsed BuildResult
-        ''' </summary>
-        ''' <param name="vBuildResult">The build result with already parsed errors and warnings</param>
-        Public Sub UpdateBuildResults(vBuildResult As BuildResult)
-            Try
-                pBuildResult = vBuildResult
-                
-                ' Don't parse the output again - the BuildManager has already done this
-                ' Just copy the errors and warnings from the BuildResult
-                
-                pBuildErrors.Clear()
-                pBuildWarnings.Clear()
-                
-                ' Copy errors from BuildResult
-                If vBuildResult.Errors IsNot Nothing Then
-                    for each lError in vBuildResult.Errors
-                        pBuildErrors.Add(lError)
-                    Next
-                End If
-                
-                ' Copy warnings from BuildResult
-                If vBuildResult.Warnings IsNot Nothing Then
-                    for each lWarning in vBuildResult.Warnings
-                        pBuildWarnings.Add(lWarning)
-                    Next
-                End If
-                
-                ' Update tree views
-                PopulateErrorsTreeView()
-                PopulateWarningsTreeView()
-                
-                ' Update tab labels
-                UpdateTabLabels()
-                UpdateCopyButtonState()
-                
-                Console.WriteLine($"UpdateBuildResults: Populated {pBuildErrors.Count} errors, {pBuildWarnings.Count} warnings")
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateBuildResults error: {ex.Message}")
-            End Try
-        End Sub
-        
         ' Add the missing GetErrorsAsText method
         Public Function GetErrorsAsText() As String
             Try
@@ -370,176 +347,6 @@ Namespace Widgets
                 Return ""
             End Try
         End Function
-        
-        ''' <summary>
-        ''' Parses MSBuild output for errors and warnings with enhanced pattern matching
-        ''' </summary>
-        Private Sub ParseMSBuildOutput(vOutput As String)
-            Try
-                ' Clear existing errors and warnings
-                pBuildErrors.Clear()
-                pBuildWarnings.Clear()
-                
-                ' Use HashSets to track unique errors and warnings
-                Dim lUniqueErrors As New HashSet(Of String)
-                Dim lUniqueWarnings As New HashSet(Of String)
-                
-                ' Split output into lines
-                Dim lLines() As String = vOutput.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                
-                Console.WriteLine($"ParseMSBuildOutput: Processing {lLines.Length} lines")
-                
-                for each lLine As String in lLines
-                    ' Skip empty lines
-                    If String.IsNullOrWhiteSpace(lLine) Then Continue for
-                    
-                    ' Pattern 1: Standard MSBuild error format
-                    ' Example: /path/to/file.vb(10,5): error BC30451: Name 'x' is not declared.
-                    Dim lErrorMatch As Match = Regex.Match(lLine, "^(.+?)\((\d+),(\d+)\):\s+error\s+(\w+):\s+(.+)$")
-                    If lErrorMatch.Success Then
-                        Dim lError As New BuildError()
-                        lError.FilePath = lErrorMatch.Groups(1).Value.Trim()
-                        lError.Line = Integer.Parse(lErrorMatch.Groups(2).Value)
-                        lError.Column = Integer.Parse(lErrorMatch.Groups(3).Value)
-                        lError.ErrorCode = lErrorMatch.Groups(4).Value.Trim()
-                        lError.Message = lErrorMatch.Groups(5).Value.Trim()
-                        
-                        Dim lErrorKey As String = $"{lError.FilePath}|{lError.Line}|{lError.Column}|{lError.ErrorCode}|{lError.Message}"
-                        If lUniqueErrors.Add(lErrorKey) Then
-                            pBuildErrors.Add(lError)
-                            Console.WriteLine($"Added error: {lError.Message}")
-                        End If
-                        Continue for
-                    End If
-                    
-                    ' Pattern 2: Standard MSBuild warning format
-                    ' Example: /path/to/file.vb(10,5): warning BC42024: Unused local variable: 'x'.
-                    Dim lWarningMatch As Match = Regex.Match(lLine, "^(.+?)\((\d+),(\d+)\):\s+warning\s+(\w+):\s+(.+)$")
-                    If lWarningMatch.Success Then
-                        Dim lWarning As New BuildWarning()
-                        lWarning.FilePath = lWarningMatch.Groups(1).Value.Trim()
-                        lWarning.Line = Integer.Parse(lWarningMatch.Groups(2).Value)
-                        lWarning.Column = Integer.Parse(lWarningMatch.Groups(3).Value)
-                        lWarning.WarningCode = lWarningMatch.Groups(4).Value.Trim()
-                        lWarning.Message = lWarningMatch.Groups(5).Value.Trim()
-                        
-                        Dim lWarningKey As String = $"{lWarning.FilePath}|{lWarning.Line}|{lWarning.Column}|{lWarning.WarningCode}|{lWarning.Message}"
-                        If lUniqueWarnings.Add(lWarningKey) Then
-                            pBuildWarnings.Add(lWarning)
-                            Console.WriteLine($"Added warning: {lWarning.Message}")
-                        End If
-                        Continue for
-                    End If
-                    
-                    ' Pattern 3: Error without column
-                    ' Example: /path/to/file.vb(10): error BC30451: Name 'x' is not declared.
-                    lErrorMatch = Regex.Match(lLine, "^(.+?)\((\d+)\):\s+error\s+(\w+):\s+(.+)$")
-                    If lErrorMatch.Success Then
-                        Dim lError As New BuildError()
-                        lError.FilePath = lErrorMatch.Groups(1).Value.Trim()
-                        lError.Line = Integer.Parse(lErrorMatch.Groups(2).Value)
-                        lError.Column = 1
-                        lError.ErrorCode = lErrorMatch.Groups(3).Value.Trim()
-                        lError.Message = lErrorMatch.Groups(4).Value.Trim()
-                        
-                        Dim lErrorKey As String = $"{lError.FilePath}|{lError.Line}|{lError.Column}|{lError.ErrorCode}|{lError.Message}"
-                        If lUniqueErrors.Add(lErrorKey) Then
-                            pBuildErrors.Add(lError)
-                            Console.WriteLine($"Added error (no column): {lError.Message}")
-                        End If
-                        Continue for
-                    End If
-                    
-                    ' Pattern 4: Warning without column
-                    ' Example: /path/to/file.vb(10): warning BC42024: Unused local variable: 'x'.
-                    lWarningMatch = Regex.Match(lLine, "^(.+?)\((\d+)\):\s+warning\s+(\w+):\s+(.+)$")
-                    If lWarningMatch.Success Then
-                        Dim lWarning As New BuildWarning()
-                        lWarning.FilePath = lWarningMatch.Groups(1).Value.Trim()
-                        lWarning.Line = Integer.Parse(lWarningMatch.Groups(2).Value)
-                        lWarning.Column = 1
-                        lWarning.WarningCode = lWarningMatch.Groups(3).Value.Trim()
-                        lWarning.Message = lWarningMatch.Groups(4).Value.Trim()
-                        
-                        Dim lWarningKey As String = $"{lWarning.FilePath}|{lWarning.Line}|{lWarning.Column}|{lWarning.WarningCode}|{lWarning.Message}"
-                        If lUniqueWarnings.Add(lWarningKey) Then
-                            pBuildWarnings.Add(lWarning)
-                            Console.WriteLine($"Added warning (no column): {lWarning.Message}")
-                        End If
-                        Continue for
-                    End If
-                    
-                    ' Pattern 5: Simple error format
-                    ' Example: /path/to/file.vb: error: Name 'x' is not declared.
-                    Dim lSimpleErrorMatch As Match = Regex.Match(lLine, "^(.+?):\s*error:\s*(.+)$", RegexOptions.IgnoreCase)
-                    If lSimpleErrorMatch.Success Then
-                        Dim lError As New BuildError()
-                        lError.FilePath = lSimpleErrorMatch.Groups(1).Value.Trim()
-                        lError.Line = 1
-                        lError.Column = 1
-                        lError.ErrorCode = ""
-                        lError.Message = lSimpleErrorMatch.Groups(2).Value.Trim()
-                        
-                        Dim lErrorKey As String = $"{lError.FilePath}|{lError.Line}|{lError.Column}|{lError.ErrorCode}|{lError.Message}"
-                        If lUniqueErrors.Add(lErrorKey) Then
-                            pBuildErrors.Add(lError)
-                            Console.WriteLine($"Added simple error: {lError.Message}")
-                        End If
-                        Continue for
-                    End If
-                    
-                    ' Pattern 6: Simple warning format
-                    ' Example: /path/to/file.vb: warning: Unused variable.
-                    Dim lSimpleWarningMatch As Match = Regex.Match(lLine, "^(.+?):\s*warning:\s*(.+)$", RegexOptions.IgnoreCase)
-                    If lSimpleWarningMatch.Success Then
-                        Dim lWarning As New BuildWarning()
-                        lWarning.FilePath = lSimpleWarningMatch.Groups(1).Value.Trim()
-                        lWarning.Line = 1
-                        lWarning.Column = 1
-                        lWarning.WarningCode = ""
-                        lWarning.Message = lSimpleWarningMatch.Groups(2).Value.Trim()
-                        
-                        Dim lWarningKey As String = $"{lWarning.FilePath}|{lWarning.Line}|{lWarning.Column}|{lWarning.WarningCode}|{lWarning.Message}"
-                        If lUniqueWarnings.Add(lWarningKey) Then
-                            pBuildWarnings.Add(lWarning)
-                            Console.WriteLine($"Added simple warning: {lWarning.Message}")
-                        End If
-                        Continue for
-                    End If
-                Next
-                
-                Console.WriteLine($"ParseMSBuildOutput complete: {pBuildErrors.Count} errors, {pBuildWarnings.Count} warnings")
-                
-                ' Update the counts in the BuildResult if available
-                If pBuildResult IsNot Nothing Then
-                    pBuildResult.Errors = pBuildErrors
-                    pBuildResult.Warnings = pBuildWarnings
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"ParseMSBuildOutput error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub PopulateErrorsTreeView()
-            pErrorsStore.Clear()
-            
-            for each lError As BuildError in pBuildErrors
-                Dim lFileName As String = System.IO.Path.GetFileName(lError.FilePath)
-                pErrorsStore.AppendValues(lFileName, lError.Line, lError.Column, 
-                                         lError.ErrorCode, lError.Message, lError)
-            Next
-        End Sub
-        
-        Private Sub PopulateWarningsTreeView()
-            pWarningsStore.Clear()
-            
-            for each lWarning As BuildWarning in pBuildWarnings
-                Dim lFileName As String = System.IO.Path.GetFileName(lWarning.FilePath)
-                pWarningsStore.AppendValues(lFileName, lWarning.Line, lWarning.Column, 
-                                           lWarning.WarningCode, lWarning.Message, lWarning)
-            Next
-        End Sub
         
         Private Sub UpdateTabLabels()
             ' Update error tab label

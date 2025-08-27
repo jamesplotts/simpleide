@@ -30,7 +30,7 @@ Namespace Models
         Public Property NeedsParsing As Boolean = True
 
         ' Demo Mode is used when you want to display a fictional file's content without having any file IO.
-        Public IsDemoMode as Boolean = False
+        Public IsDemoMode As Boolean = False
         
         ' ===== Constructor =====
         Public Sub New(vFilePath As String, vProjectDirectory As String)
@@ -57,7 +57,7 @@ Namespace Models
             End Try
         End Sub
 
-        Public Sub New(vContent as String)
+        Public Sub New(vContent As String)
             IsDemoMode = True
             Content = vContent
         End Sub
@@ -70,8 +70,8 @@ Namespace Models
         Public Function LoadContent() As Boolean
             Try
                 If IsDemoMode Then 
-                    return true
-                End if
+                    Return True
+                End If
                 If Not File.Exists(FilePath) Then
                     Console.WriteLine($"File not found: {FilePath}")
                     Return False
@@ -96,57 +96,6 @@ Namespace Models
         End Function
         
         ''' <summary>
-        ''' Parse the loaded content
-        ''' </summary>
-        Public Function ParseContent() As Boolean
-            Try
-                If Not IsLoaded AndAlso Not IsDemoMode Then
-                    Console.WriteLine($"Cannot parse {FileName}: content not loaded")
-                    Return False
-                End If
-                
-                ' Create parser - using VBParser instead of VBCodeParser
-                Dim lParser As New VBParser()
-                
-                ' Parse the content using the Parse method with proper parameters
-                Dim lParseResult As VBParser.ParseResult
-                If Not IsDemoMode Then
-                   lParseResult = lParser.Parse(Content, ProjectRootNamespace, FilePath)
-                Else
-                   lParseResult = lParser.Parse(Content, "", "")
-                End If
-                
-                If lParseResult IsNot Nothing Then
-                    ' The parse result already has a SyntaxNode tree
-                    SyntaxTree = lParseResult.RootNode
-                    
-                    ' Store any parse errors
-                    If lParseResult.Errors IsNot Nothing Then
-                        ParseErrors = lParseResult.Errors
-                    End If
-                    
-                    IsParsed = True
-                    LastParsed = DateTime.Now
-                    
-                    Console.WriteLine($"Parsed {FileName}: {CountNodes(SyntaxTree)} nodes")
-                    Return True
-                Else
-                    Console.WriteLine($"Parse failed for {FileName}")
-                    Return False
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"SourceFileInfo.ParseContent error: {ex.Message}")
-                ParseErrors.Add(New ParseError With {
-                    .Message = ex.Message,
-                    .Line = 0,
-                    .Column = 0
-                })
-                Return False
-            End Try
-        End Function
-        
-        ''' <summary>
         ''' Count nodes in the syntax tree
         ''' </summary>
         Private Function CountNodes(vNode As SyntaxNode) As Integer
@@ -154,7 +103,7 @@ Namespace Models
             
             Dim lCount As Integer = 1
             If vNode.Children IsNot Nothing Then
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     lCount += CountNodes(lChild)
                 Next
             End If
@@ -180,7 +129,7 @@ Namespace Models
         ''' </summary>
         Public Function ParseFile() As Boolean
             Try
-                If IsDemoMode then Return ParseContent()
+                If IsDemoMode Then Return ParseContent()
                 ' Ensure content is loaded
                 If Not IsLoaded Then
                     If Not LoadContent() Then
@@ -270,7 +219,7 @@ Namespace Models
                 If vLine >= vNode.StartLine AndAlso vLine <= vNode.EndLine Then
                     ' Check children for more specific match
                     If vNode.Children IsNot Nothing Then
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             Dim lResult As SyntaxNode = FindNodeAtPosition(lChild, vLine, vColumn)
                             If lResult IsNot Nothing Then
                                 Return lResult
@@ -296,19 +245,19 @@ Namespace Models
         ''' </summary>
         Public Sub MergeIntoProjectTree(vRootNamespace As SyntaxNode)
             Try
-                If IsDemoMode then Exit Sub
+                If IsDemoMode Then Exit Sub
                 If SyntaxTree Is Nothing OrElse vRootNamespace Is Nothing Then
                     Console.WriteLine($"Cannot merge {FileName}: no syntax tree or root namespace")
                     Return
                 End If
                 
                 ' If the file has top-level nodes, merge them
-                For Each lNode In SyntaxTree.Children
+                for each lNode in SyntaxTree.Children
                     If lNode.NodeType = CodeNodeType.eNamespace AndAlso 
                        lNode.Name = vRootNamespace.Name AndAlso 
                        lNode.IsImplicit Then
                         ' This is the implicit root namespace - merge its children directly
-                        For Each lChild In lNode.Children
+                        for each lChild in lNode.Children
                             MergeNodeIntoProject(lChild, vRootNamespace)
                         Next
                     Else
@@ -344,7 +293,7 @@ Namespace Models
         ''' Set the project root namespace for parsing
         ''' </summary>
         Public Sub SetProjectRootNamespace(vRootNamespace As String)
-            If IsDemoMode then Exit Sub
+            If IsDemoMode Then Exit Sub
             If Not String.IsNullOrEmpty(vRootNamespace) Then
                 ProjectRootNamespace = vRootNamespace
             End If
@@ -353,21 +302,21 @@ Namespace Models
         ' Helper method to merge a node into the project tree
         Private Sub MergeNodeIntoProject(vNode As SyntaxNode, vParentNode As SyntaxNode)
             Try
-                If IsDemoMode then Exit Sub
+                If IsDemoMode Then Exit Sub
                 If vNode Is Nothing OrElse vParentNode Is Nothing Then Return
                 
                 ' Check if a similar node already exists
                 Dim lExistingNode As SyntaxNode = Nothing
-                For Each lChild In vParentNode.Children
+                for each lChild in vParentNode.Children
                     If lChild.Name = vNode.Name AndAlso lChild.NodeType = vNode.NodeType Then
                         lExistingNode = lChild
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
                 If lExistingNode IsNot Nothing Then
                     ' Merge children into existing node
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         MergeNodeIntoProject(lChild, lExistingNode)
                     Next
                 Else
@@ -397,7 +346,7 @@ Namespace Models
                 End If
                 
                 ' Recursively check children
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     CollectNodesAtLine(lChild, vLine, vNodes)
                 Next
                 
@@ -411,7 +360,7 @@ Namespace Models
         ''' </summary>
         Public Function SaveContent() As Boolean
             Try
-                If IsDemoMode then Return True
+                If IsDemoMode Then Return True
                 If String.IsNullOrEmpty(FilePath) Then
                     Console.WriteLine($"Cannot save {FileName}: no file path")
                     Return False
@@ -445,7 +394,7 @@ Namespace Models
         ''' </summary>
         Public Sub LoadFromStream(vStream As Stream, vEncoding As Encoding)
             Try
-                If IsDemoMode then Exit Sub
+                If IsDemoMode Then Exit Sub
                 Using lReader As New StreamReader(vStream, vEncoding)
                     Content = lReader.ReadToEnd()
                     TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))

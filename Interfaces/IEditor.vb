@@ -49,6 +49,7 @@ Namespace Interfaces
         ReadOnly Property SupportsLineNumbers As Boolean
         ReadOnly Property SupportsSyntaxHighlighting As Boolean
         ReadOnly Property SupportsNavigation As Boolean
+        ReadOnly Property RootNode as SyntaxNode
         
         ' Events
         Event Modified(vIsModified As Boolean)
@@ -160,6 +161,7 @@ Namespace Interfaces
         Sub CancelCodeSense()
         Sub NavigateToLineNumberForPresentment(vLineNumber As Integer)
         Function FindAll(vFindText As String) As List(Of EditorPosition)
+        Function GetDocumentNodes() As Dictionary(Of String, DocumentNode)
 
     End Interface
     

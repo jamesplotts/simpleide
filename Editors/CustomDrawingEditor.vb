@@ -69,8 +69,6 @@ Namespace Editors
         Private pSyntaxHighlighter As VBSyntaxHighlighter
         Private pHighlightingEnabled As Boolean = True
         'Private pDocumentParser As VBCodeParser
-        Private pParseTimer As UInteger = 0
-        Private pNeedsParse As Boolean = False
         Private pSyntaxColorSet As SyntaxColorSet
         Private pSettingsManager As SettingsManager
         Private pBracketHighlightingEnabled As Boolean = False
@@ -120,7 +118,6 @@ Namespace Editors
         
         ' ===== Node Graph =====
         Private pRootNode As SyntaxNode
-        Private pDocumentNodes As Dictionary(Of String, DocumentNode)
         Private pRootNodes As List(Of DocumentNode)    ' for document Node representation
         
         ' ===== Font Metrics =====
@@ -148,6 +145,15 @@ Namespace Editors
         Private pLineNumberDragging As Boolean = False
         Private pLineNumberDragAnchor As Integer = -1
 
+        ' Document structure fields
+        Private pDocumentNodes As Dictionary(Of String, DocumentNode)
+        
+        ' Event handler fields for proper disposal
+        Private pFocusInHandler As FocusInEventHandler
+        Private pFocusOutHandler As FocusOutEventHandler
+        Private pVScrollValueChangedHandler As EventHandler
+        Private pHScrollValueChangedHandler As EventHandler
+
         
         ' ===== Events =====
         Public Event Modified(vIsModified As Boolean) Implements IEditor.Modified
@@ -173,21 +179,26 @@ Namespace Editors
         ' ===== Constructor =====
 
         ''' <summary>
-        ''' Primary constructor - requires SourceFileInfo
+        ''' Create a new editor instance for a SourceFileInfo
         ''' </summary>
-        ''' <param name="vSourceFileInfo">The source file information containing the text to edit</param>
+        ''' <param name="vSourceFileInfo">The source file to edit</param>
+        ''' <remarks>
+        ''' Updated to work with centralized ProjectParser instead of local VBParser
+        ''' </remarks>
         Public Sub New(vSourceFileInfo As SourceFileInfo)
-            MyBase.New(Orientation.Horizontal, 0)
+            MyBase.New(Orientation.Vertical, 0)
             
             Try
-                If vSourceFileInfo Is Nothing Then
-                    Throw New ArgumentNullException(NameOf(vSourceFileInfo), "SourceFileInfo cannot be null")
+                ' Store the source file info
+                pSourceFileInfo = vSourceFileInfo
+                pFilePath = If(vSourceFileInfo?.FilePath, "")
+                
+                ' Ensure TextLines exists
+                If pSourceFileInfo.TextLines Is Nothing Then
+                    pSourceFileInfo.TextLines = New List(Of String)()
                 End If
                 
-                pSourceFileInfo = vSourceFileInfo
-                pFilePath = pSourceFileInfo.FilePath
-                
-                ' Ensure SourceFileInfo has at least one line
+                ' Ensure there's at least one line
                 If pSourceFileInfo.TextLines.Count = 0 Then
                     pSourceFileInfo.TextLines.Add("")
                 End If
@@ -208,11 +219,8 @@ Namespace Editors
                 InitializeComponents()
                 InitializeEditor()
                 
-                ' REMOVED: Don't process formatting here - RefreshFromSourceFileInfo will do it
-                ' This was causing duplicate processing and multiple draws
-                ' For i As Integer = 0 To pLineCount - 1
-                '     ProcessLineFormatting(i)
-                ' Next
+                ' Subscribe to ProjectManager parse events
+                SubscribeToProjectParser()
                 
                 ' FIXED: Check if SourceFileInfo already has a parsed SyntaxTree
                 If vSourceFileInfo.SyntaxTree IsNot Nothing AndAlso vSourceFileInfo.IsParsed Then
@@ -220,18 +228,21 @@ Namespace Editors
                     pRootNode = vSourceFileInfo.SyntaxTree
                     Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
                     
-                    ' REMOVED: Don't apply highlighting here - RefreshFromSourceFileInfo will do it
-                    ' For i As Integer = 0 To pLineCount - 1
-                    '     ApplySyntaxHighlightingToLine(i)
-                    ' Next
+                    ' Update metadata from existing parse
+                    UpdateLineMetadataFromParseResult()
+                    UpdateIdentifierCaseMap()
+                    
+                    ' Apply syntax highlighting
+                    for i As Integer = 0 To pLineCount - 1
+                        ApplySyntaxHighlightingToLine(i)
+                    Next
                     
                     ' Raise document parsed event with existing structure
                     RaiseEvent DocumentParsed(pRootNode)
                 Else
-                    ' Only parse if we don't have existing parse data
-                    Console.WriteLine($"Scheduling initial parse for {vSourceFileInfo.FileName}")
-                    ScheduleParse()
-                    ScheduleFullDocumentParse()
+                    ' Request parse through ProjectManager
+                    Console.WriteLine($"Requesting initial parse for {vSourceFileInfo.FileName}")
+                    RequestParseFromProjectManager()
                 End If
                 
             Catch ex As Exception
@@ -240,6 +251,14 @@ Namespace Editors
             End Try
         End Sub
 
+        Public ReadOnly Property RootNode() As SyntaxNode Implements IEditor.RootNode
+            Get
+                Return pRootNode
+            End Get
+        End Property
+
+
+        
         ' Factory method for creating empty editor with new SourceFileInfo
         Public Shared Function CreateEmpty(vFilePath As String) As CustomDrawingEditor
             Try
@@ -337,7 +356,6 @@ Namespace Editors
         
                 InitializeDragDrop()
                 EnsureCursorsCreated()
-                pKeyPressHandler = New KeyPressEventHandler(AddressOf OnKeyPress)
         
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
@@ -844,7 +862,7 @@ Namespace Editors
                 pDrawingArea?.QueueDraw()
                 
                 ' Schedule parsing
-                ScheduleParsing()
+                ScheduleParse()
                 
             Catch ex As Exception
                 Console.WriteLine($"RefreshFromSourceFileInfo error: {ex.Message}")

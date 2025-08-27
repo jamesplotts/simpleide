@@ -342,12 +342,17 @@ Namespace Widgets
         ' ===== IObjectExplorer Implementation =====
         
         ''' <summary>
-        ''' Updates the complete object hierarchy displayed in the explorer
+        ''' Updates the tree structure with new syntax nodes from ProjectParser
         ''' </summary>
-        ''' <param name="vRootNode">Root syntax node containing the complete hierarchy</param>
+        ''' <param name="vRootNode">The root node of the project structure from ProjectParser</param>
+        ''' <remarks>
+        ''' This method now works directly with ProjectParser's SyntaxNode structure
+        ''' instead of VBParser nodes, consuming parse results from ProjectManager
+        ''' </remarks>
         Public Sub UpdateStructure(vRootNode As SyntaxNode) Implements IObjectExplorer.UpdateStructure
             Try
                 Console.WriteLine($"UpdateStructure called with root: {If(vRootNode?.Name, "Nothing")}")
+                Console.WriteLine($"  Node type: {If(vRootNode?.NodeType.ToString(), "N/A")}")
                 
                 If vRootNode Is Nothing Then
                     Console.WriteLine("UpdateStructure: Received Nothing root - clearing")
@@ -355,14 +360,15 @@ Namespace Widgets
                     Return
                 End If
                 
-                ' Store the new root
+                ' Store the new root from ProjectParser
                 pRootNode = vRootNode
                 
                 ' IMPORTANT: Also update the last valid root and project loaded flag
                 pLastValidRootNode = vRootNode
                 pIsProjectLoaded = True
                 
-                Console.WriteLine($"UpdateStructure: Set pRootNode, pLastValidRootNode, and pIsProjectLoaded=True")
+                Console.WriteLine($"UpdateStructure: Set pRootNode from ProjectParser")
+                Console.WriteLine($"  Root has {vRootNode.Children.Count} children")
                 
                 ' Auto-expand root namespace if it's the only child
                 If vRootNode.NodeType = CodeNodeType.eDocument AndAlso vRootNode.Children.Count = 1 Then
@@ -373,7 +379,7 @@ Namespace Widgets
                     End If
                 End If
                 
-                ' Rebuild the visual tree
+                ' Rebuild the visual tree with ProjectParser nodes
                 RebuildVisualTree()
                 
                 ' Update scrollbars
@@ -382,7 +388,7 @@ Namespace Widgets
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
                 
-                Console.WriteLine($"UpdateStructure complete: {pVisibleNodes.Count} visible nodes")
+                Console.WriteLine($"UpdateStructure complete with ProjectParser nodes: {pVisibleNodes.Count} visible nodes")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateStructure error: {ex.Message}")
@@ -547,14 +553,29 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
         End Sub
         
         ''' <summary>
-        ''' Initializes the Object Explorer with a project manager for centralized parsing
+        ''' Initializes the Object Explorer with ProjectManager for centralized parsing
         ''' </summary>
         ''' <param name="vProjectManager">The project manager instance to use</param>
+        ''' <remarks>
+        ''' Now subscribes to ProjectManager.ParseCompleted events to receive
+        ''' updates from the centralized ProjectParser instead of local parsing
+        ''' </remarks>
         Public Sub InitializeWithProjectManager(vProjectManager As ProjectManager) Implements IObjectExplorer.InitializeWithProjectManager
             Try
                 pProjectManager = vProjectManager
                 
-                ' CRITICAL FIX: Use GetProjectSyntaxTree() method instead of property
+                ' Subscribe to ParseCompleted event from ProjectManager
+                If pProjectManager IsNot Nothing Then
+                    RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
+                    AddHandler pProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
+                    
+                    RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
+                    AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
+                    
+                    Console.WriteLine("CustomDrawObjectExplorer subscribed to ProjectManager parse events")
+                End If
+                
+                ' Load initial project structure if available
                 Dim lProjectTree As SyntaxNode = pProjectManager?.GetProjectSyntaxTree()
                 If lProjectTree IsNot Nothing Then
                     LoadProjectStructure(lProjectTree)
@@ -783,26 +804,26 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
         End Sub
 
         ''' <summary>
-        ''' Updated LoadProjectStructure to preserve state
+        ''' Loads project structure from ProjectParser's syntax tree
         ''' </summary>
-        Public Sub LoadProjectStructure(vProjectSyntaxTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
+        ''' <param name="vProjectTree">The project syntax tree from ProjectParser</param>
+        ''' <remarks>
+        ''' This method now accepts ProjectParser's node structure directly
+        ''' instead of creating its own parse tree
+        ''' </remarks>
+        Public Sub LoadProjectStructure(vProjectTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
             Try
-                Console.WriteLine($"LoadProjectStructure called with tree: {If(vProjectSyntaxTree IsNot Nothing, vProjectSyntaxTree.Name, "Nothing")}")
+                Console.WriteLine($"LoadProjectStructure: Loading from ProjectParser tree")
                 
-                ' Store as last valid root for recovery
-                If vProjectSyntaxTree IsNot Nothing Then
-                    pLastValidRootNode = vProjectSyntaxTree
-                    pIsProjectLoaded = True
+                If vProjectTree Is Nothing Then
+                    Console.WriteLine("LoadProjectStructure: No project tree provided")
+                    Return
                 End If
                 
-                ' Ensure list exists
-                EnsureVisibleNodesList()
+                ' Use the ProjectParser's tree directly
+                UpdateStructure(vProjectTree)
                 
-                ' Update structure
-                UpdateStructure(vProjectSyntaxTree)
-                
-                ' Verify state after load
-                Console.WriteLine($"LoadProjectStructure complete: {pVisibleNodes.Count} nodes visible")
+                Console.WriteLine($"LoadProjectStructure: Loaded {pVisibleNodes.Count} nodes from ProjectParser")
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectStructure error: {ex.Message}")

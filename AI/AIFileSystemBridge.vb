@@ -171,7 +171,7 @@ Namespace Utilities
                 If lProjectFiles.Length = 0 Then
                     ' No project file, list all VB files
                     Dim lAllFiles() As String = Directory.GetFiles(pProjectRoot, "*.vb", SearchOption.AllDirectories)
-                    For Each lFile In lAllFiles
+                    for each lFile in lAllFiles
                         lFiles.Add(GetRelativePath(lFile))
                     Next
                 Else
@@ -215,9 +215,9 @@ Namespace Utilities
             lDirs = lDirs.Where(Function(d) Not New DirectoryInfo(d).Attributes.HasFlag(FileAttributes.Hidden)).ToArray()
             
             ' Process directories
-            For i As Integer = 0 To lDirs.Length - 1
+            for i As Integer = 0 To lDirs.Length - 1
                 Dim lDirName As String = Path.GetFileName(lDirs(i))
-                If lDirName.StartsWith(".") Then Continue For
+                If lDirName.StartsWith(".") Then Continue for
                 
                 Dim lIsLastItem As Boolean = (i = lDirs.Length - 1) AndAlso lFiles.Length = 0
                 vBuilder.AppendLine($"{vIndent}{If(lIsLastItem, "└── ", "├── ")}{lDirName}/")
@@ -227,7 +227,7 @@ Namespace Utilities
             Next
             
             ' Process files
-            For i As Integer = 0 To lFiles.Length - 1
+            for i As Integer = 0 To lFiles.Length - 1
                 Dim lFileName As String = Path.GetFileName(lFiles(i))
                 Dim lIsLastItem As Boolean = (i = lFiles.Length - 1)
                 vBuilder.AppendLine($"{vIndent}{If(lIsLastItem, "└── ", "├── ")}{lFileName}")
@@ -236,17 +236,17 @@ Namespace Utilities
         
         Private Function CreateProjectFile(vProjectFile As String, vProjectName As String, vProjectType As String) As Boolean
             Try
-                Dim lContent As String = $"<project Sdk=""Microsoft.NET.Sdk"">
-  <PropertyGroup>
-    <OutputType>{If(vProjectType = "Console", "Exe", "WinExe")}</OutputType>
-    <RootNamespace>{vProjectName}</RootNamespace>
-    <TargetFramework>net8.0</TargetFramework>
-    <OptionExplicit>On</OptionExplicit>
-    <OptionCompare>Binary</OptionCompare>
-    <OptionStrict>On</OptionStrict>
-    <OptionInfer>On</OptionInfer>
-  </PropertyGroup>
-</project>"
+                Dim lContent As String = $"<project Sdk=""Microsoft.NET.Sdk"">" + Environment.NewLine
+                lContent += "  <PropertyGroup>" + Environment.NewLine
+                lContent += "      <OutputType>{If(vProjectType = ""Console"", ""Exe"", ""WinExe"")}</OutputType>" + Environment.NewLine
+                lContent += "      <RootNamespace>{vProjectName}</RootNamespace>" + Environment.NewLine
+                lContent += "      <TargetFramework>net8.0</TargetFramework>" + Environment.NewLine
+                lContent += "      <OptionExplicit>On</OptionExplicit>" + Environment.NewLine
+                lContent += "      <OptionCompare>Binary</OptionCompare>" + Environment.NewLine
+                lContent += "      <OptionStrict>On</OptionStrict>" + Environment.NewLine
+                lContent += "      <OptionInfer>On</OptionInfer>" + Environment.NewLine
+                lContent += "    </PropertyGroup>" + Environment.NewLine
+                lContent += "  </project>"
                 
                 File.WriteAllText(vProjectFile, lContent)
                 Return True
@@ -344,7 +344,7 @@ Imports System.Runtime.InteropServices
                 Return True
                 
             Catch ex As Exception
-                Console.WriteLine($"error adding file to project: {ex.Message}")
+                Console.WriteLine($"error adding file To project: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -356,7 +356,7 @@ Imports System.Runtime.InteropServices
         
         Private Function GetFullPath(vRelativePath As String) As String
             If String.IsNullOrEmpty(pProjectRoot) Then
-                Throw New Exception("No project root set")
+                Throw New Exception("No project root Set")
             End If
             
             Return Path.Combine(pProjectRoot, vRelativePath)

@@ -32,7 +32,7 @@ Namespace Widgets
         Private pCancelButton As Button
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
-        Private pCurrentTab as TabInfo
+        Private pCurrentTab As TabInfo
         
         ' Search state
         Private pProjectRoot As String
@@ -221,6 +221,7 @@ Namespace Widgets
             MyBase.New(Orientation.Vertical, 5)
             InitializeUI()
             ConnectEvents()
+            InitializeEscapeHandling() 
         End Sub
 
         ''' <summary>
@@ -254,7 +255,7 @@ Namespace Widgets
                 ' Results list with sortable columns
                 Dim lResultsScroll As New ScrolledWindow()
                 lResultsScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-                lResultsScroll.ShadowType = ShadowType.In
+                lResultsScroll.ShadowType = ShadowType.in
                 
                 ' Set a minimum height for the results scroll window
                 lResultsScroll.HeightRequest = 200
@@ -277,6 +278,37 @@ Namespace Widgets
                 Console.WriteLine($"Error initializing FindReplacePanel: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Initialize ESC key handling for FindReplacePanel
+        ''' </summary>
+        ''' <remarks>
+        ''' Call this in the constructor after creating all widgets
+        ''' </remarks>
+        Private Sub InitializeEscapeHandling()
+            Try
+                ' Connect ESC handler to search entry
+                If pFindEntry IsNot Nothing Then
+                    AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                End If
+                
+                ' Connect ESC handler to replace entry
+                If pReplaceEntry IsNot Nothing Then
+                    AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                End If
+                
+                ' Connect ESC handler to results tree view
+                If pResultsView IsNot Nothing Then
+                    AddHandler pResultsView.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                End If
+                
+                Console.WriteLine("FindReplacePanel: ESC handling initialized")
+                
+            Catch ex As Exception
+                Console.WriteLine($"InitializeEscapeHandling error: {ex.Message}")
+            End Try
+        End Sub
+
 
         Private Function CreateSearchControls() As Widget
             Dim lMainBox As New Box(Orientation.Vertical, 5)
@@ -433,16 +465,14 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Connects all event handlers for the FindReplacePanel controls
+        ''' Connects event handlers for the FindReplacePanel
         ''' </summary>
         Private Sub ConnectEvents()
             Try
-                ' Entry key press events
+                ' Entry events - Connect Activated for Enter key
+                AddHandler pFindEntry.Activated, AddressOf OnFindEntryActivated
                 AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
                 AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnReplaceEntryKeyPress
-                
-                ' ADDED: Entry Activated event (Enter key specific)
-                AddHandler pFindEntry.Activated, AddressOf OnFindEntryActivated
                 AddHandler pReplaceEntry.Activated, AddressOf OnReplaceEntryActivated
                 
                 ' Entry change events for live updates
@@ -458,7 +488,10 @@ Namespace Widgets
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefresh
                 AddHandler pCloseButton.Clicked, AddressOf OnClose
                 
-                ' Results selection
+                ' Results selection - FIXED: Add both single-click and double-click handling
+                ' Single-click selection
+                AddHandler pResultsView.CursorChanged, AddressOf OnResultsCursorChanged
+                ' Double-click or Enter activation
                 AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
                 
                 ' Radio button changes - ENABLE for auto-search on scope change
@@ -469,7 +502,8 @@ Namespace Widgets
                 AddHandler pCaseSensitiveCheck.Toggled, AddressOf OnOptionsChanged
                 AddHandler pWholeWordCheck.Toggled, AddressOf OnOptionsChanged
                 AddHandler pRegexCheck.Toggled, AddressOf OnOptionsChanged
-        
+                
+                ' Context menu and keyboard
                 AddHandler pResultsView.ButtonPressEvent, AddressOf OnResultsButtonPress
                 AddHandler pResultsView.KeyPressEvent, AddressOf OnResultsKeyPress
                 
@@ -570,9 +604,9 @@ Namespace Widgets
                 
                 ' Build FindResult list
                 pSearchResults.Clear()
-                For Each lMatch In pCurrentMatches
+                for each lMatch in pCurrentMatches
                     Dim lLineText As String = lTab.Editor.GetLineText(lMatch.Line)
-                    Dim lResult As New FindResult With {
+                    Dim lResult As New FindResult with {
                         .FilePath = lTab.FilePath,
                         .LineNumber = lMatch.Line + 1,  ' Convert to 1-based
                         .ColumnNumber = lMatch.Column + 1,
@@ -617,8 +651,8 @@ Namespace Widgets
                 Dim lTotalMatches As Integer = 0
                 Dim lFilesSearched As Integer = 0
                 
-                For Each lFile In lFiles
-                    If Not pIsSearching Then Exit For
+                for each lFile in lFiles
+                    If Not pIsSearching Then Exit for
                     
                     ' Update progress
                     pProgressBar.Fraction = CDbl(lFilesSearched) / CDbl(lFiles.Count)
@@ -663,12 +697,12 @@ Namespace Widgets
                 Dim lMatchCount As Integer = 0
                 
                 ' Search each line
-                For lLineIndex As Integer = 0 To lLines.Length - 1
+                for lLineIndex As Integer = 0 To lLines.Length - 1
                     Dim lLine As String = lLines(lLineIndex)
                     Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions)
                     
-                    For Each lColumn In lMatches
-                        Dim lResult As New FindResult With {
+                    for each lColumn in lMatches
+                        Dim lResult As New FindResult with {
                             .FilePath = vFilePath,
                             .LineNumber = lLineIndex + 1,
                             .ColumnNumber = lColumn + 1,
@@ -1106,6 +1140,82 @@ Namespace Widgets
                 Console.WriteLine($"FocusSearchEntryNoSelect error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Sets the search scope to either current file or entire project
+        ''' </summary>
+        ''' <param name="vScope">The search scope to set (eCurrentFile or eProject)</param>
+        Public Sub SetSearchScope(vScope As SearchScope)
+            Try
+                Select Case vScope
+                    Case SearchScope.eCurrentFile
+                        Console.WriteLine("SetSearchScope: Setting Scope To Current File")
+                        pInFileRadio.Active = True
+                        pInProjectRadio.Active = False
+                        
+                    Case SearchScope.eProject
+                        Console.WriteLine("SetSearchScope: Setting Scope To Entire Project")
+                        pInProjectRadio.Active = True
+                        pInFileRadio.Active = False
+                        
+                    Case Else
+                        Console.WriteLine($"SetSearchScope: Unsupported Scope {vScope}, defaulting To Current File")
+                        pInFileRadio.Active = True
+                        pInProjectRadio.Active = False
+                End Select
+                
+                ' The OnScopeChanged event handler will update the status label automatically
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetSearchScope error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles ESC key press for the FindReplacePanel
+        ''' </summary>
+        ''' <returns>True if handled internally, False to let parent handle it</returns>
+        Public Function HandleEscapeKey() As Boolean
+            Try
+                ' If search entry has focus and has selection, clear selection first
+                If pFindEntry IsNot Nothing AndAlso pFindEntry.HasFocus Then
+                    Dim lBounds As Integer() = {0, 0}
+                    If pFindEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
+                        ' Clear selection
+                        pFindEntry.SelectRegion(0, 0)
+                        Return True ' Handled internally
+                    End If
+                End If
+                
+                ' If replace entry has focus and has selection, clear selection first
+                If pReplaceEntry IsNot Nothing AndAlso pReplaceEntry.HasFocus Then
+                    Dim lBounds As Integer() = {0, 0}
+                    If pReplaceEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
+                        ' Clear selection
+                        pReplaceEntry.SelectRegion(0, 0)
+                        Return True ' Handled internally
+                    End If
+                End If
+                
+                ' If we have search results and TreeView has focus, could clear selection
+                If pResultsView IsNot Nothing AndAlso pResultsView.HasFocus Then
+                    Dim lSelection As TreeSelection = pResultsView.Selection
+                    If lSelection.CountSelectedRows() > 0 Then
+                        ' Could clear selection if desired
+                        ' lSelection.UnselectAll()
+                        ' Return True
+                    End If
+                End If
+                
+                ' Let parent handle the ESC to hide panel
+                Return False
+                
+            Catch ex As Exception
+                Console.WriteLine($"HandleEscapeKey error: {ex.Message}")
+                Return False
+            End Try
+        End Function
         
     End Class
+
 End Namespace

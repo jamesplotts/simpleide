@@ -4,6 +4,7 @@ Imports System
 Imports System.Collections.Generic
 Imports Gtk
 Imports SimpleIDE.Models
+Imports SimpleIDE.Syntax
 
 Namespace Widgets
     
@@ -74,6 +75,8 @@ Namespace Widgets
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
+        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.BuildVisualNodes
         ''' <summary>
         ''' Recursively builds visual nodes with proper alignment
         ''' </summary>
@@ -83,7 +86,7 @@ Namespace Widgets
         Private Sub BuildVisualNodes(vNode As ProjectNode, vDepth As Integer, ByRef vY As Integer)
             Try
                 If vNode Is Nothing Then 
-                    Console.WriteLine("BuildVisualNodes: Node is Nothing")
+                    Console.WriteLine("BuildVisualNodes: Node Is Nothing")
                     Return
                 End If
                 
@@ -139,7 +142,7 @@ Namespace Widgets
                 
                 ' Add to visible nodes
                 pVisibleNodes.Add(lVisualNode)
-                Console.WriteLine($"  Added to visible nodes (count={pVisibleNodes.Count})")
+                Console.WriteLine($"  Added To visible nodes (count={pVisibleNodes.Count})")
                 
                 ' Cache node
                 pNodeCache(lNodePath) = lVisualNode

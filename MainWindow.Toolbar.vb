@@ -193,6 +193,9 @@ Partial Public Class MainWindow
             pFindButton.TooltipText = "Find (Ctrl+F)"
             AddHandler pFindButton.Clicked, AddressOf OnShowFindPanel
             pToolbar.Insert(pFindButton, -1)
+
+            ' ADD NEW QUICK FIND FROM CLIPBOARD BUTTON HERE
+            CreateQuickFindFromClipboardButton()
             
             pToolbar.Insert(New SeparatorToolItem(), -1)
 
@@ -268,11 +271,11 @@ Partial Public Class MainWindow
             
             pStopButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-stop.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-Stop.png", lIconSize)
                 lImg.Show()
                 pStopButton.IconWidget = lImg
             Catch ex As Exception
-                pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
+                pStopButton.IconWidget = Image.NewFromIconName("media-playback-Stop", lIconSize)
             End Try            
             pStopButton.Label = "Stop"
             pStopButton.TooltipText = "Stop Debugging"
@@ -286,7 +289,7 @@ Partial Public Class MainWindow
                 lImg.Show()
                 pOutputPanelToggleButton.IconWidget = lImg
             Catch ex As Exception
-                pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
+                pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("media-playback-Stop", lIconSize)
             End Try            
             pOutputPanelToggleButton.Label = "Stop"
             pOutputPanelToggleButton.TooltipText = "Stop Debugging"
@@ -332,6 +335,8 @@ Partial Public Class MainWindow
             pToolbar.Insert(pHelpButton, -1)
 
             CreateScratchpadToolbarButton()
+
+            CreateDiagnosticToolbarButton()
 
             ' Force show all toolbar items
             For Each lItem As Widget In pToolbar.Children
@@ -718,11 +723,11 @@ Partial Public Class MainWindow
             
             If pStopButton IsNot Nothing AndAlso pStopButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-stop.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-Stop.png", vIconSize)
                     lImg.Show()
                     pStopButton.IconWidget = lImg
                 Catch ex As Exception
-                    pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", vIconSize)
+                    pStopButton.IconWidget = Image.NewFromIconName("media-playback-Stop", vIconSize)
                 End Try            
             End If
 
@@ -811,6 +816,73 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnToolbarSmallButtons error: {ex.Message}")
+        End Try
+    End Sub
+
+    ' Add: SimpleIDE.MainWindow.CreateDiagnosticToolbarButton
+    ' To: MainWindow.Toolbar.vb
+    
+    ''' <summary>
+    ''' Creates a diagnostic toolbar button for running merge diagnostics
+    ''' </summary>
+    Private Sub CreateDiagnosticToolbarButton()
+        Try
+            ' Add separator before diagnostic button
+            pToolbar.Insert(New SeparatorToolItem(), -1)
+            
+            ' Create diagnostic button with bug icon
+            Dim pDiagnosticButton As New ToolButton(Nothing, Nothing)
+            Dim lDiagIcon As New Image()
+            lDiagIcon.SetFromIconName("dialog-warning", pToolbar.IconSize)
+            lDiagIcon.Show()
+            pDiagnosticButton.IconWidget = lDiagIcon
+            pDiagnosticButton.Label = "Diagnostics"
+            pDiagnosticButton.TooltipText = "Run Merge Diagnostics (Debug Partial Class merging)"
+           ' AddHandler pDiagnosticButton.Clicked, AddressOf OnRunDiagnostics
+            pToolbar.Insert(pDiagnosticButton, -1)
+            
+            Console.WriteLine("Diagnostic toolbar button added successfully")
+            
+        Catch ex As Exception
+            Console.WriteLine($"CreateDiagnosticToolbarButton error: {ex.Message}")
+        End Try
+    End Sub
+    
+ 
+
+    ''' <summary>
+    ''' Creates a toolbar button for quick find using clipboard content
+    ''' </summary>
+    Private Sub CreateQuickFindFromClipboardButton()
+        Try
+            ' Add separator before quick find button
+            pToolbar.Insert(New SeparatorToolItem(), -1)
+            
+            ' Create quick find button with appropriate icon
+            Dim pQuickFindClipboardButton As New ToolButton(Nothing, Nothing)
+            
+            ' Try to use embedded icon first
+            Try
+                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.find-clipboard.png", pToolbar.IconSize)
+                lImg.Show()
+                pQuickFindClipboardButton.IconWidget = lImg
+            Catch ex As Exception
+                ' Fallback to system icons
+                Dim lIcon As New Image()
+                lIcon.SetFromIconName("edit-find-replace", pToolbar.IconSize)
+                lIcon.Show()
+                pQuickFindClipboardButton.IconWidget = lIcon
+            End Try
+            
+            pQuickFindClipboardButton.Label = "Find Clipboard"
+            pQuickFindClipboardButton.TooltipText = "Find text from clipboard (Opens Find panel, pastes clipboard text, executes Find All)"
+            AddHandler pQuickFindClipboardButton.Clicked, AddressOf OnQuickFindFromClipboard
+            pToolbar.Insert(pQuickFindClipboardButton, -1)
+            
+            Console.WriteLine("Quick Find from Clipboard button added successfully")
+            
+        Catch ex As Exception
+            Console.WriteLine($"CreateQuickFindFromClipboardButton error: {ex.Message}")
         End Try
     End Sub
 

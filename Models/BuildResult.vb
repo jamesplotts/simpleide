@@ -254,7 +254,7 @@ Namespace Models
                 Dim lInQuotes As Boolean = False
                 Dim lCurrentArg As New StringBuilder()
                 
-                For i As Integer = 0 To vArgs.Length - 1
+                for i As Integer = 0 To vArgs.Length - 1
                     Dim lChar As Char = vArgs(i)
                     
                     If lChar = """"c Then
@@ -323,5 +323,6 @@ Namespace Models
         Detailed
         Diagnostic
     End Enum
+
 End Namespace
 

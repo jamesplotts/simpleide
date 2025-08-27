@@ -7,6 +7,7 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Managers
 
 Namespace Editors
     
@@ -26,6 +27,9 @@ Namespace Editors
         ''' <summary>
         ''' Schedule parsing for the current or last edited line
         ''' </summary>
+        ''' <remarks>
+        ''' Now uses centralized ProjectManager.Parser instead of local parsing
+        ''' </remarks>
         Private Sub ScheduleParse()
             Try
                 ' CRITICAL FIX: Validate state before processing
@@ -34,15 +38,18 @@ Namespace Editors
                     Return
                 End If
                 
-                ' If we have a line that was being edited, process it
+                ' Process line formatting locally (doesn't require full parse)
                 If pLastEditedLine >= 0 AndAlso pLastEditedLine < pLineCount Then
                     ProcessLineFormatting(pLastEditedLine)
                 Else
                     ' Process all lines
-                    For i As Integer = 0 To pLineCount - 1
+                    for i As Integer = 0 To pLineCount - 1
                         ProcessLineFormatting(i)
                     Next
                 End If
+                
+                ' Request full document parse through ProjectManager
+                RequestParseFromProjectManager()
                 
             Catch ex As Exception
                 Console.WriteLine($"ScheduleParse error: {ex.Message}")
@@ -50,80 +57,71 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Schedule a full document parse with proper timer management
+        ''' Schedule a full document parse through ProjectManager
         ''' </summary>
+        ''' <remarks>
+        ''' Replaces timer-based parsing with centralized parse requests
+        ''' </remarks>
         Public Sub ScheduleFullDocumentParse()
             Try
-                ' CRITICAL FIX: Only try to remove timer if it's valid
-                ' Set to 0 immediately after removal to prevent double-removal
-                If pParseTimer <> 0 Then
-                    Dim lTimerId As UInteger = pParseTimer
-                    pParseTimer = 0  ' Clear BEFORE removing to prevent race conditions
-                    Try
-                        GLib.Source.Remove(lTimerId)
-                    Catch ex As Exception
-                        ' Timer may have already been removed - this is OK
-                        Console.WriteLine($"Timer {lTimerId} already removed (this is normal)")
-                    End Try
-                End If
+                ' REMOVED: Timer management - no longer needed with centralized parsing
+                ' The ProjectManager handles parse scheduling
                 
-                ' Schedule parse after a short delay
-                pParseTimer = GLib.Timeout.Add(500, AddressOf PerformFullDocumentParsing)
+                Console.WriteLine("ScheduleFullDocumentParse: Requesting parse from ProjectManager")
+                
+                ' Request parse through centralized system
+                RequestParseFromProjectManager()
                 
             Catch ex As Exception
                 Console.WriteLine($"ScheduleFullDocumentParse error: {ex.Message}")
-                pParseTimer = 0  ' Ensure it's cleared on error
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Perform full document parsing
-        ''' </summary>
-        ''' <returns>False to stop the timer</returns>
-        Private Function PerformFullDocumentParsing() As Boolean
-            Try
-                ' CRITICAL FIX: Clear timer ID immediately since we're returning False
-                ' This prevents any other code from trying to remove it
-                pParseTimer = 0
-                
-                ' Get all text
-                Dim lCode As String = GetAllText()
-                
-                ' Create a new VBParser instance
-                Dim lParser As New VBParser()
-                
-                ' Use the Parse method with proper parameters
-                Dim lParseResult As VBParser.ParseResult = lParser.Parse(lCode, "SimpleIDE", pFilePath)
-                
-                ' Update document nodes
-                If lParseResult IsNot Nothing Then
-                    If lParseResult.DocumentNodes IsNot Nothing Then
-                        pDocumentNodes = lParseResult.DocumentNodes
-                    End If
-                    
-                    If lParseResult.RootNodes IsNot Nothing Then
-                        pRootNodes = lParseResult.RootNodes
-                    End If
-                    
-                    If lParseResult.RootNode IsNot Nothing Then
-                        pRootNode = lParseResult.RootNode
-                    End If
-                End If
-                
-                ' Update line metadata
-                UpdateLineMetadataFromParseResult(lParseResult)
-                
-                ' Update identifier case map
-                UpdateIdentifierCaseMap()
-                
-                Return False ' Don't repeat - timer is automatically removed
-                
-            Catch ex As Exception
-                Console.WriteLine($"PerformFullDocumentParsing error: {ex.Message}")
-                ' Timer is already cleared at the top
-                Return False
-            End Try
-        End Function
+'        ''' <summary>
+'        ''' Perform full document parsing
+'        ''' </summary>
+'        ''' <returns>False to stop the timer</returns>
+'        Private Function PerformFullDocumentParsing() As Boolean
+'            Try
+'                
+'                ' Get all text
+'                Dim lCode As String = GetAllText()
+'                
+'                ' Create a new VBParser instance
+'                Dim lParser As New VBParser()
+'                
+'                ' Use the Parse method with proper parameters
+'                Dim lParseResult As VBParser.ParseResult = lParser.Parse(lCode, "SimpleIDE", pFilePath)
+'                
+'                ' Update document nodes
+'                If lParseResult IsNot Nothing Then
+'                    If lParseResult.DocumentNodes IsNot Nothing Then
+'                        pDocumentNodes = lParseResult.DocumentNodes
+'                    End If
+'                    
+'                    If lParseResult.RootNodes IsNot Nothing Then
+'                        pRootNodes = lParseResult.RootNodes
+'                    End If
+'                    
+'                    If lParseResult.RootNode IsNot Nothing Then
+'                        pRootNode = lParseResult.RootNode
+'                    End If
+'                End If
+'                
+'                ' Update line metadata
+'                UpdateLineMetadataFromParseResult(lParseResult)
+'                
+'                ' Update identifier case map
+'                UpdateIdentifierCaseMap()
+'                
+'                Return False ' Don't repeat - timer is automatically removed
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"PerformFullDocumentParsing error: {ex.Message}")
+'                ' Timer is already cleared at the top
+'                Return False
+'            End Try
+'        End Function
         
         ' ===== Helper to get all text =====
         Public Function GetAllText() As String
@@ -147,7 +145,7 @@ Namespace Editors
                 Static lCallCount As Integer = 0
                 lCallCount += 1
                 'If lCallCount <= 5 OrElse lCallCount Mod 100 = 0 Then
-                    Console.WriteLine($"ProcessLineFormatting #{lCallCount} for line {vLineIndex}")
+                   ' Console.WriteLine($"ProcessLineFormatting #{lCallCount} for line {vLineIndex}")
                     'Console.WriteLine($"  Stack: {Environment.StackTrace}")
                 'End If
                 ' CRITICAL FIX: Add null checks for pSourceFileInfo and TextLines
@@ -179,7 +177,7 @@ Namespace Editors
                     ReDim Preserve pLineMetadata(Math.Max(vLineIndex, pLineCount - 1))
                     
                     ' Initialize any new metadata entries
-                    For i As Integer = 0 To pLineMetadata.Length - 1
+                    for i As Integer = 0 To pLineMetadata.Length - 1
                         If pLineMetadata(i) Is Nothing Then
                             pLineMetadata(i) = New LineMetadata()
                         End If
@@ -265,7 +263,7 @@ Namespace Editors
                     ReDim Preserve pCharacterColors(Math.Max(0, pLineCount - 1))
                     
                     ' Initialize any null entries
-                    For i As Integer = 0 To pLineCount - 1
+                    for i As Integer = 0 To pLineCount - 1
                         If pLineMetadata(i) Is Nothing Then
                             pLineMetadata(i) = New LineMetadata()
                         End If
@@ -310,7 +308,7 @@ Namespace Editors
                 lResult.Append(lOriginalIndent)
                 
                 ' Process tokens
-                For i As Integer = 0 To lTokens.Count - 1
+                for i As Integer = 0 To lTokens.Count - 1
                     Dim lToken As LineToken = lTokens(i)
                     
                     Select Case lToken.Type
@@ -369,7 +367,7 @@ Namespace Editors
                     ' Count all quotes from the beginning of the file up to (but not including) this line
                     Dim lTotalQuoteCount As Integer = 0
                     
-                    For lineNum As Integer = 0 To vLineIndex - 1
+                    for lineNum As Integer = 0 To vLineIndex - 1
                         Dim lCheckLine As String = pTextLines(lineNum)
                         Dim lLineQuoteCount As Integer = 0
                         Dim j As Integer = 0
@@ -526,7 +524,7 @@ Namespace Editors
         Private Function IsInMultiLineString(vLineIndex As Integer) As Boolean
             Try
                 ' Scan backwards from the current line to find unclosed multi-line strings
-                For i As Integer = vLineIndex - 1 To Math.Max(0, vLineIndex - 50) Step -1
+                for i As Integer = vLineIndex - 1 To Math.Max(0, vLineIndex - 50) Step -1
                     Dim lLine As String = pTextLines(i)
                     
                     ' Check for $" that starts a multi-line string
@@ -555,7 +553,7 @@ Namespace Editors
                         If Not lClosed Then
                             ' This multi-line string is not closed, check if it extends to our line
                             ' Scan forward to see if it's closed before our line
-                            For j As Integer = i + 1 To vLineIndex - 1
+                            for j As Integer = i + 1 To vLineIndex - 1
                                 Dim lCheckLine As String = pTextLines(j)
                                 Dim lCheckPos As Integer = 0
                                 
@@ -697,11 +695,35 @@ Namespace Editors
         End Function
         
         ''' <summary>
-        ''' Update identifier case map (called by IdentifierCapitalizationManager)
+        ''' Update identifier case map from parsed nodes
         ''' </summary>
-        Public Sub UpdateIdentifierCaseMap(vName As String, vProperCase As String)
+        ''' <remarks>
+        ''' Now pulls identifier information from ProjectManager's unified map
+        ''' </remarks>
+        Public Sub UpdateIdentifierCaseMap()
             Try
-                pIdentifierCaseMap(vName) = vProperCase
+                ' Get MainWindow instance to access ProjectManager  
+                Dim lMainWindow As MainWindow = TryCast(Me.Toplevel, MainWindow)
+                If lMainWindow IsNot Nothing Then
+                    Dim lProjectManager As ProjectManager = ProjectManager
+                    If lProjectManager IsNot Nothing Then
+                        ' Get project-wide identifier map
+                        Dim lProjectMap As Dictionary(Of String, String) = lProjectManager.GetIdentifierCaseMap()
+                        
+                        ' Merge with local map
+                        for each lKvp in lProjectMap
+                            pIdentifierCaseMap(lKvp.Key) = lKvp.Value
+                        Next
+                        
+                        Console.WriteLine($"Updated identifier case map: {pIdentifierCaseMap.Count} identifiers")
+                    End If
+                End If
+                
+                ' Also collect identifiers from local parsed nodes
+                If pRootNode IsNot Nothing Then
+                    CollectIdentifiersFromNode(pRootNode)
+                End If
+                
             Catch ex As Exception
                 Console.WriteLine($"UpdateIdentifierCaseMap error: {ex.Message}")
             End Try
@@ -723,8 +745,10 @@ Namespace Editors
             End Try
         End Sub
         
-        ' Clear editing line (format it)
-        Public Sub ClearEditingLine()
+        ''' <summary>
+        ''' Clear editing line state
+        ''' </summary>
+        Private Sub ClearEditingLine()
             Try
                 If pEditingLine >= 0 AndAlso pEditingLine < pLineCount Then
                     ProcessLineFormatting(pEditingLine)
@@ -735,54 +759,32 @@ Namespace Editors
                 Console.WriteLine($"ClearEditingLine error: {ex.Message}")
             End Try
         End Sub
-
-        ' Helper to update line metadata from parse result
-        Private Sub UpdateLineMetadataFromParseResult(vParseResult As VBParser.ParseResult)
+        
+        ''' <summary>
+        ''' Updates line metadata after parsing completes
+        ''' </summary>
+        Private Sub UpdateLineMetadataFromParseResult()
             Try
-                If vParseResult Is Nothing Then Return
+                If pRootNode Is Nothing Then Return
                 
-                ' Update line metadata if available
-                If vParseResult.LineMetadata IsNot Nothing Then
-                    For i As Integer = 0 To Math.Min(vParseResult.LineMetadata.Length - 1, pLineMetadata.Length - 1)
-                        ' Copy relevant metadata
-                        If vParseResult.LineMetadata(i) IsNot Nothing Then
-                            ' Update syntax tokens if available
-                            If vParseResult.LineMetadata(i).SyntaxTokens IsNot Nothing Then
-                                pLineMetadata(i).SyntaxTokens = vParseResult.LineMetadata(i).SyntaxTokens
-                            End If
-                        End If
-                    Next
-                End If
+                ' Clear existing node references
+                for i As Integer = 0 To Math.Min(pLineCount - 1, pLineMetadata.Length - 1)
+                    pLineMetadata(i).NodeReferences.Clear()
+                Next
+                
+                ' Traverse syntax tree and update line metadata
+                UpdateLineMetadataFromNode(pRootNode)
+                
+                ' Mark lines as not changed since they've been parsed
+                for i As Integer = 0 To Math.Min(pLineCount - 1, pLineMetadata.Length - 1)
+                    pLineMetadata(i).IsChanged = False
+                Next
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateLineMetadataFromParseResult error: {ex.Message}")
             End Try
         End Sub
-        
-        ' Helper to update identifier case map from parsed nodes
-        Private Sub UpdateIdentifierCaseMap()
-            Try
-                pIdentifierCaseMap.Clear()
-                
-                ' Add all identifiers from parsed nodes
-                If pDocumentNodes IsNot Nothing Then
-                    For Each lKvp In pDocumentNodes
-                        Dim lNode As DocumentNode = lKvp.Value
-                        If Not String.IsNullOrEmpty(lNode.Name) Then
-                            pIdentifierCaseMap(lNode.Name) = lNode.Name
-                        End If
-                    Next
-                End If
-                
-                ' Also add from syntax tree if available
-                If pRootNode IsNot Nothing Then
-                    AddIdentifiersFromNode(pRootNode)
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateIdentifierCaseMap error: {ex.Message}")
-            End Try
-        End Sub
+
 
         Private Sub AddIdentifiersFromNode(vNode As SyntaxNode)
             Try
@@ -793,7 +795,7 @@ Namespace Editors
                 End If
                 
                 If vNode.Children IsNot Nothing Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         AddIdentifiersFromNode(lChild)
                     Next
                 End If
@@ -802,6 +804,91 @@ Namespace Editors
                 Console.WriteLine($"AddIdentifiersFromNode error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Request a parse from the centralized ProjectManager
+        ''' </summary>
+        Private Sub RequestParseFromProjectManager()
+            Try
+                ' Get MainWindow instance to access ProjectManager
+                Dim lMainWindow As MainWindow = TryCast(Me.Toplevel, MainWindow)
+                If lMainWindow Is Nothing Then
+                    Console.WriteLine("RequestParseFromProjectManager: MainWindow not found")
+                    Return
+                End If
+                
+                Dim lProjectManager As ProjectManager = ProjectManager
+                If lProjectManager Is Nothing Then
+                    Console.WriteLine("RequestParseFromProjectManager: ProjectManager not available")
+                    Return
+                End If
+                
+                ' Update SourceFileInfo with current content
+                If pSourceFileInfo IsNot Nothing Then
+                    pSourceFileInfo.Content = GetAllText()
+                    pSourceFileInfo.TextLines.Clear()
+                    for i As Integer = 0 To pLineCount - 1
+                        pSourceFileInfo.TextLines.Add(GetLineText(i))
+                    Next
+                    
+                    ' Request parse through ProjectManager
+                    Console.WriteLine($"Requesting parse for {pSourceFileInfo.FileName}")
+                    lProjectManager.ParseFile(pSourceFileInfo)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"RequestParseFromProjectManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Recursively collect identifiers from syntax nodes
+        ''' </summary>
+        Private Sub CollectIdentifiersFromNode(vNode As SyntaxNode)
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Add node name to identifier map if it's a declaration
+                If Not String.IsNullOrEmpty(vNode.Name) Then
+                    Select Case vNode.NodeType
+                        Case CodeNodeType.eClass, CodeNodeType.eModule, CodeNodeType.eStructure,
+                             CodeNodeType.eInterface, CodeNodeType.eEnum,
+                             CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eProperty,
+                             CodeNodeType.eField, CodeNodeType.eConstant, CodeNodeType.eEvent
+                            
+                            ' Store in case map (lowercase key -> proper case value)
+                            pIdentifierCaseMap(vNode.Name.ToLower()) = vNode.Name
+                    End Select
+                End If
+                
+                ' Process children
+                If vNode.Children IsNot Nothing Then
+                    for each lChild in vNode.Children
+                        CollectIdentifiersFromNode(lChild)
+                    Next
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"CollectIdentifiersFromNode error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Updates the identifier case map with a specific identifier
+        ''' </summary>
+        ''' <param name="vOldCase">The old casing of the identifier</param>
+        ''' <param name="vNewCase">The new casing of the identifier</param>
+        Public Sub UpdateIdentifierCaseMap(vOldCase As String, vNewCase As String)
+            Try
+                ' Update the dictionary
+                pIdentifierCaseMap(vOldCase) = vNewCase
+                
+                Console.WriteLine($"Updated identifier case: {vOldCase} -> {vNewCase}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateIdentifierCaseMap error: {ex.Message}")
+            End Try
+        End Sub  
         
     End Class
     

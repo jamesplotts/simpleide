@@ -13,6 +13,7 @@ Namespace Models
         ' Basic context (from IEditor interface)
         Public Property TriggerPosition As EditorPosition
         Public Property TriggerChar As Char
+        Public Property TriggerKind As CodeSenseTriggerKind
         Public Property CurrentWord As String
         Public Property LineText As String
         Public Property FileType As String
@@ -148,12 +149,17 @@ Namespace Models
         Public Property Kind As CompletionKind      ' What Kind of item this is
         Public Property Priority As Integer         ' Higher Priority items shown first
         Public Property InsertionPoint As EditorPosition ' Where to insert this item
-        
+        Public Property Icon As String = ""             ' Icon Identifier   
+     
         Public Sub New(vText As String, vKind As CompletionKind)
             Text = vText
             DisplayText = vText
             Kind = vKind
             Priority = 0
+        End Sub
+
+        Public Sub New()
+
         End Sub
         
         Public Sub New(vText As String, vDisplayText As String, vKind As CompletionKind, vDescription As String)

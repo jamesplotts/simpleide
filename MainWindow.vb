@@ -142,7 +142,13 @@ Partial Public Class MainWindow
             InitializeWithObjectExplorerIntegration()
             InitializeCapitalizationManager()
             InitializeCodeSense()
+            InitializeProjectManagerReferences()
 
+            ' Setup window state tracking
+            ' TODO: SetupWindowStateTracking()
+            
+            ' ADD THIS LINE: Setup window focus handling
+            ' TODO: SetupWindowFocusHandling()
             
             ' Show welcome tab on startup
             ShowWelcomeTab()
@@ -236,6 +242,7 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.TodoSelected, AddressOf OnTodoSelected
             AddHandler pBottomPanelManager.ErrorDoubleClicked, AddressOf OnBuildErrorDoubleClicked
             AddHandler pBottomPanelManager.SendErrorsToAI, AddressOf OnSendBuildErrorsToAI
+            AddHandler pBottomPanelManager.PanelClosed, AddressOf OnBottomPanelClosed
 
             
             
@@ -278,7 +285,7 @@ Partial Public Class MainWindow
             If Not String.IsNullOrEmpty(lThemeCss) Then
                 lCssProvider.LoadFromData(lThemeCss)
             Else
-                Console.WriteLine($"Warning: Theme CSS is empty for theme: {lTheme}")
+                Console.WriteLine($"Warning: Theme CSS Is empty for theme: {lTheme}")
             End If
             
             ' Apply to all screens
@@ -466,6 +473,114 @@ Partial Public Class MainWindow
         End Get
     End Property
 
- 
+    ''' <summary>
+    ''' Sets up window focus event handling to ensure editor gets focus
+    ''' </summary>
+    ''' <remarks>
+    ''' Ensures the editor receives focus when window is activated
+    ''' </remarks>
+    Private Sub SetupWindowFocusHandling()
+        Try
+            ' Connect window focus events
+            AddHandler Me.FocusInEvent, AddressOf OnWindowFocusIn
+            AddHandler Me.FocusOutEvent, AddressOf OnWindowFocusOut
+            
+            ' Also handle window activation (when clicking on title bar)
+            AddHandler Me.WindowStateEvent, AddressOf OnWindowStateEventForFocus
+            
+            Console.WriteLine("Window focus handling initialized")
+            
+        Catch ex As Exception
+            Console.WriteLine($"SetupWindowFocusHandling error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles window focus in event
+    ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Focus event arguments</param>
+    ''' <remarks>
+    ''' When window gains focus, ensure current editor also gets focus
+    ''' </remarks>
+    Private Sub OnWindowFocusIn(vSender As Object, vArgs As FocusInEventArgs)
+        Try
+            Console.WriteLine("Window gained focus")
+            
+            ' Schedule editor focus on idle to ensure window is fully activated
+            GLib.Idle.Add(Function()
+                ' Check if we should focus the editor
+                If ShouldFocusEditor() Then
+                    Dim lEditor As IEditor = GetCurrentEditor()
+                    If lEditor IsNot Nothing Then
+                        lEditor.GrabFocus()
+                        Console.WriteLine("Focus returned To editor On window activation")
+                    End If
+                End If
+                Return False ' Run once
+            End Function)
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowFocusIn error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles window focus out event
+    ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Focus event arguments</param>
+    ''' <remarks>
+    ''' Tracks when window loses focus for proper handling on return
+    ''' </remarks>
+    Private Sub OnWindowFocusOut(vSender As Object, vArgs As FocusOutEventArgs)
+        Try
+            Console.WriteLine("Window lost focus")
+            ' Could store state here if needed
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowFocusOut error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles window state changes for focus management
+    ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Window state event arguments</param>
+    ''' <remarks>
+    ''' Ensures editor gets focus when window becomes active/focused
+    ''' </remarks>
+    Private Sub OnWindowStateEventForFocus(vSender As Object, vArgs As WindowStateEventArgs)
+        Try
+            Dim lNewState As Gdk.WindowState = vArgs.Event.NewWindowState
+            Dim lChangedMask As Gdk.WindowState = vArgs.Event.ChangedMask
+            
+            ' Check if focused state changed
+            If (lChangedMask And Gdk.WindowState.Focused) = Gdk.WindowState.Focused Then
+                Dim lIsFocused As Boolean = (lNewState And Gdk.WindowState.Focused) = Gdk.WindowState.Focused
+                
+                If lIsFocused Then
+                    Console.WriteLine("Window became focused via state change")
+                    
+                    ' Schedule editor focus on idle
+                    GLib.Idle.Add(Function()
+                        If ShouldFocusEditor() Then
+                            Dim lEditor As IEditor = GetCurrentEditor()
+                            If lEditor IsNot Nothing Then
+                                lEditor.GrabFocus()
+                                Console.WriteLine("Focus returned To editor On window state change")
+                            End If
+                        End If
+                        Return False ' Run once
+                    End Function)
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowStateEventForFocus error: {ex.Message}")
+        End Try
+    End Sub
+
+    
     
 End Class

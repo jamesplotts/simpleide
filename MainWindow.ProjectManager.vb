@@ -67,11 +67,11 @@ Partial Public Class MainWindow
             ' Update all open editors with new identifier map
             Dim lIdentifierMap As Dictionary(Of String, String) = pProjectManager.GetIdentifierCaseMap()
             
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 Dim lEditor As CustomDrawingEditor = TryCast(lTabEntry.Value.Editor, CustomDrawingEditor)
                 If lEditor IsNot Nothing Then
                     ' Clear and reload identifier map
-                    For Each kvp In lIdentifierMap
+                    for each kvp in lIdentifierMap
                         lEditor.UpdateIdentifierCaseMap(kvp.key, kvp.Value)
                     Next
                 End If
@@ -86,7 +86,61 @@ Partial Public Class MainWindow
     
     ' ===== Project Structure Event Handlers =====
     
-
+    ''' <summary>
+    ''' Handles requests for ProjectManager reference from editors
+    ''' </summary>
+    ''' <param name="sender">The requesting object (usually an editor)</param>
+    ''' <param name="e">EventArgs containing the ProjectManager property to set</param>
+    Private Sub OnEditorProjectManagerRequested(sender As Object, e As ProjectManagerRequestEventArgs)
+        Try
+            ' Provide the ProjectManager reference
+            If pProjectManager IsNot Nothing Then
+                e.ProjectManager = pProjectManager
+                Console.WriteLine($"MainWindow provided ProjectManager to {sender.GetType().Name}")
+            Else
+                Console.WriteLine("MainWindow: ProjectManager not available for request")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnEditorProjectManagerRequested error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Wire up ProjectManager request event when creating a new editor
+    ''' </summary>
+    ''' <param name="vEditor">The editor to wire up</param>
+    Private Sub WireUpEditorProjectManagerRequest(vEditor As CustomDrawingEditor)
+        Try
+            If vEditor Is Nothing Then Return
+            
+            ' Subscribe to the ProjectManagerRequested event
+            AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            
+            Console.WriteLine("Wired up ProjectManagerRequested event for editor")
+            
+        Catch ex As Exception
+            Console.WriteLine($"WireUpEditorProjectManagerRequest error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Unwire ProjectManager request event when closing an editor
+    ''' </summary>
+    ''' <param name="vEditor">The editor to unwire</param>
+    Private Sub UnwireEditorProjectManagerRequest(vEditor As CustomDrawingEditor)
+        Try
+            If vEditor Is Nothing Then Return
+            
+            ' Unsubscribe from the ProjectManagerRequested event
+            RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            
+            Console.WriteLine("Unwired ProjectManagerRequested event for editor")
+            
+        Catch ex As Exception
+            Console.WriteLine($"UnwireEditorProjectManagerRequest error: {ex.Message}")
+        End Try
+    End Sub
 
 
     
@@ -96,7 +150,7 @@ Partial Public Class MainWindow
     Private Sub OnProjectFileParsed(vFileInfo As SourceFileInfo)
         Try
             ' Check if this file is currently open in an editor
-            For Each lTab In pOpenTabs
+            for each lTab in pOpenTabs
                 If lTab.Value.FilePath = vFileInfo.FilePath Then
                     ' Update the editor's syntax tree
                     If TypeOf lTab.Value.Editor Is CustomDrawingEditor Then
@@ -104,7 +158,7 @@ Partial Public Class MainWindow
                         ' This maintains consistency between project view and editor view
                         Console.WriteLine($"File parsed: {vFileInfo.FileName} (open in Editor)")
                     End If
-                    Exit For
+                    Exit for
                 End If
             Next
             
@@ -142,7 +196,7 @@ Partial Public Class MainWindow
             Dim lCount As Integer = 1 ' Count this Node
             
             ' Count all children recursively
-            For Each lChild In vNode.Children
+            for each lChild in vNode.Children
                 lCount += CountTotalNodes(lChild)
             Next
             
@@ -210,7 +264,7 @@ Partial Public Class MainWindow
                 pProjectExplorer.LoadProjectFromManager
 
 ' After loading the project structure, call:
-pObjectExplorer.ForceRefreshWithDebug()
+'pObjectExplorer.ForceRefreshWithDebug()
 
 
                 ' After opening a file and creating a tab
@@ -230,7 +284,7 @@ pObjectExplorer.ForceRefreshWithDebug()
                 ' Raise event
                 RaiseEvent ProjectChanged(vProjectFile)
             Else
-                ShowError("Load project error", "Failed to load the project file.")
+                ShowError("Load project error", "Failed To load the project file.")
             End If
             
         Catch ex As Exception
@@ -299,7 +353,7 @@ pObjectExplorer.ForceRefreshWithDebug()
                 Dim lIcon As Gdk.Pixbuf = New Gdk.Pixbuf(GetType(MainWindow).Assembly, lIconPath)
                 Icon = lIcon
             Catch ex As Exception
-                Console.WriteLine($"Failed to load Icon: {ex.Message}")
+                Console.WriteLine($"Failed To load Icon: {ex.Message}")
             End Try
             
             ' Connect event handlers
@@ -350,7 +404,7 @@ pObjectExplorer.ForceRefreshWithDebug()
             OpenFile(vFilePath)
         Catch ex As Exception
             Console.WriteLine($"OnProjectFileSelected error: {ex.Message}")
-            ShowError("Failed to open file", ex.Message)
+            ShowError("Failed To open file", ex.Message)
         End Try
     End Sub
     
@@ -359,7 +413,7 @@ pObjectExplorer.ForceRefreshWithDebug()
             LoadProjectEnhanced(vProjectPath)
         Catch ex As Exception
             Console.WriteLine($"OnProjectFileDoubleClicked error: {ex.Message}")
-            ShowError("Failed to load project", ex.Message)
+            ShowError("Failed To load project", ex.Message)
         End Try
     End Sub
     
@@ -385,7 +439,7 @@ pObjectExplorer.ForceRefreshWithDebug()
             Console.WriteLine($"Set pCurrentProject = {pCurrentProject}")
             
             ' Show progress dialog or status
-            UpdateStatusBar("Loading project structure...")
+            UpdateStatusBar("Loading project Structure...")
             
             ' Hook up ProjectManager events
             RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
@@ -421,13 +475,13 @@ pObjectExplorer.ForceRefreshWithDebug()
             Else
                 ' Reset if loading failed
                 pCurrentProject = ""
-                ShowError("Project Load Failed", $"Failed to load project: {vProjectPath}")
+                ShowError("Project Load Failed", $"Failed To load project: {vProjectPath}")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"LoadProjectEnhanced error: {ex.Message}")
             pCurrentProject = "" ' Reset on error
-            ShowError("Project Load Error", ex.Message)
+            ShowError("Project Load error", ex.Message)
         End Try
     End Sub
     
@@ -508,7 +562,7 @@ pObjectExplorer.ForceRefreshWithDebug()
                     Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
                     If lProjectTree IsNot Nothing Then
                         pObjectExplorer?.UpdateStructure(lProjectTree)
-                        Console.WriteLine("Object Explorer maintained with full project structure after file open")
+                        Console.WriteLine("Object Explorer maintained with full project Structure after file open")
                     End If
                 ElseIf lSourceFileInfo.SyntaxTree IsNot Nothing Then
                     ' Only update with single file if no project is open
@@ -602,16 +656,16 @@ pObjectExplorer.ForceRefreshWithDebug()
     Private Sub RefreshProjectStructure()
         Try
             If Not pProjectManager.IsProjectOpen Then
-                ShowInfo("", "No project is currently open")
+                ShowInfo("", "No project Is currently open")
                 Return
             End If
             
-            UpdateStatusBar("Refreshing project structure...")
+            UpdateStatusBar("Refreshing project Structure...")
             
             ' Refresh all files in the project
             pProjectManager.RefreshProjectStructure()
             
-            UpdateStatusBar("project structure refreshed")
+            UpdateStatusBar("project Structure refreshed")
             
         Catch ex As Exception
             Console.WriteLine($"RefreshProjectStructure error: {ex.Message}")
@@ -663,7 +717,7 @@ pObjectExplorer.ForceRefreshWithDebug()
         Try
             ' Ensure Object Explorer is ready
             If pObjectExplorer Is Nothing Then
-                Console.WriteLine("Warning: Object Explorer not initialized for project integration")
+                Console.WriteLine("Warning: Object Explorer Not initialized for project integration")
                 Return
             End If
             
@@ -698,7 +752,7 @@ pObjectExplorer.ForceRefreshWithDebug()
             Dim lTreeViewStatus As String = pObjectExplorer.GetTreeViewStatus()
             
             ' Only output if there's a problem
-            If lTreeViewStatus.Contains("NO ITEMS") OrElse lTreeViewStatus.Contains("not visible") Then
+            If lTreeViewStatus.Contains("NO ITEMS") OrElse lTreeViewStatus.Contains("Not visible") Then
                 Console.WriteLine("=== TreeView Issue Detected ===")
                 Console.WriteLine(lTreeViewStatus)
                 
@@ -722,7 +776,7 @@ pObjectExplorer.ForceRefreshWithDebug()
     Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
         Try
             Console.WriteLine($"=== OnProjectStructureLoaded START ===")
-            Console.WriteLine($"Project structure loaded with root: {vRootNode?.Name} ({vRootNode?.NodeType})")
+            Console.WriteLine($"Project Structure loaded with root: {vRootNode?.Name} ({vRootNode?.NodeType})")
             Console.WriteLine($"Root has {vRootNode?.Children.Count} children")
             
             ' Update Object Explorer with complete project structure
@@ -733,7 +787,7 @@ pObjectExplorer.ForceRefreshWithDebug()
                 If vRootNode?.NodeType = CodeNodeType.eNamespace Then
                     ' Get the expanded nodes set from the Object Explorer
                     ' and add the root namespace to auto-expand it
-                    Console.WriteLine($"Auto-expanding root namespace: {vRootNode.Name}")
+                    Console.WriteLine($"Auto-expanding root Namespace: {vRootNode.Name}")
                 End If
                 
                 ' Load the project structure
@@ -744,7 +798,7 @@ pObjectExplorer.ForceRefreshWithDebug()
                     ' Use the debug method to get detailed output
                     If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
                         Dim lCustomExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                        lCustomExplorer.ForceRefreshWithDebug()
+                        lCustomExplorer.RebuildVisualTree()
                     End If
                     
                     ' Switch to Object Explorer tab
@@ -753,10 +807,10 @@ pObjectExplorer.ForceRefreshWithDebug()
                 
                 Console.WriteLine("Object Explorer update completed")
             Else
-                Console.WriteLine("WARNING: pObjectExplorer is Nothing!")
+                Console.WriteLine("WARNING: pObjectExplorer Is Nothing!")
             End If
             
-            Console.WriteLine($"=== OnProjectStructureLoaded END ===")
+            Console.WriteLine($"=== OnProjectStructureLoaded End ===")
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
@@ -802,12 +856,128 @@ pObjectExplorer.ForceRefreshWithDebug()
                 RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
                 AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
 
-                Console.WriteLine("ProjectStructureLoaded event handler connected")
+                Console.WriteLine("ProjectStructureLoaded Event handler connected")
             End If
-            AddHandler pObjectExplorer.NodeActivated, AddressOf OnObjectExplorerNodeActivated
 
         Catch ex As Exception
             Console.WriteLine($"CompleteObjectExplorerSetup error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Verifies the project structure after loading to ensure proper namespace merging
+    ''' </summary>
+    Private Sub VerifyProjectStructure()
+        Try
+            Console.WriteLine("=== VERIFYING PROJECT Structure ===")
+            
+            ' Run verification on ProjectManager
+            If pProjectManager IsNot Nothing Then
+                Dim lIsValid As Boolean = pProjectManager.VerifyNamespaceMerge()
+                
+                If Not lIsValid Then
+                    Console.WriteLine("Project Structure has duplicates - attempting rebuild...")
+                    pProjectManager.RebuildProjectTree()
+                    
+                    ' Verify again after rebuild
+                    lIsValid = pProjectManager.VerifyNamespaceMerge()
+                    If lIsValid Then
+                        Console.WriteLine("Rebuild successful - Structure Is now valid")
+                        
+                        ' Refresh Object Explorer
+                        If pObjectExplorer IsNot Nothing Then
+                            pObjectExplorer.LoadProjectStructure(pProjectManager.GetProjectSyntaxTree())
+                        End If
+                    Else
+                        Console.WriteLine("Rebuild failed - duplicates still present")
+                    End If
+                Else
+                    Console.WriteLine("Project Structure Is valid - no duplicates found")
+                End If
+            End If
+            
+            Console.WriteLine("=== End VERIFICATION ===")
+            
+        Catch ex As Exception
+            Console.WriteLine($"VerifyProjectStructure error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Add this call to the project loaded event handler
+    ''' </summary>
+    Private Sub OnProjectLoadedWithVerification(vProjectInfo As ProjectInfo)
+        Try
+            ' Existing project loaded logic...
+            
+            ' Add verification after project is fully loaded
+            Application.Invoke(Sub()
+                System.Threading.Thread.Sleep(500) ' Small delay to ensure everything is loaded
+                VerifyProjectStructure()
+            End Sub)
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectLoadedWithVerification error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Initialize reference management events from ProjectManager
+    ''' </summary>
+    Private Sub InitializeProjectManagerReferences()
+        Try
+            If pProjectManager Is Nothing Then Return
+            
+            ' Wire up reference-related events
+            AddHandler pProjectManager.ReferencesChanged, AddressOf OnProjectManagerReferencesChanged
+            AddHandler pProjectManager.ReferenceAdded, AddressOf OnProjectManagerReferenceAdded
+            AddHandler pProjectManager.ReferenceRemoved, AddressOf OnProjectManagerReferenceRemoved
+            
+            Console.WriteLine("ProjectManager reference events initialized")
+            
+        Catch ex As Exception
+            Console.WriteLine($"InitializeProjectManagerReferences error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handle references changed from ProjectManager
+    ''' </summary>
+    Private Sub OnProjectManagerReferencesChanged(vReferences As List(Of ReferenceManager.ReferenceInfo))
+        Try
+            Console.WriteLine($"Project references changed: {vReferences.Count} references")
+            
+            ' Update UI if needed
+            ' Could refresh project explorer or other UI elements here
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerReferencesChanged error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handle reference added from ProjectManager
+    ''' </summary>
+    Private Sub OnProjectManagerReferenceAdded(vReference As ReferenceManager.ReferenceInfo)
+        Try
+            Console.WriteLine($"Reference added: {vReference.Name} ({vReference.Type})")
+            UpdateStatusBar($"Added reference: {vReference.Name}")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerReferenceAdded error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handle reference removed from ProjectManager
+    ''' </summary>
+    Private Sub OnProjectManagerReferenceRemoved(vReferenceName As String, vReferenceType As ReferenceManager.ReferenceType)
+        Try
+            Console.WriteLine($"Reference removed: {vReferenceName} ({vReferenceType})")
+            UpdateStatusBar($"Removed reference: {vReferenceName}")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerReferenceRemoved error: {ex.Message}")
         End Try
     End Sub
     

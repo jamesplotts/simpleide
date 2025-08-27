@@ -1,5 +1,6 @@
 ' MainWindow.Debug.vb - Build system integration for MainWindow
 Imports Gtk
+Imports Gdk
 Imports System
 Imports System.IO
 Imports System.Threading.Tasks
@@ -40,6 +41,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateDebugButtonStates error: {ex.Message}")
         End Try
     End Sub
+
     
 End Class
 

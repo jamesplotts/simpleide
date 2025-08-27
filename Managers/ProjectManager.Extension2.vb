@@ -243,13 +243,11 @@ Namespace Managers
                     lModel.LoadFromFile(vFilePath)
                 End If
                 
-                ' Parse the document
-                lModel.ParseDocument()
+                ' Wire up all events including RequestProjectManager
+                WireDocumentModelEvents(lModel)
                 
-                ' Wire up events
-                AddHandler lModel.DocumentParsed, AddressOf OnDocumentParsed
-                AddHandler lModel.StructureChanged, AddressOf OnDocumentStructureChanged
-                AddHandler lModel.ModifiedStateChanged, AddressOf OnDocumentModifiedStateChanged
+                ' Parse the document - it will use the ProjectManager via event
+                lModel.ParseDocument()
                 
                 Return lModel
                 

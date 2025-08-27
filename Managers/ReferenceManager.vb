@@ -319,7 +319,7 @@ Namespace Managers
                 ' Check if target exists
                 If Not File.Exists(vTargetProject) Then
                     lResult.IsValid = False
-                    lResult.ErrorMessage = "Target project file does not exist"
+                    lResult.ErrorMessage = "Target project file does Not exist"
                     Return lResult
                 End If
                 
@@ -431,25 +431,40 @@ Namespace Managers
             End Select
         End Function
         
-        Private Sub SaveProjectFile(vDoc As XmlDocument, vProjectFile As String)
-            ' Create backup
-            Dim lBackupFile As String = vProjectFile & ".bak"
-            If File.Exists(vProjectFile) Then
-                File.Copy(vProjectFile, lBackupFile, True)
-            End If
-            
-            ' Save with formatting
-            Dim lSettings As New XmlWriterSettings()
-            lSettings.Indent = True
-            lSettings.IndentChars = "  "
-            lSettings.NewLineChars = Environment.NewLine
-            lSettings.NewLineHandling = NewLineHandling.None
-            lSettings.OmitXmlDeclaration = False
-            lSettings.Encoding = New System.Text.UTF8Encoding(False)
-            
-            Using lWriter As XmlWriter = XmlWriter.Create(vProjectFile, lSettings)
-                vDoc.Save(lWriter)
-            End Using
+        ''' <summary>
+        ''' Save project file with proper XML formatting
+        ''' </summary>
+        ''' <param name="vDoc">XML document to save</param>
+        ''' <param name="vProjectPath">Path to save the project file to</param>
+        ''' <remarks>
+        ''' Uses the provided project path as the destination file
+        ''' </remarks>
+        Private Sub SaveProjectFile(vDoc As XmlDocument, vProjectPath As String)
+            Try
+                If String.IsNullOrEmpty(vProjectPath) Then
+                    Throw New InvalidOperationException("Project Path Is Not provided")
+                End If
+                
+                ' Create XmlWriterSettings for proper formatting
+                Dim lSettings As New XmlWriterSettings()
+                lSettings.Indent = True
+                lSettings.IndentChars = "  "
+                lSettings.NewLineChars = Environment.NewLine
+                lSettings.NewLineHandling = NewLineHandling.Replace
+                lSettings.OmitXmlDeclaration = False
+                lSettings.Encoding = New System.Text.UTF8Encoding(False) ' UTF-8 without BOM
+                
+                ' Save with XmlWriter for proper formatting
+                Using lWriter As XmlWriter = XmlWriter.Create(vProjectPath, lSettings)
+                    vDoc.Save(lWriter)
+                End Using
+                
+                Console.WriteLine($"ReferenceManager saved project file: {vProjectPath}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ReferenceManager.SaveProjectFile error: {ex.Message}")
+                Throw ' Re-throw to let caller handle
+            End Try
         End Sub
         
         Private Function GetRelativePath(vFromPath As String, vToPath As String) As String

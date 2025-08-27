@@ -31,7 +31,7 @@ Namespace Widgets
                 Dim lAddedNames As New HashSet(Of String)
                 
                 ' Add children from primary node
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     lMergedChildren.Add(lChild)
                     lAddedNames.Add(lChild.Name)
                 Next
@@ -62,7 +62,7 @@ Namespace Widgets
                 Dim lY As Integer = 0
                 Dim lMaxWidth As Integer = 0
                 
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     ' Calculate X based on level
                     lNode.X = lNode.Level * pIndentWidth
                     lNode.Y = lY
@@ -198,7 +198,7 @@ Namespace Widgets
                     pExpandedNodes.Add(lPath)
                 End If
                 
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     If ShouldDisplayNode(lChild) Then
                         AddNodesToExpanded(lChild, lPath)
                     End If
@@ -278,7 +278,7 @@ Namespace Widgets
                 ' Group nodes by level and parent
                 Dim lNodeGroups As New Dictionary(Of String, List(Of VisualNode))
                 
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     Dim lKey As String = If(lNode.Parent?.NodePath, "root")
                     If Not lNodeGroups.ContainsKey(lKey) Then
                         lNodeGroups(lKey) = New List(Of VisualNode)
@@ -287,7 +287,7 @@ Namespace Widgets
                 Next
                 
                 ' Sort each group
-                For Each lGroup In lNodeGroups
+                for each lGroup in lNodeGroups
                     lGroup.Value.Sort(Function(a, b) String.Compare(a.Node.Name, b.Node.Name, StringComparison.OrdinalIgnoreCase))
                 Next
                 
@@ -395,7 +395,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             Try
                 If Not vGroups.ContainsKey(vKey) Then Return
                 
-                For Each lNode In vGroups(vKey)
+                for each lNode in vGroups(vKey)
                     pVisibleNodes.Add(lNode)
                     
                     If lNode.IsExpanded AndAlso lNode.HasChildren Then
@@ -417,7 +417,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             Try
                 If vSyntaxNode Is Nothing Then Return Nothing
                 
-                For Each lVisualNode In pVisibleNodes
+                for each lVisualNode in pVisibleNodes
                     If lVisualNode.Node Is vSyntaxNode Then
                         Return lVisualNode
                     End If
@@ -509,7 +509,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' <summary>
         ''' Simplified RebuildVisualTree that doesn't swap list instances
         ''' </summary>
-        Private Sub RebuildVisualTree()
+        Public Sub RebuildVisualTree()
             Try
                 Console.WriteLine($"RebuildVisualTree: Starting rebuild, current count = {pVisibleNodes.Count}")
                 
@@ -532,7 +532,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
                 ' Auto-expand namespace children if root is a document
                 If pRootNode.NodeType = CodeNodeType.eDocument Then
-                    For Each lChild In pRootNode.Children
+                    for each lChild in pRootNode.Children
                         If lChild.NodeType = CodeNodeType.eNamespace Then
                             If Not pExpandedNodes.Contains(lChild.Name) Then
                                 pExpandedNodes.Add(lChild.Name)
@@ -587,8 +587,10 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             End If
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
         ''' <summary>
-        ''' Builds visual nodes recursively from syntax nodes with improved handling
+        ''' Builds visual nodes recursively from syntax nodes with alphabetical sorting
         ''' </summary>
         ''' <param name="vNode">The syntax node to process</param>
         ''' <param name="vParent">The parent visual node</param>
@@ -599,55 +601,60 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 If vNode Is Nothing Then Return
                 
                 ' FIXED: Special handling for root document nodes
-                ' If this is the root and it's a document node, skip it but process children
                 If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
-                    Console.WriteLine($"Root is eDocument type with {vNode.Children.Count} children - processing children directly")
-                    For Each lChild In vNode.Children
-                        BuildVisualNodes(lChild, vParent, vLevel, vParentPath)
+                    Console.WriteLine($"Root is eDocument type with {vNode.Children.Count} children")
+                    
+                    ' Sort children alphabetically before processing
+                    Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
+                        Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
+                    
+                    for each lChild in lSortedChildren
+                        BuildVisualNodes(lChild, Nothing, 0, "")
                     Next
                     Return
                 End If
                 
-                ' Check if node should be displayed
-                If Not ShouldDisplayNode(vNode) Then
-                    Return
-                End If
+                ' Skip display based on settings
+                If Not ShouldDisplayNode(vNode) Then Return
                 
                 ' Create visual node
-                Dim lVisualNode As New VisualNode() With {
-                    .Node = vNode,
-                    .Level = vLevel,
-                    .Parent = vParent,
-                    .NodePath = If(String.IsNullOrEmpty(vParentPath), vNode.Name, $"{vParentPath}/{vNode.Name}"),
-                    .IsVisible = True
-                }
+                Dim lVisualNode As New VisualNode()
+                lVisualNode.Node = vNode
+                lVisualNode.Parent = vParent
+                lVisualNode.Level = vLevel
+                lVisualNode.NodePath = If(String.IsNullOrEmpty(vParentPath), 
+                                          vNode.Name,
+                                          vParentPath & "." & vNode.Name)
                 
-                ' Check if has displayable children
-                lVisualNode.HasChildren = HasDisplayableChildren(vNode)
+                ' Add to visible list
+                pVisibleNodes.Add(lVisualNode)
                 
-                ' Check if expanded
-                lVisualNode.IsExpanded = pExpandedNodes.Contains(lVisualNode.NodePath)
-                
-                ' Add to visible list (pVisibleNodes should never be Nothing here)
-                If pVisibleNodes IsNot Nothing Then
-                    pVisibleNodes.Add(lVisualNode)
-                Else
-                    Console.WriteLine("ERROR: pVisibleNodes is Nothing in BuildVisualNodes!")
+                ' Cache the node
+                If Not String.IsNullOrEmpty(lVisualNode.NodePath) Then
+                    pNodeCache(lVisualNode.NodePath) = lVisualNode
                 End If
                 
-                ' Cache for quick lookup
-                pNodeCache(lVisualNode.NodePath) = lVisualNode
-                
-                ' Add to parent's children
-                If vParent IsNot Nothing Then
-                    vParent.Children.Add(lVisualNode)
-                End If
-                
-                ' Process children if expanded
-                If lVisualNode.IsExpanded AndAlso lVisualNode.HasChildren Then
-                    For Each lChild In vNode.Children
-                        BuildVisualNodes(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath)
-                    Next
+                ' Process children if expanded or special cases
+                If vNode.Children.Count > 0 Then
+                    Dim lShouldShowChildren As Boolean = False
+                    
+                    ' Always show document and root namespace children
+                    If vNode.NodeType = CodeNodeType.eDocument OrElse
+                       (vNode.NodeType = CodeNodeType.eNamespace AndAlso vLevel = 0) Then
+                        lShouldShowChildren = True
+                    ElseIf pExpandedNodes.Contains(lVisualNode.NodePath) Then
+                        lShouldShowChildren = True
+                    End If
+                    
+                    If lShouldShowChildren Then
+                        ' Sort children alphabetically by name (case-insensitive)
+                        Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
+                            Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
+                        
+                        for each lChild in lSortedChildren
+                            BuildVisualNodes(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath)
+                        Next
+                    End If
                 End If
                 
             Catch ex As Exception
@@ -665,7 +672,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 If vNode Is Nothing OrElse vNode.Children.Count = 0 Then Return False
                 
                 ' Check if any child should be displayed
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     If ShouldDisplayNode(lChild) Then Return True
                     ' Recursively check children of non-displayed nodes
                     If HasDisplayableChildren(lChild) Then Return True
@@ -753,6 +760,83 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
             Catch ex As Exception
                 Console.WriteLine($"Initialize error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handle parse completion from centralized ProjectManager.Parser
+        ''' </summary>
+        ''' <param name="vFile">The file that was parsed</param>
+        ''' <param name="vResult">The parse result as SyntaxNode</param>
+        ''' <remarks>
+        ''' This handler receives parse results from ProjectManager's centralized
+        ''' ProjectParser instead of performing local parsing
+        ''' </remarks>
+        Private Sub OnProjectParseCompleted(vFile As SourceFileInfo, vResult As SyntaxNode)
+            Try
+                ' For single file updates, we might want to update just that file's node
+                ' For now, if we get a full project tree, update the whole structure
+                If vResult IsNot Nothing AndAlso vResult.NodeType = CodeNodeType.eProject Then
+                    Console.WriteLine($"ObjectExplorer received project parse from ProjectParser")
+                    UpdateStructure(vResult)
+                ElseIf vFile IsNot Nothing Then
+                    ' Single file update - could update just that file's nodes
+                    Console.WriteLine($"ObjectExplorer received file parse for {vFile.FileName}")
+                    ' For now, request full project structure update
+                    If pProjectManager IsNot Nothing Then
+                        Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                        If lProjectTree IsNot Nothing Then
+                            UpdateStructure(lProjectTree)
+                        End If
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectParseCompleted error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handle project structure load from ProjectManager
+        ''' </summary>
+        ''' <param name="vProjectPath">Path to the loaded project</param>
+        ''' <param name="vRootNode">Root node of the project structure from ProjectParser</param>
+        Private Sub OnProjectStructureLoaded(vProjectPath As String, vRootNode As SyntaxNode)
+            Try
+                Console.WriteLine($"ObjectExplorer received project structure from ProjectParser: {vProjectPath}")
+                
+                If vRootNode IsNot Nothing Then
+                    ' Update the display with the ProjectParser's structure
+                    UpdateStructure(vRootNode)
+                Else
+                    Console.WriteLine("ObjectExplorer: No root node in project structure")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handle project structure load from ProjectManager
+        ''' </summary>
+        ''' <param name="vRootNode">Root node of the project structure from ProjectParser</param>
+        ''' <remarks>
+        ''' The signature matches ProjectManager.ProjectStructureLoaded event which only takes SyntaxNode
+        ''' </remarks>
+        Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
+            Try
+                Console.WriteLine($"ObjectExplorer received project structure from ProjectParser")
+                
+                If vRootNode IsNot Nothing Then
+                    ' Update the display with the ProjectParser's structure
+                    UpdateStructure(vRootNode)
+                Else
+                    Console.WriteLine("ObjectExplorer: No root node in project structure")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
             End Try
         End Sub
         

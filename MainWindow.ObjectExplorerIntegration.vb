@@ -80,7 +80,7 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    Private Sub OnGetThemeManager(vGTMEA as CustomDrawObjectExplorer.GetThemeManagerEventArgs)
+    Private Sub OnGetThemeManager(vGTMEA As CustomDrawObjectExplorer.GetThemeManagerEventArgs)
         vGTMEA.ThemeManager = pThemeManager
     End Sub
     
@@ -313,68 +313,8 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Handle node activation in Object Explorer (double-click)
-    ''' </summary>
-    Private Sub OnObjectExplorerNodeActivated(vNode As SyntaxNode)
-        Try
-            If vNode Is Nothing Then Return
-            
-            Console.WriteLine($"Object Explorer node activated: {vNode.Name} at line {vNode.StartLine}")
-            
-            ' Provide immediate feedback
-            Dim lNodeDescription As String = $"{vNode.NodeType.ToString().Substring(1)} '{vNode.Name}'"
-            Dim lFileName As String = If(Not String.IsNullOrEmpty(vNode.FilePath), 
-                                         System.IO.Path.GetFileName(vNode.FilePath), 
-                                         "current file")
-            
-            ' Use Application.Invoke to ensure UI thread update
-            Application.Invoke(Sub()
-                UpdateStatusBar($"Opening {lNodeDescription} in {lFileName}...")
-                Console.WriteLine($"ApplicationInvoke UpdateStatusBar")
-            End Sub)
-            
-            ' Check if we need to open a different file
-            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
-            Dim lNeedToOpenFile As Boolean = True
-            
-            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' Check if the node is in the current file
-                If Not String.IsNullOrEmpty(vNode.FilePath) AndAlso 
-                   Not String.IsNullOrEmpty(lCurrentTab.FilePath) Then
-                    If vNode.FilePath.Equals(lCurrentTab.FilePath, StringComparison.OrdinalIgnoreCase) Then
-                        lNeedToOpenFile = False
-                    End If
-                End If
-            End If
-            
-            ' Open the file if needed
-            If lNeedToOpenFile AndAlso Not String.IsNullOrEmpty(vNode.FilePath) Then
-                Console.WriteLine($"OpenFileWithProjectIntegration Called")
-                OpenFileWithProjectIntegration(vNode.FilePath)
-                lCurrentTab = GetCurrentTabInfo()
-            End If
-            
-            ' Navigate to the line with enhanced presentment scrolling
-            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' The StartLine is already 1-based from the parser
-                Dim lTargetLine As Integer = vNode.StartLine - 1
-                
-                ' Use the new presentment navigation method
-                lCurrentTab.Editor.NavigateToLineNumberForPresentment(lTargetLine)
-                lCurrentTab.Editor.SelectLine(vNode.StartLine)
-                ' Ensure the editor has focus
-                lCurrentTab.Editor.Widget.GrabFocus()
-            End If
-            Console.WriteLine($"End of OnObjectExplorerNodeActivated")
-            ' Always show final status (moved outside the If block)
-            UpdateStatusBar($"Ready - {lNodeDescription} at line {vNode.StartLine}")
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnObjectExplorerNodeActivated error: {ex.Message}")
-            UpdateStatusBar($"Error navigating to node: {ex.Message}")
-        End Try
-    End Sub
+    ' Replace: SimpleIDE.MainWindow.OnObjectExplorerNodeActivated
+
 
     ''' <summary>
     ''' Handle node selection in Object Explorer (single-click)
@@ -402,13 +342,12 @@ Partial Public Class MainWindow
                     Dim lPage As Widget = pLeftNotebook.GetNthPage(i)
                     If lPage Is pObjectExplorer Then
                         pLeftNotebook.CurrentPage = i
-                        Console.WriteLine($"Switched to Object Explorer tab (page {i})")
+                        Console.WriteLine($"Switched To Object Explorer tab (page {i})")
                         
                         ' Ensure it's visible and activated
                         lPage.ShowAll()
                         
                         ' Call OnPageActivated to ensure proper initialization
-Console.WriteLine($"OnPageActivated called from MainWindow.SwitchToObjectExplorerTab")
                         pObjectExplorer.OnPageActivated()
                         
                         Exit For
@@ -432,7 +371,7 @@ Console.WriteLine($"OnPageActivated called from MainWindow.SwitchToObjectExplore
             
             ' If switching to Object Explorer, ensure it's properly activated
             If lNewPage Is pObjectExplorer Then
-                Console.WriteLine("Switched to Object Explorer tab")
+                Console.WriteLine("Switched To Object Explorer tab")
                 
                 ' Let GTK process the page switch first
                 Application.Invoke(Sub()

@@ -13,6 +13,7 @@ Namespace Syntax
         Public Property NodeType As CodeNodeType
         Public Property Name As String
         Public Property FullName As String
+        Public Property InitialValue as String
         
         ' Location information
         Public Property StartLine As Integer
@@ -37,28 +38,33 @@ Namespace Syntax
         Public Property IsOverrides As Boolean = False
         Public Property IsMustOverride As Boolean = False
         Public Property IsNotOverridable As Boolean = False
-        Public Property IsMustInherit as Boolean = false
-        Public Property IsNotInheritable as Boolean = false
+        Public Property IsMustInherit As Boolean = False
+        Public Property IsNotInheritable As Boolean = False
         Public Property IsReadOnly As Boolean = False
         Public Property IsWriteOnly As Boolean = False
         Public Property IsConst As Boolean = False
         Public Property IsSealed As Boolean = False
         Public Property IsAbstract As Boolean = False
-        Public Property IsIterator as Boolean = False
-        Public Property IsShadows as Boolean = False
+        Public Property IsIterator As Boolean = False
+        Public Property IsShadows As Boolean = False
         Public Property IsAsync As Boolean = False
         Public Property IsWithEvents As Boolean = False
         Public Property IsStatic As Boolean = False
+        Public Property IsAutoImplemented as Boolean = False
 
         Public Property Visibility As eVisibility = eVisibility.ePublic
-        Public Property FilePath as String = ""
-        
+        Public Property FilePath As String = ""
+        Public Property DataType As String = ""
+
         ' Additional properties for specific node types
         Public Property ReturnType As String = ""          ' for functions/properties
         Public Property Parameters As New List(Of ParameterInfo)  ' for methods/functions
         Public Property BaseType As String = ""            ' for classes/interfaces
         Public Property ImplementsList As New List(Of String)     ' for classes implementing interfaces
         Public Property InheritsList As New List(Of String)       ' for classes inheriting
+
+        Public Property XmlDocumentation as New XMLDocInfo
+
         
         Public Enum eVisibility
             ePublic
@@ -103,10 +109,15 @@ Namespace Syntax
             vChild.Parent = Nothing
         End Sub
         
-        ' Find child by name
+        ''' <summary>
+        ''' Find child node by name using case-insensitive comparison
+        ''' </summary>
+        ''' <param name="vName">Name to search for</param>
+        ''' <returns>The found node or Nothing</returns>
         Public Function FindChild(vName As String) As SyntaxNode
-            For Each lChild In Children
-                If lChild.Name = vName Then
+            ' FIXED: Use case-insensitive comparison for name matching
+            for each lChild in Children
+                If String.Equals(lChild.Name, vName, StringComparison.OrdinalIgnoreCase) Then
                     Return lChild
                 End If
             Next
@@ -117,7 +128,7 @@ Namespace Syntax
         Public Function FindChildrenOfType(vNodeType As CodeNodeType) As List(Of SyntaxNode)
             Dim lResult As New List(Of SyntaxNode)
             
-            For Each lChild In Children
+            for each lChild in Children
                 If lChild.NodeType = vNodeType Then
                     lResult.Add(lChild)
                 End If
@@ -130,7 +141,7 @@ Namespace Syntax
         Public Function GetAllDescendants() As List(Of SyntaxNode)
             Dim lResult As New List(Of SyntaxNode)
             
-            For Each lChild In Children
+            for each lChild in Children
                 lResult.Add(lChild)
                 lResult.AddRange(lChild.GetAllDescendants())
             Next
@@ -147,7 +158,7 @@ Namespace Syntax
                     lText &= "("
                     If Parameters.Count > 0 Then
                         Dim lParams As New List(Of String)
-                        For Each lParam In Parameters
+                        for each lParam in Parameters
                             lParams.Add(lParam.GetDisplayText())
                         Next
                         lText &= String.Join(", ", lParams)
@@ -158,7 +169,7 @@ Namespace Syntax
                     lText &= "("
                     If Parameters.Count > 0 Then
                         Dim lParams As New List(Of String)
-                        For Each lParam In Parameters
+                        for each lParam in Parameters
                             lParams.Add(lParam.GetDisplayText())
                         Next
                         lText &= String.Join(", ", lParams)
@@ -257,11 +268,11 @@ Namespace Syntax
             lClone.BaseType = BaseType
             
             ' Copy collections (shallow)
-            For Each lAttr In Attributes
+            for each lAttr in Attributes
                 lClone.Attributes.Add(lAttr.key, lAttr.Value)
             Next
             
-            For Each lParam In Parameters
+            for each lParam in Parameters
                 lClone.Parameters.Add(lParam.Clone())
             Next
             
@@ -277,7 +288,7 @@ Namespace Syntax
         ''' Fixed version of CopyNodeAttributes that properly initializes Attributes
         ''' </summary>
         Public Sub CopyNodeAttributesTo(vTarget As SyntaxNode)
-            Dim vSource as SyntaxNode = Me
+            Dim vSource As SyntaxNode = Me
             Try
                 vTarget.StartLine = vSource.StartLine
                 vTarget.EndLine = vSource.EndLine
@@ -303,7 +314,7 @@ Namespace Syntax
                 vTarget.IsImplicit = vSource.IsImplicit
                 
                 ' Copy parameters
-                For Each lParam In vSource.Parameters
+                for each lParam in vSource.Parameters
                     vTarget.Parameters.Add(lParam.Clone())
                 Next
                 
@@ -318,7 +329,7 @@ Namespace Syntax
                 
                 ' Copy attributes dictionary (except FilePath which is set separately)
                 If vSource.Attributes IsNot Nothing Then
-                    For Each lKvp In vSource.Attributes
+                    for each lKvp in vSource.Attributes
                         If lKvp.Key <> "FilePath" AndAlso lKvp.Key <> "FilePaths" Then
                             vTarget.Attributes(lKvp.Key) = lKvp.Value
                         End If
@@ -392,13 +403,19 @@ Namespace Syntax
             End Try
         End Function
         
+        ' To: SyntaxNode.vb
         ''' <summary>
-        ''' Find child node by name and type
+        ''' Find child node by name and type using case-insensitive comparison
         ''' </summary>
+        ''' <param name="vName">Name to search for</param>
+        ''' <param name="vNodeType">Type to search for</param>
+        ''' <returns>The found node or Nothing</returns>
         Public Function FindChild(vName As String, vNodeType As CodeNodeType) As SyntaxNode
             Try
-                For Each lChild In Children
-                    If lChild.Name = vName AndAlso lChild.NodeType = vNodeType Then
+                ' FIXED: Use case-insensitive comparison for name matching
+                for each lChild in Children
+                    If String.Equals(lChild.Name, vName, StringComparison.OrdinalIgnoreCase) AndAlso 
+                       lChild.NodeType = vNodeType Then
                         Return lChild
                     End If
                 Next
@@ -431,7 +448,7 @@ Namespace Syntax
                     vResults.Add(Me)
                 End If
                 
-                For Each lChild In Children
+                for each lChild in Children
                     lChild.CollectDescendantsOfType(vNodeType, vResults)
                 Next
                 
@@ -488,7 +505,7 @@ Namespace Syntax
             ' Add parameter documentation
             If ParamDocs IsNot Nothing AndAlso ParamDocs.Count > 0 Then
                 lTooltip &= Environment.NewLine & Environment.NewLine & "Parameters:"
-                For Each lParam In ParamDocs
+                for each lParam in ParamDocs
                     lTooltip &= Environment.NewLine & $"  {lParam.Key}: {lParam.Value}"
                 Next
             End If
@@ -543,7 +560,7 @@ Namespace Syntax
             
             If Parameters IsNot Nothing AndAlso Parameters.Count > 0 Then
                 Dim lParams As New List(Of String)()
-                For Each lParam In Parameters
+                for each lParam in Parameters
                     Dim lParamStr As String = lParam.Name
                     If Not String.IsNullOrEmpty(lParam.ParameterType) Then
                         lParamStr &= " As " & lParam.ParameterType
@@ -568,7 +585,7 @@ Namespace Syntax
             
             If Parameters IsNot Nothing AndAlso Parameters.Count > 0 Then
                 Dim lParams As New List(Of String)()
-                For Each lParam In Parameters
+                for each lParam in Parameters
                     Dim lParamStr As String = lParam.Name
                     If Not String.IsNullOrEmpty(lParam.ParameterType) Then
                         lParamStr &= " As " & lParam.ParameterType
@@ -649,7 +666,7 @@ Namespace Syntax
             If Parameters IsNot Nothing AndAlso Parameters.Count > 0 Then
                 lDecl &= "("
                 Dim lParams As New List(Of String)()
-                For Each lParam In Parameters
+                for each lParam in Parameters
                     Dim lParamStr As String = lParam.Name
                     If Not String.IsNullOrEmpty(lParam.ParameterType) Then
                         lParamStr &= " As " & lParam.ParameterType

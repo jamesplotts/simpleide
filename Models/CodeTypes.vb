@@ -60,6 +60,7 @@ Namespace Models
     ' Code node types for document graph
     Public Enum CodeNodeType
         eUnspecified
+        eProject
         eNamespace
         eClass
         eModule

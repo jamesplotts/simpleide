@@ -3,6 +3,7 @@ Imports System
 Imports Gtk
 Imports Gdk
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Managers
 
 Namespace Editors
     
@@ -153,9 +154,15 @@ Namespace Editors
         
         ' ===== IDisposable Implementation =====
         
+        ''' <summary>
+        ''' Clean up resources when disposing
+        ''' </summary>
+        ''' <remarks>
+        ''' Updated to remove parse timer cleanup since we no longer use local parsing
+        ''' </remarks>
         Private Sub CleanupResources()
             Try
-                ' Stop timers
+                ' Stop cursor blink timer
                 If pCursorBlinkTimer <> 0 Then
                     Dim lTimerId As UInteger = pCursorBlinkTimer
                     pCursorBlinkTimer = 0  ' Clear BEFORE removing
@@ -166,15 +173,20 @@ Namespace Editors
                     End Try
                 End If
                 
-                If pParseTimer <> 0 Then
-                    Dim lTimerId As UInteger = pParseTimer
-                    pParseTimer = 0  ' Clear BEFORE removing
-                    Try
-                        GLib.Source.Remove(lTimerId)
-                    Catch
-                        ' Timer may have already expired - this is OK
-                    End Try
-                End If
+                ' REMOVED: pParseTimer cleanup - no longer used with centralized parsing
+                
+                ' Unsubscribe from ProjectManager parse events
+                Try
+                    Dim lMainWindow As MainWindow = TryCast(Me.Toplevel, MainWindow)
+                    If lMainWindow IsNot Nothing Then
+                        Dim lProjectManager As ProjectManager = ProjectManager
+                        If lProjectManager IsNot Nothing Then
+                            RemoveHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
+                        End If
+                    End If
+                Catch
+                    ' Ignore errors during cleanup
+                End Try
                 
                 ' Unhook event handlers using stored delegates
                 If pDrawingArea IsNot Nothing Then
@@ -199,28 +211,30 @@ Namespace Editors
                     If pScrollHandler IsNot Nothing Then
                         RemoveHandler pDrawingArea.ScrollEvent, pScrollHandler
                     End If
+                    If pFocusInHandler IsNot Nothing Then
+                        RemoveHandler pDrawingArea.FocusInEvent, pFocusInHandler
+                    End If
+                    If pFocusOutHandler IsNot Nothing Then
+                        RemoveHandler pDrawingArea.FocusOutEvent, pFocusOutHandler
+                    End If
                 End If
                 
-                ' Unhook scrollbar event handlers
-                If pVScrollbar IsNot Nothing AndAlso pVScrollbarHandler IsNot Nothing Then
-                    RemoveHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                ' Unhook scrollbar handlers
+                If pVScrollbar IsNot Nothing AndAlso pVScrollValueChangedHandler IsNot Nothing Then
+                    RemoveHandler pVScrollbar.ValueChanged, pVScrollValueChangedHandler
                 End If
                 
-                If pHScrollbar IsNot Nothing AndAlso pHScrollbarHandler IsNot Nothing Then
-                    RemoveHandler pHScrollbar.ValueChanged, pHScrollbarHandler
+                If pHScrollbar IsNot Nothing AndAlso pHScrollValueChangedHandler IsNot Nothing Then
+                    RemoveHandler pHScrollbar.ValueChanged, pHScrollValueChangedHandler
                 End If
-                pThemeManager = Nothing
                 
-                ' Clear delegate references
-                pDrawnHandler = Nothing
-                pKeyPressHandler = Nothing
-                pKeyReleaseHandler = Nothing
-                pButtonPressHandler = Nothing
-                pButtonReleaseHandler = Nothing
-                pMotionNotifyHandler = Nothing
-                pScrollHandler = Nothing
-                pVScrollbarHandler = Nothing
-                pHScrollbarHandler = Nothing
+                ' Clear collections
+                pSearchMatches?.Clear()
+                pIdentifierCaseMap?.Clear()
+                
+                ' Clear arrays
+                pLineMetadata = Nothing
+                pCharacterColors = Nothing
                 
             Catch ex As Exception
                 Console.WriteLine($"CleanupResources error: {ex.Message}")

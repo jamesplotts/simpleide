@@ -50,6 +50,7 @@ Namespace Managers
             Get
                 If pBuildConfiguration Is Nothing Then
                     pBuildConfiguration = New BuildConfiguration()
+                    pBuildConfiguration.Verbosity = BuildVerbosity.Normal
                 End If
                 Return pBuildConfiguration
             End Get
@@ -68,7 +69,7 @@ Namespace Managers
             
             If pIsBuilding Then
                 Console.WriteLine("BuildProjectAsync: Already building")
-                Return New BuildResult() With {
+                Return New BuildResult() with {
                     .Success = False,
                     .Message = "Build already in progress"
                 }
@@ -76,7 +77,7 @@ Namespace Managers
             
             If String.IsNullOrEmpty(pProjectPath) OrElse Not File.Exists(pProjectPath) Then
                 Console.WriteLine($"BuildProjectAsync: Invalid project path - {pProjectPath}")
-                Return New BuildResult() With {
+                Return New BuildResult() with {
                     .Success = False,
                     .Message = $"Invalid project path: {pProjectPath}"
                 }
@@ -112,7 +113,7 @@ Namespace Managers
                 Console.WriteLine($"BuildProjectAsync error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
                 
-                Dim lErrorResult As New BuildResult() With {
+                Dim lErrorResult As New BuildResult() with {
                     .Success = False,
                     .Message = $"Build failed: {ex.Message}",
                     .ErrorOutput = ex.ToString()
@@ -151,7 +152,7 @@ Namespace Managers
                 lStartInfo.WorkingDirectory = Path.GetDirectoryName(pProjectPath)
                 
                 ' Add environment variables
-                For Each lVar In vConfiguration.EnvironmentVariables
+                for each lVar in vConfiguration.EnvironmentVariables
                     lStartInfo.EnvironmentVariables(lVar.Key) = lVar.Value
                 Next
                 
@@ -176,7 +177,7 @@ Namespace Managers
                     
                     ' Read output asynchronously
                     Dim lOutputTask As Task = Task.Run(Sub() ReadProcessOutput(lProcess.StandardOutput))
-                    Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
+                    'Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
                     
                     ' Wait for process to exit (compatible with .NET Standard 2.0)
                     Console.WriteLine("ExecuteBuildAsync: Waiting for process to exit")
@@ -185,7 +186,7 @@ Namespace Managers
                     End Sub)
                     
                     ' Wait for output reading to complete
-                    Await Task.WhenAll(lOutputTask, lErrorTask)
+                    Await Task.WhenAll(lOutputTask)
                     
                     Dim lExitCode As Integer = lProcess.ExitCode
                     Console.WriteLine($"ExecuteBuildAsync: Process exited with code {lExitCode}")
@@ -195,6 +196,8 @@ Namespace Managers
                     lResult.Message = If(lResult.Success, "Build succeeded", $"Build failed with exit code {lExitCode}")
                     lResult.Output = pOutputBuilder.ToString()
                     lResult.ErrorOutput = pErrorBuilder.ToString()
+
+                    Console.WriteLine($"pOutputBuilder contents: " + pOutputBuilder.ToString())
                     
                     ' Parse errors and warnings
                     ParseBuildOutput(lResult)
@@ -209,7 +212,7 @@ Namespace Managers
                 Console.WriteLine($"ExecuteBuildAsync error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
                 
-                Return New BuildResult() With {
+                Return New BuildResult() with {
                     .Success = False,
                     .Message = $"Build error: {ex.Message}",
                     .ErrorOutput = ex.ToString()
@@ -220,14 +223,14 @@ Namespace Managers
         ' Clean project - FIXED: Now properly parses errors
         Public Async Function CleanProjectAsync() As Task(Of BuildResult)
             If pIsBuilding Then
-                Return New BuildResult() With {
+                Return New BuildResult() with {
                     .Success = False,
                     .Message = "Build already in progress"
                 }
             End If
             
             If String.IsNullOrEmpty(pProjectPath) OrElse Not File.Exists(pProjectPath) Then
-                Return New BuildResult() With {
+                Return New BuildResult() with {
                     .Success = False,
                     .Message = "Invalid project path"
                 }
@@ -245,7 +248,7 @@ Namespace Managers
                 ' Execute clean
                 Await ExecuteCleanAsync()
                 
-                Dim lResult As New BuildResult() With {
+                Dim lResult As New BuildResult() with {
                     .Success = True,
                     .Message = "Clean completed successfully",
                     .Output = pOutputBuilder.ToString(),
@@ -261,7 +264,7 @@ Namespace Managers
                 Return lResult
                 
             Catch ex As Exception
-                Dim lErrorResult As New BuildResult() With {
+                Dim lErrorResult As New BuildResult() with {
                     .Success = False,
                     .Message = $"Clean failed: {ex.Message}"
                 }
@@ -310,10 +313,10 @@ Namespace Managers
                     
                     ' Read output asynchronously
                     Dim lOutputTask As Task = Task.Run(Sub() ReadProcessOutput(lProcess.StandardOutput))
-                    Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
+                    'Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
                     
                     Await lProcess.WaitForExitAsync(pCancellationTokenSource.Token)
-                    Await Task.WhenAll(lOutputTask, lErrorTask)
+                    Await Task.WhenAll(lOutputTask)
                     
                     pCurrentProcess = Nothing
                 End Using
@@ -352,20 +355,21 @@ Namespace Managers
                     
                     ' Read output asynchronously
                     Dim lOutputTask As Task = Task.Run(Sub() ReadProcessOutput(lProcess.StandardOutput))
-                    Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
+                    'Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
                     
                     ' Wait for process to exit
                     Await Task.Run(Sub()
                         lProcess.WaitForExit()
                     End Sub)
                     
-                    Await Task.WhenAll(lOutputTask, lErrorTask)
+                    Await Task.WhenAll(lOutputTask)
                     
                     pCurrentProcess = Nothing
                 End Using
                 
                 Console.WriteLine("ExecuteRestoreAsync: Complete")
-                
+                RaiseEvent OutputReceived(Me, "Restoring packages complete." & Environment.NewLine)
+
             Catch ex As Exception
                 Console.WriteLine($"ExecuteRestoreAsync error: {ex.Message}")
                 RaiseEvent ErrorReceived(Me, $"Restore failed: {ex.Message}" & Environment.NewLine)
@@ -379,6 +383,7 @@ Namespace Managers
             Try
                 Dim lLine As String = vReader.ReadLine()
                 While lLine IsNot Nothing
+                    Console.Writeline($"Appending Output To pOutputBuilder: " + lLine)
                     pOutputBuilder.AppendLine(lLine)
                     RaiseEvent OutputReceived(Me, lLine & Environment.NewLine)
                     
@@ -393,26 +398,28 @@ Namespace Managers
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Read process error output
-        ''' </summary>
-        Private Sub ReadProcessError(vReader As StreamReader)
-            Try
-                Dim lLine As String = vReader.ReadLine()
-                While lLine IsNot Nothing
-                    pErrorBuilder.AppendLine(lLine)
-                    RaiseEvent ErrorReceived(Me, lLine & Environment.NewLine)
-                    
-                    If pCancellationTokenSource?.IsCancellationRequested = True Then
-                        Exit While
-                    End If
-                    
-                    lLine = vReader.ReadLine()
-                End While
-            Catch ex As Exception
-                Console.WriteLine($"ReadProcessError error: {ex.Message}")
-            End Try
-        End Sub
+'         ''' <summary>
+'         ''' Read process error output
+'         ''' </summary>
+'         Private Sub ReadProcessError(vReader As StreamReader)
+'             Try
+'                  Console.Writeline($"ReadProcessError Called")
+'                 Dim lLine As String = vReader.ReadLine()
+'                 While lLine IsNot Nothing
+'  Console.Writeline($"Appending Output To pErrorBuilder: " + lLine)
+'                     pErrorBuilder.AppendLine(lLine)
+'                     RaiseEvent ErrorReceived(Me, lLine & Environment.NewLine)
+'                     
+'                     If pCancellationTokenSource?.IsCancellationRequested = True Then
+'                         Exit While
+'                     End If
+'                     
+'                     lLine = vReader.ReadLine()
+'                 End While
+'             Catch ex As Exception
+'                 Console.WriteLine($"ReadProcessError error: {ex.Message}")
+'             End Try
+'         End Sub
         
 
         
@@ -506,7 +513,7 @@ Namespace Managers
                 Next
                 
                 ' Default to just "dotnet" and hope it's in PATH
-                Console.WriteLine("FindDotnetExecutable: Using default 'dotnet' command")
+                Console.WriteLine("FindDotnetExecutable: Using Default 'dotnet' command")
                 Return "dotnet"
                 
             Catch ex As Exception
@@ -517,14 +524,22 @@ Namespace Managers
         
 
         ''' <summary>
-        ''' Parse build output for errors and warnings
+        ''' Parse build output for errors and warnings with deduplication
         ''' </summary>
+        ''' <param name="vResult">The BuildResult to populate with parsed errors and warnings</param>
+        ''' <remarks>
+        ''' Deduplicates errors and warnings based on file, line, column, and message
+        ''' </remarks>
         Private Sub ParseBuildOutput(vResult As BuildResult)
             Try
                 Dim lAllOutput As String = pOutputBuilder.ToString() & Environment.NewLine & pErrorBuilder.ToString()
                 Dim lLines() As String = lAllOutput.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.RemoveEmptyEntries)
                 
-                For Each lLine As String In lLines
+                ' Use HashSets to track unique errors and warnings
+                Dim lProcessedErrors As New HashSet(Of String)
+                Dim lProcessedWarnings As New HashSet(Of String)
+                
+                for each lLine As String in lLines
                     ' Parse error pattern: file(line,column): error CODE: message
                     Dim lErrorMatch As Match = Regex.Match(lLine, "^(.+?)\((\d+),(\d+)\):\s+error\s+(\w+):\s+(.+)$")
                     If lErrorMatch.Success Then
@@ -534,8 +549,19 @@ Namespace Managers
                         lError.Column = Integer.Parse(lErrorMatch.Groups(3).Value)
                         lError.ErrorCode = lErrorMatch.Groups(4).Value.Trim()
                         lError.Message = lErrorMatch.Groups(5).Value.Trim()
-                        vResult.Errors.Add(lError)
-                        Continue For
+                        
+                        ' Create a unique key for this error
+                        Dim lErrorKey As String = $"{lError.FilePath}|{lError.Line}|{lError.Column}|{lError.ErrorCode}|{lError.Message}"
+                        
+                        ' Only add if we haven't seen this exact error before
+                        If lProcessedErrors.Add(lErrorKey) Then
+                            vResult.Errors.Add(lError)
+                            Console.WriteLine($"Added error: {lError.FilePath}({lError.Line},{lError.Column}): {lError.ErrorCode}")
+                        Else
+                            Console.WriteLine($"Skipped duplicate error: {lErrorKey}")
+                        End If
+                        
+                        Continue for
                     End If
                     
                     ' Parse warning pattern: file(line,column): warning CODE: message
@@ -547,13 +573,25 @@ Namespace Managers
                         lWarning.Column = Integer.Parse(lWarningMatch.Groups(3).Value)
                         lWarning.WarningCode = lWarningMatch.Groups(4).Value.Trim()
                         lWarning.Message = lWarningMatch.Groups(5).Value.Trim()
-                        vResult.Warnings.Add(lWarning)
+                        
+                        ' Create a unique key for this warning
+                        Dim lWarningKey As String = $"{lWarning.FilePath}|{lWarning.Line}|{lWarning.Column}|{lWarning.WarningCode}|{lWarning.Message}"
+                        
+                        ' Only add if we haven't seen this exact warning before
+                        If lProcessedWarnings.Add(lWarningKey) Then
+                            vResult.Warnings.Add(lWarning)
+                            Console.WriteLine($"Added warning: {lWarning.FilePath}({lWarning.Line},{lWarning.Column}): {lWarning.WarningCode}")
+                        Else
+                            Console.WriteLine($"Skipped duplicate warning: {lWarningKey}")
+                        End If
                     End If
                 Next
                 
                 ' Update counts
                 vResult.ErrorCount = vResult.Errors.Count
                 vResult.WarningCount = vResult.Warnings.Count
+                
+                Console.WriteLine($"ParseBuildOutput complete: {vResult.ErrorCount} unique errors, {vResult.WarningCount} unique warnings")
                 
             Catch ex As Exception
                 Console.WriteLine($"ParseBuildOutput error: {ex.Message}")

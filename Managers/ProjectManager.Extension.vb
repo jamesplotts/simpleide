@@ -31,7 +31,7 @@ Namespace Managers
                                                    vFullNamespaceName As String) As SyntaxNode
             Try
                 ' First check if it already exists as a child of the parent
-                For Each lChild In vParent.Children
+                for each lChild in vParent.Children
                     If lChild.NodeType = CodeNodeType.eNamespace AndAlso 
                        String.Equals(lChild.Name, vNamespaceName, StringComparison.OrdinalIgnoreCase) Then
                         Console.WriteLine($"    Found existing namespace child: {vNamespaceName}")
@@ -114,7 +114,7 @@ Namespace Managers
                         End If
                         
                         ' Process children in this namespace context
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             ProcessNodeInContext(lChild, lNamespaceNode, vNamespaceNodes, lFullNamespaceName, vFilePath)
                         Next
                         
@@ -145,7 +145,7 @@ Namespace Managers
                                 End If
                                 
                                 ' Merge all members from this partial definition
-                                For Each lMember In vNode.Children
+                                for each lMember in vNode.Children
                                     ' Check if member already exists to avoid duplicates
                                     Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingClass, lMember.Name, lMember.NodeType)
                                     If lExistingMember Is Nothing Then
@@ -160,7 +160,7 @@ Namespace Managers
                                         lNewMember.Attributes("FilePath") = vFilePath
                                         
                                         ' Add all children of the member (like parameters)
-                                        For Each lChild In lMember.Children
+                                        for each lChild in lMember.Children
                                             lNewMember.AddChild(lChild)
                                         Next
                                         
@@ -188,7 +188,7 @@ Namespace Managers
                                 vCurrentNamespace.AddChild(lNewClass)
                                 
                                 ' Add all members
-                                For Each lChild In vNode.Children
+                                for each lChild in vNode.Children
                                     Dim lNewMember As New SyntaxNode(lChild.NodeType, lChild.Name)
                                     lChild.CopyNodeAttributesTo(lNewMember)
                                     
@@ -198,7 +198,7 @@ Namespace Managers
                                     lNewMember.Attributes("FilePath") = vFilePath
                                     
                                     ' Add all children of the member
-                                    For Each lGrandChild In lChild.Children
+                                    for each lGrandChild in lChild.Children
                                         lNewMember.AddChild(lGrandChild)
                                     Next
                                     
@@ -249,7 +249,7 @@ Namespace Managers
                                 End If
                                 
                                 ' Merge members
-                                For Each lMember In vNode.Children
+                                for each lMember in vNode.Children
                                     Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingNode, lMember.Name, lMember.NodeType)
                                     If lExistingMember Is Nothing Then
                                         Dim lNewMember As New SyntaxNode(lMember.NodeType, lMember.Name)
@@ -260,7 +260,7 @@ Namespace Managers
                                         End If
                                         lNewMember.Attributes("FilePath") = vFilePath
                                         
-                                        For Each lChild In lMember.Children
+                                        for each lChild in lMember.Children
                                             lNewMember.AddChild(lChild)
                                         Next
                                         
@@ -318,7 +318,7 @@ Namespace Managers
                         End If
                         
                         ' Add children to this namespace
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             ProcessNodeForNamespace(lChild, lNamespaceNode, vNamespaceNodes, vRootNamespaceName, vFilePath)
                         Next
                         
@@ -352,27 +352,72 @@ Namespace Managers
                                            vRootNamespace As SyntaxNode)
             Try
                 ' Process all namespaces and build parent-child relationships
-                For Each lKvp In vNamespaceNodes
+                for each lKvp in vNamespaceNodes
                     Dim lNamespaceName As String = lKvp.Key
                     Dim lNamespaceNode As SyntaxNode = lKvp.Value
                     
                     ' Skip the root namespace itself
-                    If lNamespaceNode Is vRootNamespace Then Continue For
+                    If lNamespaceNode Is vRootNamespace Then Continue for
+                    
+                    ' CRITICAL FIX: Check if this namespace is already a child of its parent
+                    ' This prevents duplicates when BuildNamespaceHierarchy is called after ProcessFileStructure
                     
                     ' Find parent namespace
                     Dim lLastDot As Integer = lNamespaceName.LastIndexOf("."c)
                     If lLastDot > 0 Then
                         Dim lParentName As String = lNamespaceName.Substring(0, lLastDot)
                         If vNamespaceNodes.ContainsKey(lParentName) Then
-                            ' Add to parent namespace
-                            vNamespaceNodes(lParentName).AddChild(lNamespaceNode)
+                            Dim lParentNamespace As SyntaxNode = vNamespaceNodes(lParentName)
+                            
+                            ' Check if already a child of this parent
+                            Dim lAlreadyChild As Boolean = False
+                            for each lChild in lParentNamespace.Children
+                                If lChild Is lNamespaceNode Then
+                                    lAlreadyChild = True
+                                    Exit for
+                                End If
+                            Next
+                            
+                            If Not lAlreadyChild Then
+                                ' Add to parent namespace
+                                lParentNamespace.AddChild(lNamespaceNode)
+                                Console.WriteLine($"Added {lNamespaceName} to parent {lParentName}")
+                            Else
+                                Console.WriteLine($"Skipped {lNamespaceName} - already child of {lParentName}")
+                            End If
                         Else
-                            ' No parent found, add to root
-                            vRootNamespace.AddChild(lNamespaceNode)
+                            ' No parent found, check if it should be added to root
+                            Dim lAlreadyInRoot As Boolean = False
+                            for each lChild in vRootNamespace.Children
+                                If lChild Is lNamespaceNode Then
+                                    lAlreadyInRoot = True
+                                    Exit for
+                                End If
+                            Next
+                            
+                            If Not lAlreadyInRoot Then
+                                vRootNamespace.AddChild(lNamespaceNode)
+                                Console.WriteLine($"Added {lNamespaceName} to root")
+                            Else
+                                Console.WriteLine($"Skipped {lNamespaceName} - already in root")
+                            End If
                         End If
                     Else
-                        ' Top-level namespace, add to root
-                        vRootNamespace.AddChild(lNamespaceNode)
+                        ' Top-level namespace, check if already in root
+                        Dim lAlreadyInRoot As Boolean = False
+                        for each lChild in vRootNamespace.Children
+                            If lChild Is lNamespaceNode Then
+                                lAlreadyInRoot = True
+                                Exit for
+                            End If
+                        Next
+                        
+                        If Not lAlreadyInRoot Then
+                            vRootNamespace.AddChild(lNamespaceNode)
+                            Console.WriteLine($"Added top-level {lNamespaceName} to root")
+                        Else
+                            Console.WriteLine($"Skipped top-level {lNamespaceName} - already in root")
+                        End If
                     End If
                 Next
                 
@@ -528,7 +573,7 @@ Namespace Managers
                 
                 ' Try with just filename if not found
                 Dim lFileName As String = Path.GetFileName(vFilePath)
-                For Each lKvp In pDocumentModels
+                for each lKvp in pDocumentModels
                     If Path.GetFileName(lKvp.key) = lFileName Then
                         Return lKvp.Value
                     End If
@@ -563,7 +608,7 @@ Namespace Managers
         Public Function GetModifiedDocumentModels() As List(Of DocumentModel)
             Dim lModified As New List(Of DocumentModel)()
             
-            For Each lModel In pDocumentModels.Values
+            for each lModel in pDocumentModels.Values
                 If lModel.IsModified Then
                     lModified.Add(lModel)
                 End If
@@ -574,58 +619,7 @@ Namespace Managers
         
         ' ===== Public Methods - File Management =====
         
-        ''' <summary>
-        ''' Add a new file to the project and create its DocumentModel
-        ''' </summary>
-        Public Function AddFileToProject(vFilePath As String) As DocumentModel
-            Try
-                Dim lRelativePath As String = GetRelativePath(vFilePath)
-                
-                ' Check if already exists
-                If pDocumentModels.ContainsKey(lRelativePath) Then
-                    Console.WriteLine($"File already in project: {lRelativePath}")
-                    Return pDocumentModels(lRelativePath)
-                End If
-                
-                ' Create new DocumentModel
-                Dim lModel As New DocumentModel(vFilePath)
-                
-                ' Load file if it exists
-                If File.Exists(vFilePath) Then
-                    lModel.LoadFromFile(vFilePath)
-                End If
-                
-                ' Add to collection
-                pDocumentModels(lRelativePath) = lModel
-                
-                ' Wire up events
-                AddHandler lModel.DocumentParsed, AddressOf OnDocumentParsed
-                AddHandler lModel.StructureChanged, AddressOf OnDocumentStructureChanged
-                AddHandler lModel.ModifiedStateChanged, AddressOf OnDocumentModifiedStateChanged
-                
-                ' Update project file
-                If pCurrentProjectInfo IsNot Nothing Then
-                    pCurrentProjectInfo.SourceFiles.Add(vFilePath)
-                    pCurrentProjectInfo.CompileItems.Add(lRelativePath)
-                    Dim lDoc As New XmlDocument()
-                    lDoc.Load(CurrentProjectPath)
-                    SaveProjectFile(lDoc)
-                End If
-                
-                ' Rebuild namespace tree
-                BuildUnifiedNamespaceTree()
-                
-                ' Raise events
-                RaiseEvent DocumentModelCreated(lRelativePath, lModel)
-                RaiseEvent FileAdded(vFilePath)
-                
-                Return lModel
-                
-            Catch ex As Exception
-                Console.WriteLine($"ProjectManager.AddFileToProject error: {ex.Message}")
-                Return Nothing
-            End Try
-        End Function
+
         
 
         
@@ -718,7 +712,7 @@ Namespace Managers
         Public Function GetSymbolsOfType(vNodeType As CodeNodeType) As List(Of DocumentNode)
             Dim lResults As New List(Of DocumentNode)()
             
-            For Each lNode In pSymbolTable.Values
+            for each lNode in pSymbolTable.Values
                 If lNode.NodeType = vNodeType Then
                     lResults.Add(lNode)
                 End If
@@ -750,7 +744,7 @@ Namespace Managers
                 Dim lPartialClasses As New Dictionary(Of String, DocumentNode)(StringComparer.OrdinalIgnoreCase)
                 
                 ' Process each DocumentModel
-                For Each lKvp In pDocumentModels
+                for each lKvp in pDocumentModels
                     Dim lModel As DocumentModel = lKvp.Value
                     
                     If lModel.RootNode IsNot Nothing Then
@@ -776,7 +770,7 @@ Namespace Managers
                 If vSourceNode Is Nothing Then Return
                 
                 ' Process each child of the source node
-                For Each lSourceChild In vSourceNode.Children
+                for each lSourceChild in vSourceNode.Children
                     Dim lQualifiedName As String = BuildQualifiedName(vTargetParent, lSourceChild.Name)
                     
                     ' Handle different node types
@@ -828,7 +822,7 @@ Namespace Managers
         ''' </summary>
         Private Function FindOrCreateNamespace(vParent As DocumentNode, vName As String) As DocumentNode
             ' Look for existing namespace
-            For Each lChild In vParent.Children
+            for each lChild in vParent.Children
                 If lChild.NodeType = CodeNodeType.eNamespace AndAlso 
                    String.Equals(lChild.Name, vName, StringComparison.OrdinalIgnoreCase) Then
                     Return lChild
@@ -854,7 +848,7 @@ Namespace Managers
         ''' Merge members from a partial class into existing class
         ''' </summary>
         Private Sub MergeClassMembers(vSourceClass As DocumentNode, vTargetClass As DocumentNode)
-            For Each lMember In vSourceClass.Children
+            for each lMember in vSourceClass.Children
                 ' Clone the member and add to target
                 Dim lClonedMember As DocumentNode = CloneNode(lMember)
                 vTargetClass.Children.Add(lClonedMember)
@@ -880,12 +874,12 @@ Namespace Managers
             lClone.EndColumn = vNode.EndColumn
             
             ' Clone attributes
-            For Each lKvp In vNode.Attributes
+            for each lKvp in vNode.Attributes
                 lClone.Attributes(lKvp.key) = lKvp.Value
             Next
             
             ' Clone children recursively
-            For Each lChild In vNode.Children
+            for each lChild in vNode.Children
                 Dim lClonedChild As DocumentNode = CloneNode(lChild)
                 lClone.Children.Add(lClonedChild)
                 lClonedChild.Parent = lClone
@@ -948,7 +942,7 @@ Namespace Managers
         Private Sub ClearDocumentModels()
             Try
                 ' Remove event handlers
-                For Each lModel In pDocumentModels.Values
+                for each lModel in pDocumentModels.Values
                     RemoveHandler lModel.DocumentParsed, AddressOf OnDocumentParsed
                     RemoveHandler lModel.StructureChanged, AddressOf OnDocumentStructureChanged
                     RemoveHandler lModel.ModifiedStateChanged, AddressOf OnDocumentModifiedStateChanged
@@ -998,10 +992,10 @@ Namespace Managers
             Try
                 ' Update project dirty state
                 Dim lHasModified As Boolean = False
-                For Each lModel In pDocumentModels.Values
+                for each lModel in pDocumentModels.Values
                     If lModel.IsModified Then
                         lHasModified = True
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
@@ -1027,7 +1021,9 @@ Namespace Managers
         ''' <summary>
         ''' Update a specific file's structure (e.g., when edited)
         ''' </summary>
-        Public Sub UpdateFileStructure(vFilePath as String, vEditor As IEditor)
+        ''' <param name="vFilePath">Path to the file to update</param>
+        ''' <param name="vEditor">The editor containing the file</param>
+        Public Sub UpdateFileStructure(vFilePath As String, vEditor As IEditor)
             Try
                 If Not pSourceFiles.ContainsKey(vFilePath) Then
                     ' Create new SourceFileInfo if not exists
@@ -1042,16 +1038,19 @@ Namespace Managers
                 lSourceFile.Editor = vEditor
                 'lSourceFile.UpdateFromEditor()
                 
-                ' Reparse the file
-                If lSourceFile.ParseContent() Then
+                ' Use the centralized ParseFile method instead of ParseContent
+                Dim lParseSuccess As Boolean = ParseFile(lSourceFile)
+                
+                If lParseSuccess AndAlso lSourceFile.SyntaxTree IsNot Nothing Then
                     ' Rebuild project tree to include changes
                     RebuildProjectTree()
                     
                     ' Raise events
                     RaiseEvent FileParsed(lSourceFile)
                     RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
-                End If
-                
+                Else
+                    Console.WriteLine($"UpdateFileStructure: Failed to parse {vFilePath}")
+                End If                
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.UpdateFileStructure error: {ex.Message}")
             End Try
@@ -1073,7 +1072,7 @@ Namespace Managers
         ' ===== Private Helper Methods =====
         
         ''' <summary>
-        ''' Helper method to find a child node by name and type
+        ''' Helper method to find a child node by name and type using case-insensitive comparison
         ''' </summary>
         ''' <param name="vParent">Parent node to search in</param>
         ''' <param name="vName">Name to search for</param>
@@ -1084,8 +1083,10 @@ Namespace Managers
                 Return Nothing
             End If
             
-            For Each lChild In vParent.Children
-                If lChild.Name = vName AndAlso lChild.NodeType = vNodeType Then
+            ' FIXED: Use case-insensitive comparison for name matching to properly merge partial classes
+            for each lChild in vParent.Children
+                If String.Equals(lChild.Name, vName, StringComparison.OrdinalIgnoreCase) AndAlso 
+                   lChild.NodeType = vNodeType Then
                     Return lChild
                 End If
             Next
@@ -1122,7 +1123,7 @@ Namespace Managers
                 vNode.Children.AddRange(lSortedChildren)
                 
                 ' Recursively sort children
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     SortNodeChildren(lChild)
                 Next
                 

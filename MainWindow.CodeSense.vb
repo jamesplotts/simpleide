@@ -41,7 +41,13 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Update CodeSense references from project
+    ''' <summary>
+    ''' Update CodeSense references from project using ProjectManager's parser
+    ''' </summary>
+    ''' <remarks>
+    ''' This method now works with ProjectManager's centralized ProjectParser
+    ''' instead of creating its own parser instance
+    ''' </remarks>
     Private Sub UpdateCodeSenseReferences()
         Try
             If pCodeSenseEngine Is Nothing Then Return
@@ -54,39 +60,46 @@ Partial Public Class MainWindow
             pCodeSenseEngine.AddReference("System.Core")
             pCodeSenseEngine.AddReference("Microsoft.VisualBasic")
             
-            ' Add project references
-            If Not String.IsNullOrEmpty(pCurrentProject) Then
-                ' Parse project file to get references
-                Dim lProjectInfo As ProjectFileParser.ProjectInfo = ProjectFileParser.ParseProjectFile(pCurrentProject)
+            ' Add project references from ProjectManager
+            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+                ' Get project info from ProjectManager - using the actual property
+                If pProjectManager.CurrentProjectInfo IsNot Nothing Then
+                    Dim lProjectInfo = pProjectManager.CurrentProjectInfo
+                    
+                    ' Add assembly references
+                    for each lRef in lProjectInfo.References
+                        Try
+                            pCodeSenseEngine.AddReference(lRef.Name)
+                        Catch ex As Exception
+                            Console.WriteLine($"Failed to add Reference {lRef.Name}: {ex.Message}")
+                        End Try
+                    Next
+                    
+                    ' Add package references
+                    for each lRef in lProjectInfo.PackageReferences
+                        Try
+                            pCodeSenseEngine.AddReference(lRef.Name)
+                        Catch ex As Exception
+                            Console.WriteLine($"Failed to add PackageReference {lRef.Name}: {ex.Message}")
+                        End Try
+                    Next
+                End If
                 
-                ' Add assembly references
-                for each lRef in lProjectInfo.References
-                    Try
-                        pCodeSenseEngine.AddReference(lRef.Name)
-                    Catch ex As Exception
-                        Console.WriteLine($"Failed to add Reference {lRef.Name}: {ex.Message}")
-                    End Try
-                Next
-                
-                ' Add package references
-                for each lPackage in lProjectInfo.PackageReferences
-                    Try
-                        pCodeSenseEngine.AddReference(lPackage.Name)
-                    Catch ex As Exception
-                        Console.WriteLine($"Failed to add Package Reference {lPackage.Name}: {ex.Message}")
-                    End Try
-                Next
+                ' Update CodeSenseEngine with project structure from ProjectParser
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                If lProjectTree IsNot Nothing Then
+                    pCodeSenseEngine.UpdateFromSyntaxTree(lProjectTree, True)
+                    Console.WriteLine("CodeSense updated with ProjectParser structure")
+                End If
             End If
+            
+            Console.WriteLine($"CodeSense references updated from ProjectManager")
             
         Catch ex As Exception
             Console.WriteLine($"UpdateCodeSenseReferences error: {ex.Message}")
         End Try
     End Sub
     
-'    ' Handle text changed in editor for CodeSense
-'    Public Sub OnEditorTextChanged(vSender As Object, vArgs As EventArgs)
-'        OnEditorTextChangedEnhanced(vSender, vArgs)
-'    End Sub
     
     ' Get CodeSense context from editor
     Private Function GetCodeSenseContext(vEditor As IEditor) As CodeSenseContext
@@ -140,14 +153,14 @@ Partial Public Class MainWindow
                 lPrefix = lText.Substring(lLineStart, lWordStart - lLineStart)
             End If
             
-            ' Update document nodes if available
-            Dim lTabInfo As TabInfo = GetCurrentTabInfo()
-            If lTabInfo IsNot Nothing AndAlso TypeOf lTabInfo.Editor Is CustomDrawingEditor Then
-                Dim lCustomEditor As CustomDrawingEditor = DirectCast(lTabInfo.Editor, CustomDrawingEditor)
-                pCodeSenseEngine.UpdateDocumentNodes(lCustomEditor.GetDocumentNodes(), lCustomEditor.GetRootNodes())
-            End If
+            Dim lObjectNodes As New Dictionary(Of String, DocumentNode)
+            for each lKvp in vEditor.GetDocumentNodes()
+                lObjectNodes(lKvp.Key) = lKvp.Value
+            Next
+            pCodeSenseEngine.UpdateDocumentNodes(vEditor.RootNode)
             
-            Return lContext
+  
+         Return lContext
             
         Catch ex As Exception
             Console.WriteLine($"GetCodeSenseContext error: {ex.Message}")
@@ -431,6 +444,193 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"CleanupCodeSense error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handle CodeSense request from editor using ProjectParser data
+    ''' </summary>
+    ''' <remarks>
+    ''' Now uses parse results from ProjectManager's centralized ProjectParser
+    ''' instead of triggering local parsing
+    ''' </remarks>
+    Private Sub OnCodeSenseRequested(vSender As Object, vContext As CodeSenseContext)
+        Try
+            If pCodeSenseEngine Is Nothing OrElse vContext Is Nothing Then Return
+            
+            Dim lEditor As IEditor = TryCast(vSender, IEditor)
+            If lEditor Is Nothing Then Return
+            
+            ' Find the TabInfo for this editor
+            Dim lTabInfo As TabInfo = Nothing
+            for each lTabEntry in pOpenTabs
+                If lTabEntry.Value.Editor Is lEditor Then
+                    lTabInfo = lTabEntry.Value
+                    Exit for
+                End If
+            Next
+            
+            If lTabInfo IsNot Nothing Then
+                ' Get SourceFileInfo from ProjectManager
+                Dim lSourceFileInfo As SourceFileInfo = Nothing
+                If pProjectManager IsNot Nothing Then
+                    lSourceFileInfo = pProjectManager.GetSourceFileInfo(lTabInfo.FilePath)
+                End If
+                
+                ' Ensure we have the latest parse from ProjectParser
+                If lSourceFileInfo IsNot Nothing Then
+                    Dim lSyntaxTree As SyntaxNode = lSourceFileInfo.SyntaxTree
+                    If lSyntaxTree Is Nothing AndAlso pProjectManager IsNot Nothing Then
+                        ' Request parse through ProjectManager if needed
+                        pProjectManager.ParseFile(lSourceFileInfo)
+                        lSyntaxTree = lSourceFileInfo.SyntaxTree
+                    End If
+                    
+                    ' Update CodeSense with the parsed structure
+                    If lSyntaxTree IsNot Nothing Then
+                        pCodeSenseEngine.UpdateDocumentNodes(lSyntaxTree)
+                    End If
+                End If
+            End If
+            
+            ' Get suggestions from CodeSenseEngine
+            Dim lSuggestions As List(Of CodeSenseSuggestion) = pCodeSenseEngine.GetSuggestions(vContext)
+            
+            ' Convert to CompletionItems for CodeSenseContext
+            vContext.SuggestedCompletions = New List(Of CompletionItem)()
+            for each lSuggestion in lSuggestions
+                Dim lItem As New CompletionItem()
+                lItem.Text = lSuggestion.Text
+                lItem.DisplayText = lSuggestion.DisplayText
+                lItem.Description = lSuggestion.Description
+                lItem.Icon = lSuggestion.Icon
+                vContext.SuggestedCompletions.Add(lItem)
+            Next
+            
+            ' Show CodeSense window if we have suggestions
+            If lSuggestions.Count > 0 Then
+                ShowCodeSenseWindow(lEditor, vContext)
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnCodeSenseRequested error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Shows the CodeSense window for an editor
+    ''' </summary>
+    Private Sub ShowCodeSenseWindow(vEditor As IEditor, vContext As CodeSenseContext)
+        Try
+            ' Use existing ShowCodeSense method or create new implementation
+            If pCodeSenseWindow Is Nothing Then
+                CreateCodeSenseWindow()
+            End If
+            
+            ' Update CodeSense list
+            UpdateCodeSenseList(vContext.SuggestedCompletions)
+            
+            ' Position and show window
+            If TypeOf vEditor Is Widget Then
+                Dim lWidget As Widget = DirectCast(vEditor, Widget)
+                ' Position relative to cursor position
+                pCodeSenseWindow.ShowAll()
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShowCodeSenseWindow error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handle parse completion from ProjectManager for CodeSense
+    ''' </summary>
+    Private Sub OnProjectParseCompletedForCodeSense(vFile As SourceFileInfo, vResult As SyntaxNode)
+        Try
+            ' Update CodeSense with the latest parse results
+            If pCodeSenseEngine IsNot Nothing AndAlso vResult IsNot Nothing Then
+                ' If this is the current file, update CodeSense immediately
+                Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+                
+                ' Check if this file matches current tab
+                If lCurrentTab IsNot Nothing AndAlso lCurrentTab.FilePath = vFile.FilePath Then
+                    pCodeSenseEngine.UpdateDocumentNodes(vResult)
+                    Console.WriteLine($"CodeSense updated with parse results for {vFile.FileName}")
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectParseCompletedForCodeSense error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handle project structure load from ProjectManager for CodeSense
+    ''' </summary>
+    Private Sub OnProjectStructureLoadedForCodeSense(vRootNode As SyntaxNode)
+        Try
+            If pCodeSenseEngine IsNot Nothing AndAlso vRootNode IsNot Nothing Then
+                ' Update CodeSense with the complete project structure
+                pCodeSenseEngine.UpdateFromSyntaxTree(vRootNode, True)
+                Console.WriteLine($"CodeSense updated with project structure from ProjectParser")
+                
+                ' Update references as well
+                UpdateCodeSenseReferences()
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectStructureLoadedForCodeSense error: {ex.Message}")
+        End Try
+    End Sub
+
+
+    ''' <summary>
+    ''' Initialize CodeSense to work with ProjectManager's centralized parser
+    ''' </summary>
+    ''' <remarks>
+    ''' Sets up CodeSense to consume parse results from ProjectManager.Parser
+    ''' instead of performing its own parsing
+    ''' </remarks>
+    Private Sub InitializeCodeSenseWithProjectManager()
+        Try
+            If pCodeSenseEngine Is Nothing Then
+                pCodeSenseEngine = New CodeSenseEngine()
+            End If
+            
+            If pProjectManager IsNot Nothing Then
+                ' Subscribe to ProjectManager parse events
+                RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectParseCompletedForCodeSense
+                AddHandler pProjectManager.ParseCompleted, AddressOf OnProjectParseCompletedForCodeSense
+                
+                RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoadedForCodeSense
+                AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoadedForCodeSense
+                
+                Console.WriteLine("CodeSense subscribed to ProjectManager parse events")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"InitializeCodeSenseWithProjectManager error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Updates the CodeSense list with completion items
+    ''' </summary>
+    Private Sub UpdateCodeSenseList(vCompletions As List(Of CompletionItem))
+        Try
+            If pCodeSenseListStore Is Nothing Then Return
+            
+            pCodeSenseListStore.Clear()
+            
+            for each lItem in vCompletions
+                Dim lIter As TreeIter = pCodeSenseListStore.Append()
+                pCodeSenseListStore.SetValue(lIter, 0, lItem.Icon)
+                pCodeSenseListStore.SetValue(lIter, 1, lItem.DisplayText)
+                pCodeSenseListStore.SetValue(lIter, 2, lItem.Description)
+            Next
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateCodeSenseList error: {ex.Message}")
         End Try
     End Sub
     

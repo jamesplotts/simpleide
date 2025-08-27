@@ -441,26 +441,26 @@ Namespace Editors
         ''' <summary>
         ''' Selects an entire line including the newline character
         ''' </summary>
-        ''' <param name="vLine">Line number to select (0-based)</param>
+'         ''' <param name="vLine">Line number to select (0-based)</param>
         Public Sub SelectLine(vLine As Integer) Implements IEditor.SelectLine
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
-                
+                 Console.WriteLine($"SelectLine vLine: " + vLine.ToString())
                 ' Clear any drag state to prevent interference
                 pIsDragging = False
                 pPotentialDrag = False
                 pIsStartingNewSelection = False
                 
                 ' Select entire line including newline
-                pSelectionStartLine = vLine
+                pSelectionStartLine = vLine + 1
                 pSelectionStartColumn = 0
                 
                 If vLine < pLineCount - 1 Then
                     ' Not last line - select to start of next line (includes newline)
-                    pSelectionEndLine = vLine + 1
+                    pSelectionEndLine = vLine
                     pSelectionEndColumn = 0
                     ' Move cursor to start of next line
-                    SetCursorPosition(vLine + 1, 0)
+                    SetCursorPosition(vLine, 0)
                 Else
                     ' Last line - select to end
                     pSelectionEndLine = vLine

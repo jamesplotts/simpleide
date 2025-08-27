@@ -289,12 +289,15 @@ Namespace Widgets
        
         ' ===== Public Methods =====
 
+        ''' <summary>
+        ''' Loads project from the ProjectManager
+        ''' </summary>
         Public Sub LoadProjectFromManager()
             Try
-                Console.WriteLine("LoadProjectFromManager: Loading from ProjectManager")
+                Console.WriteLine("LoadProjectFromManager: Starting...")
                 
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
-                    Console.WriteLine("No project loaded in ProjectManager")
+                    Console.WriteLine("LoadProjectFromManager: No project loaded in ProjectManager")
                     Return
                 End If
                 
@@ -304,16 +307,16 @@ Namespace Widgets
                 ' Get project info from manager
                 Dim lProjectInfo As ProjectInfo = pProjectManager.CurrentProjectInfo
                 If lProjectInfo Is Nothing Then
-                    Console.WriteLine("No project info available")
+                    Console.WriteLine("LoadProjectFromManager: No project info available")
                     Return
                 End If
                 
                 pProjectFile = lProjectInfo.ProjectPath
                 pProjectDirectory = lProjectInfo.ProjectDirectory
                 
-                Console.WriteLine($"Project: {lProjectInfo.ProjectName}")
-                Console.WriteLine($"Directory: {pProjectDirectory}")
-                Console.WriteLine($"Files count: {lProjectInfo.SourceFiles.Count}")
+                Console.WriteLine($"LoadProjectFromManager: Project: {lProjectInfo.ProjectName}")
+                Console.WriteLine($"  Directory: {pProjectDirectory}")
+                Console.WriteLine($"  Files count: {lProjectInfo.SourceFiles.Count}")
                 
                 ' Create root project node
                 pRootNode = New ProjectNode() With {
@@ -325,7 +328,9 @@ Namespace Widgets
                 }
                 
                 ' Add to expanded nodes
-                pExpandedNodes.Add(GetNodePath(pRootNode))
+                Dim lRootPath As String = GetNodePath(pRootNode)
+                pExpandedNodes.Add(lRootPath)
+                Console.WriteLine($"LoadProjectFromManager: Added root to expanded nodes: {lRootPath}")
                 
                 ' Build tree from ProjectManager's file list
                 BuildTreeFromFileList(lProjectInfo.SourceFiles)
@@ -336,13 +341,31 @@ Namespace Widgets
                 ' SORT THE TREE - This ensures folders come before files at every level
                 pRootNode?.SortChildren()
                 
+                ' Log the structure
+                Console.WriteLine($"LoadProjectFromManager: Root node has {pRootNode?.Children.Count} children:")
+                If pRootNode IsNot Nothing Then
+                    For Each lChild In pRootNode.Children
+                        Console.WriteLine($"  - {lChild.Name} (IsFile={lChild.IsFile}, Type={lChild.NodeType})")
+                        If Not lChild.IsFile AndAlso lChild.Children.Count > 0 Then
+                            Console.WriteLine($"    Has {lChild.Children.Count} children")
+                        End If
+                    Next
+                End If
+                
                 ' Rebuild visual representation
                 RebuildVisualTree()
+                
+                ' Log visible nodes
+                Console.WriteLine($"LoadProjectFromManager: Visible nodes count: {pVisibleNodes.Count}")
+                For i As Integer = 0 To Math.Min(5, pVisibleNodes.Count - 1)
+                    Dim lNode As VisualProjectNode = pVisibleNodes(i)
+                    Console.WriteLine($"  Visible[{i}]: {lNode.Node.Name} at depth {lNode.Depth}")
+                Next
                 
                 ' Force redraw
                 pDrawingArea?.QueueDraw()
                 
-                Console.WriteLine($"Project loaded: {pVisibleNodes.Count} nodes visible")
+                Console.WriteLine($"LoadProjectFromManager: Project loaded successfully with {pVisibleNodes.Count} visible nodes")
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectFromManager error: {ex.Message}")

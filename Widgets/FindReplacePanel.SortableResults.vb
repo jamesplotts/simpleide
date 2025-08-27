@@ -30,81 +30,92 @@ Namespace Widgets
         End Enum
         
         ''' <summary>
-        ''' Creates an enhanced tree view with sortable columns for displaying search results
+        ''' Creates a tree view for search results with sortable columns
         ''' </summary>
-        ''' <returns>Configured TreeView widget with sortable columns</returns>
+        ''' <returns>Configured TreeView for displaying search results</returns>
         Private Function CreateSortableResultsView() As TreeView
             Try
-                ' Create tree view
-                Dim lTreeView As New TreeView()
-                
-                ' Create model with additional hidden column for full file path
-                ' IMPORTANT: Order matters - must match ResultColumns enum
+                ' Create the list store model
                 pResultsStore = New ListStore(
-                    GetType(String),  ' 0: FileName (displayed)
-                    GetType(String),  ' 1: LineText
+                    GetType(String),  ' 0: FileName
+                    GetType(String),  ' 1: LineText  
                     GetType(Integer), ' 2: LineNumber
                     GetType(Integer), ' 3: ColumnNumber
                     GetType(String),  ' 4: MatchText
-                    GetType(String)   ' 5: FilePath (hidden, for sorting)
+                    GetType(String)   ' 5: FilePath (hidden)
                 )
                 
-                ' Create sortable model wrapper and attach to tree view
+                ' Create sortable model wrapper
                 pTreeModelSort = New TreeModelSort(pResultsStore)
-                lTreeView.Model = pTreeModelSort
                 
-                ' ===== File Column =====
-                Dim lFileRenderer As New CellRendererText()
-                Dim lFileColumn As New TreeViewColumn("File", lFileRenderer, "text", 0)
+                ' Create tree view with the sortable model
+                Dim lTreeView As New TreeView(pTreeModelSort)
+                
+                ' FIXED: Enable single-click activation mode
+                ' This makes single-click behave like activation
+                lTreeView.ActivateOnSingleClick = True
+                
+                ' File column
+                Dim lFileColumn As New TreeViewColumn()
+                lFileColumn.Title = "File"
                 lFileColumn.Resizable = True
-                lFileColumn.MinWidth = 200
-                lFileColumn.Clickable = True
-                lFileColumn.SortColumnId = 1  ' Sort by hidden FilePath column
+                lFileColumn.SortColumnId = CInt(ResultColumns.FileName)
+                
+                Dim lFileRenderer As New CellRendererText()
+                lFileColumn.PackStart(lFileRenderer, True)
+                lFileColumn.AddAttribute(lFileRenderer, "text", CInt(ResultColumns.FileName))
                 lTreeView.AppendColumn(lFileColumn)
                 
-                ' ===== Line Column =====
-                Dim lLineRenderer As New CellRendererText()
-                Dim lLineColumn As New TreeViewColumn("Line", lLineRenderer, "text", 2)
+                ' Line column
+                Dim lLineColumn As New TreeViewColumn()
+                lLineColumn.Title = "Line"
                 lLineColumn.Resizable = True
-                lLineColumn.MinWidth = 60
-                lLineColumn.Clickable = True
-                lLineColumn.SortColumnId = 2  ' Sort by LineNumber
+                lLineColumn.SortColumnId = CInt(ResultColumns.LineNumber)
+                
+                Dim lLineRenderer As New CellRendererText()
+                lLineColumn.PackStart(lLineRenderer, True)
+                lLineColumn.AddAttribute(lLineRenderer, "text", CInt(ResultColumns.LineNumber))
                 lTreeView.AppendColumn(lLineColumn)
                 
-                ' ===== Column Column =====
-                Dim lColumnRenderer As New CellRendererText()
-                Dim lColumnColumn As New TreeViewColumn("Col", lColumnRenderer, "text", 3)
-                lColumnColumn.Resizable = True
-                lColumnColumn.MinWidth = 50
-                lColumnColumn.Clickable = True
-                lColumnColumn.SortColumnId = 3  ' Sort by ColumnNumber
-                lTreeView.AppendColumn(lColumnColumn)
+                ' Column column
+                Dim lColColumn As New TreeViewColumn()
+                lColColumn.Title = "Col"
+                lColColumn.Resizable = True
+                lColColumn.SortColumnId = CInt(ResultColumns.ColumnNumber)
                 
-                ' ===== Text Column =====
+                Dim lColRenderer As New CellRendererText()
+                lColColumn.PackStart(lColRenderer, True)
+                lColColumn.AddAttribute(lColRenderer, "text", CInt(ResultColumns.ColumnNumber))
+                lTreeView.AppendColumn(lColColumn)
+                
+                ' Line text column
+                Dim lTextColumn As New TreeViewColumn()
+                lTextColumn.Title = "Line Text"
+                lTextColumn.Resizable = True
+                lTextColumn.Expand = True
+                lTextColumn.SortColumnId = CInt(ResultColumns.LineText)
+                
                 Dim lTextRenderer As New CellRendererText()
                 lTextRenderer.Ellipsize = Pango.EllipsizeMode.End
-                Dim lTextColumn As New TreeViewColumn("Text", lTextRenderer, "text", 1)
-                lTextColumn.Resizable = True
-                lTextColumn.MinWidth = 300
-                lTextColumn.Clickable = True
-                lTextColumn.SortColumnId = 1  ' Sort by LineText
+                lTextColumn.PackStart(lTextRenderer, True)
+                lTextColumn.AddAttribute(lTextRenderer, "text", CInt(ResultColumns.LineText))
                 lTreeView.AppendColumn(lTextColumn)
                 
-                ' Configure tree view
+                ' Configure tree view properties
                 lTreeView.EnableSearch = True
-                lTreeView.SearchColumn = 1  ' Search in text column
+                lTreeView.SearchColumn = CInt(ResultColumns.LineText)
                 lTreeView.HeadersVisible = True
-                lTreeView.EnableGridLines = TreeViewGridLines.Horizontal
+                lTreeView.HeadersClickable = True
+                ' RulesHint is obsolete in GTK# 3, removed
                 
-                ' Set default sort to file path
-                pTreeModelSort.SetSortColumnId(5, SortType.Ascending)
-                
-                Console.WriteLine("CreateSortableResultsView: TreeView created with sortable columns")
+                ' Set default sort by line number
+                pTreeModelSort.SetSortColumnId(CInt(ResultColumns.LineNumber), SortType.Ascending)
                 
                 Return lTreeView
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateSortableResultsView error: {ex.Message}")
+                ' Return basic tree view as fallback
                 Return New TreeView()
             End Try
         End Function
@@ -241,7 +252,7 @@ Namespace Widgets
         Private Sub UpdateSortIndicators(vActiveColumn As TreeViewColumn, vSortOrder As SortType)
             Try
                 ' Clear all indicators first
-                For Each lColumn In pResultsView.Columns
+                for each lColumn in pResultsView.Columns
                     lColumn.SortIndicator = False
                 Next
                 
@@ -265,7 +276,7 @@ Namespace Widgets
                 Console.WriteLine($"PopulateSortableResults: Adding {vResults.Count} results")
                 
                 ' Add each result with full path
-                For Each lResult In vResults
+                for each lResult in vResults
                     Dim lIter As TreeIter = pResultsStore.AppendValues(
                         System.IO.Path.GetFileName(lResult.FilePath),  ' 0: Display file name only
                         lResult.LineText,                              ' 1: Line text
@@ -499,7 +510,7 @@ Namespace Widgets
                 
                 Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
                 lClipboard.Text = lText.ToString()
-                pStatusLabel.Text = $"Copied {pSearchResults.Count} results to clipboard"
+                pStatusLabel.Text = $"Copied {pSearchResults.Count} results To clipboard"
                 
             Catch ex As Exception
                 Console.WriteLine($"OnCopyAllResults error: {ex.Message}")
@@ -542,7 +553,7 @@ Namespace Widgets
                         ' Write to file
                         System.IO.File.WriteAllText(lFilePath, lCSV)
                         
-                        pStatusLabel.Text = $"Results exported to {System.IO.Path.GetFileName(lFilePath)}"
+                        pStatusLabel.Text = $"Results exported To {System.IO.Path.GetFileName(lFilePath)}"
                     End If
                 End Using
                 

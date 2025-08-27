@@ -23,9 +23,9 @@ Namespace Dialogs
             End Get
         End Property
         Private pProjectFile As String
-        Private pReferenceManager As ReferenceManager
         Private pNuGetClient As NuGetClient
         Private pSettingsManager As SettingsManager
+        Private pProjectManager As ProjectManager
         
         ' Assembly tab components
         Private pAssemblyTreeView As TreeView
@@ -60,30 +60,43 @@ Namespace Dialogs
         
         ' Events
         Public Event ReferencesChanged()
+
+        Private ReadOnly Property pReferenceManager() As ReferenceManager
+            Get
+                Return pProjectManager.ReferenceManager
+            End Get
+        End Property
         
-        Public Sub New(vParent As Window, vProjectFile As String, vSettingsManager As SettingsManager)
-            MyBase.New("Manage References", vParent, DialogFlags.Modal)
+        ''' <summary>
+        ''' Creates a new ReferenceManagerDialog
+        ''' </summary>
+        ''' <param name="vParent">Parent window</param>
+        ''' <param name="vProjectFile">Path to the project file</param>
+        ''' <param name="vProjectManager">The ProjectManager instance</param>
+        Public Sub New(vParent As Window, vProjectFile As String, vProjectManager As ProjectManager)
+            MyBase.New("Reference Manager", vParent, DialogFlags.Modal)
             
             pProjectFile = vProjectFile
-            pSettingsManager = vSettingsManager
-            pReferenceManager = New ReferenceManager()
-            pNuGetClient = New NuGetClient()
+            pProjectManager = vProjectManager
             
-            ' Window setup
+            ' Remove this line - we don't need a separate ReferenceManager instance:
+            ' pReferenceManager = New ReferenceManager()
+            
+            ' Set dialog properties
             SetDefaultSize(800, 600)
-            SetPosition(WindowPosition.CenterOnParent)
-            BorderWidth = 5
             
-            ' Build UI
+            ' Create UI
             BuildUI()
             
-            ' Load current references
+            ' Load current references through ProjectManager
             LoadCurrentReferences()
             
-            ' Connect handlers
+            ' Wire up events
             AddHandler Me.Response, AddressOf OnResponse
+            
+            ShowAll()
         End Sub
-        
+                
         Private Sub BuildUI()
             Try
                 ' Create main vbox
@@ -131,7 +144,7 @@ Namespace Dialogs
             ' TreeView
             Dim lScrolled As New ScrolledWindow()
             lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            lScrolled.ShadowType = ShadowType.In
+            lScrolled.ShadowType = ShadowType.in
             
             ' Create list store
             pAssemblyListStore = New ListStore(GetType(Boolean), GetType(String), GetType(String), GetType(String), GetType(String), GetType(Object))
@@ -214,7 +227,7 @@ Namespace Dialogs
             ' TreeView
             Dim lScrolled As New ScrolledWindow()
             lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            lScrolled.ShadowType = ShadowType.In
+            lScrolled.ShadowType = ShadowType.in
             
             ' Create list store
             pNuGetListStore = New ListStore(GetType(String), GetType(String), GetType(String), GetType(Long), GetType(Boolean), GetType(String), GetType(Object))
@@ -306,7 +319,7 @@ Namespace Dialogs
             ' TreeView
             Dim lScrolled As New ScrolledWindow()
             lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            lScrolled.ShadowType = ShadowType.In
+            lScrolled.ShadowType = ShadowType.in
             
             ' Create list store
             pProjectListStore = New ListStore(GetType(String), GetType(String), GetType(Boolean))
@@ -351,20 +364,33 @@ Namespace Dialogs
             Return lVBox
         End Function
         
-        ' Load current references from project
+        ''' <summary>
+        ''' Load current references from project through ProjectManager
+        ''' </summary>
         Private Sub LoadCurrentReferences()
             Try
-                pCurrentReferences = pReferenceManager.GetAllReferences(pProjectFile)
+                If pProjectManager IsNot Nothing Then
+                    ' Get references through ProjectManager
+                    pCurrentReferences = pProjectManager.ProjectReferences
+                    
+                    ' If not loaded yet, load them
+                    If pCurrentReferences Is Nothing OrElse pCurrentReferences.Count = 0 Then
+                        pProjectManager.LoadProjectReferences()
+                        pCurrentReferences = pProjectManager.ProjectReferences
+                    End If
+                Else
+                    pCurrentReferences = New List(Of ReferenceManager.ReferenceInfo)()
+                End If
                 
                 ' Update UI to show current references
                 UpdateAssemblyList()
                 UpdateProjectList()
                 
             Catch ex As Exception
-                Console.WriteLine($"error loading References: {ex.Message}")
+                Console.WriteLine($"Error loading References: {ex.Message}")
             End Try
         End Sub
-        
+                
         ' Load runtime assemblies
         Private Sub LoadRuntimeAssemblies()
             Try
@@ -373,7 +399,7 @@ Namespace Dialogs
                 ' Get runtime assemblies
                 Dim lAssemblies As List(Of AssemblyBrowser.AssemblyInfo) = AssemblyBrowser.GetRuntimeAssemblies()
                 
-                For Each lAssembly In lAssemblies
+                for each lAssembly in lAssemblies
                     ' Check if already referenced
                     Dim lIsReferenced As Boolean = pCurrentReferences.any(Function(r) r.Type = ReferenceManager.ReferenceType.eAssembly AndAlso r.Name = lAssembly.Name)
                     
@@ -492,21 +518,28 @@ Namespace Dialogs
         ' Add selected assemblies
         Private Sub OnAddAssemblies(vSender As Object, vE As EventArgs)
             Try
-                Dim lIter As TreeIter
+                If pProjectManager Is Nothing Then
+                    ShowError("No project manager available")
+                    Return
+                End If
+                
                 Dim lAddedCount As Integer = 0
+                Dim lIter As TreeIter
                 
                 If pAssemblyListStore.GetIterFirst(lIter) Then
                     Do
                         Dim lSelected As Boolean = CBool(pAssemblyListStore.GetValue(lIter, 0))
-                        If Not lSelected Then Continue Do
-                        
-                        Dim lAssembly As AssemblyBrowser.AssemblyInfo = CType(pAssemblyListStore.GetValue(lIter, 5), AssemblyBrowser.AssemblyInfo)
-                        
-                        ' Add reference
-                        If pReferenceManager.AddAssemblyReference(pProjectFile, lAssembly.FullName, lAssembly.Location) Then
-                            lAddedCount += 1
+                        If lSelected Then
+                            Dim lAssembly As AssemblyBrowser.AssemblyInfo = CType(pAssemblyListStore.GetValue(lIter, 5), AssemblyBrowser.AssemblyInfo)
+                            
+                            ' Check if not already referenced
+                            If Not pProjectManager.HasReference(lAssembly.Name, ReferenceManager.ReferenceType.eAssembly) Then
+                                ' Add reference through ProjectManager
+                                If pProjectManager.AddAssemblyReference(lAssembly.Name, lAssembly.Location) Then
+                                    lAddedCount += 1
+                                End If
+                            End If
                         End If
-                        
                     Loop While pAssemblyListStore.IterNext(lIter)
                 End If
                 
@@ -517,14 +550,19 @@ Namespace Dialogs
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"error adding assemblies: {ex.Message}")
-                ShowError($"error adding assemblies: {ex.Message}")
+                Console.WriteLine($"Error adding assemblies: {ex.Message}")
+                ShowError($"Error adding assemblies: {ex.Message}")
             End Try
         End Sub
         
         ' Remove selected assemblies
         Private Sub OnRemoveAssemblies(vSender As Object, vE As EventArgs)
             Try
+                If pProjectManager Is Nothing Then
+                    ShowError("No project manager available")
+                    Return
+                End If
+                
                 Dim lIter As TreeIter
                 Dim lRemovedCount As Integer = 0
                 
@@ -534,8 +572,8 @@ Namespace Dialogs
                         If lSelected Then
                             Dim lAssembly As AssemblyBrowser.AssemblyInfo = CType(pAssemblyListStore.GetValue(lIter, 5), AssemblyBrowser.AssemblyInfo)
                             
-                            ' Remove reference
-                            If pReferenceManager.RemoveReference(pProjectFile, lAssembly.Name, ReferenceManager.ReferenceType.eAssembly) Then
+                            ' Remove reference through ProjectManager
+                            If pProjectManager.RemoveReference(lAssembly.Name, ReferenceManager.ReferenceType.eAssembly) Then
                                 lRemovedCount += 1
                             End If
                         End If
@@ -549,11 +587,11 @@ Namespace Dialogs
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"error removing assemblies: {ex.Message}")
-                ShowError($"error removing assemblies: {ex.Message}")
+                Console.WriteLine($"Error removing assemblies: {ex.Message}")
+                ShowError($"Error removing assemblies: {ex.Message}")
             End Try
         End Sub
-        
+                
         ' NuGet search
         Private Sub OnNuGetSearch(vSender As Object, vE As EventArgs)
             Try
@@ -599,7 +637,7 @@ Namespace Dialogs
                 pNuGetStatusLabel.Text = $"Found {lResult.TotalHits} Packages"
                 
                 ' Populate results
-                For Each lPackage In lResult.Packages
+                for each lPackage in lResult.Packages
                     ' Check if installed
                     Dim lInstalledVersion As String = ""
                     lPackage.IsInstalled = pNuGetClient.IsPackageInstalled(pProjectFile, lPackage.Id, lInstalledVersion)
@@ -665,7 +703,7 @@ Namespace Dialogs
                     Dim lVersions As List(Of String) = vTask.Result
                     
                     ' Populate version combo
-                    For Each lVersion In lVersions
+                    for each lVersion in lVersions
                         pNuGetVersionCombo.AppendText(lVersion)
                     Next
                     
@@ -804,7 +842,7 @@ Namespace Dialogs
                     Function(r) r.Type = ReferenceManager.ReferenceType.ePackage
                 ).ToList()
                 
-                For Each lRef In lPackageRefs
+                for each lRef in lPackageRefs
                     Dim lPackage As New NuGetClient.PackageInfo()
                     lPackage.Id = lRef.Name
                     lPackage.Version = lRef.Version
@@ -840,7 +878,7 @@ Namespace Dialogs
                     Function(r) r.Type = ReferenceManager.ReferenceType.eProject
                 ).ToList()
                 
-                For Each lRef In lProjectRefs
+                for each lRef in lProjectRefs
                     Dim lIter As TreeIter = pProjectListStore.AppendValues(
                         lRef.Name,
                         lRef.Path,
@@ -1055,7 +1093,7 @@ Namespace Dialogs
             Dim lDialog As New MessageDialog(
                 Me,
                 DialogFlags.Modal,
-                MessageType.Error,
+                MessageType.error,
                 ButtonsType.Ok,
                 vMessage
             )

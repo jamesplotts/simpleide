@@ -880,7 +880,7 @@ Partial Public Class MainWindow
                 Dim lCurrentLine As Integer = lPosition.Line  ' 0-based
                 
                 ' Select the entire line
-                lEditor.SelectLine(lCurrentLine + 1)  ' SelectLine expects 1-based
+                lEditor.SelectLine(lCurrentLine + 1)  ' SelectLine expects 0-based
                 
                 ' Cut the selected text
                 lEditor.Cut()

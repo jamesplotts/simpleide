@@ -112,6 +112,7 @@ Namespace Managers
         ' Constructor
         Public Sub New(vSettingsManager As SettingsManager)
             pSettingsManager = vSettingsManager
+            Initialize()
         End Sub
         
         ' Initialize the bottom panel
@@ -134,12 +135,72 @@ Namespace Managers
                 ' Handle tab switching
                 AddHandler pNotebook.SwitchPage, AddressOf OnTabSwitched
                 
+                InitializeEscapeKeyHandling()
+
+                ' Load initial settings
+                'LoadSettings()
+
                 ' Initially hide the panel
                 pNotebook.Visible = False
                 pIsVisible = False
                 
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.Initialize error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Initialize ESC key handling for the panel and all child widgets
+        ''' </summary>
+        ''' <remarks>
+        ''' Sets up key press event handlers on all child panels to hide the bottom panel on ESC
+        ''' </remarks>
+        Private Sub InitializeEscapeKeyHandling()
+            Try
+                ' Connect ESC handler to the main notebook
+                If pNotebook IsNot Nothing Then
+                    AddHandler pNotebook.KeyPressEvent, AddressOf OnPanelKeyPress
+                End If
+                
+                ' Connect to Build Output Panel
+                If pBuildOutputPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pBuildOutputPanel)
+                End If
+                
+                ' Connect to Find Panel
+                If pFindPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pFindPanel)
+                End If
+                
+                ' Connect to TODO Panel
+                If pTodoPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pTodoPanel)
+                End If
+                
+                ' Connect to AI Assistant Panel
+                If pAIAssistantPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pAIAssistantPanel)
+                End If
+                
+                ' Connect to Help Viewer Panel
+                If pHelpViewerPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pHelpViewerPanel)
+                End If
+                
+                ' Connect to Git Panel
+                If pGitPanel IsNot Nothing Then
+                    ConnectEscapeHandlerToWidget(pGitPanel)
+                End If
+                
+                ' Connect to Console TextView
+                If pConsoleTextView IsNot Nothing Then
+                    AddHandler pConsoleTextView.KeyPressEvent, AddressOf OnPanelKeyPress
+                End If
+                
+                Console.WriteLine("BottomPanelManager: ESC key handling initialized")
+                
+            Catch ex As Exception
+                Console.WriteLine($"InitializeEscapeKeyHandling error: {ex.Message}")
             End Try
         End Sub
         
@@ -181,7 +242,158 @@ Namespace Managers
                 Console.WriteLine($"CreateBuildOutputTab error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Recursively connects ESC handler to a widget and all its children
+        ''' </summary>
+        ''' <param name="vWidget">Widget to connect handler to</param>
+        Private Sub ConnectEscapeHandlerToWidget(vWidget As Widget)
+            Try
+                If vWidget Is Nothing Then Return
+                
+                ' Connect to this widget
+                AddHandler vWidget.KeyPressEvent, AddressOf OnPanelKeyPress
+                
+                ' If it's a container, connect to all children
+                If TypeOf vWidget Is Container Then
+                    Dim lContainer As Container = CType(vWidget, Container)
+                    for each lChild As Widget in lContainer.Children
+                        ConnectEscapeHandlerToWidget(lChild)
+                    Next
+                End If
+                
+                ' Special handling for certain widget types
+                If TypeOf vWidget Is TextView Then
+                    ' TextViews need special handling as they consume key events
+                    Dim lTextView As TextView = CType(vWidget, TextView)
+                    AddHandler lTextView.KeyPressEvent, AddressOf OnTextViewKeyPress
+                ElseIf TypeOf vWidget Is TreeView Then
+                    ' TreeViews also need special handling
+                    Dim lTreeView As TreeView = CType(vWidget, TreeView)
+                    AddHandler lTreeView.KeyPressEvent, AddressOf OnTreeViewKeyPress
+                ElseIf TypeOf vWidget Is Entry Then
+                    ' Entry widgets need special handling
+                    Dim lEntry As Entry = CType(vWidget, Entry)
+                    AddHandler lEntry.KeyPressEvent, AddressOf OnEntryKeyPress
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"ConnectEscapeHandlerToWidget error: {ex.Message}")
+            End Try
+        End Sub
         
+        ''' <summary>
+        ''' Main key press handler for panel widgets
+        ''' </summary>
+        ''' <param name="vSender">Event sender</param>
+        ''' <param name="vArgs">Key press event arguments</param>
+        Private Sub OnPanelKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+            Try
+                ' Check if ESC was pressed
+                If vArgs.Event.Key = Gdk.Key.Escape Then
+                    ' Hide the panel
+                    HidePanel()
+                    
+                    ' Mark event as handled
+                    vArgs.RetVal = True
+                    
+                    Console.WriteLine("BottomPanelManager: ESC pressed - hiding panel")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnPanelKeyPress error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Special handler for TextView widgets to handle ESC
+        ''' </summary>
+        ''' <param name="vSender">Event sender</param>
+        ''' <param name="vArgs">Key press event arguments</param>
+        Private Sub OnTextViewKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+            Try
+                ' Check if ESC was pressed
+                If vArgs.Event.Key = Gdk.Key.Escape Then
+                    Dim lTextView As TextView = TryCast(vSender, TextView)
+                    
+                    ' Check if there's a selection - if so, clear it first
+                    If lTextView IsNot Nothing Then
+                        Dim lBuffer As TextBuffer = lTextView.Buffer
+                        If lBuffer.HasSelection Then
+                            ' Clear selection
+                            Dim lInsert As TextIter = lBuffer.GetIterAtMark(lBuffer.InsertMark)
+                            lBuffer.PlaceCursor(lInsert)
+                            vArgs.RetVal = True
+                            Return
+                        End If
+                    End If
+                    
+                    ' No selection or not a TextView - hide panel
+                    HidePanel()
+                    vArgs.RetVal = True
+                    
+                    Console.WriteLine("BottomPanelManager: ESC pressed in TextView - hiding panel")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnTextViewKeyPress error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Special handler for TreeView widgets to handle ESC
+        ''' </summary>
+        ''' <param name="vSender">Event sender</param>
+        ''' <param name="vArgs">Key press event arguments</param>
+        Private Sub OnTreeViewKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+            Try
+                ' Check if ESC was pressed
+                If vArgs.Event.Key = Gdk.Key.Escape Then
+                    ' Hide the panel
+                    HidePanel()
+                    vArgs.RetVal = True
+                    
+                    Console.WriteLine("BottomPanelManager: ESC pressed in TreeView - hiding panel")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnTreeViewKeyPress error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Special handler for Entry widgets to handle ESC
+        ''' </summary>
+        ''' <param name="vSender">Event sender</param>
+        ''' <param name="vArgs">Key press event arguments</param>
+        Private Sub OnEntryKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
+            Try
+                ' Check if ESC was pressed
+                If vArgs.Event.Key = Gdk.Key.Escape Then
+                    Dim lEntry As Entry = TryCast(vSender, Entry)
+                    
+                    ' Check if entry has text selected
+                    If lEntry IsNot Nothing Then
+                        Dim lBounds As Integer() = {0, 0}
+                        If lEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
+                            ' Clear selection
+                            lEntry.SelectRegion(0, 0)
+                            vArgs.RetVal = True
+                            Return
+                        End If
+                    End If
+                    
+                    ' No selection - hide panel
+                    HidePanel()
+                    vArgs.RetVal = True
+                    
+                    Console.WriteLine("BottomPanelManager: ESC pressed in Entry - hiding panel")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnEntryKeyPress error: {ex.Message}")
+            End Try
+        End Sub
         
         ' Update build output - PUBLIC METHOD
         Public Sub UpdateBuildOutput(vText As String, vIsError As Boolean)
@@ -491,7 +703,12 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Hide the panel
+        ''' <summary>
+        ''' Hide the panel and notify listeners
+        ''' </summary>
+        ''' <remarks>
+        ''' Enhanced to properly handle focus return when hiding via ESC key
+        ''' </remarks>
         Public Sub HidePanel()
             Try
                 IsVisible = False
@@ -636,7 +853,7 @@ Namespace Managers
         Public Function GetTabIndexForPanel(vPanel As Widget) As Integer
             Try
                 If pNotebook IsNot Nothing AndAlso vPanel IsNot Nothing Then
-                    For i As Integer = 0 To pNotebook.NPages - 1
+                    for i As Integer = 0 To pNotebook.NPages - 1
                         If pNotebook.GetNthPage(i) Is vPanel Then
                             Return i
                         End If
@@ -715,7 +932,7 @@ Namespace Managers
                             Dim lBox As Box = CType(lTabWidget, Box)
                             
                             ' Find the Label within the Box
-                            For Each lChild As Widget In lBox.Children
+                            for each lChild As Widget in lBox.Children
                                 If TypeOf lChild Is Label Then
                                     Dim lLabel As Label = CType(lChild, Label)
                                     
@@ -725,7 +942,7 @@ Namespace Managers
                                     Else
                                         lLabel.Text = "Build output"
                                     End If
-                                    Exit For
+                                    Exit for
                                 End If
                             Next
                         End If
@@ -802,6 +1019,33 @@ Namespace Managers
                 Console.WriteLine($"CreateFindResultsTab error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Checks if any child widget of the bottom panel has focus
+        ''' </summary>
+        ''' <returns>True if a child widget has focus, False otherwise</returns>
+        Public Function IsChildWidgetFocused() As Boolean
+            Try
+                ' Get the currently focused widget
+                Dim lFocusedWidget As Widget = Window.ListToplevels()(0)?.Focus
+                If lFocusedWidget Is Nothing Then Return False
+                
+                ' Check if the focused widget is a descendant of our notebook
+                Dim lParent As Widget = lFocusedWidget
+                While lParent IsNot Nothing
+                    If lParent Is pNotebook Then
+                        Return True
+                    End If
+                    lParent = lParent.Parent
+                End While
+                
+                Return False
+                
+            Catch ex As Exception
+                Console.WriteLine($"IsChildWidgetFocused error: {ex.Message}")
+                Return False
+            End Try
+        End Function
 
     End Class
 End Namespace

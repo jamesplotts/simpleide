@@ -176,6 +176,12 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handles navigation to a find result when selected in the Find panel
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file containing the match</param>
+    ''' <param name="vLineNumber">Line number of the match (1-based)</param>
+    ''' <param name="vColumnNumber">Column number of the match (1-based)</param>
     Private Sub OnFindResultSelected(vFilePath As String, vLineNumber As Integer, vColumnNumber As Integer)
         Try
             ' Open file if not already open
@@ -189,8 +195,17 @@ Partial Public Class MainWindow
             ' Navigate to the location
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
-                ' Convert to 0-based indices
-                lEditor.GoToPosition(New EditorPosition(vLineNumber - 1, vColumnNumber - 1))
+                ' FIXED: Don't convert to 0-based since GoToLine expects 1-based
+                ' Use GoToLine for navigation to avoid the off-by-one error
+                lEditor.GoToLine(vLineNumber)
+                
+                ' Now set the column position if needed
+                If vColumnNumber > 1 Then
+                    Dim lPosition As New EditorPosition(vLineNumber, vColumnNumber)
+                    lEditor.GoToPosition(lPosition)
+                End If
+                
+                ' Ensure the editor has focus
                 lEditor.Widget.GrabFocus()
             End If
             

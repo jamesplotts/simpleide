@@ -36,9 +36,38 @@ Namespace Managers
         Private pProjectWatcher As System.IO.FileSystemWatcher
         Private pIsProjectOpen As Boolean = False
         Private pIsDirty As Boolean = False
-        Private pRootNode as SyntaxNode
+        Private pRootNode As SyntaxNode
+
+        ' ===== Events =====
+
+        ''' <summary>
+        ''' Raised when a file has been parsed successfully
+        ''' </summary>
+        ''' <param name="vFile">The SourceFileInfo that was parsed</param>
+        ''' <param name="vResult">The root SyntaxNode of the parse result</param>
+        Public Event ParseCompleted(vFile As SourceFileInfo, vResult As SyntaxNode)
         
         ' ===== Properties =====
+
+        ''' <summary>
+        ''' The centralized ProjectParser instance for all parsing operations
+        ''' </summary>
+        Private pParser As ProjectParser
+
+        ''' <summary>
+        ''' Gets the centralized ProjectParser instance
+        ''' </summary>
+        ''' <value>The ProjectParser used for all parsing operations</value>
+        Public ReadOnly Property Parser As ProjectParser
+            Get
+                ' Lazy initialization
+                If pParser Is Nothing Then
+                    pParser = New ProjectParser(Me)
+                End If
+                Return pParser
+            End Get
+        End Property
+
         Public ReadOnly Property IsProjectOpen As Boolean
             Get
                 Return pIsProjectOpen
@@ -51,7 +80,7 @@ Namespace Managers
             End Get
         End Property
 
-        Public ReadOnly Property CurrentProjectInfo as ProjectInfo
+        Public ReadOnly Property CurrentProjectInfo As ProjectInfo
             Get
                 Return pCurrentProjectInfo
             End Get
@@ -75,13 +104,40 @@ Namespace Managers
             End Get
         End Property
 
+        ''' <summary>
+        ''' Gets the root namespace for the current project
+        ''' </summary>
+        ''' <value>The root namespace string, defaults to "SimpleIDE" if no project is loaded</value>
+        Public ReadOnly Property RootNamespace As String
+            Get
+                If pCurrentProjectInfo IsNot Nothing AndAlso Not String.IsNullOrEmpty(pCurrentProjectInfo.RootNamespace) Then
+                    Return pCurrentProjectInfo.RootNamespace
+                End If
+                Return "SimpleIDE" ' Default
+            End Get
+        End Property
+
         Public Sub MarkDirty()
-            pIsDirty = true
+            pIsDirty = True
         End Sub
         
         ' ===== Constructor =====
         Public Sub New()
-            ' Initialize
+            InitializeParser()
+        End Sub
+        
+        ''' <summary>
+        ''' Ensures the ProjectParser is initialized
+        ''' </summary>
+        Private Sub InitializeParser()
+            Try
+                If pProjectParser Is Nothing Then
+                    Console.WriteLine("ProjectManager: Initializing ProjectParser")
+                    pProjectParser = New ProjectParser(Me)
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"InitializeParser error: {ex.Message}")
+            End Try
         End Sub
         
         ' ===== Project Operations =====
@@ -113,7 +169,7 @@ Namespace Managers
                 pCurrentProjectInfo.PackageReferences = lParsedInfo.PackageReferences
                 
                 ' Initialize source files list from compile items
-                For Each lItem In lParsedInfo.CompileItems
+                for each lItem in lParsedInfo.CompileItems
                     pCurrentProjectInfo.SourceFiles.Add(Path.Combine(pCurrentProjectInfo.ProjectDirectory, lItem))
                 Next
                 
@@ -126,6 +182,8 @@ Namespace Managers
                 ' Set flags
                 pIsProjectOpen = True
                 pIsDirty = False
+
+                InitializeProjectReferences()
                 
                 ' Raise event
                 RaiseEvent ProjectLoaded(vProjectPath)
@@ -158,6 +216,8 @@ Namespace Managers
                 ' Clear project info
                 pCurrentProjectInfo = Nothing
                 pProjectMetadata = Nothing
+                pProjectReferences = Nothing
+                pReferenceManager = Nothing
                 pIsProjectOpen = False
                 pIsDirty = False
                 
@@ -191,7 +251,7 @@ Namespace Managers
                 lProjectInfo.PackageReferences = lParsedInfo.PackageReferences
                 
                 ' Initialize source files list from compile items
-                For Each lItem In lParsedInfo.CompileItems
+                for each lItem in lParsedInfo.CompileItems
                     lProjectInfo.SourceFiles.Add(Path.Combine(lProjectInfo.ProjectDirectory, lItem))
                 Next
                 
@@ -223,35 +283,53 @@ Namespace Managers
         
         ' ===== File Operations =====
         
-        ' Add file to project
-        Public Function AddFileToProject(vFilePath As String, Optional vItemType As String = "Compile") As Boolean
+        ' Replace: SimpleIDE.Managers.ProjectManager.AddFileToProject
+        ''' <summary>
+        ''' Add a file to the project with specified item type
+        ''' </summary>
+        ''' <param name="vFilePath">Full path to the file</param>
+        ''' <param name="vItemType">Item type (e.g., "Compile", "Content", "None")</param>
+        ''' <returns>True if successfully added, False otherwise</returns>
+        Public Function AddFileToProject(vFilePath As String, vItemType As String) As Boolean
             Try
                 If Not pIsProjectOpen Then Return False
                 
-                ' Make path relative to project
-                Dim lRelativePath As String = GetRelativePath(CurrentProjectDirectory, vFilePath)
+                ' Get relative path and convert to forward slashes for XML
+                Dim lRelativePath As String = GetRelativePath(vFilePath)
+                Dim lXmlRelativePath As String = lRelativePath.Replace("\"c, "/"c)
                 
-                ' Load project file
+                ' Load project file WITHOUT PreserveWhitespace to allow proper formatting
                 Dim lDoc As New XmlDocument()
-                lDoc.PreserveWhitespace = True
                 lDoc.Load(CurrentProjectPath)
                 
                 ' Find or create ItemGroup
                 Dim lItemGroup As XmlNode = FindOrCreateItemGroup(lDoc, vItemType)
                 
-                ' Check if already exists
-                Dim lExisting As XmlNode = lDoc.SelectSingleNode($"//{vItemType}[@Include='{lRelativePath}']")
+                ' Check if already exists (try both slash styles)
+                Dim lExisting As XmlNode = lDoc.SelectSingleNode($"//{vItemType}[@Include='{lXmlRelativePath}']")
+                If lExisting Is Nothing Then
+                    lExisting = lDoc.SelectSingleNode($"//{vItemType}[@Include='{lRelativePath}']")
+                End If
+                
                 If lExisting IsNot Nothing Then
                     Console.WriteLine($"File already in project: {lRelativePath}")
                     Return False
                 End If
                 
-                ' Create new item element
+                ' Create new item element with forward slashes
                 Dim lNewItem As XmlElement = lDoc.CreateElement(vItemType, lDoc.DocumentElement.NamespaceURI)
-                lNewItem.SetAttribute("Include", lRelativePath)
+                lNewItem.SetAttribute("Include", lXmlRelativePath)
+                
+                ' Add whitespace for formatting if needed
+                If lItemGroup.HasChildNodes Then
+                    ' Add newline and indentation before the new element
+                    Dim lWhitespace As XmlNode = lDoc.CreateWhitespace("" & Environment.NewLine & "    ")
+                    lItemGroup.AppendChild(lWhitespace)
+                End If
+                
                 lItemGroup.AppendChild(lNewItem)
                 
-                ' Save project file
+                ' Save project file with proper formatting
                 SaveProjectFile(lDoc)
                 
                 ' Update project info
@@ -266,6 +344,7 @@ Namespace Managers
                 RaiseEvent FileAdded(vFilePath)
                 RaiseEvent ProjectModified()
                 
+                Console.WriteLine($"Added {lXmlRelativePath} to project as {vItemType}")
                 Return True
                 
             Catch ex As Exception
@@ -274,60 +353,203 @@ Namespace Managers
             End Try
         End Function
         
-
         ''' <summary>
-        ''' Remove a file from the project and its DocumentModel
+        ''' Add a new file to the project and create its DocumentModel
         ''' </summary>
-        Public Function RemoveFileFromProject(vFilePath As String) As Boolean
+        ''' <param name="vFilePath">Full path to the file to add</param>
+        ''' <returns>The DocumentModel for the added file, or Nothing if failed</returns>
+        Public Function AddFileToProject(vFilePath As String) As DocumentModel
             Try
-                If Not pIsProjectOpen Then Return False
+                ' Get relative path
                 Dim lRelativePath As String = GetRelativePath(vFilePath)
+                Dim lXmlRelativePath As String = lRelativePath.Replace("\"c, "/"c)
                 
-                If Not pDocumentModels.ContainsKey(lRelativePath) Then
-                    Console.WriteLine($"File not in project: {lRelativePath}")
-                    Return False
+                ' Check if already exists
+                If pDocumentModels.ContainsKey(lRelativePath) Then
+                    Console.WriteLine($"File already in project: {lRelativePath}")
+                    Return pDocumentModels(lRelativePath)
                 End If
                 
-                ' Get the model
-                Dim lModel As DocumentModel = pDocumentModels(lRelativePath)
+                ' Create new DocumentModel
+                Dim lModel As New DocumentModel(vFilePath)
                 
-                ' Remove event handlers
-                RemoveHandler lModel.DocumentParsed, AddressOf OnDocumentParsed
-                RemoveHandler lModel.StructureChanged, AddressOf OnDocumentStructureChanged
-                RemoveHandler lModel.ModifiedStateChanged, AddressOf OnDocumentModifiedStateChanged
-                
-                ' Remove from collection
-                pDocumentModels.Remove(lRelativePath)
-                
-                ' Remove from active editors if present
-                If pActiveEditors.ContainsKey(lRelativePath) Then
-                    pActiveEditors.Remove(lRelativePath)
+                ' Load file if it exists
+                If File.Exists(vFilePath) Then
+                    lModel.LoadFromFile(vFilePath)
                 End If
                 
-                ' Update project file
-                If pCurrentProjectInfo IsNot Nothing Then
-                    pCurrentProjectInfo.SourceFiles.Remove(vFilePath)
-                    pCurrentProjectInfo.CompileItems.Remove(lRelativePath)
+                ' Add to collection
+                pDocumentModels(lRelativePath) = lModel
+                
+                ' Wire up all events using the new method
+                WireDocumentModelEvents(lModel)
+                
+                ' Update project file XML
+                If pCurrentProjectInfo IsNot Nothing AndAlso Not String.IsNullOrEmpty(CurrentProjectPath) Then
+                    ' Load project file WITHOUT PreserveWhitespace for proper formatting
                     Dim lDoc As New XmlDocument()
-                    lDoc.PreserveWhitespace = True
                     lDoc.Load(CurrentProjectPath)
-                    SaveProjectFile(lDoc)
+                    
+                    ' Find or create ItemGroup for Compile items
+                    Dim lItemGroup As XmlNode = FindOrCreateItemGroup(lDoc, "Compile")
+                    
+                    ' Check if already exists in XML (try both slash styles)
+                    Dim lExisting As XmlNode = lDoc.SelectSingleNode($"//Compile[@Include='{lXmlRelativePath}']")
+                    If lExisting Is Nothing Then
+                        lExisting = lDoc.SelectSingleNode($"//Compile[@Include='{lRelativePath}']")
+                    End If
+                    
+                    If lExisting Is Nothing Then
+                        ' Add whitespace for formatting if ItemGroup has children
+                        If lItemGroup.HasChildNodes Then
+                            Dim lWhitespace As XmlNode = lDoc.CreateWhitespace("" & Environment.NewLine & "    ")
+                            lItemGroup.AppendChild(lWhitespace)
+                        End If
+                        
+                        ' Create new Compile element with forward slashes
+                        Dim lNewItem As XmlElement = lDoc.CreateElement("Compile", lDoc.DocumentElement.NamespaceURI)
+                        lNewItem.SetAttribute("Include", lXmlRelativePath)
+                        lItemGroup.AppendChild(lNewItem)
+                        
+                        ' Save project file
+                        SaveProjectFile(lDoc)
+                        Console.WriteLine($"Added {lXmlRelativePath} to project file")
+                    End If
+                    
+                    ' Update project info collections
+                    pCurrentProjectInfo.SourceFiles.Add(vFilePath)
+                    pCurrentProjectInfo.CompileItems.Add(lRelativePath)
                 End If
+                
+                ' Mark as dirty
+                pIsDirty = True
                 
                 ' Rebuild namespace tree
                 BuildUnifiedNamespaceTree()
                 
+                ' Raise events
+                RaiseEvent DocumentModelCreated(lRelativePath, lModel)
+                RaiseEvent FileAdded(vFilePath)
+                RaiseEvent ProjectModified()
+                
+                Return lModel
+                
+            Catch ex As Exception
+                Console.WriteLine($"AddFileToProject error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+        
+
+        ' Replace: SimpleIDE.Managers.ProjectManager.RemoveFileFromProject
+        ''' <summary>
+        ''' Remove a file from the project and its DocumentModel
+        ''' </summary>
+        ''' <param name="vFilePath">Full path to the file to remove</param>
+        ''' <returns>True if successfully removed, False otherwise</returns>
+        Public Function RemoveFileFromProject(vFilePath As String) As Boolean
+            Try
+                If Not pIsProjectOpen Then Return False
+                
+                ' Get relative path with forward slashes for XML
+                Dim lRelativePath As String = GetRelativePath(vFilePath)
+                ' Convert to forward slashes for XML compatibility
+                Dim lXmlRelativePath As String = lRelativePath.Replace("\"c, "/"c)
+                
+                Console.WriteLine($"RemoveFileFromProject: Attempting To remove {lXmlRelativePath}")
+                
+                ' Handle DocumentModel removal if it exists
+                Dim lHadDocumentModel As Boolean = False
+                If pDocumentModels.ContainsKey(lRelativePath) Then
+                    lHadDocumentModel = True
+                    ' Get the model
+                    Dim lModel As DocumentModel = pDocumentModels(lRelativePath)
+                    
+                    ' Remove event handlers
+                    RemoveHandler lModel.DocumentParsed, AddressOf OnDocumentParsed
+                    RemoveHandler lModel.StructureChanged, AddressOf OnDocumentStructureChanged
+                    RemoveHandler lModel.ModifiedStateChanged, AddressOf OnDocumentModifiedStateChanged
+                    
+                    ' Remove from collection
+                    pDocumentModels.Remove(lRelativePath)
+                    
+                    ' Remove from active editors if present
+                    If pActiveEditors.ContainsKey(lRelativePath) Then
+                        pActiveEditors.Remove(lRelativePath)
+                    End If
+                End If
+                
+                ' Update project file XML
+                Dim lRemovedFromXml As Boolean = False
+                If Not String.IsNullOrEmpty(CurrentProjectPath) AndAlso File.Exists(CurrentProjectPath) Then
+                    ' Load project file WITHOUT PreserveWhitespace to let XmlWriter handle formatting
+                    Dim lDoc As New XmlDocument()
+                    lDoc.Load(CurrentProjectPath)
+                    
+                    ' Try different XPath patterns to find the Compile element
+                    ' First try with forward slashes
+                    Dim lCompileNode As XmlNode = lDoc.SelectSingleNode($"//Compile[@Include='{lXmlRelativePath}']")
+                    
+                    ' If not found, try with backslashes (in case project uses Windows paths)
+                    If lCompileNode Is Nothing Then
+                        Dim lWindowsPath As String = lXmlRelativePath.Replace("/"c, "\"c)
+                        lCompileNode = lDoc.SelectSingleNode($"//Compile[@Include='{lWindowsPath}']")
+                    End If
+                    
+                    ' Also try the original relative path
+                    If lCompileNode Is Nothing Then
+                        lCompileNode = lDoc.SelectSingleNode($"//Compile[@Include='{lRelativePath}']")
+                    End If
+                    
+                    If lCompileNode IsNot Nothing Then
+                        ' Get parent ItemGroup
+                        Dim lItemGroup As XmlNode = lCompileNode.ParentNode
+                        
+                        ' Remove the Compile element
+                        lItemGroup.RemoveChild(lCompileNode)
+                        lRemovedFromXml = True
+                        Console.WriteLine($"Removed Compile element for {lXmlRelativePath} from project file")
+                        
+                        ' If ItemGroup is now empty, remove it too
+                        If Not lItemGroup.HasChildNodes OrElse lItemGroup.ChildNodes.Count = 0 Then
+                            lItemGroup.ParentNode.RemoveChild(lItemGroup)
+                            Console.WriteLine("Removed empty ItemGroup from project file")
+                        End If
+                        
+                        ' Save the updated project file with proper formatting
+                        SaveProjectFile(lDoc)
+                    Else
+                        Console.WriteLine($"Compile element for '{lXmlRelativePath}' not found in project file")
+                    End If
+                End If
+                
+                ' Update in-memory project info collections
+                If pCurrentProjectInfo IsNot Nothing Then
+                    pCurrentProjectInfo.SourceFiles.Remove(vFilePath)
+                    pCurrentProjectInfo.CompileItems.Remove(lRelativePath)
+                    pCurrentProjectInfo.CompileItems.Remove(lXmlRelativePath)
+                End If
+                
+                ' Only rebuild namespace tree if we had a DocumentModel
+                If lHadDocumentModel Then
+                    BuildUnifiedNamespaceTree()
+                End If
+                
                 ' Mark as dirty
                 pIsDirty = True
-
-                ' Raise events
-                RaiseEvent DocumentModelRemoved(lRelativePath)
-                RaiseEvent FileRemoved(vFilePath)
                 
-                Return True
+                ' Raise events
+                If lHadDocumentModel Then
+                    RaiseEvent DocumentModelRemoved(lRelativePath)
+                End If
+                RaiseEvent FileRemoved(vFilePath)
+                RaiseEvent ProjectModified()
+                
+                Return lRemovedFromXml OrElse lHadDocumentModel
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.RemoveFileFromProject error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
                 Return False
             End Try
         End Function
@@ -544,22 +766,38 @@ Namespace Managers
             End Try
         End Function
         
+        ''' <summary>
+        ''' Save project file with proper XML formatting
+        ''' </summary>
+        ''' <param name="vDoc">XML document to save</param>
+        ''' <remarks>
+        ''' Uses CurrentProjectPath as the destination file
+        ''' </remarks>
         Private Sub SaveProjectFile(vDoc As XmlDocument)
             Try
-                ' Format and save
+                If String.IsNullOrEmpty(CurrentProjectPath) Then
+                    Throw New InvalidOperationException("CurrentProjectPath is not set")
+                End If
+                
+                ' Create XmlWriterSettings for proper formatting
                 Dim lSettings As New XmlWriterSettings()
                 lSettings.Indent = True
                 lSettings.IndentChars = "  "
                 lSettings.NewLineChars = Environment.NewLine
                 lSettings.NewLineHandling = NewLineHandling.Replace
+                lSettings.OmitXmlDeclaration = False
+                lSettings.Encoding = New System.Text.UTF8Encoding(False) ' UTF-8 without BOM
                 
+                ' Save with XmlWriter for proper formatting
                 Using lWriter As XmlWriter = XmlWriter.Create(CurrentProjectPath, lSettings)
                     vDoc.Save(lWriter)
                 End Using
                 
+                Console.WriteLine($"ProjectManager saved project file: {CurrentProjectPath}")
+                
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.SaveProjectFile error: {ex.Message}")
-                Throw
+                Throw ' Re-throw to let caller handle
             End Try
         End Sub
         
@@ -648,7 +886,7 @@ Namespace Managers
                 lDocNode.IsNotInheritable = vSyntaxNode.IsNotInheritable
                 
                 ' Convert children recursively
-                For Each lChild In vSyntaxNode.Children
+                for each lChild in vSyntaxNode.Children
                     Dim lChildDoc As DocumentNode = ConvertSyntaxNodeToDocumentNode(lChild)
                     If lChildDoc IsNot Nothing Then
                         lDocNode.Children.Add(lChildDoc)
@@ -687,7 +925,7 @@ Namespace Managers
                 lSyntaxNode.IsNotInheritable = vDocNode.IsNotInheritable
                 
                 ' Convert children recursively
-                For Each lChild In vDocNode.Children
+                for each lChild in vDocNode.Children
                     Dim lChildSyntax As SyntaxNode = ConvertDocumentNodeToSyntaxNode(lChild)
                     If lChildSyntax IsNot Nothing Then
                         lSyntaxNode.AddChild(lChildSyntax)
@@ -725,13 +963,13 @@ Namespace Managers
                     
                     If lExistingNamespace IsNot Nothing Then
                         ' Merge into existing namespace
-                        Console.WriteLine($"      Merging into existing namespace: {lExistingNamespace.Name}")
-                        For Each lChild In vNode.Children
+                        Console.WriteLine($"      Merging into existing Namespace: {lExistingNamespace.Name}")
+                        for each lChild in vNode.Children
                             MergeNodeIntoProjectFixed(lChild, lExistingNamespace, vFilePath)
                         Next
                     Else
                         ' Create new namespace node
-                        Console.WriteLine($"      Creating new namespace: {vNode.Name}")
+                        Console.WriteLine($"      Creating New Namespace: {vNode.Name}")
                         Dim lNewNamespace As New SyntaxNode(CodeNodeType.eNamespace, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewNamespace)
                         
@@ -744,7 +982,7 @@ Namespace Managers
                         vParentNode.AddChild(lNewNamespace)
                         
                         ' Add children to new namespace
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             MergeNodeIntoProjectFixed(lChild, lNewNamespace, vFilePath)
                         Next
                     End If
@@ -755,7 +993,7 @@ Namespace Managers
                     
                     If lExistingClass IsNot Nothing Then
                         ' Merge members into existing class
-                        Console.WriteLine($"      Merging partial class: {vNode.Name}")
+                        Console.WriteLine($"      Merging Partial Class: {vNode.Name}")
                         lExistingClass.IsPartial = True ' Mark as partial
                         
                         ' Initialize Attributes if needed
@@ -774,7 +1012,7 @@ Namespace Managers
                         End If
                         
                         ' Merge all members
-                        For Each lMember In vNode.Children
+                        for each lMember in vNode.Children
                             ' Check if this member already exists (avoid duplicates)
                             Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingClass, lMember.Name, lMember.NodeType)
                             If lExistingMember Is Nothing Then
@@ -792,7 +1030,7 @@ Namespace Managers
                         Next
                     Else
                         ' Create new partial class
-                        Console.WriteLine($"      Creating new partial class: {vNode.Name}")
+                        Console.WriteLine($"      Creating New Partial Class: {vNode.Name}")
                         Dim lNewClass As New SyntaxNode(CodeNodeType.eClass, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewClass)
                         lNewClass.IsPartial = True
@@ -807,7 +1045,7 @@ Namespace Managers
                         vParentNode.AddChild(lNewClass)
                         
                         ' Add all members
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             MergeNodeIntoProjectFixed(lChild, lNewClass, vFilePath)
                         Next
                     End If
@@ -819,7 +1057,7 @@ Namespace Managers
                     
                     If lExistingNode Is Nothing Then
                         ' Create new node in project tree
-                        Console.WriteLine($"      Creating new {vNode.NodeType}: {vNode.Name}")
+                        Console.WriteLine($"      Creating New {vNode.NodeType}: {vNode.Name}")
                         Dim lNewNode As New SyntaxNode(vNode.NodeType, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewNode)
                         
@@ -832,7 +1070,7 @@ Namespace Managers
                         vParentNode.AddChild(lNewNode)
                         
                         ' Add all children
-                        For Each lChild In vNode.Children
+                        for each lChild in vNode.Children
                             MergeNodeIntoProjectFixed(lChild, lNewNode, vFilePath)
                         Next
                     Else
@@ -887,92 +1125,92 @@ Namespace Managers
             vSource.CopyNodeAttributesTo(vTarget)
         End Sub
 
-        ''' <summary>
-        ''' Load and parse all project source files with correct namespace organization and sorting
-        ''' </summary>
-        Public Function LoadProjectStructure() As Boolean
-            Try
-                If Not pIsProjectOpen Then
-                    Console.WriteLine("No project is open")
-                    Return False
-                End If
-                
-                pIsLoadingStructure = True
-                pSourceFiles.Clear()
-                
-                ' Get the actual root namespace from project info
-                ' Make sure pCurrentProjectInfo has the RootNamespace property populated
-                Dim lRootNamespaceName As String
-                If pCurrentProjectInfo IsNot Nothing AndAlso 
-                   TypeOf pCurrentProjectInfo Is ProjectInfo Then
-                    Dim lProjectInfo As ProjectInfo = DirectCast(pCurrentProjectInfo, ProjectInfo)
-                    lRootNamespaceName = lProjectInfo.GetEffectiveRootNamespace()
-                Else
-                    ' Fallback to project name
-                    lRootNamespaceName = Path.GetFileNameWithoutExtension(pCurrentProjectInfo.ProjectPath)
-                End If
-                
-                Console.WriteLine($"Loading project structure with root namespace: {lRootNamespaceName}")
-                
-                ' Create root document node and namespace
-                pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, pCurrentProjectInfo.ProjectName)
-                Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
-                lRootNamespace.IsImplicit = True
-                pProjectSyntaxTree.AddChild(lRootNamespace)
-                
-                ' Dictionary to track namespace nodes
-                Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
-                lNamespaceNodes(lRootNamespaceName) = lRootNamespace
-                
-                ' Get all source files
-                Dim lSourceFiles As List(Of String) = GetProjectSourceFiles()
-                Console.WriteLine($"Found {lSourceFiles.Count} source files")
-                
-                ' Parse and process each file
-                For Each lFilePath In lSourceFiles
-                    ' Create SourceFileInfo
-                    Dim lFileInfo As New SourceFileInfo(lFilePath, pCurrentProjectInfo.ProjectDirectory)
-                    lFileInfo.ProjectRootNamespace = lRootNamespaceName
-                    
-                    ' Raise progress event
-                    RaiseEvent ParsingProgress(pSourceFiles.Count + 1, lSourceFiles.Count, lFileInfo.FileName)
-                    
-                    ' Load and parse the file
-                    If lFileInfo.LoadAndParse() Then
-                        ' Add to dictionary
-                        pSourceFiles(lFilePath) = lFileInfo
-                        
-                        ' Process the parsed structure and organize by namespace
-                        If lFileInfo.SyntaxTree IsNot Nothing Then
-                            ProcessFileStructure(lFileInfo, lRootNamespace, lNamespaceNodes, lRootNamespaceName)
-                        End If
-                        
-                        ' Raise file parsed event
-                        RaiseEvent FileParsed(lFileInfo)
-                    End If
-                Next
-                
-                ' Build final namespace tree structure
-                BuildNamespaceHierarchy(lNamespaceNodes, lRootNamespace)
-                
-                ' CRITICAL FIX: Sort the entire project tree recursively
-                Console.WriteLine("Sorting project structure...")
-                SortNodeChildrenRecursively(pProjectSyntaxTree)
-                
-                pIsLoadingStructure = False
-                
-                ' Raise project structure loaded event
-                RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
-                
-                Console.WriteLine($"Project structure loaded with root namespace: {lRootNamespaceName}")
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"ProjectManager.LoadProjectStructure error: {ex.Message}")
-                pIsLoadingStructure = False
-                Return False
-            End Try
-        End Function
+'         ''' <summary>
+'         ''' Load and parse all project source files with correct namespace organization and sorting
+'         ''' </summary>
+'         Public Function LoadProjectStructure() As Boolean
+'             Try
+'                 If Not pIsProjectOpen Then
+'                     Console.WriteLine("No project Is open")
+'                     Return False
+'                 End If
+'                 
+'                 pIsLoadingStructure = True
+'                 pSourceFiles.Clear()
+'                 
+'                 ' Get the actual root namespace from project info
+'                 ' Make sure pCurrentProjectInfo has the RootNamespace property populated
+'                 Dim lRootNamespaceName As String
+'                 If pCurrentProjectInfo IsNot Nothing AndAlso 
+'                    TypeOf pCurrentProjectInfo Is ProjectInfo Then
+'                     Dim lProjectInfo As ProjectInfo = DirectCast(pCurrentProjectInfo, ProjectInfo)
+'                     lRootNamespaceName = lProjectInfo.GetEffectiveRootNamespace()
+'                 Else
+'                     ' Fallback to project name
+'                     lRootNamespaceName = Path.GetFileNameWithoutExtension(pCurrentProjectInfo.ProjectPath)
+'                 End If
+'                 
+'                 Console.WriteLine($"Loading project Structure with root Namespace: {lRootNamespaceName}")
+'                 
+'                 ' Create root document node and namespace
+'                 pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, pCurrentProjectInfo.ProjectName)
+'                 Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
+'                 lRootNamespace.IsImplicit = True
+'                 pProjectSyntaxTree.AddChild(lRootNamespace)
+'                 
+'                 ' Dictionary to track namespace nodes
+'                 Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
+'                 lNamespaceNodes(lRootNamespaceName) = lRootNamespace
+'                 
+'                 ' Get all source files
+'                 Dim lSourceFiles As List(Of String) = GetProjectSourceFiles()
+'                 Console.WriteLine($"Found {lSourceFiles.Count} source files")
+'                 
+'                 ' Parse and process each file
+'                 For Each lFilePath In lSourceFiles
+'                     ' Create SourceFileInfo
+'                     Dim lFileInfo As New SourceFileInfo(lFilePath, pCurrentProjectInfo.ProjectDirectory)
+'                     lFileInfo.ProjectRootNamespace = lRootNamespaceName
+'                     
+'                     ' Raise progress event
+'                     RaiseEvent ParsingProgress(pSourceFiles.Count + 1, lSourceFiles.Count, lFileInfo.FileName)
+'                     
+'                     ' Load and parse the file
+'                     If lFileInfo.LoadAndParse() Then
+'                         ' Add to dictionary
+'                         pSourceFiles(lFilePath) = lFileInfo
+'                         
+'                         ' Process the parsed structure and organize by namespace
+'                         If lFileInfo.SyntaxTree IsNot Nothing Then
+'                             ProcessFileStructure(lFileInfo, lRootNamespace, lNamespaceNodes, lRootNamespaceName)
+'                         End If
+'                         
+'                         ' Raise file parsed event
+'                         RaiseEvent FileParsed(lFileInfo)
+'                     End If
+'                 Next
+'                 
+'                 ' Build final namespace tree structure
+'                 BuildNamespaceHierarchy(lNamespaceNodes, lRootNamespace)
+'                 
+'                 ' CRITICAL FIX: Sort the entire project tree recursively
+'                 Console.WriteLine("Sorting project Structure...")
+'                 SortNodeChildrenRecursively(pProjectSyntaxTree)
+'                 
+'                 pIsLoadingStructure = False
+'                 
+'                 ' Raise project structure loaded event
+'                 RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
+'                 
+'                 Console.WriteLine($"Project Structure loaded with root Namespace: {lRootNamespaceName}")
+'                 Return True
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"ProjectManager.LoadProjectStructure error: {ex.Message}")
+'                 pIsLoadingStructure = False
+'                 Return False
+'             End Try
+'         End Function
 
         ' ===== Supporting Classes =====
     
@@ -993,7 +1231,7 @@ Namespace Managers
                 vNode.Children.AddRange(lSortedChildren)
                 
                 ' Recursively sort each child's children
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     SortNodeChildrenRecursively(lChild)
                 Next
                 
