@@ -15,6 +15,7 @@ Namespace Managers
         Private pSettingsManager As SettingsManager
         Private pIsVisible As Boolean = False
         Private pProjectRoot As String
+        Private pThemeManager As ThemeManager
         
         ' Tab panels
         Private pBuildOutputPanel As BuildOutputPanel
@@ -38,9 +39,16 @@ Namespace Managers
 
         
         ' Properties
-        Public ReadOnly Property ErrorListView() As TreeView
+
+        ''' <summary>
+        ''' Gets the errors data grid from the build output panel
+        ''' </summary>
+        ''' <remarks>
+        ''' Updated to return CustomDrawDataGrid instead of TreeView
+        ''' </remarks>
+        Public ReadOnly Property ErrorListView() As CustomDrawDataGrid
             Get
-                Return pBuildOutputPanel.ErrorListView
+                Return pBuildOutputPanel?.ErrorsDataGrid
             End Get
         End Property
 
@@ -209,12 +217,17 @@ Namespace Managers
             Try
                 pBuildOutputPanel = New BuildOutputPanel()
                 
+                ' Set theme manager if available
+                If pThemeManager IsNot Nothing Then
+                    pBuildOutputPanel.SetThemeManager(pThemeManager)
+                End If
+                
                 ' Connect events - FIXED: Use proper delegate syntax
                 AddHandler pBuildOutputPanel.ErrorSelected, 
                     Sub(vPath As String, vLine As Integer, vCol As Integer)
                         RaiseEvent BuildErrorSelected(vPath, vLine, vCol)
                     End Sub
-
+        
                 AddHandler pBuildOutputPanel.ErrorDoubleClicked, 
                     Sub(vError As BuildError)
                         RaiseEvent ErrorDoubleClicked(vError)
@@ -230,18 +243,33 @@ Namespace Managers
                         HidePanel()
                     End Sub
                 
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("Build output", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                
+                ' Create tab with close button
+                Dim lTabLabel As Box = CreateTabLabel("Build output", 0)
                 pNotebook.AppendPage(pBuildOutputPanel, lTabLabel)
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateBuildOutputTab error: {ex.Message}")
             End Try
         End Sub
+
+        
+        Private Function CreateTabLabel(vLabelText As String, vModified As Boolean) As Widget
+            Try
+                Dim lBox As New Box(Orientation.Horizontal, 5)
+                
+                ' File name label
+                Dim lLabel As New Label()
+                lLabel.Text = vLabelText
+                lBox.PackStart(lLabel, True, True, 0)
+                
+                lBox.ShowAll()
+                Return lBox
+                
+            Catch ex As Exception
+                Console.WriteLine($"CreateTabLabel error: {ex.Message}")
+                Return New Label(vLabelText)
+            End Try
+        End Function
 
         ''' <summary>
         ''' Recursively connects ESC handler to a widget and all its children
@@ -1047,5 +1075,27 @@ Namespace Managers
             End Try
         End Function
 
+        ''' <summary>
+        ''' Sets the ThemeManager for all panels that need theme support
+        ''' </summary>
+        ''' <param name="vThemeManager">The ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                pThemeManager = vThemeManager
+                
+                ' Pass to BuildOutputPanel if it exists
+                If pBuildOutputPanel IsNot Nothing Then
+                    pBuildOutputPanel.SetThemeManager(vThemeManager)
+                End If
+                
+                ' Pass to other panels that might need it
+                ' (Future: other panels can get theme support too)
+                
+            Catch ex As Exception
+                Console.WriteLine($"BottomPanelManager.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
+
 End Namespace

@@ -65,7 +65,7 @@ Namespace Widgets
         ' ===== Classes =====
         Public Class ChatMessage
 
-            Public Sub New(vRole as String, vContent as String)
+            Public Sub New(vRole As String, vContent As String)
                 Role = vRole
                 Content = vContent
                 Timestamp = DateTime.Now()
@@ -100,9 +100,9 @@ Namespace Widgets
             ApplyStyling()
             
             ' Add welcome message
-            AddMessage("assistant", "Hello! i'm your AI coding assistant. i can help you write code, fix Errors, explain concepts, and more. 
+            AddMessage("assistant", "Hello! I'm your AI coding assistant. I can help you write code, fix Errors, explain concepts, and more. 
 
-i'll create Artifacts for any code i generate, which you can:
+I'll create Artifacts for any code I generate, which you can:
 • Review and edit before applying
 • Compare with your existing code
 • Accept to update your files
@@ -115,7 +115,7 @@ What would you like to work on?")
             Try
                 ' Create main paned
                 pMainPaned = New Paned(Orientation.Vertical)
-                pMainPaned.Position = 300
+                'pMainPaned.Position = 300
                 
                 ' Top: Chat area
                 CreateChatArea()

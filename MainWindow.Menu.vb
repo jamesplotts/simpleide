@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Editors
+Imports SimpleIDE.Widgets
 
 Partial Public Class MainWindow
     
@@ -39,8 +40,9 @@ Partial Public Class MainWindow
             
             ' Help menu
             CreateHelpMenu()
-
-
+        #If DEBUG Then
+            AddObjectExplorerDebugMenuItem()
+        #End If
             
         Catch ex As Exception
             Console.WriteLine($"CreateMenuBar error: {ex.Message}")
@@ -610,7 +612,7 @@ End Sub
     Private Sub UpdateRecentProjectsMenu(vMenu As Menu)
         Try
             ' Clear existing items
-            For Each lChild In vMenu.Children
+            for each lChild in vMenu.Children
                 vMenu.Remove(lChild)
             Next
             
@@ -622,7 +624,7 @@ End Sub
                 lNoRecent.Sensitive = False
                 vMenu.Append(lNoRecent)
             Else
-                For i As Integer = 0 To lRecentProjects.Count - 1
+                for i As Integer = 0 To lRecentProjects.Count - 1
                     Dim lProject As String = lRecentProjects(i)
                     Dim lMenuItem As New MenuItem($"{i + 1}. {System.IO.Path.GetFileName(lProject)}")
                     lMenuItem.TooltipText = lProject
@@ -644,7 +646,7 @@ End Sub
             If pThemeMenu Is Nothing Then Return
             
             ' Clear existing items
-            For Each lChild In pThemeMenu.Children
+            for each lChild in pThemeMenu.Children
                 pThemeMenu.Remove(lChild)
             Next
             
@@ -653,7 +655,7 @@ End Sub
             
             ' Add all available themes as radio menu items
             pThemeRadioGroup = Nothing
-            For Each lThemeName In pThemeManager.GetAvailableThemes()
+            for each lThemeName in pThemeManager.GetAvailableThemes()
                 Dim lThemeItem As RadioMenuItem
                 
                 If pThemeRadioGroup Is Nothing Then
@@ -725,7 +727,7 @@ End Sub
                 {"GTK# API Reference", "https://docs.gtk.org/gtk3/"}
             }
             
-            For Each kvp In lLinks
+            for each kvp in lLinks
                 Dim lMenuItem As New MenuItem(kvp.key)
                 Dim lUrl As String = kvp.Value
                 AddHandler lMenuItem.Activated, Sub() OpenUrl(lUrl)
@@ -746,7 +748,7 @@ End Sub
                 {"VB.NET Programming Guide", "https://docs.microsoft.com/en-us/dotnet/Visual-basic/programming-guide/"}
             }
             
-            For Each kvp In lLinks
+            for each kvp in lLinks
                 Dim lMenuItem As New MenuItem(kvp.key)
                 Dim lUrl As String = kvp.Value
                 AddHandler lMenuItem.Activated, Sub() OpenUrl(lUrl)
@@ -764,7 +766,7 @@ End Sub
             pThemeManager.SetTheme(vThemeName)
             
             ' Update all open editors
-            For Each lTabInfo In pOpenTabs.Values
+            for each lTabInfo in pOpenTabs.Values
                 If lTabInfo.Editor IsNot Nothing Then
                     Dim lEditor As CustomDrawingEditor = TryCast(lTabInfo.Editor, CustomDrawingEditor)
                     If lEditor IsNot Nothing Then
@@ -777,5 +779,127 @@ End Sub
             Console.WriteLine($"ApplyTheme(String) error: {ex.Message}")
         End Try
     End Sub
+
+        ' Add: SimpleIDE.MainWindow.AddObjectExplorerDebugMenuItem
+        ' To: MainWindow.MenuBar.vb
+        ''' <summary>
+        ''' Adds a debug menu item for Object Explorer diagnostics
+        ''' </summary>
+        Private Sub AddObjectExplorerDebugMenuItem()
+            Try
+                ' Find or create Debug menu
+                Dim lDebugMenu As Menu = Nothing
+                Dim lMenuBar As MenuBar = pMenuBar
+                
+                ' Look for existing Debug menu
+                for each lItem in lMenuBar.Children
+                    If TypeOf lItem Is MenuItem Then
+                        Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
+                        If lMenuItem.Label = "_Debug" Then
+                            lDebugMenu = DirectCast(lMenuItem.Submenu, Menu)
+                            Exit for
+                        End If
+                    End If
+                Next
+                
+                ' Create Debug menu if it doesn't exist
+                If lDebugMenu Is Nothing Then
+                    Dim lDebugMenuItem As New MenuItem("_Debug")
+                    lDebugMenu = New Menu()
+                    lDebugMenuItem.Submenu = lDebugMenu
+                    lMenuBar.Add(lDebugMenuItem)
+                End If
+                
+                ' Add separator if menu has items
+                If lDebugMenu.Children.Length > 0 Then
+                    lDebugMenu.Add(New SeparatorMenuItem())
+                End If
+                
+                ' Add Object Explorer debug items
+                Dim lOEDebugItem As New MenuItem("Object Explorer - Debug Parser Output")
+                AddHandler lOEDebugItem.Activated, Sub()
+                    Try
+                        If pObjectExplorer IsNot Nothing Then
+                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                                lExplorer.DebugProjectParserOutput()
+                            End If
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"Debug Parser Output error: {ex.Message}")
+                    End Try
+                End Sub
+                lDebugMenu.Add(lOEDebugItem)
+                
+                Dim lOETreeDebugItem As New MenuItem("Object Explorer - Debug Visual Tree")
+                AddHandler lOETreeDebugItem.Activated, Sub()
+                    Try
+                        If pObjectExplorer IsNot Nothing Then
+                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                                lExplorer.DiagnoseTreeViewStatus()
+                            End If
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"Debug Visual Tree error: {ex.Message}")
+                    End Try
+                End Sub
+                lDebugMenu.Add(lOETreeDebugItem)
+                
+                Dim lOERebuildItem As New MenuItem("Object Explorer - Force Rebuild")
+                AddHandler lOERebuildItem.Activated, Sub()
+                    Try
+                        If pObjectExplorer IsNot Nothing Then
+                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                                lExplorer.RebuildVisualTree()
+                                lExplorer.ForceCompleteRefresh()
+                            End If
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"Force Rebuild error: {ex.Message}")
+                    End Try
+                End Sub
+                lDebugMenu.Add(lOERebuildItem)
+                
+                Dim lOEExpandNamespacesItem As New MenuItem("Object Explorer - Force Expand Namespaces")
+                AddHandler lOEExpandNamespacesItem.Activated, Sub()
+                    Try
+                        If pObjectExplorer IsNot Nothing Then
+                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                                lExplorer.ForceExpandNamespaces()
+                            End If
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"Force Expand Namespaces error: {ex.Message}")
+                    End Try
+                End Sub
+                lDebugMenu.Add(lOEExpandNamespacesItem)
+
+                Dim lOEDebugBuildItem As New MenuItem("Object Explorer - Debug Build Process")
+                AddHandler lOEDebugBuildItem.Activated, Sub()
+                    Try
+                        If pObjectExplorer IsNot Nothing Then
+                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                                lExplorer.DebugBuildVisualNodes()
+                            End If
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"Debug Build Process error: {ex.Message}")
+                    End Try
+                End Sub
+                lDebugMenu.Add(lOEDebugBuildItem)
+
+                ' Show all menu items
+                lMenuBar.ShowAll()
+                
+                Console.WriteLine("Object Explorer debug menu items added")
+                
+            Catch ex As Exception
+                Console.WriteLine($"AddObjectExplorerDebugMenuItem error: {ex.Message}")
+            End Try
+        End Sub
     
 End Class

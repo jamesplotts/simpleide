@@ -44,6 +44,7 @@ Namespace Managers
         
         ' ===== Public Methods =====
         
+        ' Replace: SimpleIDE.Managers.ProjectParser.ParseProject
         ''' <summary>
         ''' Parses all source files in the project into a unified syntax tree
         ''' </summary>
@@ -76,6 +77,26 @@ Namespace Managers
                     Return pRootNode
                 End If
                 
+                ' Check the first few files to see if they have content
+                Console.WriteLine("ProjectParser: Checking file content loading...")
+                Dim lFilesWithContent As Integer = 0
+                Dim lFilesWithoutContent As Integer = 0
+                
+                for each lFileEntry in lSourceFiles.Take(10)
+                    Dim lSourceFile As SourceFileInfo = lFileEntry.Value
+                    If lSourceFile.IsLoaded AndAlso lSourceFile.TextLines IsNot Nothing AndAlso lSourceFile.TextLines.Count > 0 Then
+                        lFilesWithContent += 1
+                        Console.WriteLine($"  ✓ {Path.GetFileName(lFileEntry.Key)}: {lSourceFile.TextLines.Count} lines")
+                    Else
+                        lFilesWithoutContent += 1
+                        Console.WriteLine($"  ✗ {Path.GetFileName(lFileEntry.Key)}: Not loaded or no lines")
+                        ' Try to debug this file
+                        lSourceFile.DebugContent()
+                    End If
+                Next
+                
+                Console.WriteLine($"ProjectParser: Files with content: {lFilesWithContent}, without: {lFilesWithoutContent}")
+                
                 ' Sort files alphabetically for consistent processing
                 Dim lSortedFiles As New List(Of KeyValuePair(Of String, SourceFileInfo))(lSourceFiles)
                 lSortedFiles.Sort(Function(a, b) String.Compare(a.Key, b.Key, StringComparison.OrdinalIgnoreCase))
@@ -83,7 +104,7 @@ Namespace Managers
                 ' Log first few files to be parsed
                 Console.WriteLine("ProjectParser: Files to parse:")
                 for each lFile in lSortedFiles.Take(5)
-                    Console.WriteLine($"  - {Path.GetFileName(lFile.Key)} (Loaded: {lFile.Value.IsLoaded})")
+                    Console.WriteLine($"  - {Path.GetFileName(lFile.Key)} (Loaded: {lFile.Value.IsLoaded}, Lines: {If(lFile.Value.TextLines?.Count, 0)})")
                 Next
                 
                 ' Parse each file
@@ -95,6 +116,12 @@ Namespace Managers
                     If Not lSourceFile.IsLoaded Then
                         Console.WriteLine($"ProjectParser: Loading {Path.GetFileName(lSourceFile.FilePath)}")
                         lSourceFile.LoadContent()
+                    End If
+                    
+                    ' Check if we have TextLines
+                    If lSourceFile.TextLines Is Nothing OrElse lSourceFile.TextLines.Count = 0 Then
+                        Console.WriteLine($"ProjectParser: WARNING - {Path.GetFileName(lSourceFile.FilePath)} has no TextLines!")
+                        Continue for
                     End If
                     
                     ' Parse the file
@@ -477,15 +504,42 @@ Namespace Managers
             End Try
         End Function
 
+        ' Replace: SimpleIDE.Managers.ProjectParser.ParseFileContent
         ''' <summary>
         ''' Parses file content and adds to project structure with strict validation
         ''' </summary>
         ''' <param name="vFilePath">Path to the file being parsed</param>
-        ''' <param name="vFileContent">Content of the file</param>
+        ''' <param name="vSourceFile">Content of the file</param>
         Private Sub ParseFileContent(vFilePath As String, vSourceFile As SourceFileInfo)
             Try
                 pCurrentFile = vFilePath
                 Dim lLines As List(Of String) = vSourceFile.TextLines
+                
+                Console.WriteLine($"ParseFileContent: {Path.GetFileName(vFilePath)}")
+                Console.WriteLine($"  Lines count: {lLines.Count}")
+                Console.WriteLine($"  Content loaded: {vSourceFile.IsLoaded}")
+                
+                If lLines.Count = 0 Then
+                    Console.WriteLine("  WARNING: File has no lines!")
+                    Return
+                End If
+                
+                ' Show first few non-empty, non-comment lines for debugging
+                Dim lSampleLines As New List(Of String)()
+                For Each lLine In lLines.Take(50)
+                    Dim lTrimmed As String = lLine.Trim()
+                    If Not String.IsNullOrWhiteSpace(lTrimmed) AndAlso Not lTrimmed.StartsWith("'") Then
+                        lSampleLines.Add(lTrimmed)
+                        If lSampleLines.Count >= 5 Then Exit for
+                    End If
+                Next
+                
+                If lSampleLines.Count > 0 Then
+                    Console.WriteLine($"  First few lines:")
+                    for each lLine in lSampleLines
+                        Console.WriteLine($"    {lLine.Substring(0, Math.Min(60, lLine.Length))}")
+                    Next
+                End If
                 
                 ' Track current context
                 Dim lCurrentNamespace As SyntaxNode = pRootNamespace
@@ -494,6 +548,8 @@ Namespace Managers
                 Dim lCurrentType As SyntaxNode = Nothing
                 Dim lInMethodBody As Boolean = False
                 Dim lMethodNestLevel As Integer = 0
+                
+                Dim lTypesFound As Integer = 0
                 
                 Dim i As Integer = 0
                 While i < lLines.Count
@@ -526,7 +582,7 @@ Namespace Managers
                             ' Find or create namespace
                             lCurrentNamespace = FindOrCreateNamespace(lNamespaceName, pRootNamespace)
                             lNamespaceStack.Push(lCurrentNamespace)
-                            Console.WriteLine($"  Entered Namespace: {lNamespaceName}")
+                            Console.WriteLine($"  Entered Namespace: {lNamespaceName} at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -537,7 +593,7 @@ Namespace Managers
                         If lNamespaceStack.Count > 0 Then
                             lNamespaceStack.Pop()
                             lCurrentNamespace = If(lNamespaceStack.Count > 0, lNamespaceStack.Peek(), pRootNamespace)
-                            Console.WriteLine($"  Exited Namespace")
+                            Console.WriteLine($"  Exited Namespace at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -547,6 +603,7 @@ Namespace Managers
                     If lInMethodBody Then
                         If IsEndMethodStatement(lTrimmedLine) Then
                             lInMethodBody = False
+                            Console.WriteLine($"    End Of method at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -554,14 +611,27 @@ Namespace Managers
                     
                     ' Check for type declaration (Class, Module, Interface, Structure, Enum)
                     Dim lTypeNode As SyntaxNode = Nothing
+                    
+                    ' Debug: Check what we're looking at
+                    If lTrimmedLine.Contains("Class ", StringComparison.OrdinalIgnoreCase) OrElse
+                       lTrimmedLine.Contains("Module ", StringComparison.OrdinalIgnoreCase) OrElse
+                       lTrimmedLine.Contains("Interface ", StringComparison.OrdinalIgnoreCase) OrElse
+                       lTrimmedLine.Contains("Structure ", StringComparison.OrdinalIgnoreCase) Then
+                        Console.WriteLine($"  Potential type declaration at line {i}: {lTrimmedLine.Substring(0, Math.Min(60, lTrimmedLine.Length))}")
+                    End If
+                    
                     If ParseTypeDeclaration(lTrimmedLine, lCurrentNamespace, lTypeNode, lLines, i) Then
                         If lTypeNode IsNot Nothing Then
+                            lTypesFound += 1
+                            Console.WriteLine($"  ✓ Found type: {lTypeNode.Name} ({lTypeNode.NodeType}) in Namespace {lCurrentNamespace.Name}")
                             lCurrentType = lTypeNode
                             lTypeStack.Push(lCurrentType)
                             ' Parse to the end of the type
                             i = ParseTypeBody(lLines, i + 1, lTypeNode)
                             lTypeStack.Pop()
                             lCurrentType = If(lTypeStack.Count > 0, lTypeStack.Peek(), Nothing)
+                        Else
+                            Console.WriteLine($"  WARNING: ParseTypeDeclaration returned True but no node at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -573,6 +643,7 @@ Namespace Managers
                         If IsMethodDeclaration(lTrimmedLine) Then
                             If ParseMethodOrFunction(lTrimmedLine, lCurrentType, i) Then
                                 lInMethodBody = True
+                                Console.WriteLine($"    Started method at line {i}")
                             End If
                         ElseIf IsPropertyDeclaration(lTrimmedLine) Then
                             ParseProperty(lTrimmedLine, lCurrentType, i)
@@ -585,6 +656,8 @@ Namespace Managers
                     
                     i += 1
                 End While
+                
+                Console.WriteLine($"  ParseFileContent complete: Found {lTypesFound} types")
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.ParseFileContent error: {ex.Message}")
@@ -1014,75 +1087,73 @@ Namespace Managers
             End Try
         End Function
         
+        ' Replace: SimpleIDE.Managers.ProjectParser.ParseTypeDeclaration
         ''' <summary>
         ''' Parses type declaration and creates node (modified to return node and handle XML docs)
         ''' </summary>
         Private Function ParseTypeDeclaration(vLine As String, vParentNode As SyntaxNode, ByRef vTypeNode As SyntaxNode, vLines As List(Of String), vLineIndex As Integer) As Boolean
             Try
-                ' Tokenize the line
-                Dim lTokens As List(Of String) = TokenizeLine(vLine)
-                If lTokens.Count < 2 Then Return False
+                ' Simple approach - use a more direct parsing method
+                Dim lLine As String = vLine.Trim()
                 
-                ' Find the type keyword
+                ' Find the type keyword position
                 Dim lTypeKeyword As String = ""
-                Dim lTypeKeywordIndex As Integer = -1
+                Dim lTypeKeywordPos As Integer = -1
                 Dim lTypeKeywords As String() = {"Class", "Module", "Interface", "Structure", "Struct", "Enum", "Delegate"}
                 
-                for i As Integer = 0 To lTokens.Count - 1
-                    for each lKeyword in lTypeKeywords
-                        If String.Equals(lTokens(i), lKeyword, StringComparison.OrdinalIgnoreCase) Then
-                            lTypeKeyword = lKeyword
-                            lTypeKeywordIndex = i
-                            Exit for
-                        End If
-                    Next
-                    If lTypeKeywordIndex >= 0 Then Exit for
+                for each lKeyword in lTypeKeywords
+                    ' Look for the keyword with word boundaries
+                    Dim lPattern As String = "\b" & lKeyword & "\b"
+                    Dim lMatch As System.Text.RegularExpressions.Match = System.Text.RegularExpressions.Regex.Match(lLine, lPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                    If lMatch.Success Then
+                        lTypeKeyword = lKeyword
+                        lTypeKeywordPos = lMatch.Index
+                        Exit for
+                    End If
                 Next
                 
-                If lTypeKeywordIndex < 0 OrElse lTypeKeywordIndex >= lTokens.Count - 1 Then
+                If lTypeKeywordPos < 0 Then
                     Return False
                 End If
                 
-                ' Get the type name (next token after keyword)
-                Dim lTypeName As String = lTokens(lTypeKeywordIndex + 1).Trim()
+                ' Extract the type name - it's the next word after the keyword
+                Dim lAfterKeyword As String = lLine.Substring(lTypeKeywordPos + lTypeKeyword.Length).TrimStart()
                 
-                ' Remove trailing parentheses or other decorations
-                Dim lParenIndex As Integer = lTypeName.IndexOf("("c)
-                If lParenIndex >= 0 Then
-                    lTypeName = lTypeName.Substring(0, lParenIndex)
+                ' The type name is the next identifier
+                Dim lTypeName As String = ""
+                Dim lNameMatch As System.Text.RegularExpressions.Match = System.Text.RegularExpressions.Regex.Match(lAfterKeyword, "^([A-Za-z_][A-Za-z0-9_]*)")
+                If lNameMatch.Success Then
+                    lTypeName = lNameMatch.Groups(1).Value
+                Else
+                    Console.WriteLine($"  WARNING: Could not extract type name from: {lAfterKeyword}")
+                    Return False
                 End If
                 
                 ' Determine node type
                 Dim lNodeType As CodeNodeType
                 Select Case lTypeKeyword.ToUpper()
-                    Case "Class"
+                    Case "CLASS"
                         lNodeType = CodeNodeType.eClass
-                    Case "Module"
+                    Case "MODULE"
                         lNodeType = CodeNodeType.eModule
-                    Case "Interface"
+                    Case "INTERFACE"
                         lNodeType = CodeNodeType.eInterface
-                    Case "Structure", "STRUCT"
+                    Case "STRUCTURE", "STRUCT"
                         lNodeType = CodeNodeType.eStructure
-                    Case "Enum"
+                    Case "ENUM"
                         lNodeType = CodeNodeType.eEnum
-                    Case "Delegate"
+                    Case "DELEGATE"
                         lNodeType = CodeNodeType.eDelegate
                     Case Else
                         Return False
                 End Select
                 
                 ' Check for partial types
-                Dim lIsPartial As Boolean = False
-                for i As Integer = 0 To lTypeKeywordIndex - 1
-                    If String.Equals(lTokens(i), "Partial", StringComparison.OrdinalIgnoreCase) Then
-                        lIsPartial = True
-                        Exit for
-                    End If
-                Next
+                Dim lIsPartial As Boolean = System.Text.RegularExpressions.Regex.IsMatch(lLine.Substring(0, lTypeKeywordPos), "\bPartial\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                 
                 ' Handle partial types
                 If lIsPartial Then
-                    vTypeNode =  HandlePartialType(vParentNode, lTypeName, lNodeType, pCurrentFile)
+                    vTypeNode = HandlePartialType(vParentNode, lTypeName, lNodeType, pCurrentFile)
                 Else
                     ' Create new type node
                     vTypeNode = New SyntaxNode(lNodeType, lTypeName)
@@ -1091,11 +1162,21 @@ Namespace Managers
                     vParentNode.AddChild(vTypeNode)
                 End If
                 
-                ' Parse modifiers
+                If vTypeNode Is Nothing Then
+                    Console.WriteLine($"  ERROR: Failed to create type node for {lTypeName}")
+                    Return False
+                End If
+                
+                ' Parse modifiers (Public, Private, etc.)
                 ParseTypeModifiers(vLine, vTypeNode)
                 
                 ' Parse inheritance and implementation
                 ParseInheritanceAndImplementation(vLine, vTypeNode)
+                
+                ' Extract and apply XML documentation if available
+                If vLines IsNot Nothing AndAlso vLineIndex > 0 Then
+                    ExtractAndApplyXmlDocumentation(vLines, vLineIndex, vTypeNode)
+                End If
                 
                 Console.WriteLine($"  Added {lTypeKeyword}: {lTypeName} To {vParentNode.Name}")
                 
@@ -1103,6 +1184,7 @@ Namespace Managers
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.ParseTypeDeclaration error: {ex.Message}")
+                Console.WriteLine($"  Line: {vLine}")
                 Return False
             End Try
         End Function
@@ -2197,7 +2279,7 @@ Namespace Managers
                                 lTokens.Add(lToken)
                             End If
                         End If
-                        Exit For
+                        Exit for
                     ElseIf lSeparators.Contains(lChar) Then
                         ' Separator found
                         If lCurrentToken.Length > 0 Then

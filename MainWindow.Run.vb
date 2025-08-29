@@ -87,9 +87,10 @@ Partial Public Class MainWindow
             End If
             
             ' Clear output if configured
+            ' Use full ClearOutput for running since errors would be 0 anyway (project won't run with errors)
             If pSettingsManager IsNot Nothing AndAlso pSettingsManager.ClearOutputOnBuild Then
                 If pBuildOutputPanel IsNot Nothing Then
-                    pBuildOutputPanel.ClearOutput()
+                    pBuildOutputPanel.ClearOutput()  ' Full clear for run - resets everything
                 End If
             End If
             

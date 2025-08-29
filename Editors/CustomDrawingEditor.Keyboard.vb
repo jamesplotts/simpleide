@@ -583,64 +583,107 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles Home key press with proper scrolling
+        ''' </summary>
+        ''' <param name="vModifiers">Active modifier keys</param>
         Private Sub HandleHomeKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
-                
-                If lShift AndAlso Not pSelectionActive Then
-                    StartSelection(pCursorLine, pCursorColumn)
-                ElseIf Not lShift Then
-                    ClearSelection()
-                End If
-                
-                If lCtrl Then
-                    ' Move to beginning of document
-                    SetCursorPosition(0, 0)
+                If vModifiers.HasFlag(ModifierType.ControlMask) Then
+                    ' Ctrl+Home - go to start of document
+                    If vModifiers.HasFlag(ModifierType.ShiftMask) Then
+                        ' Ctrl+Shift+Home - extend selection to start
+                        If Not pHasSelection Then
+                            StartSelection(pCursorLine, pCursorColumn)
+                        End If
+                        SetCursorPosition(0, 0)
+                        UpdateSelection(pCursorLine, pCursorColumn)
+                    Else
+                        ' Just move cursor to start
+                        SetCursorPosition(0, 0)
+                        If pHasSelection Then
+                            ClearSelection()
+                        End If
+                    End If
+                    
+                    ' Scroll to top
+                    ScrollToTop()
+                    
                 Else
-                    ' Move to beginning of line
-                    SetCursorPosition(pCursorLine, 0)
+                    ' Regular Home - go to start of line
+                    If vModifiers.HasFlag(ModifierType.ShiftMask) Then
+                        ' Shift+Home - extend selection to start of line
+                        If Not pHasSelection Then
+                            StartSelection(pCursorLine, pCursorColumn)
+                        End If
+                        SetCursorPosition(pCursorLine, 0)
+                        UpdateSelection(pCursorLine, pCursorColumn)
+                    Else
+                        ' Just move cursor to start of line
+                        SetCursorPosition(pCursorLine, 0)
+                        If pHasSelection Then
+                            ClearSelection()
+                        End If
+                    End If
                 End If
                 
-                pDesiredColumn = pCursorColumn
-                
-                If lShift Then
-                    UpdateSelection(pCursorLine, pCursorColumn)
-                End If
-                
-                EnsureCursorVisible()
+                InvalidateCursor()
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleHomeKey error: {ex.Message}")
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles End key press with proper scrolling when bottom panel is visible
+        ''' </summary>
+        ''' <param name="vModifiers">Active modifier keys</param>
         Private Sub HandleEndKey(vModifiers As ModifierType)
             Try
-                Dim lShift As Boolean = (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
-                Dim lCtrl As Boolean = (vModifiers and ModifierType.ControlMask) = ModifierType.ControlMask
-                
-                If lShift AndAlso Not pSelectionActive Then
-                    StartSelection(pCursorLine, pCursorColumn)
-                ElseIf Not lShift Then
-                    ClearSelection()
-                End If
-                
-                If lCtrl Then
-                    ' Move to end of document
-                    SetCursorPosition(pLineCount - 1, pTextLines(pLineCount - 1).Length)
+                If vModifiers.HasFlag(ModifierType.ControlMask) Then
+                    ' Ctrl+End - go to end of document
+                    Dim lLastLine As Integer = pLineCount - 1
+                    Dim lLastLineLength As Integer = If(pTextLines(lLastLine)?.Length, 0)
+                    
+                    If vModifiers.HasFlag(ModifierType.ShiftMask) Then
+                        ' Ctrl+Shift+End - extend selection to end
+                        If Not pHasSelection Then
+                            StartSelection(pCursorLine, pCursorColumn)
+                        End If
+                        SetCursorPosition(lLastLine, lLastLineLength)
+                        UpdateSelection(pCursorLine, pCursorColumn)
+                    Else
+                        ' Just move cursor to end
+                        SetCursorPosition(lLastLine, lLastLineLength)
+                        If pHasSelection Then
+                            ClearSelection()
+                        End If
+                    End If
+                    
+                    ' FIXED: Force scroll to bottom with proper calculation
+                    ScrollToBottom()
+                    
                 Else
-                    ' Move to end of line
-                    SetCursorPosition(pCursorLine, pTextLines(pCursorLine).Length)
+                    ' Regular End - go to end of line
+                    Dim lLineLength As Integer = If(pTextLines(pCursorLine)?.Length, 0)
+                    
+                    If vModifiers.HasFlag(ModifierType.ShiftMask) Then
+                        ' Shift+End - extend selection to end of line
+                        If Not pHasSelection Then
+                            StartSelection(pCursorLine, pCursorColumn)
+                        End If
+                        SetCursorPosition(pCursorLine, lLineLength)
+                        UpdateSelection(pCursorLine, pCursorColumn)
+                    Else
+                        ' Just move cursor to end of line
+                        SetCursorPosition(pCursorLine, lLineLength)
+                        If pHasSelection Then
+                            ClearSelection()
+                        End If
+                    End If
                 End If
                 
-                pDesiredColumn = pCursorColumn
-                
-                If lShift Then
-                    UpdateSelection(pCursorLine, pCursorColumn)
-                End If
-                
-                EnsureCursorVisible()
+                InvalidateCursor()
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleEndKey error: {ex.Message}")

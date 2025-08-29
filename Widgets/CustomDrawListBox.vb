@@ -32,6 +32,7 @@ Namespace Widgets
         Private pNeedsRedraw As Boolean = True
         Private pThemeContextMenu As Menu
         Private pThemeManager As ThemeManager
+        Private pThemeSubscribed As Boolean
         
         ' Colors
         Private pBackgroundColor As String = "#FFFFFF"
@@ -106,7 +107,7 @@ Namespace Widgets
                 UpdateFromTheme()
             End Set
         End Property
-        
+  
         ' ===== Constructor =====
         
         ''' <summary>
@@ -204,7 +205,7 @@ Namespace Widgets
                 Dim lEndIndex As Integer = Math.Min(lStartIndex + pVisibleItems + 1, pItems.Count - 1)
                 
                 ' Draw items
-                For i As Integer = lStartIndex To lEndIndex
+                for i As Integer = lStartIndex To lEndIndex
                     DrawItem(vContext, i, lWidth)
                 Next
                 
@@ -615,7 +616,7 @@ Namespace Widgets
         ''' </summary>
         Public Function SelectByText(vText As String) As Boolean
             Try
-                For i As Integer = 0 To pItems.Count - 1
+                for i As Integer = 0 To pItems.Count - 1
                     If pItems(i).Text = vText Then
                         SelectedIndex = i
                         EnsureVisible(i)
@@ -679,7 +680,7 @@ Namespace Widgets
                 Dim lIsCustom As Boolean = DirectCast(vItem.Data, Boolean)
                 
                 ' Update menu items sensitivity
-                For Each lItem As Widget In pThemeContextMenu.Children
+                for each lItem As Widget in pThemeContextMenu.Children
                     If TypeOf lItem Is MenuItem Then
                         Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
                         Select Case lMenuItem.Label

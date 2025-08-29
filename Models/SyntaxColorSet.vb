@@ -110,7 +110,7 @@ Namespace Models
                 End If
                 
                 ' Update each syntax color from the theme
-                For Each kvp In vTheme.SyntaxColors
+                for each kvp in vTheme.SyntaxColors
                     ' Only update valid tag values
                     If kvp.Key >= Tags.eKeyword AndAlso kvp.Key <= Tags.eSelection Then
                         ' Update the color using the property setter which will trigger events

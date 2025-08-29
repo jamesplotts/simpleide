@@ -67,7 +67,7 @@ Namespace Widgets
         ''' <param name="vFilePath">Full path to the file to navigate to</param>
         ''' <param name="vLine">Line number to navigate to (1-based)</param>
         ''' <param name="vColumn">Column position to navigate to (1-based)</param>
-        Public Event NavigateToFile(vFilePath As String, vPosition as EditorPosition) Implements IObjectExplorer.NavigateToFile
+        Public Event NavigateToFile(vFilePath As String, vPosition As EditorPosition) Implements IObjectExplorer.NavigateToFile
         
         ''' <summary>
         ''' Raised when the user requests to close the Object Explorer
@@ -342,17 +342,24 @@ Namespace Widgets
         ' ===== IObjectExplorer Implementation =====
         
         ''' <summary>
-        ''' Updates the tree structure with new syntax nodes from ProjectParser
+        ''' Updates the tree structure and clears selection after refresh
         ''' </summary>
-        ''' <param name="vRootNode">The root node of the project structure from ProjectParser</param>
+        ''' <param name="vRootNode">The new root node of the syntax tree</param>
         ''' <remarks>
-        ''' This method now works directly with ProjectParser's SyntaxNode structure
-        ''' instead of VBParser nodes, consuming parse results from ProjectManager
+        ''' Now preserves expanded nodes but clears selection after refresh
+        ''' to avoid confusion with stale selections
         ''' </remarks>
         Public Sub UpdateStructure(vRootNode As SyntaxNode) Implements IObjectExplorer.UpdateStructure
             Try
                 Console.WriteLine($"UpdateStructure called with root: {If(vRootNode?.Name, "Nothing")}")
                 Console.WriteLine($"  Node type: {If(vRootNode?.NodeType.ToString(), "N/A")}")
+                
+                ' Store expanded state before update (but not selection)
+                Dim lPreviousExpandedPaths As New HashSet(Of String)(pExpandedNodes)
+                Dim lPreviousScrollX As Double = pScrollX
+                Dim lPreviousScrollY As Double = pScrollY
+                
+                Console.WriteLine($"  Preserving state: {lPreviousExpandedPaths.Count} expanded nodes")
                 
                 If vRootNode Is Nothing Then
                     Console.WriteLine("UpdateStructure: Received Nothing root - clearing")
@@ -370,7 +377,10 @@ Namespace Widgets
                 Console.WriteLine($"UpdateStructure: Set pRootNode from ProjectParser")
                 Console.WriteLine($"  Root has {vRootNode.Children.Count} children")
                 
-                ' Auto-expand root namespace if it's the only child
+                ' Restore previously expanded nodes
+                pExpandedNodes = lPreviousExpandedPaths
+                
+                ' Auto-expand root namespace if it's the only child and not already expanded
                 If vRootNode.NodeType = CodeNodeType.eDocument AndAlso vRootNode.Children.Count = 1 Then
                     Dim lFirstChild As SyntaxNode = vRootNode.Children(0)
                     If lFirstChild.NodeType = CodeNodeType.eNamespace Then
@@ -379,8 +389,20 @@ Namespace Widgets
                     End If
                 End If
                 
+                ' Clear visual node cache since we have new syntax nodes
+                pNodeCache.Clear()
+                pVisibleNodes.Clear()
+                
+                ' Clear selection after refresh to avoid stale references
+                pSelectedNode = Nothing
+                Console.WriteLine("  Cleared selection after refresh")
+                
                 ' Rebuild the visual tree with ProjectParser nodes
                 RebuildVisualTree()
+                
+                ' Restore scroll position
+                pScrollX = Math.Max(0, Math.Min(lPreviousScrollX, Math.Max(0, pContentWidth - pViewportWidth)))
+                pScrollY = Math.Max(0, Math.Min(lPreviousScrollY, Math.Max(0, pContentHeight - pViewportHeight)))
                 
                 ' Update scrollbars
                 UpdateScrollbars()
@@ -388,7 +410,9 @@ Namespace Widgets
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
                 
-                Console.WriteLine($"UpdateStructure complete with ProjectParser nodes: {pVisibleNodes.Count} visible nodes")
+                Console.WriteLine($"UpdateStructure complete: {pVisibleNodes.Count} visible nodes")
+                Console.WriteLine($"  Expanded nodes preserved: {pExpandedNodes.Count}")
+                Console.WriteLine($"  Selection: cleared")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateStructure error: {ex.Message}")
@@ -759,7 +783,7 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
                 Console.WriteLine($"TreeView Content Check:")
                 Console.WriteLine($"  Total visible nodes: {pVisibleNodes.Count}")
                 
-                For i As Integer = 0 To Math.Min(10, pVisibleNodes.Count - 1)
+                for i As Integer = 0 To Math.Min(10, pVisibleNodes.Count - 1)
                     Dim lNode As VisualNode = pVisibleNodes(i)
                     Console.WriteLine($"  [{i}] {New String(" "c, lNode.Level * 2)}{lNode.Node.Name} ({lNode.Node.NodeType})")
                 Next
@@ -804,26 +828,75 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
         End Sub
 
         ''' <summary>
-        ''' Loads project structure from ProjectParser's syntax tree
+        ''' Loads project structure from centralized parser while preserving UI state
         ''' </summary>
-        ''' <param name="vProjectTree">The project syntax tree from ProjectParser</param>
+        ''' <param name="vProjectSyntaxTree">Complete project syntax tree from ProjectManager</param>
         ''' <remarks>
-        ''' This method now accepts ProjectParser's node structure directly
-        ''' instead of creating its own parse tree
+        ''' Preserves expanded nodes and selection across reloads when node paths match
         ''' </remarks>
-        Public Sub LoadProjectStructure(vProjectTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
+        Public Sub LoadProjectStructure(vProjectSyntaxTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
             Try
-                Console.WriteLine($"LoadProjectStructure: Loading from ProjectParser tree")
+                Console.WriteLine($"LoadProjectStructure called with tree: {If(vProjectSyntaxTree?.Name, "Nothing")}")
                 
-                If vProjectTree Is Nothing Then
-                    Console.WriteLine("LoadProjectStructure: No project tree provided")
+                ' Store current UI state before loading new structure
+                Dim lPreviousExpandedPaths As New HashSet(Of String)(pExpandedNodes)
+                Dim lPreviousSelectedPath As String = pSelectedNode?.NodePath
+                Dim lPreviousScrollX As Double = pScrollX
+                Dim lPreviousScrollY As Double = pScrollY
+                
+                Console.WriteLine($"  Preserving UI state: {lPreviousExpandedPaths.Count} expanded paths")
+                
+                If vProjectSyntaxTree Is Nothing Then
+                    Console.WriteLine("LoadProjectStructure: No tree provided - clearing")
+                    ClearStructure()
                     Return
                 End If
                 
-                ' Use the ProjectParser's tree directly
-                UpdateStructure(vProjectTree)
+                ' Store the project tree
+                pRootNode = vProjectSyntaxTree
+                pLastValidRootNode = vProjectSyntaxTree
+                pIsProjectLoaded = True
                 
-                Console.WriteLine($"LoadProjectStructure: Loaded {pVisibleNodes.Count} nodes from ProjectParser")
+                Console.WriteLine($"  Loaded project with {vProjectSyntaxTree.Children.Count} root children")
+                
+                ' Preserve expanded state for nodes that still exist
+                pExpandedNodes = lPreviousExpandedPaths
+                
+                ' Always expand root namespace if single namespace pattern
+                If vProjectSyntaxTree.NodeType = CodeNodeType.eDocument AndAlso 
+                   vProjectSyntaxTree.Children.Count = 1 Then
+                    Dim lFirstChild As SyntaxNode = vProjectSyntaxTree.Children(0)
+                    If lFirstChild.NodeType = CodeNodeType.eNamespace Then
+                        pExpandedNodes.Add(lFirstChild.Name)
+                        Console.WriteLine($"  Auto-expanded root namespace: {lFirstChild.Name}")
+                    End If
+                End If
+                
+                ' Clear and rebuild visual representation
+                pNodeCache.Clear()
+                pVisibleNodes.Clear()
+                RebuildVisualTree()
+                
+                ' Attempt to restore selection
+                If Not String.IsNullOrEmpty(lPreviousSelectedPath) Then
+                    Dim lNodeToSelect As VisualNode = pVisibleNodes.FirstOrDefault(
+                        Function(n) n.NodePath = lPreviousSelectedPath)
+                    
+                    If lNodeToSelect IsNot Nothing Then
+                        pSelectedNode = lNodeToSelect
+                        Console.WriteLine($"  Selection restored to: {lNodeToSelect.Node.Name}")
+                    End If
+                End If
+                
+                ' Restore scroll position within valid bounds
+                pScrollX = Math.Max(0, Math.Min(lPreviousScrollX, Math.Max(0, pContentWidth - pViewportWidth)))
+                pScrollY = Math.Max(0, Math.Min(lPreviousScrollY, Math.Max(0, pContentHeight - pViewportHeight)))
+                
+                ' Update display
+                UpdateScrollbars()
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"LoadProjectStructure complete: {pVisibleNodes.Count} visible nodes")
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectStructure error: {ex.Message}")

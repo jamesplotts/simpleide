@@ -222,7 +222,10 @@ Partial Public Class MainWindow
             
             ' Create center vertical paned for editor and bottom panel
             pCenterVPaned = New Paned(Orientation.Vertical)
-            
+
+            ' Setup paned constraints and handling
+            SetupPanedHandling()
+             
             ' Create editor notebook
             pNotebook = New Notebook()
             pNotebook.Scrollable = True
@@ -249,6 +252,8 @@ Partial Public Class MainWindow
 
             ' Initialize find panel events
             InitializeFindPanelEvents()
+
+            InitializeBottomPanel()
             
             ' Add bottom panel to center paned
             pCenterVPaned.Pack2(pBottomPanelManager.GetWidget(), False, False)
@@ -292,6 +297,10 @@ Partial Public Class MainWindow
             Dim lScreen As Gdk.Screen = Gdk.Screen.Default
             If lScreen IsNot Nothing Then
                 StyleContext.AddProviderForScreen(lScreen, lCssProvider, CUInt(StyleProviderPriority.User))
+            End If
+
+            If pBuildOutputPanel IsNot Nothing AndAlso pThemeManager IsNot Nothing Then
+                pBuildOutputPanel.SetThemeManager(pThemeManager)
             End If
             
         Catch ex As Exception

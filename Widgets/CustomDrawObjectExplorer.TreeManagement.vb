@@ -171,19 +171,16 @@ Namespace Widgets
         ''' </summary>
         Public Sub ExpandAll()
             Try
-                ' Add all nodes with children to expanded set
-                AddNodesToExpanded(pRootNode, "")
+                Console.WriteLine("ExpandAll: Expanding all nodes in the tree")
                 
-                ' Rebuild tree
-                RebuildVisualTree()
-                
-                ' Redraw
-                pDrawingArea?.QueueDraw()
+                ' Use the namespace-aware expansion
+                ExpandAllNamespaces()
                 
             Catch ex As Exception
                 Console.WriteLine($"ExpandAll error: {ex.Message}")
             End Try
         End Sub
+
         
         ''' <summary>
         ''' Recursively adds nodes to expanded set
@@ -214,9 +211,10 @@ Namespace Widgets
         ''' </summary>
         Public Sub CollapseAll()
             Try
-                pExpandedNodes.Clear()
-                RebuildVisualTree()
-                pDrawingArea?.QueueDraw()
+                Console.WriteLine("CollapseAll: Collapsing all nodes in the tree")
+                
+                ' Use the namespace-aware collapse
+                CollapseAllNamespaces()
                 
             Catch ex As Exception
                 Console.WriteLine($"CollapseAll error: {ex.Message}")
@@ -431,6 +429,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             End Try
         End Function
 
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.ShouldDisplayNode
         ''' <summary>
         ''' Determines if a node should be displayed based on current filter settings
         ''' </summary>
@@ -470,25 +469,43 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     Case CodeNodeType.eRegion
                         Return pShowRegions
                         
-                    ' Methods and functions - always show
+                    ' Methods and functions - check visibility or ShowPrivateMembers
                     Case CodeNodeType.eMethod, CodeNodeType.eFunction, 
                          CodeNodeType.eConstructor, CodeNodeType.eOperator
-                        Return True
+                        ' FIXED: If ShowPrivateMembers is true, show all methods
+                        ' Otherwise check visibility flags
+                        If pShowPrivateMembers Then
+                            Return True
+                        Else
+                            Return vNode.IsPublic OrElse vNode.IsFriend OrElse vNode.IsProtected
+                        End If
                         
-                    ' Properties - check visibility settings
+                    ' Properties - check visibility or ShowPrivateMembers
                     Case CodeNodeType.eProperty
-                        Return vNode.IsPublic OrElse vNode.IsFriend OrElse 
-                               vNode.IsProtected OrElse pShowPrivateMembers
+                        ' FIXED: If ShowPrivateMembers is true, show all properties
+                        If pShowPrivateMembers Then
+                            Return True
+                        Else
+                            Return vNode.IsPublic OrElse vNode.IsFriend OrElse vNode.IsProtected
+                        End If
                         
-                    ' Events - check visibility settings
+                    ' Events - check visibility or ShowPrivateMembers
                     Case CodeNodeType.eEvent
-                        Return vNode.IsPublic OrElse vNode.IsFriend OrElse 
-                               vNode.IsProtected OrElse pShowPrivateMembers
+                        ' FIXED: If ShowPrivateMembers is true, show all events
+                        If pShowPrivateMembers Then
+                            Return True
+                        Else
+                            Return vNode.IsPublic OrElse vNode.IsFriend OrElse vNode.IsProtected
+                        End If
                         
-                    ' Fields and constants - check visibility settings
+                    ' Fields and constants - check visibility or ShowPrivateMembers
                     Case CodeNodeType.eField, CodeNodeType.eConstant, CodeNodeType.eConst
-                        Return vNode.IsPublic OrElse vNode.IsFriend OrElse 
-                               vNode.IsProtected OrElse pShowPrivateMembers
+                        ' FIXED: If ShowPrivateMembers is true, show all fields
+                        If pShowPrivateMembers Then
+                            Return True
+                        Else
+                            Return vNode.IsPublic OrElse vNode.IsFriend OrElse vNode.IsProtected
+                        End If
                         
                     ' Don't show local variables, parameters, or imports
                     Case CodeNodeType.eVariable, CodeNodeType.eParameter, CodeNodeType.eImport
@@ -587,37 +604,42 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             End If
         End Sub
         
-        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
-        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
         ''' <summary>
-        ''' Builds visual nodes recursively from syntax nodes with alphabetical sorting
+        ''' Builds visual nodes recursively from syntax nodes with proper child detection
         ''' </summary>
         ''' <param name="vNode">The syntax node to process</param>
         ''' <param name="vParent">The parent visual node</param>
         ''' <param name="vLevel">The indentation level</param>
         ''' <param name="vParentPath">The path of the parent node</param>
+        ''' <remarks>
+        ''' Fixed to ensure all nodes are processed and HasChildren is set correctly
+        ''' </remarks>
         Private Sub BuildVisualNodes(vNode As SyntaxNode, vParent As VisualNode, vLevel As Integer, vParentPath As String)
             Try
                 If vNode Is Nothing Then Return
                 
-                ' FIXED: Special handling for root document nodes
+                ' Special handling for root document nodes
                 If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
-                    Console.WriteLine($"Root is eDocument type with {vNode.Children.Count} children")
+                    Console.WriteLine($"BuildVisualNodes: Root is eDocument with {vNode.Children.Count} children")
                     
                     ' Sort children alphabetically before processing
                     Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
                         Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
                     
+                    ' Process all children of the document root
                     for each lChild in lSortedChildren
                         BuildVisualNodes(lChild, Nothing, 0, "")
                     Next
                     Return
                 End If
                 
-                ' Skip display based on settings
-                If Not ShouldDisplayNode(vNode) Then Return
+                ' Check if this node should be displayed
+                If Not ShouldDisplayNode(vNode) Then 
+                    Console.WriteLine($"BuildVisualNodes: Skipping {vNode.Name} ({vNode.NodeType}) - filtered out")
+                    Return
+                End If
                 
-                ' Create visual node
+                ' Create the visual node
                 Dim lVisualNode As New VisualNode()
                 lVisualNode.Node = vNode
                 lVisualNode.Parent = vParent
@@ -625,60 +647,102 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 lVisualNode.NodePath = If(String.IsNullOrEmpty(vParentPath), 
                                           vNode.Name,
                                           vParentPath & "." & vNode.Name)
+                lVisualNode.IsVisible = True
                 
-                ' Add to visible list
+                ' CRITICAL: Set HasChildren based on whether there are any children at all
+                ' This ensures expand/collapse buttons appear
+                lVisualNode.HasChildren = HasDisplayableChildren(vNode)
+                
+                ' Check if this node is expanded
+                lVisualNode.IsExpanded = pExpandedNodes.Contains(lVisualNode.NodePath)
+                
+                ' Add to visible nodes list
                 pVisibleNodes.Add(lVisualNode)
                 
-                ' Cache the node
+                ' Add to cache for quick lookup
                 If Not String.IsNullOrEmpty(lVisualNode.NodePath) Then
                     pNodeCache(lVisualNode.NodePath) = lVisualNode
                 End If
                 
-                ' Process children if expanded or special cases
-                If vNode.Children.Count > 0 Then
-                    Dim lShouldShowChildren As Boolean = False
+                ' Add to parent's children collection if there's a parent
+                If vParent IsNot Nothing Then
+                    vParent.Children.Add(lVisualNode)
+                End If
+                
+                ' Log node creation for debugging
+                If vLevel <= 1 Then  ' Only log top-level nodes to reduce noise
+                    Console.WriteLine($"  Created node: {vNode.Name} (Level={vLevel}, HasChildren={lVisualNode.HasChildren}, IsExpanded={lVisualNode.IsExpanded})")
+                End If
+                
+                ' Process children if this node is expanded AND has children
+                If lVisualNode.IsExpanded AndAlso vNode.Children.Count > 0 Then
+                    Console.WriteLine($"  Expanding {vNode.Name} with {vNode.Children.Count} children")
                     
-                    ' Always show document and root namespace children
-                    If vNode.NodeType = CodeNodeType.eDocument OrElse
-                       (vNode.NodeType = CodeNodeType.eNamespace AndAlso vLevel = 0) Then
-                        lShouldShowChildren = True
-                    ElseIf pExpandedNodes.Contains(lVisualNode.NodePath) Then
-                        lShouldShowChildren = True
-                    End If
+                    ' Sort children alphabetically for consistent display
+                    Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
+                        Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
                     
-                    If lShouldShowChildren Then
-                        ' Sort children alphabetically by name (case-insensitive)
-                        Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
-                            Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
-                        
-                        for each lChild in lSortedChildren
-                            BuildVisualNodes(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath)
-                        Next
-                    End If
+                    ' Recursively process each child
+                    for each lChild in lSortedChildren
+                        BuildVisualNodes(lChild, lVisualNode, vLevel + 1, lVisualNode.NodePath)
+                    Next
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"BuildVisualNodes error: {ex.Message}")
+                Console.WriteLine($"  Node: {vNode?.Name}, Level: {vLevel}")
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.HasDisplayableChildren
         ''' <summary>
-        ''' Checks if a node has any displayable children
+        ''' Checks if a node has any displayable children (direct or indirect)
         ''' </summary>
         ''' <param name="vNode">The node to check</param>
-        ''' <returns>True if the node has at least one displayable child</returns>
+        ''' <returns>True if the node has at least one displayable child or descendant</returns>
+        ''' <remarks>
+        ''' This method now checks both direct children and descendants recursively
+        ''' to ensure expand/collapse buttons appear for all container nodes
+        ''' </remarks>
         Private Function HasDisplayableChildren(vNode As SyntaxNode) As Boolean
             Try
-                If vNode Is Nothing OrElse vNode.Children.Count = 0 Then Return False
+                If vNode Is Nothing OrElse vNode.Children.Count = 0 Then 
+                    Return False
+                End If
                 
-                ' Check if any child should be displayed
-                for each lChild in vNode.Children
-                    If ShouldDisplayNode(lChild) Then Return True
-                    ' Recursively check children of non-displayed nodes
-                    If HasDisplayableChildren(lChild) Then Return True
-                Next
-                
-                Return False
+                ' For container types (namespaces, classes, etc.), always show expand/collapse
+                ' if they have ANY children, even if those children might be filtered out
+                Select Case vNode.NodeType
+                    Case CodeNodeType.eNamespace, 
+                         CodeNodeType.eClass, 
+                         CodeNodeType.eModule,
+                         CodeNodeType.eInterface, 
+                         CodeNodeType.eStructure,
+                         CodeNodeType.eEnum
+                        ' Container types should always show expand/collapse if they have children
+                        ' This allows users to expand them to see if there's anything inside
+                        Return vNode.Children.Count > 0
+                        
+                    Case CodeNodeType.eDocument
+                        ' Document nodes should show children if they have any
+                        Return vNode.Children.Count > 0
+                        
+                    Case Else
+                        ' For other node types, check if any child should be displayed
+                        for each lChild in vNode.Children
+                            If ShouldDisplayNode(lChild) Then 
+                                Return True
+                            End If
+                            
+                            ' Also recursively check if this child has displayable descendants
+                            ' This ensures we show expand buttons for nodes that have nested content
+                            If HasDisplayableChildren(lChild) Then 
+                                Return True
+                            End If
+                        Next
+                        
+                        Return False
+                End Select
                 
             Catch ex As Exception
                 Console.WriteLine($"HasDisplayableChildren error: {ex.Message}")
@@ -839,6 +903,262 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
             End Try
         End Sub
+
+        ' Add: SimpleIDE.Widgets.CustomDrawObjectExplorer.ExpandAllNamespaces
+        ' To: CustomDrawObjectExplorer.TreeManagement.vb
+        ''' <summary>
+        ''' Expands all namespace nodes in the tree for better visibility
+        ''' </summary>
+        ''' <remarks>
+        ''' This is useful for getting an overview of the entire project structure
+        ''' </remarks>
+        Public Sub ExpandAllNamespaces()
+            Try
+                Console.WriteLine("ExpandAllNamespaces: Starting...")
+                
+                If pRootNode Is Nothing Then
+                    Console.WriteLine("ExpandAllNamespaces: No root node")
+                    Return
+                End If
+                
+                ' Store current expanded count for comparison
+                Dim lInitialCount As Integer = pExpandedNodes.Count
+                
+                ' Recursively add all namespace nodes to expanded set
+                AddNamespaceNodesToExpanded(pRootNode, "")
+                
+                Dim lAddedCount As Integer = pExpandedNodes.Count - lInitialCount
+                Console.WriteLine($"ExpandAllNamespaces: Added {lAddedCount} namespace paths")
+                
+                ' Only rebuild if we actually expanded something
+                If lAddedCount > 0 Then
+                    ' Rebuild the visual tree
+                    RebuildVisualTree()
+                    
+                    ' Force redraw
+                    pDrawingArea?.QueueDraw()
+                End If
+                
+                Console.WriteLine($"ExpandAllNamespaces: Complete. {pVisibleNodes.Count} nodes now visible")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ExpandAllNamespaces error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Collapses all namespace nodes in the tree
+        ''' </summary>
+        ''' <remarks>
+        ''' Useful for reducing clutter and focusing on specific areas
+        ''' </remarks>
+        Public Sub CollapseAllNamespaces()
+            Try
+                Console.WriteLine("CollapseAllNamespaces: Starting...")
+                
+                If pRootNode Is Nothing Then
+                    Console.WriteLine("CollapseAllNamespaces: No root node")
+                    Return
+                End If
+                
+                ' Clear all expanded nodes
+                Dim lInitialCount As Integer = pExpandedNodes.Count
+                pExpandedNodes.Clear()
+                
+                Console.WriteLine($"CollapseAllNamespaces: Cleared {lInitialCount} expanded paths")
+                
+                ' Rebuild the visual tree
+                RebuildVisualTree()
+                
+                ' Force redraw
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"CollapseAllNamespaces: Complete. {pVisibleNodes.Count} nodes now visible")
+                
+            Catch ex As Exception
+                Console.WriteLine($"CollapseAllNamespaces error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Collapses all nodes then expands only the root namespace
+        ''' </summary>
+        ''' <remarks>
+        ''' Provides a clean initial view showing just the top-level structure
+        ''' with expand/collapse buttons visible for all containers
+        ''' </remarks>
+        Public Sub ExpandRootOnly()
+            Try
+                Console.WriteLine("ExpandRootOnly: Starting...")
+                
+                If pRootNode Is Nothing Then
+                    Console.WriteLine("ExpandRootOnly: No root node")
+                    Return
+                End If
+                
+                ' First, clear all expanded nodes
+                pExpandedNodes.Clear()
+                Console.WriteLine("ExpandRootOnly: Collapsed all nodes")
+                
+                ' Now determine what to expand
+                Dim lPathsToExpand As New List(Of String)()
+                
+                If pRootNode.NodeType = CodeNodeType.eDocument Then
+                    ' Root is a document - expand its namespace children
+                    for each lChild in pRootNode.Children
+                        If lChild.NodeType = CodeNodeType.eNamespace Then
+                            lPathsToExpand.Add(lChild.Name)
+                            Console.WriteLine($"  Will expand namespace: {lChild.Name}")
+                            
+                            ' Only expand the first namespace if there are multiple
+                            Exit for
+                        End If
+                    Next
+                ElseIf pRootNode.NodeType = CodeNodeType.eNamespace Then
+                    ' Root is a namespace - expand it
+                    lPathsToExpand.Add(pRootNode.Name)
+                    Console.WriteLine($"  Will expand root namespace: {pRootNode.Name}")
+                End If
+                
+                ' Add the paths to the expanded set
+                for each lPath in lPathsToExpand
+                    pExpandedNodes.Add(lPath)
+                Next
+                
+                Console.WriteLine($"ExpandRootOnly: Expanded {lPathsToExpand.Count} root node(s)")
+                
+                ' Rebuild the visual tree with the new expansion state
+                RebuildVisualTree()
+                
+                ' Force redraw
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"ExpandRootOnly: Complete. {pVisibleNodes.Count} nodes visible")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ExpandRootOnly error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Updates the visible nodes list based on current expansion state
+        ''' </summary>
+        ''' <remarks>
+        ''' This helper method rebuilds just the visible nodes list without
+        ''' recreating the entire visual tree, preserving object references
+        ''' </remarks>
+        Private Sub UpdateVisibleNodes()
+            Try
+                pVisibleNodes.Clear()
+                
+                ' Start from root's children if root is a document node
+                If pRootNode IsNot Nothing Then
+                    If pRootNode.NodeType = CodeNodeType.eDocument Then
+                        ' Add all root children
+                        for each lChild in pRootNode.Children
+                            Dim lPath As String = lChild.Name
+                            Dim lVisualNode As VisualNode = GetOrCreateVisualNode(lChild, Nothing, 0, "")
+                            If lVisualNode IsNot Nothing Then
+                                pVisibleNodes.Add(lVisualNode)
+                                
+                                ' If expanded, add its children
+                                If pExpandedNodes.Contains(lPath) Then
+                                    AddVisibleChildren(lVisualNode, lPath)
+                                End If
+                            End If
+                        Next
+                    Else
+                        ' Single root node case
+                        Dim lVisualNode As VisualNode = GetOrCreateVisualNode(pRootNode, Nothing, 0, "")
+                        If lVisualNode IsNot Nothing Then
+                            pVisibleNodes.Add(lVisualNode)
+                            
+                            If pExpandedNodes.Contains(pRootNode.Name) Then
+                                AddVisibleChildren(lVisualNode, pRootNode.Name)
+                            End If
+                        End If
+                    End If
+                End If
+                
+                ' Update node positions
+                CalculateNodePositions()
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateVisibleNodes error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Recursively adds visible children of an expanded node
+        ''' </summary>
+        ''' <param name="vParentVisual">Parent visual node</param>
+        ''' <param name="vParentPath">Path of the parent for building child paths</param>
+        Private Sub AddVisibleChildren(vParentVisual As VisualNode, vParentPath As String)
+            Try
+                If vParentVisual?.Node Is Nothing Then Return
+                
+                for each lChildSyntax in vParentVisual.Node.Children
+                    If ShouldDisplayNode(lChildSyntax) Then
+                        Dim lChildPath As String = vParentPath & "." & lChildSyntax.Name
+                        Dim lChildVisual As VisualNode = GetOrCreateVisualNode(
+                            lChildSyntax, 
+                            vParentVisual, 
+                            vParentVisual.Level + 1, 
+                            vParentPath)
+                            
+                        If lChildVisual IsNot Nothing Then
+                            pVisibleNodes.Add(lChildVisual)
+                            
+                            ' If this child is also expanded, add its children
+                            If pExpandedNodes.Contains(lChildPath) AndAlso lChildSyntax.Children.Count > 0 Then
+                                AddVisibleChildren(lChildVisual, lChildPath)
+                            End If
+                        End If
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"AddVisibleChildren error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets an existing visual node from cache or creates a new one
+        ''' </summary>
+        Private Function GetOrCreateVisualNode(vSyntaxNode As SyntaxNode, 
+                                              vParent As VisualNode, 
+                                              vLevel As Integer, 
+                                              vParentPath As String) As VisualNode
+            Try
+                Dim lPath As String = If(String.IsNullOrEmpty(vParentPath), 
+                                         vSyntaxNode.Name, 
+                                         vParentPath & "." & vSyntaxNode.Name)
+                
+                ' Check cache first
+                If pNodeCache.ContainsKey(lPath) Then
+                    Return pNodeCache(lPath)
+                End If
+                
+                ' Create new visual node
+                Dim lVisualNode As New VisualNode()
+                lVisualNode.Node = vSyntaxNode
+                lVisualNode.Parent = vParent
+                lVisualNode.Level = vLevel
+                lVisualNode.NodePath = lPath
+                lVisualNode.HasChildren = vSyntaxNode.Children.Count > 0 AndAlso
+                                         vSyntaxNode.Children.Any(AddressOf ShouldDisplayNode)
+                lVisualNode.IsExpanded = pExpandedNodes.Contains(lPath)
+                
+                ' Add to cache
+                pNodeCache(lPath) = lVisualNode
+                
+                Return lVisualNode
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetOrCreateVisualNode error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
         
     End Class
     

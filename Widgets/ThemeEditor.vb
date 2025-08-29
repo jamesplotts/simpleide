@@ -58,7 +58,7 @@ Namespace Widgets
             
             pThemeManager = vThemeManager
             pSettingsManager = vSettingsManager
-            pCurrentColor = New Gdk.RGBA() With {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1.0}
+            pCurrentColor = New Gdk.RGBA() with {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1.0}
             
             BuildUI()
             LoadThemes()
@@ -271,7 +271,7 @@ Namespace Widgets
                 pThemeListBox.Clear()
                 
                 ' Add themes
-                For Each lThemeName In pThemeManager.GetAvailableThemes()
+                for each lThemeName in pThemeManager.GetAvailableThemes()
                     Console.WriteLine($"Adding Theme " + lThemeName)
                     pThemeListBox.AddItem(lThemeName, pThemeManager.IsCustomTheme(lThemeName))
                 Next
@@ -287,7 +287,7 @@ Namespace Widgets
                 Console.WriteLine($"ThemeEditor.LoadThemes error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Load properties for selected theme
         ''' </summary>
@@ -299,7 +299,7 @@ Namespace Widgets
                 pPropertyListBox.Clear()
                 
                 ' Add properties
-                For Each lTag In [Enum].GetValues(GetType(EditorTheme.Tags))
+                for each lTag in [Enum].GetValues(GetType(EditorTheme.Tags))
                     pPropertyListBox.AddItem(GetPropertyDisplayName(lTag), lTag)
                 Next
                 
@@ -378,62 +378,14 @@ End Namespace"
         Private Sub OnRgbChanged(vSender As Object, vArgs As EventArgs)
             Try
                 If pIsUpdatingUI Then Return
-                'If String.IsNullOrWhiteSpace(pRgbEntry.Text) Then Return
-                
-'                ' Parse RGB values
-'                Dim lParts() As String = pRgbEntry.Text.Split(","c)
-'                If lParts.Length <> 3 Then Return
-'                
-'                Dim lR, lG, lB As Integer
-'                If Integer.TryParse(lParts(0).Trim(), lR) AndAlso
-'                   Integer.TryParse(lParts(1).Trim(), lG) AndAlso
-'                   Integer.TryParse(lParts(2).Trim(), lB) Then
-'                    
-'                    ' Validate range
-'                    lR = Math.Max(0, Math.Min(255, lR))
-'                    lG = Math.Max(0, Math.Min(255, lG))
-'                    lB = Math.Max(0, Math.Min(255, lB))
-'                    
-'                    ' Update color
-'                    pCurrentColor = New Gdk.RGBA() With {
-'                        .Red = lR / 255.0,
-'                        .Green = lG / 255.0,
-'                        .Blue = lB / 255.0,
-'                        .Alpha = 1.0
-'                    }
                     
                     UpdateThemeColorFromSelection()
-'                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.OnRgbChanged error: {ex.Message}")
             End Try
         End Sub
-        
-'        Private Sub OnHexChanged(vSender As Object, vArgs As EventArgs)
-'            Try
-'                If pIsUpdatingUI Then Return
-'                If String.IsNullOrWhiteSpace(pHexEntry.Text) Then Return
-'                
-'                Dim lHexColor As String = pHexEntry.Text.Trim()
-'                
-'                ' Validate hex color
-'                If Not lHexColor.StartsWith("#") Then
-'                    lHexColor = "#" & lHexColor
-'                End If
-'                
-'                ' Parse color
-'                Dim lRgba As New Gdk.RGBA()
-'                If lRgba.Parse(lHexColor) Then
-'                    pCurrentColor = lRgba
-'                    UpdateColorControls()
-'                    UpdateThemeColorFromSelection()
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"ThemeEditor.OnHexChanged error: {ex.Message}")
-'            End Try
-'        End Sub
+
         
         ''' <summary>
         ''' Updates a theme color property
@@ -459,6 +411,14 @@ End Namespace"
                         pCurrentTheme.CurrentLineNumberColor = vColorHex
                     Case EditorTheme.Tags.eCursorColor
                         pCurrentTheme.CursorColor = vColorHex
+                    Case EditorTheme.Tags.eErrorColor
+                        pCurrentTheme.ErrorColor = vColorHex
+                    Case EditorTheme.Tags.eWarningColor
+                        pCurrentTheme.WarningColor = vColorHex
+                    Case EditorTheme.Tags.eInfoColor
+                        pCurrentTheme.InfoColor = vColorHex
+                    Case EditorTheme.Tags.eSuccessColor
+                        pCurrentTheme.SuccessColor = vColorHex
                     Case EditorTheme.Tags.eKeywordText
                         If pCurrentTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eKeyword) Then
                             pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = vColorHex
@@ -497,11 +457,11 @@ End Namespace"
                         End If
                 End Select
                 
-                ' Mark as modified
-                SetModified(True)
-                
                 ' Update preview
                 UpdatePreview()
+                
+                ' Mark as modified
+                SetModified(True)
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateThemeColor error: {ex.Message}")
@@ -548,7 +508,7 @@ End Namespace"
                 lBox.PackStart(New Label("Base Theme:"), False, False, 0)
                 
                 Dim lCombo As New ComboBoxText()
-                For Each lThemeName In pThemeManager.GetAvailableThemes()
+                for each lThemeName in pThemeManager.GetAvailableThemes()
                     lCombo.AppendText(lThemeName)
                 Next
                 lCombo.Active = 0
@@ -839,7 +799,7 @@ End Namespace"
                 lCss.AppendLine()
                 
                 ' Style for hover effect
-                lCss.AppendLine("listbox row:hover:not(:selected) {")
+                lCss.AppendLine("listbox row:hover:Not(:selected) {")
                 lCss.AppendLine("    background-color: rgba(0, 122, 204, 0.1);")
                 lCss.AppendLine("}")
                 lCss.AppendLine()
@@ -988,7 +948,7 @@ End Namespace"
                     DialogFlags.Modal,
                     MessageType.Question,
                     ButtonsType.YesNo,
-                    $"Are you sure you want to delete the theme '{lThemeName}'?{Environment.NewLine}{Environment.NewLine}This action cannot be undone.")
+                    $"Are you sure you want To delete the theme '{lThemeName}'?{Environment.NewLine}{Environment.NewLine}This action cannot be undone.")
                 
                 lDialog.Title = "Delete Theme"
                 
@@ -1014,7 +974,7 @@ End Namespace"
                             DialogFlags.Modal,
                             MessageType.Error,
                             ButtonsType.Ok,
-                            $"Failed to delete theme '{lThemeName}'.")
+                            $"Failed To delete theme '{lThemeName}'.")
                         
                         lErrorDialog.Title = "Delete Failed"
                         lErrorDialog.Run()
@@ -1078,7 +1038,7 @@ End Namespace"
                             DialogFlags.Modal,
                             MessageType.Error,
                             ButtonsType.Ok,
-                            $"Failed to create theme '{lNewThemeName}'.")
+                            $"Failed To create theme '{lNewThemeName}'.")
                         
                         lErrorDialog.Title = "Copy Failed"
                         lErrorDialog.Run()
@@ -1163,7 +1123,7 @@ End Namespace"
                             DialogFlags.Modal,
                             MessageType.Error,
                             ButtonsType.Ok,
-                            "Failed to export theme.")
+                            "Failed To export theme.")
                         
                         lErrorDialog.Title = "Export Failed"
                         lErrorDialog.Run()
@@ -1175,7 +1135,7 @@ End Namespace"
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.OnContextMenuExportTheme error: {ex.Message}")
-                ShowError("Export Error", ex.Message)
+                ShowError("Export error", ex.Message)
             End Try
         End Sub
         
@@ -1249,37 +1209,10 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Update the currently selected theme property with the current color
-        ''' </summary>
-        Private Sub UpdateSelectedProperty()
-            Try
-                If pCurrentTheme Is Nothing OrElse pPropertyListBox Is Nothing Then Return
-                
-                ' Get the property index from the row position
-                Dim lPropertyIndex As Integer = pPropertyListBox.SelectedIndex
-                Dim lPropertyTags As Array = [Enum].GetValues(GetType(EditorTheme.Tags))
-                
-                If lPropertyIndex >= 0 AndAlso lPropertyIndex < lPropertyTags.Length Then
-                    Dim lTag As EditorTheme.Tags = CType(lPropertyTags.GetValue(lPropertyIndex), EditorTheme.Tags)
-                    
-                    ' Convert RGBA to hex string for theme storage
-                    Dim lRed As Integer = CInt(pCurrentColor.Red * 255)
-                    Dim lGreen As Integer = CInt(pCurrentColor.Green * 255)
-                    Dim lBlue As Integer = CInt(pCurrentColor.Blue * 255)
-                    Dim lColorHex As String = $"#{lRed:X2}{lGreen:X2}{lBlue:X2}"
-                    
-                    ' Update theme property
-                    UpdateThemeColor(lTag, lColorHex)
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateSelectedProperty error: {ex.Message}")
-            End Try
-        End Sub
+
 
         ''' <summary>
-        ''' Get color from theme based on property tag
+        ''' Gets the color for a specific property tag
         ''' </summary>
         ''' <param name="vTag">The theme property tag</param>
         ''' <returns>Hex color string</returns>
@@ -1302,6 +1235,16 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                         Return pCurrentTheme.LineNumberBackgroundColor
                     Case EditorTheme.Tags.eCurrentLineNumberColor
                         Return pCurrentTheme.CurrentLineNumberColor
+                    Case EditorTheme.Tags.eCursorColor
+                        Return pCurrentTheme.CursorColor
+                    Case EditorTheme.Tags.eErrorColor
+                        Return pCurrentTheme.ErrorColor
+                    Case EditorTheme.Tags.eWarningColor
+                        Return pCurrentTheme.WarningColor
+                    Case EditorTheme.Tags.eInfoColor
+                        Return pCurrentTheme.InfoColor
+                    Case EditorTheme.Tags.eSuccessColor
+                        Return pCurrentTheme.SuccessColor
                     Case EditorTheme.Tags.eKeywordText
                         Return pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword)
                     Case EditorTheme.Tags.eStringText
@@ -1316,6 +1259,8 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                         Return pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.ePreprocessor)
                     Case EditorTheme.Tags.eIdentifierText
                         Return pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier)
+                    Case EditorTheme.Tags.eTypeText
+                        Return pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.eType)
                     Case EditorTheme.Tags.eSelectionText
                         Return pCurrentTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
                     Case Else

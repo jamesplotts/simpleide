@@ -88,7 +88,7 @@ Partial Public Class MainWindow
                     lKnowledgeBuilder.AppendLine()
                     
                     ' Add file structure
-                    For Each lFile In lFiles
+                    for each lFile in lFiles
                         Dim lRelativePath As String = lFile.Replace(lProjectDir & System.IO.Path.DirectorySeparatorChar, "")
                         lKnowledgeBuilder.AppendLine($"- {lRelativePath}")
                     Next
@@ -99,7 +99,7 @@ Partial Public Class MainWindow
                     
                     ' Analyze each file
                     Dim lFileCount As Integer = 0
-                    For Each lFile In lFiles
+                    for each lFile in lFiles
                         lFileCount += 1
                         
                         ' Update progress
@@ -163,7 +163,7 @@ Partial Public Class MainWindow
             ' Skip certain directories
             Dim lSkipDirs As String() = {"bin", "obj", ".git", ".vs", "Packages"}
             
-            For Each lSubDir In Directory.GetDirectories(vDirectory)
+            for each lSubDir in Directory.GetDirectories(vDirectory)
                 Dim lDirName As String = System.IO.Path.GetFileName(lSubDir)
                 If Not lSkipDirs.Contains(lDirName.ToLower()) Then
                     CollectProjectFiles(lSubDir, vFiles)
@@ -182,7 +182,7 @@ Partial Public Class MainWindow
             
             ' Extract imports
             Dim lImports As New List(Of String)
-            For Each lLine In vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
+            for each lLine in vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
                 Dim lTrimmed As String = lLine.Trim()
                 If lTrimmed.StartsWith("Imports ", StringComparison.OrdinalIgnoreCase) Then
                     lImports.Add(lTrimmed.Substring(8))
@@ -191,7 +191,7 @@ Partial Public Class MainWindow
             
             If lImports.Count > 0 Then
                 lAnalysis.AppendLine("**Imports:**")
-                For Each lImport In lImports
+                for each lImport in lImports
                     lAnalysis.AppendLine($"- {lImport}")
                 Next
                 lAnalysis.AppendLine()
@@ -203,7 +203,7 @@ Partial Public Class MainWindow
             
             ' Simple pattern matching for major constructs
             Dim lLines As String() = vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-            For Each lLine In lLines
+            for each lLine in lLines
                 Dim lTrimmed As String = lLine.Trim()
                 
                 ' Classes
@@ -262,7 +262,7 @@ Partial Public Class MainWindow
         Try
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab?.Editor Is Nothing Then
-                ShowError("No code Selected", "Please select some code to explain.")
+                ShowError("No code Selected", "Please Select some code To explain.")
                 Return
             End If
             
@@ -274,7 +274,7 @@ Partial Public Class MainWindow
             End If
             
             If String.IsNullOrWhiteSpace(lSelectedText) Then
-                ShowError("No code Selected", "Please select some code to explain.")
+                ShowError("No code Selected", "Please Select some code To explain.")
                 Return
             End If
             
@@ -294,57 +294,122 @@ Partial Public Class MainWindow
     End Sub
     
     ' Fix build errors using AI
+
+    ''' <summary>
+    ''' Collects build errors from the CustomDrawDataGrid and sends them to the AI Assistant
+    ''' </summary>
     Public Sub FixBuildErrors()
         Try
-            ' Get build errors from error list
+            ' Get build errors from the BuildOutputPanel's CustomDrawDataGrid
             Dim lErrors As New List(Of String)
+            Dim lWarnings As New List(Of String)
             
-            If pErrorListView IsNot Nothing AndAlso pErrorListView.Model IsNot Nothing Then
-                Dim lModel As TreeStore = DirectCast(pErrorListView.Model, TreeStore)
-                Dim lIter As TreeIter
+            If pBuildOutputPanel IsNot Nothing Then
+                ' Get the errors data grid
+                Dim lErrorsGrid As CustomDrawDataGrid = pBuildOutputPanel.ErrorsDataGrid
                 
-                If lModel.GetIterFirst(lIter) Then
-                    Do
-                        Dim lSeverity As String = DirectCast(lModel.GetValue(lIter, 0), String)
-                        Dim lDescription As String = DirectCast(lModel.GetValue(lIter, 1), String)
-                        Dim lFile As String = DirectCast(lModel.GetValue(lIter, 2), String)
-                        Dim lLine As String = DirectCast(lModel.GetValue(lIter, 3), String)
-                        
-                        If lSeverity = "error" Then
-                            lErrors.Add($"{lFile}({lLine}): {lDescription}")
+                If lErrorsGrid IsNot Nothing AndAlso lErrorsGrid.Rows.Count > 0 Then
+                    ' Iterate through all rows in the errors grid
+                    For Each lRow As DataGridRow In lErrorsGrid.Rows
+                        ' Get the BuildError object from the row's Tag
+                        If lRow.Tag IsNot Nothing Then
+                            Dim lBuildError As BuildError = TryCast(lRow.Tag, BuildError)
+                            If lBuildError IsNot Nothing Then
+                                ' Format error for AI: File(Line,Column): ErrorCode: Message
+                                Dim lErrorString As String = $"{lBuildError.FilePath}({lBuildError.Line},{lBuildError.Column}): {lBuildError.ErrorCode}: {lBuildError.Message}"
+                                lErrors.Add(lErrorString)
+                            End If
+                        Else
+                            ' Fallback: Try to construct error from cell values if Tag is not set
+                            If lRow.Cells.Count >= 6 Then ' Ensure we have all columns
+                                Dim lFile As String = If(lRow.Cells(1).Value?.ToString(), "")
+                                Dim lLine As String = If(lRow.Cells(2).Value?.ToString(), "0")
+                                Dim lColumn As String = If(lRow.Cells(3).Value?.ToString(), "0")
+                                Dim lCode As String = If(lRow.Cells(4).Value?.ToString(), "")
+                                Dim lMessage As String = If(lRow.Cells(5).Value?.ToString(), "")
+                                
+                                If Not String.IsNullOrWhiteSpace(lMessage) Then
+                                    lErrors.Add($"{lFile}({lLine},{lColumn}): {lCode}: {lMessage}")
+                                End If
+                            End If
                         End If
-                    Loop While lModel.IterNext(lIter)
+                    Next
+                End If
+                
+                ' Also check warnings grid if we want to include warnings
+                Dim lWarningsGrid As CustomDrawDataGrid = pBuildOutputPanel.WarningsDataGrid
+                
+                
+                If lWarningsGrid IsNot Nothing AndAlso lWarningsGrid.Rows.Count > 0 Then
+                    For Each lRow As DataGridRow In lWarningsGrid.Rows
+                        If lRow.Tag IsNot Nothing Then
+                            Dim lBuildWarning As BuildWarning = TryCast(lRow.Tag, BuildWarning)
+                            If lBuildWarning IsNot Nothing Then
+                                Dim lWarningString As String = $"{lBuildWarning.FilePath}({lBuildWarning.Line},{lBuildWarning.Column}): {lBuildWarning.WarningCode}: {lBuildWarning.Message}"
+                                lWarnings.Add(lWarningString)
+                            End If
+                        End If
+                    Next
                 End If
             End If
             
-            If lErrors.Count = 0 Then
-                ShowInfo("No Errors", "No build Errors to fix.")
+            ' Check if we found any errors
+            If lErrors.Count = 0 AndAlso lWarnings.Count = 0 Then
+                ShowInfo("No Build Issues", "No build errors Or warnings To fix.")
                 Return
             End If
             
-            ' Show AI Assistant panel
+            ' Show AI Assistant panel (tab index 4)
             ShowBottomPanel(4)
             
-            ' Build prompt
-            Dim lPrompt As New StringBuilder()
-            lPrompt.AppendLine("i have the following build Errors in my VB.NET project:")
+            ' Build the prompt for AI
+            Dim lPrompt As New System.Text.StringBuilder()
+            lPrompt.AppendLine("I have the following build issues in my VB.NET project:")
             lPrompt.AppendLine()
             
-            For Each lError In lErrors
-                lPrompt.AppendLine($"- {lError}")
-            Next
+            ' Add errors first
+            If lErrors.Count > 0 Then
+                lPrompt.AppendLine($"**Errors ({lErrors.Count}):**")
+                For Each lError In lErrors
+                    lPrompt.AppendLine($"- {lError}")
+                Next
+                lPrompt.AppendLine()
+            End If
             
-            lPrompt.AppendLine()
-            lPrompt.AppendLine("Please help me fix these Errors. Provide the corrected code and explain what was wrong.")
+            ' Add warnings if present
+            If lWarnings.Count > 0 Then
+                lPrompt.AppendLine($"**Warnings ({lWarnings.Count}):**")
+                For Each lWarning In lWarnings
+                    lPrompt.AppendLine($"- {lWarning}")
+                Next
+                lPrompt.AppendLine()
+            End If
             
-            ' Send to AI
+            ' Add context about the project if available
+            If Not String.IsNullOrEmpty(pCurrentProject) Then
+                lPrompt.AppendLine($"Project: {System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)}")
+                lPrompt.AppendLine()
+            End If
+            
+            ' Add request for help
+            lPrompt.AppendLine("Please help Me fix these issues. for each error:")
+            lPrompt.AppendLine("1. Explain what's wrong")
+            lPrompt.AppendLine("2. Provide the corrected code")
+            lPrompt.AppendLine("3. Explain why the fix works")
+            
+            ' Send to AI Assistant
             If pAIAssistantPanel IsNot Nothing Then
                 pAIAssistantPanel.SendMessage(lPrompt.ToString())
+            Else
+                ' Fallback: Show message if AI panel is not available
+                ShowError("AI Assistant Not Available", 
+                         "The AI Assistant panel is not initialized. Please check your AI settings.")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"FixBuildErrors error: {ex.Message}")
-            ShowError("Fix Errors Failed", ex.Message)
+            Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            ShowError("Fix Errors Failed", $"An error occurred while collecting build errors: {ex.Message}")
         End Try
     End Sub
     
@@ -362,7 +427,7 @@ Partial Public Class MainWindow
             lVBox.BorderWidth = 12
             
             ' Instructions
-            Dim lLabel As New Label("Describe what code you want to generate:")
+            Dim lLabel As New Label("Describe what code you want To generate:")
             lLabel.Xalign = 0
             lVBox.PackStart(lLabel, False, False, 0)
             
@@ -380,7 +445,7 @@ Partial Public Class MainWindow
             ' Options
             Dim lOptionsBox As New Box(Orientation.Horizontal, 6)
             
-            Dim lAddToCurrentFile As New CheckButton("Add to current file")
+            Dim lAddToCurrentFile As New CheckButton("Add To current file")
             lAddToCurrentFile.Active = True
             lOptionsBox.PackStart(lAddToCurrentFile, False, False, 0)
             
@@ -402,22 +467,22 @@ Partial Public Class MainWindow
                     
                     ' Build prompt
                     Dim lPrompt As New StringBuilder()
-                    lPrompt.AppendLine("Please generate VB.NET code based on this Description:")
+                    lPrompt.AppendLine("Please generate VB.NET code based On this Description:")
                     lPrompt.AppendLine()
                     lPrompt.AppendLine(lDescription)
                     lPrompt.AppendLine()
                     lPrompt.AppendLine("Follow these coding conventions:")
                     lPrompt.AppendLine("- Use Hungarian notation (l=Local, p=Private, v=Parameter)")
-                    lPrompt.AppendLine("- Enums start with eUnspecified and end with eLastValue")
+                    lPrompt.AppendLine("- Enums start with eUnspecified and End with eLastValue")
                     lPrompt.AppendLine("- Use Try-Catch blocks for error handling")
                     lPrompt.AppendLine("- Add appropriate comments")
                     
                     If lAddToCurrentFile.Active Then
                         lPrompt.AppendLine()
-                        lPrompt.AppendLine("the code should be designed to integrate with an existing file.")
+                        lPrompt.AppendLine("the code should be designed To integrate with an existing file.")
                     ElseIf lCreateNewFile.Active Then
                         lPrompt.AppendLine()
-                        lPrompt.AppendLine("Please create a complete New file with proper imports and structure.")
+                        lPrompt.AppendLine("Please create a complete New file with proper Imports and Structure.")
                     End If
                     
                     ' Send to AI
@@ -514,7 +579,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowAIArtifact error: {ex.Message}")
-            ShowError("AI Artifact error", "Failed to Show AI artifact: " & ex.Message)
+            ShowError("AI Artifact error", "Failed To Show AI artifact: " & ex.Message)
         End Try
     End Sub
     
@@ -572,7 +637,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowFileComparison error: {ex.Message}")
-            ShowError("Comparison error", "Failed to Show file comparison: " & ex.Message)
+            ShowError("Comparison error", "Failed To Show file comparison: " & ex.Message)
         End Try
     End Sub
     
@@ -629,7 +694,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowContentComparison error: {ex.Message}")
-            ShowError("Comparison error", "Failed to Show Content comparison: " & ex.Message)
+            ShowError("Comparison error", "Failed To Show Content comparison: " & ex.Message)
         End Try
     End Sub
     
@@ -765,12 +830,12 @@ Partial Public Class MainWindow
                 ' Close the artifact tab
                 CloseAIArtifactTab(vArtifactId)
                 
-                ShowNotification("AI Artifact Applied", $"the AI artifact has been applied to {System.IO.Path.GetFileName(vTargetPath)}")
+                ShowNotification("AI Artifact Applied", $"the AI artifact has been applied To {System.IO.Path.GetFileName(vTargetPath)}")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"OnArtifactAccepted error: {ex.Message}")
-            ShowError("Apply error", "Failed to apply AI artifact: " & ex.Message)
+            ShowError("Apply error", "Failed To apply AI artifact: " & ex.Message)
         End Try
     End Sub
 
@@ -805,7 +870,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnArtifactCompareRequested error: {ex.Message}")
-            ShowError("Compare error", "Failed to compare artifact: " & ex.Message)
+            ShowError("Compare error", "Failed To compare artifact: " & ex.Message)
         End Try
     End Sub
     
@@ -857,7 +922,7 @@ Partial Public Class MainWindow
     
     Private Sub OnDifferenceNavigated(vDifferenceIndex As Integer, vTotalDifferences As Integer)
         Try
-            UpdateStatusBar($"Difference {vDifferenceIndex + 1} of {vTotalDifferences}")
+            UpdateStatusBar($"Difference {vDifferenceIndex + 1} Of {vTotalDifferences}")
         Catch ex As Exception
             Console.WriteLine($"OnDifferenceNavigated error: {ex.Message}")
         End Try

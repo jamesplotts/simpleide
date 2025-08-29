@@ -228,7 +228,7 @@ Namespace Syntax
                 vList.Add(vNode)
                 
                 ' Process children recursively
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     BuildNodeList(lChild, vList)
                 Next
                 
@@ -256,7 +256,7 @@ Namespace Syntax
                         Dim lTypeNode As SyntaxNode = lSymbolTable(vTypeName)
                         
                         ' Add all members of the type
-                        For Each lMember In lTypeNode.Children
+                        for each lMember in lTypeNode.Children
                             If IsAccessibleMember(lMember) Then
                                 lSuggestions.Add(CreateSuggestionFromNode(lMember))
                             End If
@@ -297,7 +297,7 @@ Namespace Syntax
                 Dim lSuggestions As New List(Of CodeSenseSuggestion)()
                 
                 ' Try to find type in loaded assemblies
-                For Each lAssembly In pProjectReferences
+                for each lAssembly in pProjectReferences
                     Try
                         Dim lType As Type = lAssembly.GetType(vTypeName, False, True)
                         If lType Is Nothing Then
@@ -307,18 +307,18 @@ Namespace Syntax
                         
                         If lType IsNot Nothing Then
                             ' Add methods
-                            For Each lMethod In lType.GetMethods(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
+                            for each lMethod in lType.GetMethods(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
                                 If Not lMethod.IsSpecialName Then
                                     lSuggestions.Add(CreateSuggestionFromMemberInfo(lMethod))
                                 End If
                             Next
                             
                             ' Add properties
-                            For Each lProperty In lType.GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
+                            for each lProperty in lType.GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
                                 lSuggestions.Add(CreateSuggestionFromMemberInfo(lProperty))
                             Next
                             
-                            Exit For ' Found the type, no need to continue
+                            Exit for ' Found the type, no need to continue
                         End If
                     Catch
                         ' Ignore assembly load errors
@@ -371,7 +371,7 @@ Namespace Syntax
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateSuggestionFromMemberInfo error: {ex.Message}")
-                Return New CodeSenseSuggestion() With {.Text = vMember?.Name}
+                Return New CodeSenseSuggestion() with {.Text = vMember?.Name}
             End Try
         End Function
 
@@ -382,7 +382,7 @@ Namespace Syntax
             Try
                 Dim lParams As New List(Of String)()
                 
-                For Each lParam In vMethod.GetParameters()
+                for each lParam in vMethod.GetParameters()
                     lParams.Add($"{lParam.Name} As {lParam.ParameterType.Name}")
                 Next
                 
@@ -471,7 +471,7 @@ Namespace Syntax
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateSuggestionFromNode error: {ex.Message}")
-                Return New CodeSenseSuggestion() With {.Name = vNode?.Name, .Text = vNode?.Name}
+                Return New CodeSenseSuggestion() with {.Name = vNode?.Name, .Text = vNode?.Name}
             End Try
         End Function
 
@@ -486,7 +486,7 @@ Namespace Syntax
                 
                 ' Add parameters if available
                 Dim lParams As New List(Of String)()
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     If lChild.NodeType = CodeNodeType.eParameter Then
                         Dim lParamStr As String = lChild.Name
                         If Not String.IsNullOrEmpty(lChild.DataType) Then
@@ -560,7 +560,7 @@ Namespace Syntax
                 End Select
                 
                 ' Process children recursively
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     ProcessProjectNode(lChild, vSymbolTable)
                 Next
                 
@@ -716,20 +716,7 @@ Namespace Syntax
                 Console.WriteLine($"SubscribeToProjectParseEvents error: {ex.Message}")
             End Try
         End Sub
-        
-        ''' <summary>
-        ''' Handle parse completion from ProjectManager
-        ''' </summary>
-        Private Sub OnProjectParseCompleted(vFile As SourceFileInfo, vResult As Object)
-            Try
-                ' Update from the parse result
-                UpdateFromParseResult(vFile, vResult)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnProjectParseCompleted error: {ex.Message}")
-            End Try
-        End Sub
-        
+
         ''' <summary>
         ''' Handle project structure loaded from ProjectManager
         ''' </summary>
@@ -744,42 +731,57 @@ Namespace Syntax
         End Sub
         
         ''' <summary>
+        ''' Handle parse completion from ProjectManager
+        ''' </summary>
+        Private Sub OnProjectParseCompleted(vFile As SourceFileInfo, vResult As Object)
+            Try
+                ' Update from the parse result
+                UpdateFromParseResult(vFile, vResult)
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectParseCompleted error: {ex.Message}")
+            End Try
+        End Sub
+        
+
+        
+        ''' <summary>
         ''' Initialize keyword suggestions
         ''' </summary>
         Private Sub InitializeKeywordSuggestions()
             Try
                 pKeywordSuggestions = New List(Of CodeSenseSuggestion) From {
-                    New CodeSenseSuggestion() With {.Text = "Public", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Private", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Protected", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Friend", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Shared", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Class", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Module", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Interface", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Function", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Sub", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Property", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "If", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Then", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Else", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "ElseIf", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "End If", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "For", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Next", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "While", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "End While", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Try", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Catch", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Finally", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "End Try", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Dim", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "As", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "New", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Return", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "Nothing", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "True", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() With {.Text = "False", .Kind = CodeSenseSuggestionKind.eKeyword}
+                    New CodeSenseSuggestion() with {.Text = "Public", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Private", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Protected", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Friend", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Shared", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Class", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Module", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Interface", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Function", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Sub", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Property", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "If", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Then", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Else", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "ElseIf", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "End If", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "For", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Next", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "While", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "End While", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Try", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Catch", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Finally", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "End Try", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Dim", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "As", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "New", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Return", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Nothing", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "True", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "False", .Kind = CodeSenseSuggestionKind.eKeyword}
                 }
                 
             Catch ex As Exception
@@ -907,7 +909,7 @@ Namespace Syntax
             Try
                 If vNode Is Nothing OrElse vNode.Children Is Nothing Then Return
                 
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     Select Case lChild.NodeType
                         Case CodeNodeType.eMethod, CodeNodeType.eFunction
                             Dim lSuggestion As New CodeSenseSuggestion()
@@ -980,7 +982,7 @@ Namespace Syntax
         Private Sub AddLocalSuggestions(vContext As CodeSenseContext, vSuggestions As List(Of CodeSenseSuggestion))
             Try
                 If vContext.LocalVariables IsNot Nothing Then
-                    For Each lVar In vContext.LocalVariables
+                    for each lVar in vContext.LocalVariables
                         Dim lSuggestion As New CodeSenseSuggestion()
                         lSuggestion.Text = lVar
                         lSuggestion.Kind = CodeSenseSuggestionKind.eLocalVariable
@@ -1036,7 +1038,7 @@ Namespace Syntax
                 
                 ' Recursively process children
                 If vNode.Children IsNot Nothing Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         AddProjectTypesRecursive(lChild, vSuggestions)
                     Next
                 End If
@@ -1057,7 +1059,7 @@ Namespace Syntax
                 
                 Dim lCount As Integer = 1
                 If vNode.Children IsNot Nothing Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         lCount += CountNodes(lChild)
                     Next
                 End If
@@ -1106,7 +1108,7 @@ Namespace Syntax
                 End If
                 
                 If vNode.Children IsNot Nothing Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         Dim lFound As SyntaxNode = FindNodeByNameRecursive(lChild, vName)
                         If lFound IsNot Nothing Then
                             Return lFound

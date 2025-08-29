@@ -24,7 +24,7 @@ Namespace Models
         Public Property IsLoaded As Boolean = False
         Public Property IsParsed As Boolean = False
         Public Property ProjectRootNamespace As String = ""
-        Public Property TextLines As List(Of String) = New List(Of String) From {""}
+        Private Property pTextLines As List(Of String) = New List(Of String)
         Public Property Editor As CustomDrawingEditor
         Public Property RelativePath As String = ""  
         Public Property NeedsParsing As Boolean = True
@@ -61,6 +61,29 @@ Namespace Models
             IsDemoMode = True
             Content = vContent
         End Sub
+
+        ''' <summary>
+        ''' Gets or sets the text lines of the file
+        ''' </summary>
+        Public Property TextLines As List(Of String)
+            Get
+                ' Ensure we always have at least one empty line
+                If pTextLines Is Nothing Then
+                    pTextLines = New List(Of String)()
+                End If
+                If pTextLines.Count = 0 Then
+                    pTextLines.Add("")
+                End If
+                Return pTextLines
+            End Get
+            Set(value As List(Of String))
+                pTextLines = value
+                ' Ensure we always have at least one line
+                If pTextLines IsNot Nothing AndAlso pTextLines.Count = 0 Then
+                    pTextLines.Add("")
+                End If
+            End Set
+        End Property
         
         ' ===== Public Methods =====
         
@@ -72,21 +95,27 @@ Namespace Models
                 If IsDemoMode Then 
                     Return True
                 End If
+                
                 If Not File.Exists(FilePath) Then
                     Console.WriteLine($"File not found: {FilePath}")
                     Return False
                 End If
                 
+                ' Read the file content
                 Content = File.ReadAllText(FilePath)
+                
+                ' Split into lines - CRITICAL: Use the property setter, not direct assignment
+                Me.TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
+                
                 IsLoaded = True
                 
-                ' Split into lines
-                TextLines = New List(Of String)(Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                If TextLines.Count = 0 Then
-                    TextLines.Add("")
+                Console.WriteLine($"Loaded {Content.Length} characters, {Me.TextLines.Count} lines from {FileName}")
+                
+                ' Debug: Show first few lines to verify content
+                If Me.TextLines.Count > 0 Then
+                    Console.WriteLine($"  First line: {Me.TextLines(0).Substring(0, Math.Min(50, Me.TextLines(0).Length))}")
                 End If
                 
-                Console.WriteLine($"Loaded {Content.Length} characters from {FileName}")
                 Return True
                 
             Catch ex As Exception
@@ -481,6 +510,38 @@ Namespace Models
                 Return False
             End Try
         End Function
+
+        ' Add: SimpleIDE.Models.SourceFileInfo.DebugContent
+        ' To: SourceFileInfo.vb
+        ''' <summary>
+        ''' Debug method to show content loading status
+        ''' </summary>
+        Public Sub DebugContent()
+            Try
+                Console.WriteLine($"SourceFileInfo Debug: {FileName}")
+                Console.WriteLine($"  FilePath: {FilePath}")
+                Console.WriteLine($"  IsLoaded: {IsLoaded}")
+                Console.WriteLine($"  Content Length: {If(Content IsNot Nothing, Content.Length, 0)}")
+                Console.WriteLine($"  TextLines Count: {If(pTextLines IsNot Nothing, pTextLines.Count, 0)}")
+                
+                If pTextLines IsNot Nothing AndAlso pTextLines.Count > 0 Then
+                    Console.WriteLine($"  First 5 non-empty lines:")
+                    Dim lCount As Integer = 0
+                    for each lLine in pTextLines
+                        If Not String.IsNullOrWhiteSpace(lLine) AndAlso Not lLine.TrimStart().StartsWith("'") Then
+                            Console.WriteLine($"    Line {pTextLines.IndexOf(lLine)}: {lLine.Substring(0, Math.Min(60, lLine.Length))}")
+                            lCount += 1
+                            If lCount >= 5 Then Exit For
+                        End If
+                    Next
+                Else
+                    Console.WriteLine("  WARNING: No text lines available!")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"DebugContent error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     

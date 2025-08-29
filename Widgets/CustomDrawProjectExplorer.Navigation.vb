@@ -16,6 +16,8 @@ Namespace Widgets
         
         ' ===== Visual Tree Building =====
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.RebuildVisualTree
+        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.RebuildVisualTree
         ''' <summary>
         ''' Rebuilds the visual tree from the data model
         ''' </summary>
@@ -75,8 +77,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildVisualNodes
-        ' Replace: SimpleIDE.Widgets.CustomDrawProjectExplorer.BuildVisualNodes
         ''' <summary>
         ''' Recursively builds visual nodes with proper alignment
         ''' </summary>
@@ -102,7 +102,7 @@ Namespace Widgets
                 Dim lHasChildren As Boolean = vNode.Children.Count > 0
                 
                 ' Create visual node with correct depth
-                Dim lVisualNode As New VisualProjectNode() with {
+                Dim lVisualNode As New VisualProjectNode() With {
                     .Node = vNode,
                     .X = lBaseX,
                     .Y = vY,
@@ -155,7 +155,7 @@ Namespace Widgets
                     Console.WriteLine($"  Processing {vNode.Children.Count} children...")
                     
                     ' Children are always at the next depth level
-                    for each lChild in vNode.Children
+                    For Each lChild In vNode.Children
                         BuildVisualNodes(lChild, vDepth + 1, vY)
                     Next
                 End If

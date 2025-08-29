@@ -242,7 +242,7 @@ Namespace Widgets
                 Console.WriteLine($"OnDrawingAreaScroll: Direction={vArgs.Event.Direction}, Ctrl={vArgs.Event.State And ModifierType.ControlMask}")
                 
                 ' Check for Ctrl key for zoom
-                If vArgs.Event.State And ModifierType.ControlMask Then
+                If vArgs.Event.State and ModifierType.ControlMask Then
                     ' Ctrl+Scroll: Zoom in/out
                     If vArgs.Event.Direction = ScrollDirection.Up Then
                         ' Zoom in
@@ -344,7 +344,7 @@ Namespace Widgets
                         Return True
                         
                     Case CType(70, Gdk.Key), CType(102, Gdk.Key)  ' 70 = F, 102 = f
-                        If (vArgs.Event.State And ModifierType.ControlMask) = ModifierType.ControlMask Then
+                        If (vArgs.Event.State and ModifierType.ControlMask) = ModifierType.ControlMask Then
                             ' Ctrl+F - Start search
                             StartTypeAheadSearch()
                             Return True
@@ -375,7 +375,7 @@ Namespace Widgets
             ' TODO: Implement StartTypeAheadSearch
         End Sub
 
-        Public Sub AddToTypeAhead(vChar as Char)
+        Public Sub AddToTypeAhead(vChar As Char)
             ' TODO: Implement AddToTypeAhead
         End Sub
         
@@ -443,18 +443,94 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Simplified node activation - only fires NavigateToFile
+        ''' Handles node activation (double-click or Enter key) with fixed field navigation
         ''' </summary>
+        ''' <param name="vNode">The visual node that was activated</param>
+        ''' <remarks>
+        ''' Fixed to navigate to the correct declaration line for fields and other members
+        ''' </remarks>
         Private Sub HandleNodeActivation(vNode As VisualNode)
             Try
-                If vNode?.Node Is Nothing Then Return
+                If vNode Is Nothing OrElse vNode.Node Is Nothing Then Return
                 
-                ' Only navigate if we have a file path
+                Console.WriteLine($"Node activated: {vNode.Node.Name} ({vNode.Node.NodeType})")
+                
+                ' Check if this is a partial class/module/structure - don't navigate for these
+                ' Partial types have multiple definitions across files, so navigation doesn't make sense
+                If vNode.Node.IsPartial Then
+                    Console.WriteLine($"Skipping navigation for partial type: {vNode.Node.Name}")
+                    
+                    ' You could optionally show a message or list of files where this partial type is defined
+                    If vNode.Node.Attributes IsNot Nothing AndAlso vNode.Node.Attributes.ContainsKey("FilePaths") Then
+                        Dim lFilePaths As String = vNode.Node.Attributes("FilePaths")
+                        Console.WriteLine($"  Partial type defined in: {lFilePaths}")
+                    End If
+                    
+                    Return  ' Don't navigate for partial types
+                End If
+                
+                ' Check if the node has a file path (it's from a file)
                 If Not String.IsNullOrEmpty(vNode.Node.FilePath) Then
-                    ' StartLine is already 1-based from the parser
+                    ' Determine the line to navigate to based on node type
+                    Dim lNavigationLine As Integer = vNode.Node.StartLine
+                    
+                    ' Adjust for different node types
+                    Select Case vNode.Node.NodeType
+                        Case CodeNodeType.eClass, 
+                             CodeNodeType.eModule,
+                             CodeNodeType.eInterface,
+                             CodeNodeType.eStructure,
+                             CodeNodeType.eEnum
+                            ' For type declarations, StartLine should already point to the declaration
+                            ' Use it as-is
+                            Console.WriteLine($"Navigating to type declaration: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                            
+                        Case CodeNodeType.eMethod, 
+                             CodeNodeType.eFunction, 
+                             CodeNodeType.eProperty,
+                             CodeNodeType.eConstructor,
+                             CodeNodeType.eOperator
+                            ' For methods and similar constructs, the parser might point to the first line
+                            ' of code inside the method rather than the declaration line
+                            ' We need to go back to find the actual declaration
+                            
+                            ' Check if this is likely pointing to the body rather than the declaration
+                            ' For the "New" constructor, if StartLine points to "MyBase.New", we need to go back
+                            If lNavigationLine > 0 Then
+                                ' Go back one line to get to the declaration
+                                ' This handles cases like:
+                                ' Line 65: Public Sub New()
+                                ' Line 66:     MyBase.New(WINDOW_TITLE)  <-- StartLine points here
+                                lNavigationLine -= 1
+                            End If
+                            
+                            Console.WriteLine($"Navigating to method: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                            
+                        Case CodeNodeType.eField
+                            ' Fields often have StartLine pointing to the line after declaration
+                            ' Go back one line to get the actual declaration
+                            If lNavigationLine > 0 Then
+                                lNavigationLine -= 1
+                            End If
+                            Console.WriteLine($"Navigating to field: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                            
+                        Case CodeNodeType.eEvent
+                            ' Events might also need adjustment
+                            If lNavigationLine > 0 Then
+                                lNavigationLine -= 1
+                            End If
+                            Console.WriteLine($"Navigating to event: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                            
+                        Case Else
+                            ' For other node types (delegates, etc.), use StartLine as-is
+                            Console.WriteLine($"Navigating to {vNode.Node.NodeType}: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                    End Select
+                    
+                    ' Raise the NavigateToFile event with the adjusted line number
+                    ' EditorPosition uses 0-based line numbers
                     RaiseEvent NavigateToFile(vNode.Node.FilePath, 
-                                             New EditorPosition(vNode.Node.StartLine,
-                                             vNode.Node.StartColumn + 1))
+                                             New EditorPosition(lNavigationLine, 
+                                                               vNode.Node.StartColumn))
                 End If
                 
                 ' Don't fire NodeActivated - NavigateToFile is enough
@@ -471,7 +547,7 @@ Namespace Widgets
         ''' </summary>
         Private Function GetNodeAtPosition(vX As Integer, vY As Integer) As VisualNode
             Try
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     If vY >= lNode.Y AndAlso vY < lNode.Y + lNode.Height Then
                         Return lNode
                     End If

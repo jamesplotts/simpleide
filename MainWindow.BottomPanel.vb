@@ -13,15 +13,19 @@ Partial Public Class MainWindow
     
     ' ===== Bottom Panel Management =====
 
-    Private ReadOnly Property pErrorListView() As TreeView
+    ''' <summary>
+    ''' Gets the error list data grid from the bottom panel manager
+    ''' </summary>
+    Private ReadOnly Property pErrorListView() As CustomDrawDataGrid
         Get
-            Return pBottomPanelManager.ErrorListView
+            Return pBottomPanelManager?.ErrorListView
         End Get
     End Property
     
     ' Show bottom panel with specific tab
     Public Sub ShowBottomPanel(Optional vTabIndex As Integer = -1)
         Try
+            UpdatePanedConstraints()
             pBottomPanelManager.Show()
             pBottomPanelManager.ShowTab(vTabIndex)
             pBottomPanelVisible = True
@@ -33,7 +37,7 @@ Partial Public Class MainWindow
                 
                 If pCenterVPaned.AllocatedHeight > 0 Then
                     Dim lMaxPosition As Integer = pCenterVPaned.AllocatedHeight - 50
-                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, pCenterVPaned.AllocatedHeight - lHeight))
+                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, CInt(pCenterVPaned.AllocatedHeight / 4)))
                 End If
             End If
             
@@ -81,7 +85,9 @@ Partial Public Class MainWindow
     ' Initialize bottom panel code integrated into BottomPanelManager Class in BottomPanelManager.vb
     Private Sub InitializeBottomPanel()
         Try
-            ' Nothing here
+            InitializePanedConstraints()
+            InitializeBuildOutputTheme()
+            InitializeBottomPanelTheme()
         Catch ex As Exception
             Console.WriteLine($"InitializeBottomPanel error: {ex.Message}")
         End Try
@@ -140,26 +146,155 @@ Partial Public Class MainWindow
     
 
     
-    ' Clear error list
+    ''' <summary>
+    ''' Clears the error list in the build output panel
+    ''' </summary>
     Public Sub ClearErrorList()
         Try
-            If pErrorListView IsNot Nothing Then
-                Dim lStore As ListStore = CType(pErrorListView.Model, ListStore)
-                lStore?.Clear()
+            If pBottomPanelManager?.BuildOutputPanel IsNot Nothing Then
+                pBottomPanelManager.BuildOutputPanel.ClearOutput()
             End If
         Catch ex As Exception
             Console.WriteLine($"ClearErrorList error: {ex.Message}")
         End Try
     End Sub
     
-    ' Add error to error list
+    ''' <summary>
+    ''' Adds an error or warning to the build output panel's CustomDrawDataGrid
+    ''' </summary>
+    ''' <param name="vType">Type of issue ("error" or "warning")</param>
+    ''' <param name="vCode">Error or warning code (e.g., "BC30451")</param>
+    ''' <param name="vDescription">Description of the issue</param>
+    ''' <param name="vFile">File path where the issue occurred</param>
+    ''' <param name="vLine">Line number where the issue occurred</param>
+    ''' <param name="vColumn">Column number where the issue occurred</param>
     Public Sub AddError(vType As String, vCode As String, vDescription As String, 
                        vFile As String, vLine As Integer, vColumn As Integer)
         Try
-            If pErrorListView IsNot Nothing Then
-                Dim lStore As ListStore = CType(pErrorListView.Model, ListStore)
-                lStore?.AppendValues(vType, vCode, vDescription, vFile, vLine, vColumn)
+            ' Ensure build output panel exists
+            If pBuildOutputPanel Is Nothing Then
+                Console.WriteLine("BuildOutputPanel not initialized")
+                Return
             End If
+            
+            ' Determine which grid to add to based on type
+            Dim lTargetGrid As CustomDrawDataGrid = Nothing
+            Dim lIsError As Boolean = False
+            
+            Select Case vType.ToLower()
+                Case "error"
+                    lTargetGrid = pBuildOutputPanel.ErrorsDataGrid
+                    lIsError = True
+                Case "warning"
+                    lTargetGrid = pBuildOutputPanel.WarningsDataGrid
+                    lIsError = False
+                Case Else
+                    ' Default to error if type is unknown
+                    lTargetGrid = pBuildOutputPanel.ErrorsDataGrid
+                    lIsError = True
+            End Select
+            
+            ' Check if the grid exists
+            If lTargetGrid Is Nothing Then
+                Console.WriteLine($"Target grid for {vType} not available")
+                Return
+            End If
+            
+            ' Create a new DataGridRow
+            Dim lRow As New DataGridRow()
+            
+            ' Set row style based on type
+            If lIsError Then
+                lRow.Style = RowStyle.eError
+                
+                ' Create and store BuildError in Tag for later retrieval
+                Dim lBuildError As New BuildError()
+                lBuildError.FilePath = vFile
+                lBuildError.Line = vLine
+                lBuildError.Column = vColumn
+                lBuildError.ErrorCode = vCode
+                lBuildError.Message = vDescription
+                lRow.Tag = lBuildError
+            Else
+                lRow.Style = RowStyle.eWarning
+                
+                ' Create and store BuildWarning in Tag for later retrieval
+                Dim lBuildWarning As New BuildWarning()
+                lBuildWarning.FilePath = vFile
+                lBuildWarning.Line = vLine
+                lBuildWarning.Column = vColumn
+                lBuildWarning.WarningCode = vCode
+                lBuildWarning.Message = vDescription
+                lRow.Tag = lBuildWarning
+            End If
+            
+            ' Add cells to the row
+            ' Note: The grid expects 6 columns based on ErrorColumns/WarningColumns enum:
+            ' Icon, File, Line, Column, Code, Message
+            
+            ' Icon cell (column 0)
+            Dim lIconCell As New DataGridCell()
+            lIconCell.Value = vType.ToLower()  ' "error" or "warning"
+            lIconCell.DisplayText = ""  ' Icon will be drawn by the renderer
+            If lIsError Then
+                lIconCell.ForegroundColor = "#FF0000"  ' Red for errors
+            Else
+                lIconCell.ForegroundColor = "#FFA500"  ' Orange for warnings
+            End If
+            lRow.Cells.Add(lIconCell)
+            
+            ' File cell (column 1)
+            Dim lFileCell As New DataGridCell()
+            lFileCell.Value = System.IO.Path.GetFileName(vFile)  ' Show just filename
+            lFileCell.DisplayText = System.IO.Path.GetFileName(vFile)
+            lFileCell.ToolTip = vFile  ' Full path in tooltip
+            lRow.Cells.Add(lFileCell)
+            
+            ' Line cell (column 2)
+            Dim lLineCell As New DataGridCell()
+            lLineCell.Value = vLine
+            lLineCell.DisplayText = vLine.ToString()
+            lRow.Cells.Add(lLineCell)
+            
+            ' Column cell (column 3)
+            Dim lColumnCell As New DataGridCell()
+            lColumnCell.Value = vColumn
+            lColumnCell.DisplayText = vColumn.ToString()
+            lRow.Cells.Add(lColumnCell)
+            
+            ' Code cell (column 4)
+            Dim lCodeCell As New DataGridCell()
+            lCodeCell.Value = vCode
+            lCodeCell.DisplayText = vCode
+            lRow.Cells.Add(lCodeCell)
+            
+            ' Message cell (column 5)
+            Dim lMessageCell As New DataGridCell()
+            lMessageCell.Value = vDescription
+            lMessageCell.DisplayText = vDescription
+            lMessageCell.ToolTip = vDescription  ' Full message in tooltip for long messages
+            lRow.Cells.Add(lMessageCell)
+            
+            ' Add the row to the grid
+            lTargetGrid.AddRow(lRow)
+            
+            ' Update tab labels to show counts
+            If lIsError Then
+                ' Update errors tab label
+                Dim lErrorCount As Integer = lTargetGrid.Rows.Count
+                Dim lErrorTabLabel As Label = TryCast(pBuildOutputPanel.Notebook.GetTabLabel(lTargetGrid), Label)
+                If lErrorTabLabel IsNot Nothing Then
+                    lErrorTabLabel.Text = $"Errors ({lErrorCount})"
+                End If
+            Else
+                ' Update warnings tab label
+                Dim lWarningCount As Integer = lTargetGrid.Rows.Count
+                Dim lWarningTabLabel As Label = TryCast(pBuildOutputPanel.Notebook.GetTabLabel(lTargetGrid), Label)
+                If lWarningTabLabel IsNot Nothing Then
+                    lWarningTabLabel.Text = $"Warnings ({lWarningCount})"
+                End If
+            End If
+            
         Catch ex As Exception
             Console.WriteLine($"AddError error: {ex.Message}")
         End Try
@@ -377,5 +512,212 @@ Partial Public Class MainWindow
             Return False
         End Try
     End Function
+
+    ''' <summary>
+    ''' Initializes paned widget constraints for proper resizing
+    ''' </summary>
+    Private Sub InitializePanedConstraints()
+        Try
+            If pCenterVPaned Is Nothing Then Return
+            
+            ' Connect to realize event to set constraints when widget is ready
+            AddHandler pCenterVPaned.Realized, AddressOf OnCenterVPanedRealized
+            
+            ' Connect to button press/release events for drag handling
+            AddHandler pCenterVPaned.ButtonPressEvent, AddressOf OnPanedButtonPress
+            AddHandler pCenterVPaned.ButtonReleaseEvent, AddressOf OnPanedButtonRelease
+            AddHandler pCenterVPaned.MotionNotifyEvent, AddressOf OnPanedMotionNotify
+            
+            ' Enable motion events
+            pCenterVPaned.Events = pCenterVPaned.Events Or EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or EventMask.PointerMotionMask
+            
+            
+        Catch ex As Exception
+            Console.WriteLine($"InitializePanedConstraints error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles the realized event to set initial constraints
+    ''' </summary>
+    Private Sub OnCenterVPanedRealized(vSender As Object, vArgs As EventArgs)
+        Try
+            UpdatePanedConstraints()
+        Catch ex As Exception
+            Console.WriteLine($"OnCenterVPanedRealized error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Updates the paned position constraints based on current allocation
+    ''' </summary>
+    Private Sub UpdatePanedConstraints()
+        Try
+            If pCenterVPaned Is Nothing OrElse pCenterVPaned.AllocatedHeight <= 0 Then Return
+            
+            Dim lTotalHeight As Integer = pCenterVPaned.AllocatedHeight
+            
+            ' Calculate min/max positions (1/4 and 3/4 of height)
+            Dim lMinEditorHeight As Integer = CInt(lTotalHeight * 0.25)  ' Editor gets at least 1/4
+            Dim lMaxEditorHeight As Integer = CInt(lTotalHeight * 0.75)  ' Editor gets at most 3/4
+            
+            ' This means bottom panel height ranges from 1/4 to 3/4
+            ' Position is measured from top, so:
+            ' Min position = 1/4 of total (bottom panel gets 3/4)
+            ' Max position = 3/4 of total (bottom panel gets 1/4)
+            
+            ' Store constraints for use in position changed handler
+            pCenterVPaned.Data("MinPosition") = lMinEditorHeight
+            pCenterVPaned.Data("MaxPosition") = lMaxEditorHeight
+            
+            Console.WriteLine($"Paned constraints set: Height={lTotalHeight}, MinPos={lMinEditorHeight}, MaxPos={lMaxEditorHeight}")
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdatePanedConstraints error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Track when paned dragging starts
+    ''' </summary>
+    Private pIsDraggingPaned As Boolean = False
+    
+    ''' <summary>
+    ''' Handle button press on paned separator
+    ''' </summary>
+    Private Function OnPanedButtonPress(vSender As Object, vArgs As ButtonPressEventArgs) As Boolean
+        Try
+            ' Check if click is on the handle/separator
+            Dim lPaned As Paned = TryCast(vSender, Paned)
+            If lPaned IsNot Nothing Then
+                pIsDraggingPaned = True
+                Console.WriteLine("Started dragging paned separator")
+            End If
+            Return False ' Let default handler process
+        Catch ex As Exception
+            Console.WriteLine($"OnPanedButtonPress error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+    
+    ''' <summary>
+    ''' Handle button release on paned separator
+    ''' </summary>
+    Private Function OnPanedButtonRelease(vSender As Object, vArgs As ButtonReleaseEventArgs) As Boolean
+        Try
+            pIsDraggingPaned = False
+            Console.WriteLine("Stopped dragging paned separator")
+            
+            ' Save the position
+            If pCenterVPaned IsNot Nothing AndAlso pCenterVPaned.AllocatedHeight > 0 Then
+                Dim lBottomHeight As Integer = pCenterVPaned.AllocatedHeight - pCenterVPaned.Position
+                pSettingsManager.BottomPanelHeight = lBottomHeight
+                Console.WriteLine($"Saved bottom panel height: {lBottomHeight}")
+            End If
+            
+            Return False
+        Catch ex As Exception
+            Console.WriteLine($"OnPanedButtonRelease error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+    
+    ''' <summary>
+    ''' Handle motion while dragging paned separator
+    ''' </summary>
+    Private Function OnPanedMotionNotify(vSender As Object, vArgs As MotionNotifyEventArgs) As Boolean
+        Try
+            ' Always enforce constraints when the paned is being moved
+            GLib.Idle.Add(Function()
+                EnforcePanedConstraints()
+                Return False ' Run once
+            End Function)
+            Return False
+        Catch ex As Exception
+            Console.WriteLine($"OnPanedMotionNotify error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+    
+    ''' <summary>
+    ''' Enforces the min/max constraints on the paned position
+    ''' </summary>
+    Private Sub EnforcePanedConstraints()
+        Try
+            If pCenterVPaned Is Nothing OrElse pCenterVPaned.AllocatedHeight <= 0 Then Return
+            
+            Dim lTotalHeight As Integer = pCenterVPaned.AllocatedHeight
+            Dim lCurrentPos As Integer = pCenterVPaned.Position
+            
+            ' Calculate constraints
+            Dim lMinPos As Integer = CInt(lTotalHeight * 0.25)  ' Bottom panel max 3/4
+            Dim lMaxPos As Integer = CInt(lTotalHeight * 0.75)  ' Bottom panel min 1/4
+            
+            ' Apply constraints
+            If lCurrentPos < lMinPos Then
+                pCenterVPaned.Position = lMinPos
+                Console.WriteLine($"Enforced min position: {lMinPos}")
+            ElseIf lCurrentPos > lMaxPos Then
+                pCenterVPaned.Position = lMaxPos
+                Console.WriteLine($"Enforced max position: {lMaxPos}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"EnforcePanedConstraints error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Call this from BuildUI after creating pCenterVPaned
+    ''' </summary>
+    Private Sub SetupPanedHandling()
+        Try
+            InitializePanedConstraints()
+            
+            ' Also handle size allocation changes
+            AddHandler pCenterVPaned.SizeAllocated, AddressOf OnCenterVPanedSizeAllocated
+            
+        Catch ex As Exception
+            Console.WriteLine($"SetupPanedHandling error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handle size allocation changes to update constraints
+    ''' </summary>
+    Private Sub OnCenterVPanedSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
+        Try
+            UpdatePanedConstraints()
+        Catch ex As Exception
+            Console.WriteLine($"OnCenterVPanedSizeAllocated error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Initializes theme support for the build output panel
+    ''' </summary>
+    Private Sub InitializeBuildOutputTheme()
+        Try
+            If pBuildOutputPanel IsNot Nothing AndAlso pThemeManager IsNot Nothing Then
+                pBuildOutputPanel.SetThemeManager(pThemeManager)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"InitializeBuildOutputTheme error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Initializes theme support for the bottom panel manager and its panels
+    ''' </summary>
+    Private Sub InitializeBottomPanelTheme()
+        Try
+            If pBottomPanelManager IsNot Nothing AndAlso pThemeManager IsNot Nothing Then
+                pBottomPanelManager.SetThemeManager(pThemeManager)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"InitializeBottomPanelTheme error: {ex.Message}")
+        End Try
+    End Sub
+
     
 End Class

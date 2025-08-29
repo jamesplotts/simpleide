@@ -770,39 +770,55 @@ Partial Public Class MainWindow
     End Sub
 
     
+    ' Replace: SimpleIDE.MainWindow.OnProjectStructureLoaded
     ''' <summary>
-    ''' Handle project structure loaded event - populate Object Explorer
+    ''' Handle project structure loaded event - populate Object Explorer with proper initial state
     ''' </summary>
+    ''' <param name="vRootNode">The root syntax node from ProjectParser</param>
+    ''' <remarks>
+    ''' Now ensures all nodes are loaded, then collapses all and expands just the root
+    ''' </remarks>
     Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
         Try
             Console.WriteLine($"=== OnProjectStructureLoaded START ===")
             Console.WriteLine($"Project Structure loaded with root: {vRootNode?.Name} ({vRootNode?.NodeType})")
             Console.WriteLine($"Root has {vRootNode?.Children.Count} children")
             
+            ' List the children for debugging
+            If vRootNode IsNot Nothing AndAlso vRootNode.Children.Count > 0 Then
+                Console.WriteLine("Root children:")
+                For Each lChild In vRootNode.Children
+                    Console.WriteLine($"  - {lChild.Name} ({lChild.NodeType}) with {lChild.Children.Count} children")
+                Next
+            End If
+            
             ' Update Object Explorer with complete project structure
             If pObjectExplorer IsNot Nothing Then
                 Console.WriteLine("Updating Object Explorer...")
                 
-                ' Auto-expand the root namespace for visibility
-                If vRootNode?.NodeType = CodeNodeType.eNamespace Then
-                    ' Get the expanded nodes set from the Object Explorer
-                    ' and add the root namespace to auto-expand it
-                    Console.WriteLine($"Auto-expanding root Namespace: {vRootNode.Name}")
-                End If
-                
-                ' Load the project structure
+                ' Load the complete project structure
                 pObjectExplorer.LoadProjectStructure(vRootNode)
                 
-                ' Force refresh with auto-expansion
+                ' Use Application.Invoke to ensure UI updates happen on the main thread
                 Application.Invoke(Sub()
-                    ' Use the debug method to get detailed output
-                    If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                        Dim lCustomExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                        lCustomExplorer.RebuildVisualTree()
-                    End If
-                    
-                    ' Switch to Object Explorer tab
-                    SwitchToObjectExplorerTab()
+                    Try
+                        ' Cast to CustomDrawObjectExplorer to access the ExpandRootOnly method
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lCustomExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            
+                            ' Ensure proper initial expansion state
+                            ' This collapses everything then expands just the root
+                            lCustomExplorer.ExpandRootOnly()
+                            
+                            Console.WriteLine("Applied initial expansion state (root only)")
+                        End If
+                        
+                        ' Switch to Object Explorer tab to show the results
+                        SwitchToObjectExplorerTab()
+                        
+                    Catch ex As Exception
+                        Console.WriteLine($"error in Application.Invoke: {ex.Message}")
+                    End Try
                 End Sub)
                 
                 Console.WriteLine("Object Explorer update completed")

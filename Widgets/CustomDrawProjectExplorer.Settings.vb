@@ -79,7 +79,7 @@ Namespace Widgets
                 
                 If Not String.IsNullOrEmpty(lExpandedList) Then
                     Dim lNodes() As String = lExpandedList.Split("|"c)
-                    For Each lNode In lNodes
+                    for each lNode in lNodes
                         If Not String.IsNullOrEmpty(lNode.Trim()) Then
                             pExpandedNodes.Add(lNode.Trim())
                         End If
@@ -154,6 +154,7 @@ Namespace Widgets
                 Console.WriteLine($"OnThemeChanged error: {ex.Message}")
             End Try
         End Sub
+
         
         ' ===== Public Properties =====
         

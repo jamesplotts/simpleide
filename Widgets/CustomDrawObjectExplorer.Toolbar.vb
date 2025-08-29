@@ -245,33 +245,43 @@ Namespace Widgets
         ' ===== Event Handlers =====
         
         ''' <summary>
-        ''' Handles expand all button click
+        ''' Handles expand all button click - expands all namespaces and major containers
         ''' </summary>
         Private Sub OnExpandAllClicked(vSender As Object, vE As EventArgs)
             Try
-                ExpandAll()
+                Console.WriteLine("Expand All button clicked")
+                ExpandAllNamespaces()
             Catch ex As Exception
                 Console.WriteLine($"OnExpandAllClicked error: {ex.Message}")
             End Try
         End Sub
         
         ''' <summary>
-        ''' Handles collapse all button click
+        ''' Handles collapse all button click - collapses all nodes
         ''' </summary>
         Private Sub OnCollapseAllClicked(vSender As Object, vE As EventArgs)
             Try
-                CollapseAll()
+                Console.WriteLine("Collapse All button clicked")
+                CollapseAllNamespaces()
             Catch ex As Exception
                 Console.WriteLine($"OnCollapseAllClicked error: {ex.Message}")
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.OnRefreshClicked
         ''' <summary>
-        ''' Handles refresh button click - requests fresh parse from ProjectManager
+        ''' Handles refresh button click - requests fresh parse from ProjectManager while preserving state
         ''' </summary>
         Private Sub OnRefreshClicked(vSender As Object, vE As EventArgs)
             Try
                 Console.WriteLine("Object Explorer: Refresh button clicked")
+                
+                ' Store current state before refresh
+                Dim lExpandedPaths As New HashSet(Of String)(pExpandedNodes)
+                Dim lSelectedPath As String = pSelectedNode?.NodePath
+                Dim lScrollPosition As (X As Double, Y As Double) = (pScrollX, pScrollY)
+                
+                Console.WriteLine($"  Preserving state: {lExpandedPaths.Count} expanded nodes, selected: {lSelectedPath}")
                 
                 ' Request a fresh parse from ProjectManager if available
                 If pProjectManager IsNot Nothing Then
@@ -282,10 +292,46 @@ Namespace Widgets
                     
                     ' The ParseCompleted or ProjectStructureLoaded events will trigger
                     ' and update the Object Explorer automatically
+                    
+                    ' After the structure is loaded, restore the state
+                    ' Note: This is handled in UpdateStructure or we need to add a callback
+                    
                 ElseIf pRootNode IsNot Nothing Then
                     ' No ProjectManager, just rebuild the visual tree from existing data
                     Console.WriteLine("  No ProjectManager - rebuilding visual tree from existing data")
-                    RefreshStructure()
+                    
+                    ' Store expanded state
+                    lExpandedPaths = New HashSet(Of String)(pExpandedNodes)
+                    
+                    ' Rebuild the tree
+                    RebuildVisualTree()
+                    
+                    ' Restore expanded state
+                    pExpandedNodes = lExpandedPaths
+                    
+                    ' Re-expand nodes after rebuild
+                    for each lPath in pExpandedNodes
+                        ' The nodes are already marked as expanded, just need to rebuild visible list
+                    Next
+                    
+                    ' Update visible nodes to reflect expanded state
+                    UpdateVisibleNodes()
+                    
+                    ' Restore selection if possible
+                    If Not String.IsNullOrEmpty(lSelectedPath) Then
+                        Dim lNodeToSelect As VisualNode = pVisibleNodes.FirstOrDefault(
+                            Function(n) n.NodePath = lSelectedPath)
+                        If lNodeToSelect IsNot Nothing Then
+                            pSelectedNode = lNodeToSelect
+                        End If
+                    End If
+                    
+                    ' Restore scroll position
+                    pScrollX = lScrollPosition.X
+                    pScrollY = lScrollPosition.Y
+                    UpdateScrollbars()
+                    
+                    pDrawingArea?.QueueDraw()
                 Else
                     Console.WriteLine("  No data to refresh")
                 End If
@@ -362,6 +408,7 @@ Namespace Widgets
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.ExpandParentsAndNavigate
         ''' <summary>
         ''' Expands all parent nodes and navigates to the target node
         ''' </summary>
@@ -375,14 +422,16 @@ Namespace Widgets
                 ' Build list of all parent paths
                 Dim lParentPaths As New List(Of String)()
                 Dim lCurrentPath As String = ""
-                Dim lPathParts As String() = vTargetNode.NodePath.Split("/"c)
+                ' FIXED: Split using dot separator instead of slash
+                Dim lPathParts As String() = vTargetNode.NodePath.Split("."c)  ' Changed from "/"c to "."c
                 
                 ' Build parent paths progressively
                 for i As Integer = 0 To lPathParts.Length - 2 ' -2 to exclude the target node itself
                     If i = 0 Then
                         lCurrentPath = lPathParts(i)
                     Else
-                        lCurrentPath = lCurrentPath & "/" & lPathParts(i)
+                        ' FIXED: Use dot separator when building path
+                        lCurrentPath = lCurrentPath & "." & lPathParts(i)  ' Changed from "/" to "."
                     End If
                     lParentPaths.Add(lCurrentPath)
                     Console.WriteLine($"  Parent path to expand: {lCurrentPath}")
@@ -413,27 +462,13 @@ Namespace Widgets
                     End If
                 Next
                 
-                ' Now select and scroll to the node
                 If lFoundNode IsNot Nothing Then
+                    ' Select and scroll to the node
                     SelectNode(lFoundNode)
                     ScrollToNode(lFoundNode)
-                    pDrawingArea?.QueueDraw()
-                    Console.WriteLine($"  Successfully navigated to: {lFoundNode.Node.Name}")
+                    Console.WriteLine($"  Navigated to: {lFoundNode.Node.Name}")
                 Else
-                    Console.WriteLine($"  ERROR: Could not find node after expansion: {vTargetNode.NodePath}")
-                    ' Try to at least select the last parent
-                    If lParentPaths.Count > 0 Then
-                        Dim lLastParentPath As String = lParentPaths(lParentPaths.Count - 1)
-                        for each lNode in pVisibleNodes
-                            If lNode.NodePath = lLastParentPath Then
-                                SelectNode(lNode)
-                                ScrollToNode(lNode)
-                                pDrawingArea?.QueueDraw()
-                                Console.WriteLine($"  Selected parent instead: {lNode.Node.Name}")
-                                Exit for
-                            End If
-                        Next
-                    End If
+                    Console.WriteLine($"  Warning: Could not find target node in visible nodes")
                 End If
                 
             Catch ex As Exception
@@ -1199,6 +1234,7 @@ Namespace Widgets
             End Try
         End Sub
 
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.BuildCompleteVisualTree
         ''' <summary>
         ''' Builds a complete visual tree for searching (includes all nodes, even in collapsed branches)
         ''' </summary>
@@ -1224,11 +1260,12 @@ Namespace Widgets
                 If Not ShouldDisplayNode(vNode) Then Return
                 
                 ' Create visual node with same structure as BuildVisualNodes
+                ' FIXED: Use dot separator instead of slash to match BuildVisualNodes
                 Dim lVisualNode As New VisualNode() With {
                     .Node = vNode,
                     .Level = vLevel,
                     .Parent = vParent,
-                    .NodePath = If(String.IsNullOrEmpty(vParentPath), vNode.Name, $"{vParentPath}/{vNode.Name}"),
+                    .NodePath = If(String.IsNullOrEmpty(vParentPath), vNode.Name, $"{vParentPath}.{vNode.Name}"),  ' Changed from "/" to "."
                     .IsVisible = True,
                     .HasChildren = HasDisplayableChildren(vNode),
                     .IsExpanded = False ' Not relevant for search tree

@@ -258,7 +258,7 @@ Namespace Widgets
                 lResultsScroll.ShadowType = ShadowType.in
                 
                 ' Set a minimum height for the results scroll window
-                lResultsScroll.HeightRequest = 200
+                'lResultsScroll.HeightRequest = 200
                 
                 ' Use the new sortable results view
                 pResultsView = CreateSortableResultsView()

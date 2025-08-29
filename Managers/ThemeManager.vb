@@ -40,6 +40,12 @@ Namespace Managers
             Dim lThemeName As String = pSettingsManager.GetSetting("CurrentTheme", "Default Dark")
             SetTheme(lThemeName)
         End Sub
+
+        Public ReadOnly Property SettingsManager() As SettingsManager
+            Get
+                Return pSettingsManager
+            End Get
+        End Property
         
         ' Get current theme name
         Public Function GetCurrentTheme() As String
@@ -321,6 +327,10 @@ Namespace Managers
             lMonokai.LineNumberBackgroundColor = "#272822"
             lMonokai.CurrentLineNumberColor = "#F8F8F2"
             lMonokai.CursorColor = "#F8F8F0"
+            lMonokai.ErrorColor = "#F92672"
+            lMonokai.WarningColor = "#FD971F"
+            lMonokai.InfoColor = "#75715E"
+            lMonokai.SuccessColor = "#A6E22E"
             lMonokai.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#F92672"
             lMonokai.SyntaxColors(SyntaxColorSet.Tags.eType) = "#66D9EF"
             lMonokai.SyntaxColors(SyntaxColorSet.Tags.eString) = "#E6DB74"
@@ -342,6 +352,10 @@ Namespace Managers
             lSolarizedDark.LineNumberBackgroundColor = "#002B36"
             lSolarizedDark.CurrentLineNumberColor = "#93A1A1"
             lSolarizedDark.CursorColor = "#D33682"
+            lSolarizedDark.ErrorColor = "#DC322F"
+            lSolarizedDark.WarningColor = "#CB4B16"
+            lSolarizedDark.InfoColor = "#268BD2"
+            lSolarizedDark.SuccessColor = "#859900"
             lSolarizedDark.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#859900"
             lSolarizedDark.SyntaxColors(SyntaxColorSet.Tags.eType) = "#268BD2"
             lSolarizedDark.SyntaxColors(SyntaxColorSet.Tags.eString) = "#2AA198"
@@ -363,6 +377,10 @@ Namespace Managers
             lSolarizedLight.LineNumberBackgroundColor = "#FDF6E3"
             lSolarizedLight.CurrentLineNumberColor = "#586E75"
             lSolarizedLight.CursorColor = "#D33682"
+            lSolarizedLight.ErrorColor = "#DC322F"
+            lSolarizedLight.WarningColor = "#CB4B16"
+            lSolarizedLight.InfoColor = "#268BD2"
+            lSolarizedLight.SuccessColor = "#859900"
             lSolarizedLight.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#859900"
             lSolarizedLight.SyntaxColors(SyntaxColorSet.Tags.eType) = "#268BD2"
             lSolarizedLight.SyntaxColors(SyntaxColorSet.Tags.eString) = "#2AA198"
@@ -384,6 +402,10 @@ Namespace Managers
             lDracula.LineNumberBackgroundColor = "#282A36"
             lDracula.CurrentLineNumberColor = "#F8F8F2"
             lDracula.CursorColor = "#F8F8F2"
+            lDracula.ErrorColor = "#FF5555"
+            lDracula.WarningColor = "#FFB86C"
+            lDracula.InfoColor = "#6272A4"
+            lDracula.SuccessColor = "#50FA7B"
             lDracula.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#FF79C6"
             lDracula.SyntaxColors(SyntaxColorSet.Tags.eType) = "#8BE9FD"
             lDracula.SyntaxColors(SyntaxColorSet.Tags.eString) = "#F1FA8C"
@@ -405,6 +427,10 @@ Namespace Managers
             lGitHubDark.LineNumberBackgroundColor = "#0D1117"
             lGitHubDark.CurrentLineNumberColor = "#C9D1D9"
             lGitHubDark.CursorColor = "#C9D1D9"
+            lGitHubDark.ErrorColor = "#DC322F"
+            lGitHubDark.WarningColor = "#CB4B16"
+            lGitHubDark.InfoColor = "#268BD2"
+            lGitHubDark.SuccessColor = "#859900"
             lGitHubDark.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#FF7B72"
             lGitHubDark.SyntaxColors(SyntaxColorSet.Tags.eType) = "#79C0FF"
             lGitHubDark.SyntaxColors(SyntaxColorSet.Tags.eString) = "#A5D6FF"
@@ -426,6 +452,10 @@ Namespace Managers
             lOneDark.LineNumberBackgroundColor = "#282C34"
             lOneDark.CurrentLineNumberColor = "#ABB2BF"
             lOneDark.CursorColor = "#528BFF"
+            lOneDark.ErrorColor = "#DC322F"
+            lOneDark.WarningColor = "#CB4B16"
+            lOneDark.InfoColor = "#268BD2"
+            lOneDark.SuccessColor = "#859900"
             lOneDark.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#C678DD"
             lOneDark.SyntaxColors(SyntaxColorSet.Tags.eType) = "#E06C75"
             lOneDark.SyntaxColors(SyntaxColorSet.Tags.eString) = "#98C379"
@@ -481,6 +511,10 @@ Namespace Managers
         End Sub
         
         ' Load theme from file
+        ' Replace: SimpleIDE.Managers.ThemeManager.LoadThemeFromFile
+        ''' <summary>
+        ''' Load theme from file
+        ''' </summary>
         Private Function LoadThemeFromFile(vFilePath As String) As EditorTheme
             Try
                 Dim lJson As String = File.ReadAllText(vFilePath)
@@ -499,6 +533,13 @@ Namespace Managers
                 lTheme.LineNumberBackgroundColor = lThemeData.LineNumberBackgroundColor
                 lTheme.CurrentLineNumberColor = lThemeData.CurrentLineNumberColor
                 lTheme.CursorColor = lThemeData.CursorColor
+                
+                ' Load status colors with defaults if missing
+                lTheme.ErrorColor = If(lThemeData.ErrorColor, If(lTheme.IsDarkTheme, "#FF6B6B", "#D32F2F"))
+                lTheme.WarningColor = If(lThemeData.WarningColor, If(lTheme.IsDarkTheme, "#FFB86C", "#F57C00"))
+                lTheme.InfoColor = If(lThemeData.InfoColor, If(lTheme.IsDarkTheme, "#6272A4", "#1976D2"))
+                lTheme.SuccessColor = If(lThemeData.SuccessColor, If(lTheme.IsDarkTheme, "#50FA7B", "#388E3C"))
+                
                 lTheme.FontFamily = lThemeData.FontFamily
                 lTheme.FontSize = lThemeData.FontSize
                 
@@ -506,7 +547,7 @@ Namespace Managers
                 If lThemeData.SyntaxColors IsNot Nothing Then
                     for each kvp in lThemeData.SyntaxColors
                         Dim lTag As SyntaxColorSet.Tags
-                        If [Enum].TryParse(Of SyntaxColorSet.Tags)(kvp.key, lTag) Then
+                        If [Enum].TryParse(Of SyntaxColorSet.Tags)(kvp.Key, lTag) Then
                             lTheme.SyntaxColors(lTag) = kvp.Value
                         End If
                     Next
@@ -520,7 +561,9 @@ Namespace Managers
             End Try
         End Function
         
-        ' Save theme to file
+        ''' <summary>
+        ''' Save theme to file
+        ''' </summary>
         Public Function SaveTheme(vTheme As EditorTheme, vFilePath As String) As Boolean
             Try
                 Dim lThemeData As New ThemeData()
@@ -535,13 +578,20 @@ Namespace Managers
                 lThemeData.LineNumberBackgroundColor = vTheme.LineNumberBackgroundColor
                 lThemeData.CurrentLineNumberColor = vTheme.CurrentLineNumberColor
                 lThemeData.CursorColor = vTheme.CursorColor
+                
+                ' Save status colors
+                lThemeData.ErrorColor = vTheme.ErrorColor
+                lThemeData.WarningColor = vTheme.WarningColor
+                lThemeData.InfoColor = vTheme.InfoColor
+                lThemeData.SuccessColor = vTheme.SuccessColor
+                
                 lThemeData.FontFamily = vTheme.FontFamily
                 lThemeData.FontSize = vTheme.FontSize
                 
                 ' Save syntax colors
                 lThemeData.SyntaxColors = New Dictionary(Of String, String)()
                 for each kvp in vTheme.SyntaxColors
-                    lThemeData.SyntaxColors(kvp.key.ToString()) = kvp.Value
+                    lThemeData.SyntaxColors(kvp.Key.ToString()) = kvp.Value
                 Next
                 
                 Dim lOptions As New JsonSerializerOptions()
@@ -557,6 +607,7 @@ Namespace Managers
                 Return False
             End Try
         End Function
+
         
         ' Create custom theme
         Public Function CreateCustomTheme(vBasedOn As String, vNewName As String) As EditorTheme
@@ -753,7 +804,7 @@ Namespace Managers
             Try
                 ' Get all toplevel windows and refresh them
                 Dim lWindows As Window() = Window.ListToplevels()
-                For Each lWindow As Window In lWindows
+                for each lWindow As Window in lWindows
                     If lWindow IsNot Nothing AndAlso lWindow.Visible Then
                         ' Reset style context to force re-evaluation
                         lWindow.ResetStyle()
@@ -788,7 +839,7 @@ Namespace Managers
                 ' If it's a container, refresh all children
                 Dim lContainer As Container = TryCast(vWidget, Container)
                 If lContainer IsNot Nothing Then
-                    For Each lChild As Widget In lContainer.Children
+                    for each lChild As Widget in lContainer.Children
                         RefreshWidgetRecursive(lChild)
                     Next
                 End If
@@ -796,7 +847,7 @@ Namespace Managers
                 ' Special handling for Notebook widgets
                 Dim lNotebook As Notebook = TryCast(vWidget, Notebook)
                 If lNotebook IsNot Nothing Then
-                    For i As Integer = 0 To lNotebook.NPages - 1
+                    for i As Integer = 0 To lNotebook.NPages - 1
                         Dim lPage As Widget = lNotebook.GetNthPage(i)
                         If lPage IsNot Nothing Then
                             RefreshWidgetRecursive(lPage)
@@ -858,6 +909,13 @@ Namespace Managers
             Public Property LineNumberBackgroundColor As String
             Public Property CurrentLineNumberColor As String
             Public Property CursorColor As String
+            
+            ' Status colors
+            Public Property ErrorColor As String
+            Public Property WarningColor As String
+            Public Property InfoColor As String
+            Public Property SuccessColor As String
+
             Public Property FontFamily As String
             Public Property FontSize As Integer
             Public Property SyntaxColors As Dictionary(Of String, String)

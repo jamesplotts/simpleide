@@ -189,7 +189,7 @@ Namespace Widgets
             ' File list
             Dim lScrolledWindow As New ScrolledWindow()
             lScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            lScrolledWindow.HeightRequest = 150
+            lScrolledWindow.HeightRequest = 100
             
             ' Create tree view for file status
             ' Columns: Staged (checkbox), Status, File
@@ -237,7 +237,7 @@ Namespace Widgets
             Dim lCommitScroll As New ScrolledWindow()
             lCommitScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
             lCommitScroll.HeightRequest = 80
-            lCommitScroll.ShadowType = ShadowType.In
+            lCommitScroll.ShadowType = ShadowType.in
             
             pCommitMessageEntry = New TextView()
             pCommitMessageEntry.WrapMode = WrapMode.Word
@@ -545,8 +545,8 @@ Namespace Widgets
             
             Dim lLines() As String = vOutput.Split({Environment.NewLine, vbLf}, StringSplitOptions.RemoveEmptyEntries)
             
-            For Each lLine In lLines
-                If lLine.Length < 3 Then Continue For
+            for each lLine in lLines
+                If lLine.Length < 3 Then Continue for
                 
                 Dim lStatus As String = lLine.Substring(0, 2)
                 Dim lFilePath As String = lLine.Substring(3).Trim()
@@ -591,7 +591,7 @@ Namespace Widgets
             
             Dim lLines() As String = vOutput.Split({Environment.NewLine, vbLf}, StringSplitOptions.RemoveEmptyEntries)
             
-            For Each lLine In lLines
+            for each lLine in lLines
                 Dim lParts() As String = lLine.Split("|"c)
                 If lParts.Length >= 4 Then
                     pHistoryStore.AppendValues(
@@ -636,7 +636,7 @@ Namespace Widgets
             
             Dim lLines() As String = vDiffText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
             
-            For Each lLine In lLines
+            for each lLine in lLines
                 Dim lStartIter As TextIter = pDiffBuffer.EndIter
 pDiffBuffer.PlaceCursor(lStartIter)
 pDiffBuffer.InsertAtCursor(lLine & Environment.NewLine)

@@ -18,6 +18,12 @@ Namespace Models
         Public Property LineNumberBackgroundColor As String
         Public Property CurrentLineNumberColor As String
         Public Property CursorColor As String
+
+        ' Status colors for data grids and messages
+        Public Property ErrorColor As String
+        Public Property WarningColor As String  
+        Public Property InfoColor As String
+        Public Property SuccessColor As String
         
         ' Syntax colors
         Public Property SyntaxColors As New Dictionary(Of SyntaxColorSet.Tags, String)
@@ -39,6 +45,10 @@ Namespace Models
             eLineNumberBackgroundColor 
             eCurrentLineNumberColor 
             eCursorColor 
+            eErrorColor
+            eWarningColor
+            eInfoColor
+            eSuccessColor
             eKeywordText
             eTypeText
             eStringText
@@ -61,6 +71,10 @@ Namespace Models
             Name = vName
         End Sub
         
+        ' Replace: SimpleIDE.Models.EditorTheme.SetDefaults
+        ''' <summary>
+        ''' Sets default theme values
+        ''' </summary>
         Public Sub SetDefaults()
             Name = "Default Dark"
             Description = "Default dark theme for SimpleIDE"
@@ -73,36 +87,42 @@ Namespace Models
             CurrentLineColor = "#2A2A2A"
             LineNumberColor = "#858585"
             LineNumberBackgroundColor = "#252526"
-            CurrentLineNumberColor = "#C6C6C6"
-            CursorColor = "#FFFFFF"
+            CurrentLineNumberColor = "#FFFFFF"
+            CursorColor = "#AEAFAD"
             
-            ' Syntax colors - matching existing defaults
-            SyntaxColors.Clear()
-            SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#d2b48c"
-            SyntaxColors(SyntaxColorSet.Tags.eType) = "#2B91AF"
-            SyntaxColors(SyntaxColorSet.Tags.eString) = "#5f9ea0"
-            SyntaxColors(SyntaxColorSet.Tags.eComment) = "#008000"
-            SyntaxColors(SyntaxColorSet.Tags.eNumber) = "#5f9ea0"
-            SyntaxColors(SyntaxColorSet.Tags.eOperator) = "#808080"
-            SyntaxColors(SyntaxColorSet.Tags.ePreprocessor) = "#808080"
-            SyntaxColors(SyntaxColorSet.Tags.eIdentifier) = "#FFFFFF"
-            SyntaxColors(SyntaxColorSet.Tags.eSelection) = "#3399FF"
+            ' Status colors
+            ErrorColor = "#FF6B6B"
+            WarningColor = "#FFB86C"
+            InfoColor = "#6272A4"
+            SuccessColor = "#50FA7B"
             
             ' Font settings
-            FontFamily = "Monospace"
+            FontFamily = "monospace"
             FontSize = 10
+            
+            ' Syntax colors
+            SyntaxColors.Clear()
+            SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#569CD6"
+            SyntaxColors(SyntaxColorSet.Tags.eType) = "#4EC9B0"
+            SyntaxColors(SyntaxColorSet.Tags.eString) = "#CE9178"
+            SyntaxColors(SyntaxColorSet.Tags.eComment) = "#6A9955"
+            SyntaxColors(SyntaxColorSet.Tags.eNumber) = "#B5CEA8"
+            SyntaxColors(SyntaxColorSet.Tags.eOperator) = "#D4D4D4"
+            SyntaxColors(SyntaxColorSet.Tags.ePreprocessor) = "#9B9B9B"
+            SyntaxColors(SyntaxColorSet.Tags.eIdentifier) = "#FFFFFF"
+            SyntaxColors(SyntaxColorSet.Tags.eSelection) = "#ADD6FF"
         End Sub
         
         ' Apply theme to SyntaxColorSet
         Public Sub ApplyToSyntaxColorSet(vColorSet As SyntaxColorSet)
-            For Each kvp In SyntaxColors
+            for each kvp in SyntaxColors
                 vColorSet.SyntaxColor(kvp.key) = kvp.Value
             Next
         End Sub
         
         ' Load theme from SyntaxColorSet
         Public Sub LoadFromSyntaxColorSet(vColorSet As SyntaxColorSet)
-            For lTag As SyntaxColorSet.Tags = SyntaxColorSet.Tags.eKeyword To SyntaxColorSet.Tags.eSelection
+            for lTag As SyntaxColorSet.Tags = SyntaxColorSet.Tags.eKeyword To SyntaxColorSet.Tags.eSelection
                 SyntaxColors(lTag) = vColorSet.SyntaxColor(lTag)
             Next
         End Sub
@@ -126,32 +146,37 @@ Namespace Models
         End Sub
         
         ' Clone theme
+        ' Replace: SimpleIDE.Models.EditorTheme.Clone
+        ''' <summary>
+        ''' Creates a deep copy of the theme
+        ''' </summary>
         Public Function Clone() As EditorTheme
-            Dim lNewTheme As New EditorTheme()
-            ' DO NOT append "(Copy)" - let the caller set the name
-            lNewTheme.Name = Me.Name  ' Keep original name, caller will update if needed
-            lNewTheme.Description = Me.Description
-            lNewTheme.IsDarkTheme = Me.IsDarkTheme
+            Dim lNewTheme As New EditorTheme(Name & " Copy")
+            lNewTheme.Description = Description
+            lNewTheme.IsDarkTheme = IsDarkTheme
+            lNewTheme.BackgroundColor = BackgroundColor
+            lNewTheme.ForegroundColor = ForegroundColor
+            lNewTheme.SelectionColor = SelectionColor
+            lNewTheme.CurrentLineColor = CurrentLineColor
+            lNewTheme.LineNumberColor = LineNumberColor
+            lNewTheme.LineNumberBackgroundColor = LineNumberBackgroundColor
+            lNewTheme.CurrentLineNumberColor = CurrentLineNumberColor
+            lNewTheme.CursorColor = CursorColor
             
-            ' Copy colors
-            lNewTheme.BackgroundColor = Me.BackgroundColor
-            lNewTheme.ForegroundColor = Me.ForegroundColor
-            lNewTheme.SelectionColor = Me.SelectionColor
-            lNewTheme.CurrentLineColor = Me.CurrentLineColor
-            lNewTheme.LineNumberColor = Me.LineNumberColor
-            lNewTheme.LineNumberBackgroundColor = Me.LineNumberBackgroundColor
-            lNewTheme.CurrentLineNumberColor = Me.CurrentLineNumberColor
-            lNewTheme.CursorColor = Me.CursorColor
-            
-            ' Copy syntax colors
-            lNewTheme.SyntaxColors.Clear()
-            For Each kvp In Me.SyntaxColors
-                lNewTheme.SyntaxColors(kvp.Key) = kvp.Value
-            Next
+            ' Copy status colors
+            lNewTheme.ErrorColor = ErrorColor
+            lNewTheme.WarningColor = WarningColor
+            lNewTheme.InfoColor = InfoColor
+            lNewTheme.SuccessColor = SuccessColor
             
             ' Copy font settings
-            lNewTheme.FontFamily = Me.FontFamily
-            lNewTheme.FontSize = Me.FontSize
+            lNewTheme.FontFamily = FontFamily
+            lNewTheme.FontSize = FontSize
+            
+            ' Deep copy syntax colors
+            for each kvp in SyntaxColors
+                lNewTheme.SyntaxColors(kvp.Key) = kvp.Value
+            Next
             
             Return lNewTheme
         End Function
@@ -162,29 +187,39 @@ Namespace Models
         End Sub
         
         ' Predefined themes
+        ' Replace: SimpleIDE.Models.EditorTheme.GetBuiltInThemes
+        ''' <summary>
+        ''' Gets the built-in themes
+        ''' </summary>
         Public Shared Function GetBuiltInThemes() As List(Of EditorTheme)
             Dim lThemes As New List(Of EditorTheme)
             
-            ' Default Dark theme
-            lThemes.Add(New EditorTheme("Default Dark"))
+            ' Default Dark theme (already initialized with defaults)
+            Dim lDefaultDark As New EditorTheme("Default Dark")
+            lThemes.Add(lDefaultDark)
             
-            ' VS Code Dark+ theme
-            Dim lVSCodeTheme As New EditorTheme("VS code Dark+")
-            lVSCodeTheme.Description = "Visual Studio code Dark+ theme"
+            ' VS Code Dark theme
+            Dim lVSCodeTheme As New EditorTheme("VS Code Dark")
+            lVSCodeTheme.Description = "Visual Studio Code dark theme"
             lVSCodeTheme.IsDarkTheme = True
             lVSCodeTheme.BackgroundColor = "#1E1E1E"
             lVSCodeTheme.ForegroundColor = "#D4D4D4"
-            lVSCodeTheme.SelectionColor = "#6699FF"
+            lVSCodeTheme.SelectionColor = "#264F78"
+            lVSCodeTheme.CurrentLineColor = "#2A2A2A"
             lVSCodeTheme.LineNumberColor = "#858585"
             lVSCodeTheme.LineNumberBackgroundColor = "#1E1E1E"
             lVSCodeTheme.CurrentLineNumberColor = "#C6C6C6"
             lVSCodeTheme.CursorColor = "#AEAFAD"
+            lVSCodeTheme.ErrorColor = "#F48771"
+            lVSCodeTheme.WarningColor = "#CCA700"
+            lVSCodeTheme.InfoColor = "#75BEFF"
+            lVSCodeTheme.SuccessColor = "#89D185"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#569CD6"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eType) = "#4EC9B0"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eString) = "#CE9178"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eComment) = "#6A9955"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eNumber) = "#B5CEA8"
-            lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier) = "#FFFFFF"
+            lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier) = "#D4D4D4"
             lVSCodeTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection) = "#ADD6FF"
             lThemes.Add(lVSCodeTheme)
             
@@ -199,6 +234,10 @@ Namespace Models
             lLightTheme.LineNumberBackgroundColor = "#F3F3F3"
             lLightTheme.CurrentLineNumberColor = "#0B216F"
             lLightTheme.CursorColor = "#000000"
+            lLightTheme.ErrorColor = "#D32F2F"
+            lLightTheme.WarningColor = "#F57C00"
+            lLightTheme.InfoColor = "#1976D2"
+            lLightTheme.SuccessColor = "#388E3C"
             lLightTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword) = "#0000FF"
             lLightTheme.SyntaxColors(SyntaxColorSet.Tags.eType) = "#2B91AF"
             lLightTheme.SyntaxColors(SyntaxColorSet.Tags.eString) = "#A31515"
@@ -307,7 +346,7 @@ Namespace Models
         End Function
 
         ''' <summary>
-        ''' Gets a color value from the theme by tag
+        ''' Gets a color from the theme by tag
         ''' </summary>
         ''' <param name="vTag">The theme color tag to retrieve</param>
         ''' <returns>Hex color string (e.g., "#FF0000")</returns>
@@ -330,6 +369,14 @@ Namespace Models
                         Return CurrentLineNumberColor
                     Case EditorTheme.Tags.eCursorColor
                         Return CursorColor
+                    Case EditorTheme.Tags.eErrorColor
+                        Return ErrorColor
+                    Case EditorTheme.Tags.eWarningColor
+                        Return WarningColor
+                    Case EditorTheme.Tags.eInfoColor
+                        Return InfoColor
+                    Case EditorTheme.Tags.eSuccessColor
+                        Return SuccessColor
                     Case EditorTheme.Tags.eKeywordText
                         If SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eKeyword) Then
                             Return SyntaxColors(SyntaxColorSet.Tags.eKeyword)

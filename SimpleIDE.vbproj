@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -115,7 +115,9 @@
     <Compile Include="Models/BuildResult.vb" />
     <Compile Include="Models/CharacterColorInfo.vb" />
     <Compile Include="Models/CodeSenseContext.vb" />
+    <Compile Include="Models/CodeSenseTypeInfo.vb" />
     <Compile Include="Models/CodeTypes.vb" />
+    <Compile Include="Models/DataGridModels.vb" />
     <Compile Include="Models/DocumentModel.vb" />
     <Compile Include="Models/DocumentNode.vb" />
     <Compile Include="Models/EditorPosition.vb" />
@@ -135,6 +137,7 @@
     <Compile Include="Models/UndoAction.vb" />
     <Compile Include="Models/UndoGroup.vb" />
     <Compile Include="Models/VisualProjectNode.vb" />
+    <Compile Include="Models/XMLDocumentation.vb" />
     <!-- Managers -->
     <Compile Include="Managers/AssemblyVersionManager.vb" />
     <Compile Include="Managers/BottomPanelManager.vb" />
@@ -186,8 +189,13 @@
     <!-- Widgets -->
     <Compile Include="Widgets/AIAssistantPanel.vb" />
     <Compile Include="Widgets/BuildOutputPanel.vb" />
+    <Compile Include="Widgets/BuildOutputPanel.DataGrid.vb" />
     <Compile Include="Widgets/ColorPicker.vb" />
     <Compile Include="Widgets/CustomDrawListBox.vb" />
+    <Compile Include="Widgets/CustomDrawDataGrid.vb" />
+    <Compile Include="Widgets/CustomDrawDataGrid.Drawing.vb" />
+    <Compile Include="Widgets/CustomDrawDataGrid.Events.vb" />
+    <Compile Include="Widgets/CustomDrawDataGrid.Methods.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.ContextMenu.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Debug.vb" />
@@ -244,8 +252,6 @@
     <Compile Include="AI/MemoryManifest.vb" />
     <!-- My Project Files -->
     <Compile Include="My Project/AssemblyInfo.vb" />
-    <Compile Include="Models/XMLDocumentation.vb" />
-    <Compile Include="Models/CodeSenseTypeInfo.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->

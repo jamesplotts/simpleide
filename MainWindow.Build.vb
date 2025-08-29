@@ -446,7 +446,6 @@ Partial Public Class MainWindow
     
     ' ===== Build Event Handlers =====
     
-    ' Replace: SimpleIDE.MainWindow.OnBuildStarted
     ''' <summary>
     ''' Build event handler - build started
     ''' </summary>
@@ -460,9 +459,10 @@ Partial Public Class MainWindow
                     UpdateStatusBar($"Building {lProjectName}...")
                     
                     ' Clear build output with safe check
+                    ' CHANGED: Use ClearOutputOnly to preserve error/warning counts
                     Try
                         If pSettingsManager IsNot Nothing AndAlso pSettingsManager.ClearOutputOnBuild Then
-                            pBuildOutputPanel?.ClearOutput()
+                            pBuildOutputPanel?.ClearOutputOnly()  ' Changed from ClearOutput
                         End If
                     Catch ex As Exception
                         Console.WriteLine($"Error checking ClearOutputOnBuild: {ex.Message}")

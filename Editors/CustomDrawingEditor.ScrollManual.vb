@@ -595,6 +595,75 @@ Namespace Editors
                 Console.WriteLine($"UpdateMaxLineWidth error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Scrolls the editor to the top
+        ''' </summary>
+        Private Sub ScrollToTop()
+            Try
+                ' Check if scrollbar is initialized
+                If pVScrollbar Is Nothing Then Return
+                
+                ' Set to top
+                pFirstVisibleLine = 0
+                pVScrollbar.Value = 0
+                
+                ' Force immediate redraw
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.QueueDraw()
+                End If
+                
+                Console.WriteLine("ScrollToTop: Scrolled to line 0")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ScrollToTop error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Scrolls the editor to the bottom, accounting for visible viewport
+        ''' </summary>
+        Private Sub ScrollToBottom()
+            Try
+                ' Check if scrollbar is initialized
+                If pVScrollbar Is Nothing Then Return
+                
+                ' Update visible metrics to ensure we have current viewport size
+                UpdateVisibleMetrics()
+                
+                ' Calculate the target first visible line to show the bottom
+                ' We want the last line to be at the bottom of the viewport
+                Dim lTargetFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                
+                ' If we're already at the bottom, force a complete scroll
+                If pFirstVisibleLine = lTargetFirstLine AndAlso lTargetFirstLine < pLineCount - 1 Then
+                    ' Try to scroll one more line if possible to ensure we're truly at bottom
+                    lTargetFirstLine = Math.Min(pLineCount - 1, lTargetFirstLine + 1)
+                End If
+                
+                ' Set the scroll position
+                pFirstVisibleLine = lTargetFirstLine
+                pVScrollbar.Value = pFirstVisibleLine
+                
+                ' Force immediate redraw
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.QueueDraw()
+                End If
+                
+                Console.WriteLine($"ScrollToBottom: Lines={pLineCount}, VisibleLines={pTotalVisibleLines}, FirstLine={pFirstVisibleLine}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ScrollToBottom error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     
