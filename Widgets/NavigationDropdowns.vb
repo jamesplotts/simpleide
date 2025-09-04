@@ -1,4 +1,6 @@
-' Widgets/NavigationDropdowns.vb - Fixed navigation dropdowns with proper imports
+' Replace: SimpleIDE.Widgets.NavigationDropdowns
+
+' Widgets/NavigationDropdowns.vb - Enhanced navigation dropdowns with (General) and (Declarations) support
 Imports Gtk
 Imports System
 Imports System.Collections.Generic
@@ -7,7 +9,9 @@ Imports SimpleIDE.Interfaces
 
 Namespace Widgets
     
-    ' Navigation dropdowns for class and member selection
+    ''' <summary>
+    ''' Navigation dropdowns providing classic VB-style class and member navigation
+    ''' </summary>
     Public Class NavigationDropdowns
         Inherits Box
         
@@ -17,12 +21,19 @@ Namespace Widgets
         Private pClassLabel As Label
         Private pMemberLabel As Label
         
-        ' Data
+        ' Data storage
         Private pClasses As New List(Of CodeObject)()
-        Private pMembers As New List(Of CodeMember)()
+        Private pRootMembers As New List(Of CodeMember)()
+        Private pCurrentMembers As New List(Of CodeMember)()
         Private pCurrentClass As String = ""
         Private pCurrentMember As String = ""
         Private pIsUpdating As Boolean = False
+        
+        ' Constants for special entries
+        Private Const GENERAL_ITEM As String = "(General)"
+        Private Const DECLARATIONS_ITEM As String = "(Declarations)"
+        Private Const NO_CLASSES_ITEM As String = "(No classes)"
+        Private Const NO_MEMBERS_ITEM As String = "(No members)"
         
         ' Editor reference
         Private pEditor As IEditor
@@ -30,380 +41,131 @@ Namespace Widgets
         ' Events
         Public Event NavigationRequested(vLine As Integer)
         
-        ' Constructor
+        ''' <summary>
+        ''' Initializes the navigation dropdowns widget
+        ''' </summary>
         Public Sub New()
             MyBase.New(Orientation.Horizontal, 5)
             
             Try
-                ' Build UI
                 BuildUI()
-                
-                ' Set initial state
-                UpdateUI()
+                SetInitialState()
                 
             Catch ex As Exception
                 Console.WriteLine($"NavigationDropdowns initialization error: {ex.Message}")
             End Try
         End Sub
         
-        ' Build UI
+        ''' <summary>
+        ''' Builds the user interface components
+        ''' </summary>
         Private Sub BuildUI()
-            ' Class selection
-            pClassLabel = New Label("Class:")
-            PackStart(pClassLabel, False, False, 0)
-            
-            pClassCombo = New ComboBoxText()
-            pClassCombo.WidthRequest = 200
-            AddHandler pClassCombo.Changed, AddressOf OnClassChanged
-            PackStart(pClassCombo, False, False, 0)
-            
-            ' Member selection
-            pMemberLabel = New Label("member:")
-            pMemberLabel.MarginStart = 10
-            PackStart(pMemberLabel, False, False, 0)
-            
-            pMemberCombo = New ComboBoxText()
-            pMemberCombo.WidthRequest = 250
-            AddHandler pMemberCombo.Changed, AddressOf OnMemberChanged
-            PackStart(pMemberCombo, False, False, 0)
-            
-            ShowAll()
+            Try
+                ' Class selection label and dropdown
+                pClassLabel = New Label("Class:")
+                pClassLabel.Halign = Align.Start
+                PackStart(pClassLabel, False, False, 0)
+                
+                pClassCombo = New ComboBoxText()
+                pClassCombo.WidthRequest = 200
+                AddHandler pClassCombo.Changed, AddressOf OnClassChanged
+                PackStart(pClassCombo, False, False, 0)
+                
+                ' Member selection label and dropdown
+                pMemberLabel = New Label("Member:")
+                pMemberLabel.MarginStart = 10
+                pMemberLabel.Halign = Align.Start
+                PackStart(pMemberLabel, False, False, 0)
+                
+                pMemberCombo = New ComboBoxText()
+                pMemberCombo.WidthRequest = 250
+                AddHandler pMemberCombo.Changed, AddressOf OnMemberChanged
+                PackStart(pMemberCombo, False, False, 0)
+                
+                ShowAll()
+                
+            Catch ex As Exception
+                Console.WriteLine($"BuildUI error: {ex.Message}")
+            End Try
         End Sub
         
-        ' Set editor reference
-        Public Sub SetEditor(vEditor As IEditor)
-            pEditor = vEditor
-            
-            ' Subscribe to editor events
-            If pEditor IsNot Nothing Then
-                AddHandler pEditor.CursorPositionChanged, AddressOf OnEditorCursorChanged
-                AddHandler pEditor.TextChanged, AddressOf OnEditorTextChanged
-            End If
-        End Sub
-        
-        ' Update navigation data
-        Public Sub UpdateNavigationData(vClasses As List(Of CodeObject))
+        ''' <summary>
+        ''' Sets the initial state of the dropdowns
+        ''' </summary>
+        Private Sub SetInitialState()
             Try
                 pIsUpdating = True
                 
-                ' Store current selections
-                Dim lPreviousClass As String = pCurrentClass
-                Dim lPreviousMember As String = pCurrentMember
-                
-                ' Update classes
-                pClasses.Clear()
-                pClasses.AddRange(vClasses)
-                
-                ' Update UI
-                UpdateClassCombo()
-                
-                ' Try to restore selection
-                If Not String.IsNullOrEmpty(lPreviousClass) Then
-                    For i As Integer = 0 To pClassCombo.Model.IterNChildren() - 1
-                        Dim lIter As TreeIter = Nothing
-                        If pClassCombo.Model.IterNthChild(lIter, i) Then
-                            If pClassCombo.Model.GetValue(lIter, 0).ToString() = lPreviousClass Then
-                                pClassCombo.Active = i
-                                Exit For
-                            End If
-                        End If
-                    Next
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateNavigationData error: {ex.Message}")
-            Finally
-                pIsUpdating = False
-            End Try
-        End Sub
-        
-        ' Update dropdowns based on cursor position
-        Public Sub UpdateFromCursorPosition(vLine As Integer, vColumn As Integer)
-            Try
-                If pIsUpdating Then Return
-                
-                ' Find containing class
-                Dim lContainingClass As CodeObject = Nothing
-                For Each lClass In pClasses
-                    If vLine >= lClass.StartLine - 1 AndAlso vLine <= lClass.EndLine - 1 Then
-                        lContainingClass = lClass
-                        Exit For
-                    End If
-                Next
-                
-                If lContainingClass IsNot Nothing Then
-                    ' Update class selection
-                    If lContainingClass.Name <> pCurrentClass Then
-                        pIsUpdating = True
-                        SelectClassByName(lContainingClass.Name)
-                        pIsUpdating = False
-                    End If
-                    
-                    ' Find containing member
-                    Dim lContainingMember As CodeMember = Nothing
-                    For Each lMember In lContainingClass.members
-                        If vLine >= lMember.StartLine - 1 AndAlso vLine <= lMember.EndLine - 1 Then
-                            lContainingMember = lMember
-                            Exit For
-                        End If
-                    Next
-                    
-                    If lContainingMember IsNot Nothing Then
-                        ' Update member selection
-                        If lContainingMember.Name <> pCurrentMember Then
-                            pIsUpdating = True
-                            SelectMemberByName(lContainingMember.Name)
-                            pIsUpdating = False
-                        End If
-                    End If
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateFromCursorPosition error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Handle class selection change
-        Private Sub OnClassChanged(vSender As Object, vE As EventArgs)
-            Try
-                If pIsUpdating Then Return
-                
-                If pClassCombo.Active >= 0 Then
-                    pCurrentClass = pClassCombo.ActiveText
-                    
-                    ' Update members for selected class
-                    UpdateMembersForClass(pCurrentClass)
-                    
-                    ' Navigate to class
-                    Dim lSelectedClass As CodeObject = FindClassByName(pCurrentClass)
-                    If lSelectedClass IsNot Nothing Then
-                        RaiseEvent NavigationRequested(lSelectedClass.StartLine - 1)
-                    End If
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnClassChanged error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Handle member selection change
-        Private Sub OnMemberChanged(vSender As Object, vE As EventArgs)
-            Try
-                If pIsUpdating Then Return
-                
-                If pMemberCombo.Active >= 0 Then
-                    pCurrentMember = GetMemberNameFromDisplay(pMemberCombo.ActiveText)
-                    
-                    ' Navigate to member
-                    Dim lSelectedMember As CodeMember = FindMemberByName(pCurrentMember)
-                    If lSelectedMember IsNot Nothing Then
-                        RaiseEvent NavigationRequested(lSelectedMember.StartLine - 1)
-                    End If
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnMemberChanged error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Handle editor cursor change
-        Private Sub OnEditorCursorChanged(vLine As Integer, vColumn As Integer)
-            UpdateFromCursorPosition(vLine, vColumn)
-        End Sub
-        
-        ' Handle editor text change
-        Private Sub OnEditorTextChanged()
-            ' Text changed - navigation data will be updated by the editor
-        End Sub
-        
-        ' Update class combo
-        Private Sub UpdateClassCombo()
-            Try
+                ' Set default state
                 pClassCombo.RemoveAll()
-                
-                If pClasses.Count = 0 Then
-                    pClassCombo.AppendText("(No classes)")
-                    pClassCombo.Active = 0
-                    pClassCombo.Sensitive = False
-                Else
-                    pClassCombo.Sensitive = True
-                    
-                    ' Add classes
-                    For Each lClass In pClasses
-                        pClassCombo.AppendText(lClass.DisplayText)
-                    Next
-                    
-                    ' Select first if nothing selected
-                    If pClassCombo.Active < 0 AndAlso pClasses.Count > 0 Then
-                        pClassCombo.Active = 0
-                    End If
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateClassCombo error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Update members for selected class
-        Private Sub UpdateMembersForClass(vClassName As String)
-            Try
-                pIsUpdating = True
-                pMemberCombo.RemoveAll()
-                pMembers.Clear()
-                
-                ' Find the class
-                Dim lClass As CodeObject = FindClassByDisplayText(vClassName)
-                If lClass IsNot Nothing Then
-                    pMembers.AddRange(lClass.members)
-                    
-                    If pMembers.Count = 0 Then
-                        pMemberCombo.AppendText("(No members)")
-                        pMemberCombo.Active = 0
-                        pMemberCombo.Sensitive = False
-                    Else
-                        pMemberCombo.Sensitive = True
-                        
-                        ' Add members
-                        For Each lMember In pMembers
-                            pMemberCombo.AppendText(lMember.DisplayText)
-                        Next
-                        
-                        ' Select first if nothing selected
-                        If pMemberCombo.Active < 0 Then
-                            pMemberCombo.Active = 0
-                        End If
-                    End If
-                Else
-                    pMemberCombo.AppendText("(No members)")
-                    pMemberCombo.Active = 0
-                    pMemberCombo.Sensitive = False
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateMembersForClass error: {ex.Message}")
-            Finally
-                pIsUpdating = False
-            End Try
-        End Sub
-        
-        ' Helper methods
-        Private Function FindClassByName(vName As String) As CodeObject
-            For Each lClass In pClasses
-                If lClass.Name = vName Then
-                    Return lClass
-                End If
-            Next
-            Return Nothing
-        End Function
-        
-        Private Function FindClassByDisplayText(vDisplayText As String) As CodeObject
-            For Each lClass In pClasses
-                If lClass.DisplayText = vDisplayText Then
-                    Return lClass
-                End If
-            Next
-            Return Nothing
-        End Function
-        
-        Private Function FindMemberByName(vName As String) As CodeMember
-            For Each lMember In pMembers
-                If lMember.Name = vName Then
-                    Return lMember
-                End If
-            Next
-            Return Nothing
-        End Function
-        
-        Private Sub SelectClassByName(vName As String)
-            For i As Integer = 0 To pClasses.Count - 1
-                If pClasses(i).Name = vName Then
-                    pClassCombo.Active = i
-                    Exit For
-                End If
-            Next
-        End Sub
-        
-        Private Sub SelectMemberByName(vName As String)
-            For i As Integer = 0 To pMembers.Count - 1
-                If pMembers(i).Name = vName Then
-                    pMemberCombo.Active = i
-                    Exit For
-                End If
-            Next
-        End Sub
-        
-        Private Function GetMemberNameFromDisplay(vDisplayText As String) As String
-            ' Extract member name from display text
-            ' For example: "Sub MyMethod(param As String)" -> "MyMethod"
-            For Each lMember In pMembers
-                If lMember.DisplayText = vDisplayText Then
-                    Return lMember.Name
-                End If
-            Next
-            Return vDisplayText
-        End Function
-        
-        ' Clear navigation data
-        Public Sub Clear()
-            pIsUpdating = True
-            pClasses.Clear()
-            pMembers.Clear()
-            pCurrentClass = ""
-            pCurrentMember = ""
-            UpdateUI()
-            pIsUpdating = False
-        End Sub
-        
-        ' Update UI state
-        Private Sub UpdateUI()
-            If pClasses.Count = 0 Then
-                pClassCombo.RemoveAll()
-                pClassCombo.AppendText("(No classes)")
+                pClassCombo.AppendText(NO_CLASSES_ITEM)
                 pClassCombo.Active = 0
                 pClassCombo.Sensitive = False
                 
                 pMemberCombo.RemoveAll()
-                pMemberCombo.AppendText("(No members)")
+                pMemberCombo.AppendText(NO_MEMBERS_ITEM)
                 pMemberCombo.Active = 0
                 pMemberCombo.Sensitive = False
-            End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetInitialState error: {ex.Message}")
+            Finally
+                pIsUpdating = False
+            End Try
         End Sub
         
-        ' Get current selections
-        Public ReadOnly Property CurrentClass As String
-            Get
-                Return pCurrentClass
-            End Get
-        End Property
+        ''' <summary>
+        ''' Sets the editor reference and connects to editor events
+        ''' </summary>
+        Public Sub SetEditor(vEditor As IEditor)
+            Try
+                ' Unhook from previous editor if any
+                If pEditor IsNot Nothing Then
+                    RemoveHandler pEditor.CursorPositionChanged, AddressOf OnEditorCursorChanged
+                    RemoveHandler pEditor.TextChanged, AddressOf OnEditorTextChanged
+                End If
+                
+                pEditor = vEditor
+                
+                ' Hook up to new editor events
+                If pEditor IsNot Nothing Then
+                    AddHandler pEditor.CursorPositionChanged, AddressOf OnEditorCursorChanged
+                    AddHandler pEditor.TextChanged, AddressOf OnEditorTextChanged
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"SetEditor error: {ex.Message}")
+            End Try
+        End Sub
         
-        Public ReadOnly Property CurrentMember As String
-            Get
-                Return pCurrentMember
-            End Get
-        End Property
-
-        ' Set navigation data with both classes and root members
+        ''' <summary>
+        ''' Updates navigation data with classes and root-level members
+        ''' </summary>
         Public Sub SetNavigationData(vClasses As List(Of CodeObject), vRootMembers As List(Of CodeMember))
             Try
                 pIsUpdating = True
                 
-                ' Update classes
+                ' Store current selections to restore them
+                Dim lPreviousClass As String = pCurrentClass
+                Dim lPreviousMember As String = pCurrentMember
+                
+                ' Update internal data
                 pClasses.Clear()
-                pClasses.AddRange(vClasses)
+                pRootMembers.Clear()
                 
-                ' Update root members (store them but don't display in class combo)
-                pMembers.Clear()
-                If vRootMembers IsNot Nothing AndAlso vRootMembers.Count > 0 Then
-                    pMembers.AddRange(vRootMembers)
+                If vClasses IsNot Nothing Then
+                    pClasses.AddRange(vClasses)
                 End If
                 
-                ' Update UI
-                UpdateClassCombo()
-                
-                ' If we have root members but no classes, show them in member combo
-                If pClasses.Count = 0 AndAlso pMembers.Count > 0 Then
-                    UpdateMembersCombo()
+                If vRootMembers IsNot Nothing Then
+                    pRootMembers.AddRange(vRootMembers)
                 End If
+                
+                ' Rebuild UI
+                UpdateClassDropdown()
+                
+                ' Restore previous selection if possible
+                RestoreSelection(lPreviousClass, lPreviousMember)
                 
             Catch ex As Exception
                 Console.WriteLine($"SetNavigationData error: {ex.Message}")
@@ -412,46 +174,344 @@ Namespace Widgets
             End Try
         End Sub
         
-        ' Update position based on current line
-        Public Sub UpdatePosition(vCurrentLine As Integer)
+        ''' <summary>
+        ''' Updates the class dropdown with available classes
+        ''' </summary>
+        Private Sub UpdateClassDropdown()
             Try
-                ' Convert to 1-based line number for comparison
-                Dim lLine As Integer = vCurrentLine + 1
+                pClassCombo.RemoveAll()
                 
-                ' Update dropdowns based on line position
-                UpdateFromCursorPosition(vCurrentLine, 0)
+                ' Always add (General) as first option
+                pClassCombo.AppendText(GENERAL_ITEM)
+                
+                ' Add classes if any exist
+                If pClasses.Count > 0 Then
+                    for each lClass in pClasses
+                        pClassCombo.AppendText(lClass.DisplayText)
+                    Next
+                    pClassCombo.Sensitive = True
+                Else
+                    pClassCombo.Sensitive = True ' Still sensitive for (General)
+                End If
+                
+                ' Set initial selection to (General)
+                pClassCombo.Active = 0
+                pCurrentClass = GENERAL_ITEM
+                
+                ' Update members for (General)
+                UpdateMemberDropdown()
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdatePosition error: {ex.Message}")
+                Console.WriteLine($"UpdateClassDropdown error: {ex.Message}")
             End Try
         End Sub
         
-        Private Sub UpdateMembersCombo()
+        ''' <summary>
+        ''' Updates the member dropdown based on current class selection
+        ''' </summary>
+        Private Sub UpdateMemberDropdown()
             Try
                 pMemberCombo.RemoveAll()
+                pCurrentMembers.Clear()
                 
-                If pMembers.Count = 0 Then
-                    pMemberCombo.AppendText("(No members)")
+                If pCurrentClass = GENERAL_ITEM Then
+                    ' Show (Declarations) and root-level members
+                    pMemberCombo.AppendText(DECLARATIONS_ITEM)
+                    
+                    ' Add root-level members
+                    If pRootMembers.Count > 0 Then
+                        for each lMember in pRootMembers
+                            pMemberCombo.AppendText(lMember.DisplayText)
+                            pCurrentMembers.Add(lMember)
+                        Next
+                        pMemberCombo.Sensitive = True
+                    Else
+                        pMemberCombo.Sensitive = True ' Still sensitive for (Declarations)
+                    End If
+                    
+                    ' Select (Declarations) by default
                     pMemberCombo.Active = 0
-                    pMemberCombo.Sensitive = False
+                    pCurrentMember = DECLARATIONS_ITEM
+                    
                 Else
-                    pMemberCombo.Sensitive = True
-                    
-                    ' Add members
-                    For Each lMember In pMembers
-                        pMemberCombo.AppendText(lMember.DisplayText)
-                    Next
-                    
-                    ' Select first if nothing selected
-                    If pMemberCombo.Active < 0 AndAlso pMembers.Count > 0 Then
+                    ' Show members of the selected class
+                    Dim lSelectedClass As CodeObject = FindClassByDisplayText(pCurrentClass)
+                    If lSelectedClass IsNot Nothing AndAlso lSelectedClass.members.Count > 0 Then
+                        for each lMember in lSelectedClass.members
+                            pMemberCombo.AppendText(lMember.DisplayText)
+                            pCurrentMembers.Add(lMember)
+                        Next
+                        pMemberCombo.Sensitive = True
                         pMemberCombo.Active = 0
+                    Else
+                        pMemberCombo.AppendText(NO_MEMBERS_ITEM)
+                        pMemberCombo.Active = 0
+                        pMemberCombo.Sensitive = False
                     End If
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdateMembersCombo error: {ex.Message}")
+                Console.WriteLine($"UpdateMemberDropdown error: {ex.Message}")
             End Try
         End Sub
+        
+        ''' <summary>
+        ''' Handles class dropdown selection changes
+        ''' </summary>
+        Private Sub OnClassChanged(vSender As Object, vArgs As EventArgs)
+            Try
+                If pIsUpdating OrElse pClassCombo.Active < 0 Then Return
+                
+                Dim lSelectedText As String = pClassCombo.ActiveText
+                If String.IsNullOrEmpty(lSelectedText) Then Return
+                
+                pCurrentClass = lSelectedText
+                UpdateMemberDropdown()
+                
+                ' Navigate to class if it's not (General)
+                If pCurrentClass <> GENERAL_ITEM Then
+                    Dim lClass As CodeObject = FindClassByDisplayText(pCurrentClass)
+                    If lClass IsNot Nothing Then
+                        RaiseEvent NavigationRequested(lClass.StartLine - 1)
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnClassChanged error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles member dropdown selection changes
+        ''' </summary>
+        Private Sub OnMemberChanged(vSender As Object, vArgs As EventArgs)
+            Try
+                If pIsUpdating OrElse pMemberCombo.Active < 0 Then Return
+                
+                Dim lSelectedText As String = pMemberCombo.ActiveText
+                If String.IsNullOrEmpty(lSelectedText) Then Return
+                
+                pCurrentMember = lSelectedText
+                
+                ' Navigate to member if it's not a special item
+                If pCurrentMember <> DECLARATIONS_ITEM AndAlso pCurrentMember <> NO_MEMBERS_ITEM Then
+                    Dim lMember As CodeMember = FindMemberByDisplayText(pCurrentMember)
+                    If lMember IsNot Nothing Then
+                        RaiseEvent NavigationRequested(lMember.StartLine - 1)
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnMemberChanged error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Updates dropdown position based on cursor location
+        ''' </summary>
+        Public Sub UpdatePosition(vCurrentLine As Integer)
+            Try
+                If pIsUpdating Then Return
+                
+                pIsUpdating = True
+                
+                ' Convert to 1-based line number for comparison
+                Dim lLine As Integer = vCurrentLine + 1
+                
+                ' Find containing class
+                Dim lContainingClass As CodeObject = Nothing
+                for each lClass in pClasses
+                    If lLine >= lClass.StartLine AndAlso lLine <= lClass.EndLine Then
+                        lContainingClass = lClass
+                        Exit for
+                    End If
+                Next
+                
+                If lContainingClass IsNot Nothing Then
+                    ' Update class selection
+                    SelectClassByDisplayText(lContainingClass.DisplayText)
+                    
+                    ' Find containing member within class
+                    Dim lContainingMember As CodeMember = Nothing
+                    for each lMember in lContainingClass.members
+                        If lLine >= lMember.StartLine AndAlso lLine <= lMember.EndLine Then
+                            lContainingMember = lMember
+                            Exit for
+                        End If
+                    Next
+                    
+                    If lContainingMember IsNot Nothing Then
+                        SelectMemberByDisplayText(lContainingMember.DisplayText)
+                    End If
+                    
+                Else
+                    ' Not in any class - select (General)
+                    SelectClassByDisplayText(GENERAL_ITEM)
+                    
+                    ' Check if in a root-level member
+                    Dim lContainingRootMember As CodeMember = Nothing
+                    for each lMember in pRootMembers
+                        If lLine >= lMember.StartLine AndAlso lLine <= lMember.EndLine Then
+                            lContainingRootMember = lMember
+                            Exit for
+                        End If
+                    Next
+                    
+                    If lContainingRootMember IsNot Nothing Then
+                        SelectMemberByDisplayText(lContainingRootMember.DisplayText)
+                    Else
+                        ' Select (Declarations)
+                        SelectMemberByDisplayText(DECLARATIONS_ITEM)
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdatePosition error: {ex.Message}")
+            Finally
+                pIsUpdating = False
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles editor cursor position changes
+        ''' </summary>
+        Private Sub OnEditorCursorChanged(vLine As Integer, vColumn As Integer)
+            UpdatePosition(vLine)
+        End Sub
+        
+        ''' <summary>
+        ''' Handles editor text changes
+        ''' </summary>
+        Private Sub OnEditorTextChanged(vSender As Object, vArgs As EventArgs)
+            ' Text changed - navigation data will be updated by the main window
+        End Sub
+        
+        ''' <summary>
+        ''' Attempts to restore previous class and member selection
+        ''' </summary>
+        Private Sub RestoreSelection(vPreviousClass As String, vPreviousMember As String)
+            Try
+                If Not String.IsNullOrEmpty(vPreviousClass) Then
+                    SelectClassByDisplayText(vPreviousClass)
+                End If
+                
+                If Not String.IsNullOrEmpty(vPreviousMember) Then
+                    SelectMemberByDisplayText(vPreviousMember)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"RestoreSelection error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Selects a class by its display text
+        ''' </summary>
+        Private Sub SelectClassByDisplayText(vDisplayText As String)
+            Try
+                for i As Integer = 0 To pClassCombo.Model.IterNChildren() - 1
+                    Dim lIter As TreeIter = Nothing
+                    If pClassCombo.Model.IterNthChild(lIter, i) Then
+                        Dim lText As String = pClassCombo.Model.GetValue(lIter, 0).ToString()
+                        If lText = vDisplayText Then
+                            pClassCombo.Active = i
+                            pCurrentClass = vDisplayText
+                            UpdateMemberDropdown()
+                            Exit for
+                        End If
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"SelectClassByDisplayText error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Selects a member by its display text
+        ''' </summary>
+        Private Sub SelectMemberByDisplayText(vDisplayText As String)
+            Try
+                for i As Integer = 0 To pMemberCombo.Model.IterNChildren() - 1
+                    Dim lIter As TreeIter = Nothing
+                    If pMemberCombo.Model.IterNthChild(lIter, i) Then
+                        Dim lText As String = pMemberCombo.Model.GetValue(lIter, 0).ToString()
+                        If lText = vDisplayText Then
+                            pMemberCombo.Active = i
+                            pCurrentMember = vDisplayText
+                            Exit for
+                        End If
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"SelectMemberByDisplayText error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Finds a class by its display text
+        ''' </summary>
+        Private Function FindClassByDisplayText(vDisplayText As String) As CodeObject
+            for each lClass in pClasses
+                If lClass.DisplayText = vDisplayText Then
+                    Return lClass
+                End If
+            Next
+            Return Nothing
+        End Function
+        
+        ''' <summary>
+        ''' Finds a member by its display text in current members list
+        ''' </summary>
+        Private Function FindMemberByDisplayText(vDisplayText As String) As CodeMember
+            for each lMember in pCurrentMembers
+                If lMember.DisplayText = vDisplayText Then
+                    Return lMember
+                End If
+            Next
+            Return Nothing
+        End Function
+        
+        ''' <summary>
+        ''' Clears all navigation data and resets to initial state
+        ''' </summary>
+        Public Sub Clear()
+            Try
+                pIsUpdating = True
+                
+                pClasses.Clear()
+                pRootMembers.Clear()
+                pCurrentMembers.Clear()
+                pCurrentClass = ""
+                pCurrentMember = ""
+                
+                SetInitialState()
+                
+            Catch ex As Exception
+                Console.WriteLine($"Clear error: {ex.Message}")
+            Finally
+                pIsUpdating = False
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets the currently selected class name
+        ''' </summary>
+        Public ReadOnly Property CurrentClass As String
+            Get
+                Return pCurrentClass
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Gets the currently selected member name
+        ''' </summary>
+        Public ReadOnly Property CurrentMember As String
+            Get
+                Return pCurrentMember
+            End Get
+        End Property
         
     End Class
     

@@ -140,19 +140,6 @@ Namespace Managers
             End Get
         End Property
 
-        ''' <summary>
-        ''' Gets or sets the ThemeManager for accessing current theme colors
-        ''' </summary>
-        ''' <value>The ThemeManager instance</value>
-        Public Property ThemeManager As ThemeManager
-            Get
-                Return pThemeManager
-            End Get
-            Set(value As ThemeManager)
-                pThemeManager = value
-                ApplyCurrentTheme()
-            End Set
-        End Property
 
         Public ReadOnly Property IsProjectOpen As Boolean
             Get

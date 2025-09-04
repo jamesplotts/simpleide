@@ -5,6 +5,7 @@ Imports System.Collections.Generic
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
+Imports SimpleIDE.Syntax
 
 Partial Public Class MainWindow
     
@@ -151,32 +152,68 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Update navigation dropdowns for current editor
-    Public Sub UpdateNavigationDropdowns()
+    ''' <summary>
+    ''' Updates navigation dropdowns with classes and members from document structure
+    ''' </summary>
+    Private Sub UpdateNavigationDropdowns()
         Try
+            ' Get current tab info
             Dim lTabInfo As TabInfo = GetCurrentTabInfo()
-            If lTabInfo Is Nothing OrElse lTabInfo.NavigationDropdowns Is Nothing Then
+            If lTabInfo Is Nothing Then 
+                Console.WriteLine("UpdateNavigationDropdowns: No current tab")
                 Return
             End If
             
-            Dim lEditor As CustomDrawingEditor = TryCast(lTabInfo.Editor, CustomDrawingEditor)
-            If lEditor Is Nothing Then Return
+            If lTabInfo.NavigationDropdowns Is Nothing Then 
+                Console.WriteLine("UpdateNavigationDropdowns: No navigation dropdowns in tab")
+                Return
+            End If
             
-            ' Get all nodes from editor
-            Dim lNodes As List(Of DocumentNode) = lEditor.GetAllNodes()
+            ' Get the editor
+            Dim lEditor As IEditor = lTabInfo.Editor
+            If lEditor Is Nothing Then 
+                Console.WriteLine("UpdateNavigationDropdowns: No editor in tab")
+                Return
+            End If
             
-            ' Convert to navigation format
-            Dim lClasses As New List(Of CodeObject)
-            Dim lRootMembers As New List(Of CodeMember)
+            Console.WriteLine($"UpdateNavigationDropdowns: Processing {lEditor.FilePath}")
             
-            For Each lNode In lNodes
+            ' Get document structure
+            Dim lRootNode As SyntaxNode = lEditor.GetDocumentStructure()
+            If lRootNode Is Nothing Then
+                Console.WriteLine("UpdateNavigationDropdowns: No document structure available")
+                
+                ' Try to trigger a parse if it's a CustomDrawingEditor
+                If TypeOf lEditor Is CustomDrawingEditor Then
+                    Dim lCustomEditor As CustomDrawingEditor = DirectCast(lEditor, CustomDrawingEditor)
+                End If
+                
+                ' Clear navigation data
+                lTabInfo.NavigationDropdowns.SetNavigationData(Nothing, Nothing)
+                Return
+            End If
+            
+            Console.WriteLine($"UpdateNavigationDropdowns: Found root node: {lRootNode.Name} with {lRootNode.Children.Count} children")
+            
+            ' Extract classes and members
+            Dim lClasses As New List(Of CodeObject)()
+            Dim lRootMembers As New List(Of CodeMember)()
+            
+            ' Process top-level nodes
+            For Each lNode In lRootNode.Children
+                Console.WriteLine($"  Processing node: {lNode.Name} (Type: {lNode.NodeType})")
+                
                 Select Case lNode.NodeType
                     Case CodeNodeType.eClass, CodeNodeType.eModule, 
                          CodeNodeType.eInterface, CodeNodeType.eStructure
+                        ' Create class object
                         Dim lClass As New CodeObject()
                         lClass.Name = lNode.Name
                         lClass.ObjectType = ConvertNodeTypeToObjectType(lNode.NodeType)
-                        lClass.StartLine = lNode.StartLine + 1
+                        lClass.StartLine = lNode.StartLine
+                        lClass.EndLine = If(lNode.EndLine > 0, lNode.EndLine, lNode.StartLine + 1)
+                        
+                        Console.WriteLine($"    Found class/module: {lClass.Name} (Lines {lClass.StartLine}-{lClass.EndLine})")
                         
                         ' Add members
                         For Each lChild In lNode.Children
@@ -184,9 +221,11 @@ Partial Public Class MainWindow
                                 Dim lMember As New CodeMember()
                                 lMember.Name = lChild.Name
                                 lMember.MemberType = ConvertNodeTypeToMemberType(lChild.NodeType)
-                                lMember.LineNumber = lChild.StartLine + 1
-                                ' DisplayText is a ReadOnly property, so we don't set it
-                                lClass.members.Add(lMember)
+                                lMember.StartLine = lChild.StartLine
+                                lMember.EndLine = If(lChild.EndLine > 0, lChild.EndLine, lChild.StartLine)
+                                lMember.LineNumber = lChild.StartLine + 1 ' 1-based for display
+                                lClass.Members.Add(lMember)
+                                Console.WriteLine($"      Added member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
                             End If
                         Next
                         
@@ -198,23 +237,28 @@ Partial Public Class MainWindow
                             Dim lMember As New CodeMember()
                             lMember.Name = lNode.Name
                             lMember.MemberType = ConvertNodeTypeToMemberType(lNode.NodeType)
-                            lMember.LineNumber = lNode.StartLine + 1
-                            ' DisplayText is a ReadOnly property, so we don't set it
+                            lMember.StartLine = lNode.StartLine
+                            lMember.EndLine = If(lNode.EndLine > 0, lNode.EndLine, lNode.StartLine)
+                            lMember.LineNumber = lNode.StartLine + 1 ' 1-based for display
                             lRootMembers.Add(lMember)
+                            Console.WriteLine($"    Found root member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
                         End If
                 End Select
             Next
             
+            Console.WriteLine($"UpdateNavigationDropdowns: Found {lClasses.Count} classes and {lRootMembers.Count} root members")
+            
             ' Update dropdowns
             lTabInfo.NavigationDropdowns.SetNavigationData(lClasses, lRootMembers)
             
-            ' Update current position - GetCursorLine is in NodeInfo class, not CustomDrawingEditor
-            ' We need to use the pCursorLine property directly via reflection or a public method
+            ' Update current position
             Dim lCurrentLine As Integer = lEditor.CurrentLine
+            Console.WriteLine($"UpdateNavigationDropdowns: Updating position to line {lCurrentLine}")
             lTabInfo.NavigationDropdowns.UpdatePosition(lCurrentLine)
             
         Catch ex As Exception
             Console.WriteLine($"UpdateNavigationDropdowns error: {ex.Message}")
+            Console.WriteLine($"  Stack: {ex.StackTrace}")
         End Try
     End Sub
     
@@ -266,15 +310,6 @@ Partial Public Class MainWindow
         End Select
     End Function
     
-    ' Handle navigation dropdown request
-    Private Sub OnNavigationRequested(vLine As Integer)
-        Try
-            NavigateToLine(vLine)
-        Catch ex As Exception
-            Console.WriteLine($"OnNavigationRequested error: {ex.Message}")
-        End Try
-    End Sub
-    
     ' Go to line dialog
     Public Sub ShowGoToLineDialog()
         Try
@@ -325,12 +360,16 @@ Partial Public Class MainWindow
     End Sub
             
     ''' <summary>
-    ''' Switches to the next tab in the notebook (Ctrl+Tab functionality)
+    ''' Switches to the next tab in the notebook with navigation dropdown support
     ''' </summary>
+    ''' <remarks>
+    ''' Enhanced version that ensures navigation dropdowns are updated when switching tabs programmatically
+    ''' </remarks>
     Private Sub SwitchToNextTab()
         Try
             ' Check if notebook exists and has tabs
             If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                Console.WriteLine("SwitchToNextTab: No tabs available")
                 Return
             End If
             
@@ -343,32 +382,44 @@ Partial Public Class MainWindow
                 lNextPage = 0  ' Wrap to first tab
             End If
             
-            ' Switch to next tab
+            Console.WriteLine($"SwitchToNextTab: Switching from page {lCurrentPage} To {lNextPage}")
+            
+            ' Switch to next tab (this will trigger OnNotebookSwitchPage)
             pNotebook.CurrentPage = lNextPage
             
-            ' Ensure the editor gets focus
+            ' Get the new tab info
             Dim lTabInfo As TabInfo = GetTabInfo(lNextPage)
-            If lTabInfo IsNot Nothing AndAlso lTabInfo.Editor IsNot Nothing Then
-                ' Give focus to the editor widget
-                lTabInfo.Editor.Widget.GrabFocus()
+            If lTabInfo IsNot Nothing Then
+                ' Ensure the editor gets focus
+                If lTabInfo.Editor?.Widget IsNot Nothing Then
+                    lTabInfo.Editor.Widget.GrabFocus()
+                End If
                 
                 ' Update status bar with current file
                 Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
                 UpdateStatusBar($"Switched To {lFileName}")
+                
+                Console.WriteLine($"SwitchToNextTab: Successfully switched To {lFileName}")
+            Else
+                Console.WriteLine("SwitchToNextTab: Warning - could Not Get tab info for New page")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"SwitchToNextTab error: {ex.Message}")
         End Try
-    End Sub        
+    End Sub
             
     ''' <summary>
-    ''' Switches to the previous tab in the notebook (Ctrl+Shift+Tab functionality)
+    ''' Switches to the previous tab in the notebook with navigation dropdown support
     ''' </summary>
+    ''' <remarks>
+    ''' Enhanced version that ensures navigation dropdowns are updated when switching tabs programmatically
+    ''' </remarks>
     Private Sub SwitchToPreviousTab()
         Try
             ' Check if notebook exists and has tabs
             If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                Console.WriteLine("SwitchToPreviousTab: No tabs available")
                 Return
             End If
             
@@ -381,23 +432,71 @@ Partial Public Class MainWindow
                 lPreviousPage = pNotebook.NPages - 1  ' Wrap to last tab
             End If
             
-            ' Switch to previous tab
+            Console.WriteLine($"SwitchToPreviousTab: Switching from page {lCurrentPage} To {lPreviousPage}")
+            
+            ' Switch to previous tab (this will trigger OnNotebookSwitchPage)
             pNotebook.CurrentPage = lPreviousPage
             
-            ' Ensure the editor gets focus
+            ' Get the new tab info
             Dim lTabInfo As TabInfo = GetTabInfo(lPreviousPage)
-            If lTabInfo IsNot Nothing AndAlso lTabInfo.Editor IsNot Nothing Then
-                ' Give focus to the editor widget
-                lTabInfo.Editor.Widget.GrabFocus()
+            If lTabInfo IsNot Nothing Then
+                ' Ensure the editor gets focus
+                If lTabInfo.Editor?.Widget IsNot Nothing Then
+                    lTabInfo.Editor.Widget.GrabFocus()
+                End If
                 
                 ' Update status bar with current file
                 Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
                 UpdateStatusBar($"Switched To {lFileName}")
+                
+                Console.WriteLine($"SwitchToPreviousTab: Successfully switched To {lFileName}")
+            Else
+                Console.WriteLine("SwitchToPreviousTab: Warning - could Not Get tab info for New page")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"SwitchToPreviousTab error: {ex.Message}")
         End Try
-    End Sub        
+    End Sub
+
+    ''' <summary>
+    ''' Handles navigation requests from the navigation dropdowns
+    ''' </summary>
+    ''' <param name="vLine">0-based line number to navigate to</param>
+    ''' <remarks>
+    ''' This method is called when a user selects an item from the navigation dropdowns.
+    ''' It navigates to the specified line and ensures the editor has focus.
+    ''' </remarks>
+    Private Sub OnNavigationRequested(vLine As Integer)
+        Try
+            Console.WriteLine($"OnNavigationRequested: Navigating To line {vLine}")
+            
+            ' Get current tab
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                Console.WriteLine("OnNavigationRequested: No active tab Or editor")
+                Return
+            End If
+            
+            ' Navigate to the line
+            If TypeOf lCurrentTab.Editor Is CustomDrawingEditor Then
+                Dim lCustomEditor As CustomDrawingEditor = DirectCast(lCurrentTab.Editor, CustomDrawingEditor)
+                
+                ' Set cursor to beginning of the specified line
+                lCustomEditor.SetCursorPosition(vLine, 0)
+                
+                ' Ensure line is visible
+                lCustomEditor.ScrollToLine(vLine)
+                
+                ' Give focus to the editor
+                lCustomEditor.Widget.GrabFocus()
+                
+                Console.WriteLine($"OnNavigationRequested: Successfully navigated To line {vLine}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnNavigationRequested error: {ex.Message}")
+        End Try
+    End Sub  
     
 End Class

@@ -213,18 +213,6 @@ Namespace Editors
            End Get
         End Property
 
-        ''' <summary>
-        ''' Gets the character colors array from SourceFileInfo
-        ''' </summary>
-        ''' <value>Reference to the CharacterColors array in SourceFileInfo</value>
-        Private ReadOnly Property pCharacterColors As CharacterColorInfo()()
-            Get
-                If pSourceFileInfo IsNot Nothing Then
-                    Return pSourceFileInfo.CharacterColors
-                End If
-                Return Nothing
-            End Get
-        End Property
         
         ''' <summary>
         ''' Gets the line metadata array from SourceFileInfo
@@ -265,6 +253,15 @@ Namespace Editors
         Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
         Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
 
+        ''' <summary>
+        ''' Raised when the navigation dropdowns need to be updated due to cursor context change
+        ''' </summary>
+        ''' <remarks>
+        ''' This event is fired when the cursor moves to a different context (class/method)
+        ''' to trigger navigation dropdown updates in MainWindow
+        ''' </remarks>
+        Public Event NavigationUpdateRequested As EventHandler
+
         ' ===== Event Args =====
 
         Public Class SourceFileRequestor
@@ -298,7 +295,17 @@ Namespace Editors
                 pFilePath = If(vSourceFileInfo?.FilePath, "")
                 
                 ' Store the theme manager
-                pThemeManager = vThemeManager                
+                pThemeManager = vThemeManager    
+
+                ' Initialize theme color cache for rendering
+                InitializeThemeColorCache()
+                
+                ' Subscribe to source file events before initialization
+                If pSourceFileInfo IsNot Nothing Then
+                    AddHandler pSourceFileInfo.ContentChanged, AddressOf OnSourceFileContentChanged
+                    AddHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
+                    AddHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
+                End If            
 
                 ' Now initialize components and editor with error handling
                 Try
@@ -335,7 +342,8 @@ Namespace Editors
                 
                 Console.WriteLine($"Editor initialized for: {pFilePath}")
                 Console.WriteLine($"  Lines: {pLineCount}, Loaded: {vSourceFileInfo.IsLoaded}")
-                
+                Console.WriteLine($"  Using tokens: {If(vSourceFileInfo.CharacterTokens IsNot Nothing, "Yes", "No")}")
+        
                 SetCursorPosition(0,0)
                 EnsureCursorVisible
                 GrabFocus
@@ -1120,7 +1128,7 @@ Namespace Editors
                 If vTheme Is Nothing Then Return
                 
                 Console.WriteLine($"ApplyThemeInternal: Applying theme '{vTheme.Name}'")
-                
+                InitializeThemeColorCache()
                 ' Update background colors FIRST
                 pBackgroundColor = vTheme.BackgroundColor
                 pForegroundColor = vTheme.ForegroundColor
@@ -1165,16 +1173,11 @@ Namespace Editors
                 
                 Console.WriteLine($"ApplyThemeInternal: Applied theme colors immediately")
                 
-                ' Now request async recoloring for syntax highlighting
-                ' This happens after the immediate visual update
-                RequestAsyncRecoloring()
-                
             Catch ex As Exception
                 Console.WriteLine($"ApplyThemeInternal error: {ex.Message}")
             End Try
         End Sub
 
-        ' To: CustomDrawingEditor.Events.vb
         ''' <summary>
         ''' Called when the editor becomes visible (tab switched to this editor)
         ''' </summary>
@@ -1185,8 +1188,6 @@ Namespace Editors
             Try
                 Console.WriteLine($"CustomDrawingEditor.OnShown: Editor shown for {pFilePath}")
                 
-                ' Force re-colorization to ensure syntax highlighting is visible
-                ForceRecolorization()
                 
                 ' Ensure the drawing area is focused for keyboard input
                 If pDrawingArea IsNot Nothing AndAlso pDrawingArea.CanFocus Then
@@ -1200,7 +1201,147 @@ Namespace Editors
                 Console.WriteLine($"OnShown error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Handles theme changes by updating color cache and redrawing
+        ''' </summary>
+        Public Sub OnThemeChanged()
+            Try
+                ' Update the cached colors
+                InitializeThemeColorCache()
+                
+                ' Queue a redraw to show new colors
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine("OnThemeChanged: Theme cache updated and redraw queued")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnThemeChanged error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Updates character tokens from existing LineMetadata when parse data exists but tokens don't
+        ''' </summary>
+        Private Sub UpdateCharacterTokensFromMetadata()
+            Try
+                If pSourceFileInfo Is Nothing OrElse pSourceFileInfo.LineMetadata Is Nothing Then Return
+                
+                ' Ensure token array exists
+                pSourceFileInfo.EnsureCharacterTokens()
+                
+                ' Update tokens for each line that has metadata
+                For i As Integer = 0 To Math.Min(pSourceFileInfo.TextLines.Count - 1, pSourceFileInfo.LineMetadata.Length - 1)
+                    Dim lMetadata As LineMetadata = pSourceFileInfo.GetLineMetadata(i)
+                    If lMetadata?.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
+                        pSourceFileInfo.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
+                    End If
+                Next
+                
+                Console.WriteLine($"UpdateCharacterTokensFromMetadata: Updated tokens for {pSourceFileInfo.FileName}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateCharacterTokensFromMetadata error: {ex.Message}")
+            End Try
+        End Sub
+    
+        ''' <summary>
+        ''' Handles text lines changed events from SourceFileInfo
+        ''' </summary>
+        ''' <param name="vSender">The SourceFileInfo that raised the event</param>
+        ''' <param name="vArgs">Event arguments containing change details</param>
+        Private Sub OnTextLinesChanged(vSender As Object, vArgs As SourceFileInfo.TextLinesChangedEventArgs)
+            Try
+                If vArgs Is Nothing Then Return
+                
+                
+                ' Ensure CharacterTokens array is properly sized
+                pSourceFileInfo.EnsureCharacterTokens()
+                
+                ' Update UI components
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
+                pLineNumberWidget?.QueueDraw()
+                
+                ' Raise text changed event for MainWindow
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                Console.WriteLine($"OnTextLinesChanged: Updated for {vArgs.ChangeType}, lines affected: {vArgs.LinesAffected}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnTextLinesChanged error: {ex.Message}")
+            End Try
+        End Sub
         
+        ''' <summary>
+        ''' Handles rendering changed events from SourceFileInfo
+        ''' </summary>
+        ''' <param name="vSender">The SourceFileInfo that raised the event</param>
+        ''' <param name="vArgs">Event arguments</param>
+        ''' <remarks>
+        ''' Queues a redraw of the drawing area when character tokens or
+        ''' syntax highlighting needs to be updated
+        ''' </remarks>
+        Private Sub OnRenderingChanged(vSender As Object, vArgs As EventArgs)
+            Try
+                ' Simply queue a redraw when rendering changes
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine("OnRenderingChanged: Redraw queued")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnRenderingChanged error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Hooks up event handlers for SourceFileInfo events
+        ''' </summary>
+        ''' <remarks>
+        ''' This method connects the editor to SourceFileInfo events for
+        ''' responding to text changes and rendering updates. Should be called
+        ''' in the constructor after pSourceFileInfo is set.
+        ''' </remarks>
+        Private Sub HookSourceFileInfoEvents()
+            Try
+                If pSourceFileInfo Is Nothing Then Return
+                
+                ' Hook up events
+                AddHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
+                AddHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
+                
+                Console.WriteLine("HookSourceFileInfoEvents: Events connected")
+                
+            Catch ex As Exception
+                Console.WriteLine($"HookSourceFileInfoEvents error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Unhooks event handlers from SourceFileInfo events
+        ''' </summary>
+        ''' <remarks>
+        ''' This method should be called during disposal to prevent memory leaks.
+        ''' Removes all event handlers that were connected by HookSourceFileInfoEvents.
+        ''' </remarks>
+        Private Sub UnhookSourceFileInfoEvents()
+            Try
+                If pSourceFileInfo Is Nothing Then Return
+                
+                ' Unhook events
+                RemoveHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
+                RemoveHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
+                
+                Console.WriteLine("UnhookSourceFileInfoEvents: Events disconnected")
+                
+            Catch ex As Exception
+                Console.WriteLine($"UnhookSourceFileInfoEvents error: {ex.Message}")
+            End Try
+        End Sub
+    
     End Class
     
 End Namespace

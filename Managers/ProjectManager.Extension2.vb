@@ -82,10 +82,6 @@ Namespace Managers
                 ' Set project root namespace
                 lFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                 
-                ' CRITICAL FIX: Wire up the ProjectManagerRequested event
-                AddHandler lFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
-                Console.WriteLine($"CreateEmptyFile: Wired up ProjectManagerRequested event for {vFileName}")
-                
                 ' Add to source files collection
                 If Not pSourceFiles.ContainsKey(lFilePath) Then
                     pSourceFiles(lFilePath) = lFileInfo
@@ -297,11 +293,6 @@ Namespace Managers
                     vSourceFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                 End If
                 
-                ' Subscribe to the ProjectManagerRequested event
-                RemoveHandler vSourceFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
-                AddHandler vSourceFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
-                
-                Console.WriteLine($"ProjectManager.RegisterSourceFileInfo: Registered {lNormalizedPath}")
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.RegisterSourceFileInfo error: {ex.Message}")
@@ -329,31 +320,9 @@ Namespace Managers
                     
                     ' CRITICAL: If file has metadata but no colors, apply colors now
                     If lSourceFile IsNot Nothing AndAlso lSourceFile.LineMetadata IsNot Nothing AndAlso lSourceFile.LineMetadata.Length > 0 Then
-                        ' Check if colors need to be initialized
-                        Dim lNeedsColors As Boolean = False
+
+                        ' TODO: implement initialization of the CharacterTokens arrays.
                         
-                        If lSourceFile.CharacterColors Is Nothing OrElse lSourceFile.CharacterColors.Length = 0 Then
-                            lNeedsColors = True
-                            Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} has metadata but no colors")
-                        ElseIf lSourceFile.CharacterColors.Length <> lSourceFile.TextLines.Count Then
-                            lNeedsColors = True
-                            Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} color array size mismatch")
-                        Else
-                            ' Check individual line arrays
-                            for i As Integer = 0 To Math.Min(lSourceFile.TextLines.Count - 1, lSourceFile.CharacterColors.Length - 1)
-                                If lSourceFile.CharacterColors(i) Is Nothing OrElse 
-                                   lSourceFile.CharacterColors(i).Length <> lSourceFile.TextLines(i).Length Then
-                                    lNeedsColors = True
-                                    Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} line {i} color mismatch")
-                                    Exit for
-                                End If
-                            Next
-                        End If
-                        
-                        If lNeedsColors Then
-                            Console.WriteLine($"GetSourceFileInfo: Applying colors for {lSourceFile.FileName}")
-                            UpdateFileColorsFromTheme(lSourceFile)
-                        End If
                     End If
                     
                     Return lSourceFile

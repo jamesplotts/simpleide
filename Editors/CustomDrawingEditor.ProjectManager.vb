@@ -52,10 +52,6 @@ Namespace Editors
                     Console.WriteLine($"  Total syntax tokens: {lTokenCount}")
                 End If
                 
-                If pSourceFileInfo.CharacterColors IsNot Nothing Then
-                    Console.WriteLine($"CustomDrawingEditor: CharacterColors updated with {pSourceFileInfo.CharacterColors.Length} lines")
-                End If
-                
                 ' Notify that parsing is complete (raises DocumentParsed event for Object Explorer)
                 NotifyParsingComplete()
                 
@@ -100,63 +96,7 @@ Namespace Editors
             End Try
         End Function
 
-        ' Add: SimpleIDE.Editors.CustomDrawingEditor.ForceRecolorization
-        ' To: CustomDrawingEditor.ProjectManager.vb
-        ''' <summary>
-        ''' Forces re-colorization of the current file from parsed tokens
-        ''' </summary>
-        ''' <remarks>
-        ''' This method requests the ProjectManager to re-apply theme colors
-        ''' to the existing parsed tokens, updating the CharacterColors array.
-        ''' Useful when the editor is first shown or theme changes.
-        ''' </remarks>
-        Public Sub ForceRecolorization()
-            Try
-                ' Only proceed if we have a source file and project manager
-                If pSourceFileInfo Is Nothing OrElse pProjectManager Is Nothing Then
-                    Console.WriteLine($"ForceRecolorization: Missing SourceFileInfo or ProjectManager")
-                    Return
-                End If
-                
-                ' Check if the file has been parsed (has LineMetadata with tokens)
-                If pSourceFileInfo.LineMetadata Is Nothing Then
-                    Console.WriteLine($"ForceRecolorization: No LineMetadata - requesting parse")
-                    ' No metadata yet, request a parse which will include colorization
-                    pSourceFileInfo.RequestAsyncParse()
-                    Return
-                End If
-                
-                ' Check if we have any tokens to colorize
-                Dim lHasTokens As Boolean = False
-                for each lMetadata in pSourceFileInfo.LineMetadata
-                    If lMetadata?.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
-                        lHasTokens = True
-                        Exit for
-                    End If
-                Next
-                
-                If Not lHasTokens Then
-                    Console.WriteLine($"ForceRecolorization: No syntax tokens found - requesting parse")
-                    ' No tokens, need to parse first
-                    pSourceFileInfo.RequestAsyncParse()
-                    Return
-                End If
-                
-                Console.WriteLine($"ForceRecolorization: Requesting color update for {pFilePath}")
-                
-                ' We have tokens, just need to reapply colors
-                ' Request the ProjectManager to update colors for this file
-                pProjectManager.UpdateFileColors(pSourceFileInfo)
-                
-                ' Queue a redraw to show the new colors
-                pDrawingArea?.QueueDraw()
-                
-                Console.WriteLine($"ForceRecolorization: Color update requested and redraw queued")
-                
-            Catch ex As Exception
-                Console.WriteLine($"ForceRecolorization error: {ex.Message}")
-            End Try
-        End Sub
+
 
 
         

@@ -194,31 +194,6 @@ Namespace Managers
                     RaiseEvent ParsingProgress(lTotalFiles, lTotalFiles, "Applying theme colors...")
                 End Sub)
                 
-                ' Small delay to show the message
-                Await Task.Delay(50)
-                
-                ' After all parsing is done, apply theme colors to all files
-                ' CRITICAL: This MUST run on the UI thread because it manipulates GTK CSS providers
-                If pThemeManager IsNot Nothing Then
-                    ' Use a TaskCompletionSource to await the UI thread operation
-                    Dim lTcs As New TaskCompletionSource(Of Boolean)()
-                    
-                    Gtk.Application.Invoke(Sub()
-                        Try
-                            ApplyCurrentTheme()
-                            ' Report completion at 100%
-                            RaiseEvent ParsingProgress(lTotalFiles, lTotalFiles, "Theme application complete")
-                            lTcs.SetResult(True)
-                        Catch ex As Exception
-                            Console.WriteLine($"ApplyCurrentTheme error: {ex.Message}")
-                            lTcs.SetException(ex)
-                        End Try
-                    End Sub)
-                    
-                    ' Wait for the theme application to complete on UI thread
-                    Await lTcs.Task
-                End If
-                
                 Dim lElapsed As TimeSpan = DateTime.Now - lStartTime
                 Dim lParsedCount As Integer = lTotalFiles - lSkippedFiles
                 'Console.WriteLine($"ParseAllFilesAsync: Completed - parsed {lParsedCount} files, skipped {lSkippedFiles} cached files in {lElapsed.TotalSeconds:F2} seconds")
@@ -588,9 +563,6 @@ Namespace Managers
                             lSourceFile = New SourceFileInfo(lFilePath, "", pCurrentProjectInfo.ProjectDirectory)
                             lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                             
-                            ' Wire up the ProjectManagerRequested event
-                            AddHandler lSourceFile.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
-                            
                             pSourceFiles(lFilePath) = lSourceFile
                         End If
                         
@@ -767,13 +739,6 @@ Namespace Managers
                                 Next
                             End If
                             
-                            If lHasTokens Then
-                               ' Console.WriteLine($"ProjectManager.ParseFileAsync: Found syntax tokens, applying colors...")
-                                UpdateFileColorsFromTheme(vFile)
-                                'Console.WriteLine($"ProjectManager.ParseFileAsync: CharacterColors updated successfully for {vFile.FileName}")
-                            Else
-                                Console.WriteLine($"ProjectManager.ParseFileAsync: No syntax tokens found for {vFile.FileName}")
-                            End If
                         Else
                             Console.WriteLine($"ProjectManager.ParseFileAsync: Parse result was Nothing for {vFile.FileName}")
                         End If
@@ -814,7 +779,6 @@ Namespace Managers
         ''' <param name="vParseResult">The parse result containing tokens</param>
         ''' <remarks>
         ''' This method updates ONLY the LineMetadata array with token information.
-        ''' CharacterColors are updated separately by UpdateFileColorsFromTheme.
         ''' </remarks>
         Private Sub UpdateSourceFileMetadata(vFile As SourceFileInfo, vParseResult As Syntax.ParseResult)
             Try
@@ -823,13 +787,15 @@ Namespace Managers
                 
                 Dim lLineCount As Integer = vFile.TextLines.Count
                 
-                
                 ' Copy LineMetadata from parse result
-                for i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
+                For i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
                     vFile.LineMetadata(i) = vParseResult.LineMetadata(i)
                 Next
                 
-                'Console.WriteLine($"UpdateSourceFileMetadata: Updated {lLineCount} lines of metadata for {vFile.FileName}")
+                ' Update character tokens from the parsed metadata
+                UpdateCharacterTokens(vFile)
+                
+                'Console.WriteLine($"UpdateSourceFileMetadata: Updated {lLineCount} lines of metadata and tokens for {vFile.FileName}")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateSourceFileMetadata error: {ex.Message}")
@@ -837,84 +803,7 @@ Namespace Managers
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Updates the CharacterColors array for a file based on current theme
-        ''' </summary>
-        ''' <param name="vFile">The source file to update colors for</param>
-        ''' <remarks>
-        ''' This is called after parsing to apply theme colors to the already-parsed tokens
-        ''' </remarks>
-        Private Sub UpdateFileColorsFromTheme(vFile As SourceFileInfo)
-            Try
-                If vFile Is Nothing OrElse vFile.LineMetadata Is Nothing Then 
-                    'Console.WriteLine($"UpdateFileColorsFromTheme: File or LineMetadata is Nothing")
-                    Return
-                End If
-                
-                If pThemeManager Is Nothing Then 
-                   ' Console.WriteLine($"UpdateFileColorsFromTheme: ThemeManager is Nothing")
-                    Return
-                End If
-                
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then 
-                    'Console.WriteLine($"UpdateFileColorsFromTheme: Current theme is Nothing")
-                    Return
-                End If
-                
-                'Console.WriteLine($"UpdateFileColorsFromTheme: Starting color update for {vFile.FileName}")
-                
-                ' Get default color from theme
-                Dim lDefaultColor As String = lTheme.ForegroundColor
-                If String.IsNullOrEmpty(lDefaultColor) Then
-                    lDefaultColor = "#D4D4D4"  ' Fallback default
-                    'Console.WriteLine($"UpdateFileColorsFromTheme: Using fallback default color")
-                End If
-                
-                ' Create color map from current theme
-                Dim lColorMap As Dictionary(Of SyntaxTokenType, String) = CreateThemeColorMap(lTheme)
-                'Console.WriteLine($"UpdateFileColorsFromTheme: Color map created with {lColorMap.Count} entries")
-                
-                ' Ensure CharacterColors array is properly sized
-                vFile.EnsureCharacterColors()
-                
-                ' Update colors for each line using the SourceFileInfo's method
-                Dim lLineCount As Integer = vFile.TextLines.Count
-                Dim lLinesWithTokens As Integer = 0
-                
-                for i As Integer = 0 To lLineCount - 1
-                    ' Get the metadata for this line
-                    Dim lMetadata As LineMetadata = vFile.GetLineMetadata(i)
-                    
-                    If lMetadata IsNot Nothing AndAlso lMetadata.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
-                        ' Call the SourceFileInfo's UpdateCharacterColors method for this line
-                        vFile.UpdateCharacterColors(i, lMetadata.SyntaxTokens, lColorMap)
-                        lLinesWithTokens += 1
-                    Else
-                        ' No tokens for this line, ensure it has default colors
-                        If i < vFile.CharacterColors.Length Then
-                            Dim lLineLength As Integer = vFile.TextLines(i).Length
-                            If lLineLength > 0 Then
-                                If vFile.CharacterColors(i) Is Nothing OrElse vFile.CharacterColors(i).Length <> lLineLength Then
-                                    ReDim vFile.CharacterColors(i)(lLineLength - 1)
-                                End If
-                                for j As Integer = 0 To lLineLength - 1
-                                    vFile.CharacterColors(i)(j) = New CharacterColorInfo(lDefaultColor)
-                                Next
-                            Else
-                                vFile.CharacterColors(i) = New CharacterColorInfo() {}
-                            End If
-                        End If
-                    End If
-                Next
-                
-                'Console.WriteLine($"UpdateFileColorsFromTheme: Updated {lLinesWithTokens} lines with tokens for {vFile.FileName}")
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateFileColorsFromTheme error: {ex.Message}")
-                Console.WriteLine($"  Stack: {ex.StackTrace}")
-            End Try
-        End Sub
+
 
 
         ''' <summary>
@@ -1005,8 +894,10 @@ Namespace Managers
         End Function
         
         ''' <summary>
-        ''' Maps a Token type to a SyntaxToken type
+        ''' Maps a TokenType to a SyntaxTokenType
         ''' </summary>
+        ''' <param name="vTokenType">The token type to map</param>
+        ''' <returns>The corresponding syntax token type</returns>
         Private Function MapTokenTypeToSyntaxType(vTokenType As TokenType) As SyntaxTokenType
             Select Case vTokenType
                 Case TokenType.eKeyword
@@ -1028,85 +919,66 @@ Namespace Managers
             End Select
         End Function
         
+
+
         ''' <summary>
-        ''' Updates the CharacterColors array for a file based on LineMetadata and color map
+        ''' Updates the CharacterTokens array for a file based on LineMetadata
         ''' </summary>
-        ''' <param name="vFile">The source file to update</param>
-        ''' <param name="vColorMap">Dictionary mapping token types to colors</param>
-        ''' <param name="vDefaultColor">Default color for unspecified tokens</param>
+        ''' <param name="vFile">The source file to update tokens for</param>
         ''' <remarks>
-        ''' This method applies theme colors to already-parsed tokens in LineMetadata
+        ''' This method converts parsed syntax tokens into byte-encoded tokens.
+        ''' No color mapping is done here - just token type encoding.
         ''' </remarks>
-        Private Sub UpdateFileCharacterColors(vFile As SourceFileInfo, vColorMap As Dictionary(Of SyntaxTokenType, String), vDefaultColor As String)
+        Private Sub UpdateCharacterTokens(vFile As SourceFileInfo)
             Try
                 If vFile Is Nothing OrElse vFile.LineMetadata Is Nothing Then
-                    Console.WriteLine($"UpdateFileCharacterColors: File or LineMetadata is Nothing")
+                    'Console.WriteLine($"UpdateCharacterTokens: File or LineMetadata is Nothing")
                     Return
                 End If
                 
-                If vColorMap Is Nothing Then
-                    Console.WriteLine($"UpdateFileCharacterColors: ColorMap is Nothing")
-                    Return
-                End If
+                'Console.WriteLine($"UpdateCharacterTokens: Starting token update for {vFile.FileName}")
                 
+                ' Ensure CharacterTokens array is properly sized
+                vFile.EnsureCharacterTokens()
+                
+                ' Update tokens for each line
                 Dim lLineCount As Integer = vFile.TextLines.Count
-                Console.WriteLine($"UpdateFileCharacterColors: Processing {lLineCount} lines for {vFile.FileName}")
+                Dim lLinesWithTokens As Integer = 0
                 
-                ' Ensure CharacterColors array is properly sized
-                vFile.EnsureCharacterColors()
-                
-                ' Process each line
-                for i As Integer = 0 To lLineCount - 1
-                    Dim lLineText As String = vFile.TextLines(i)
-                    Dim lLineLength As Integer = lLineText.Length
+                For i As Integer = 0 To lLineCount - 1
+                    ' Get the metadata for this line
                     Dim lMetadata As LineMetadata = vFile.GetLineMetadata(i)
                     
-                    ' Ensure the CharacterColors array for this line is properly sized
-                    If vFile.CharacterColors(i) Is Nothing OrElse vFile.CharacterColors(i).Length <> lLineLength Then
-                        If lLineLength > 0 Then
-                            ReDim vFile.CharacterColors(i)(lLineLength - 1)
-                        Else
-                            vFile.CharacterColors(i) = New CharacterColorInfo() {}
-                            Continue for
-                        End If
-                    End If
-                    
-                    ' First, set all characters to default color
-                    for j As Integer = 0 To lLineLength - 1
-                        vFile.CharacterColors(i)(j) = New CharacterColorInfo(vDefaultColor)
-                    Next
-                    
-                    ' Apply colors based on syntax tokens in metadata
-                    If lMetadata IsNot Nothing AndAlso lMetadata.SyntaxTokens IsNot Nothing Then
-                        for each lToken in lMetadata.SyntaxTokens
-                            ' Get the color for this token type
-                            Dim lColor As String = vDefaultColor
-                            If vColorMap.ContainsKey(lToken.TokenType) Then
-                                lColor = vColorMap(lToken.TokenType)
-                            End If
-                            
-                            ' Apply color to the character range
-                            ' Ensure we don't go out of bounds
-                            Dim lStartCol As Integer = Math.Max(0, lToken.StartColumn)
-                            Dim lEndCol As Integer = Math.Min(lLineLength - 1, lToken.StartColumn + lToken.Length - 1)
-                            
-                            for k As Integer = lStartCol To lEndCol
-                                If k >= 0 AndAlso k < vFile.CharacterColors(i).Length Then
-                                    vFile.CharacterColors(i)(k) = New CharacterColorInfo(lColor)
+                    If lMetadata IsNot Nothing AndAlso lMetadata.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
+                        ' Update tokens for this line
+                        vFile.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
+                        lLinesWithTokens += 1
+                    Else
+                        ' No tokens for this line, ensure it has default tokens
+                        If i < vFile.CharacterTokens.Length Then
+                            Dim lLineLength As Integer = vFile.TextLines(i).Length
+                            If lLineLength > 0 Then
+                                If vFile.CharacterTokens(i) Is Nothing OrElse vFile.CharacterTokens(i).Length <> lLineLength Then
+                                    ReDim vFile.CharacterTokens(i)(lLineLength - 1)
                                 End If
-                            Next
-                        Next
+                                Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                                For j As Integer = 0 To lLineLength - 1
+                                    vFile.CharacterTokens(i)(j) = lDefaultToken
+                                Next
+                            Else
+                                vFile.CharacterTokens(i) = New Byte() {}
+                            End If
+                        End If
                     End If
                 Next
                 
-                Console.WriteLine($"UpdateFileCharacterColors: Completed color update for {vFile.FileName}")
+                'Console.WriteLine($"UpdateCharacterTokens: Updated {lLinesWithTokens} lines with syntax tokens")
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdateFileCharacterColors error: {ex.Message}")
+                Console.WriteLine($"UpdateCharacterTokens error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
             End Try
         End Sub
-
         
     End Class
     

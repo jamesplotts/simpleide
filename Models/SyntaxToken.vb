@@ -23,12 +23,6 @@ Namespace Models
             TokenType = vTokenType
         End Sub
         
-        Public Sub New(vStartColumn As Integer, vLength As Integer, vTokenType As SyntaxTokenType, vColor As String)
-            StartColumn = vStartColumn
-            Length = vLength
-            TokenType = vTokenType
-        End Sub
-        
         Public ReadOnly Property EndColumn As Integer
             Get
                 Return StartColumn + Length
@@ -39,6 +33,7 @@ Namespace Models
 
     ' Syntax token types
     Public Enum SyntaxTokenType
+        eUnspecified
         eNormal
         eKeyword
         eString
@@ -48,6 +43,7 @@ Namespace Models
         eIdentifier
         ePreprocessor
         eType
+        eLastValue
     End Enum
 
     

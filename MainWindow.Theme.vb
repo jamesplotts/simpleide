@@ -151,8 +151,6 @@ Partial Public Class MainWindow
                 
                 Console.WriteLine("MainWindow.ApplyThemeToAllEditors: Project Explorer theme updated")
             End If
-
-            pProjectManager.ApplyCurrentTheme()
             
             ' Force refresh of all widgets by queuing draw
             QueueDraw()
@@ -362,8 +360,6 @@ Partial Public Class MainWindow
         Try
             ' Apply theme to all open editors
             ApplyThemeToAllEditors()
-
-            pProjectManager.ApplyCurrentTheme()
 
             ' UPDATE: Apply to Object Explorer
             If pObjectExplorer IsNot Nothing Then

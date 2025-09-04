@@ -133,29 +133,6 @@ Namespace Models
                     pLineMetadata(vLineIndex).ParseState = LineParseState.eUnparsed
                 End If
                 
-                ' Update CharacterColors array
-                If pCharacterColors IsNot Nothing Then
-                    ' Resize array
-                    ReDim Preserve pCharacterColors(pTextLines.Count - 1)
-                    
-                    ' Shift existing colors down
-                    for i As Integer = pTextLines.Count - 1 To vLineIndex + 1 Step -1
-                        pCharacterColors(i) = pCharacterColors(i - 1)
-                    Next
-                    
-                    ' Create new color array for inserted line with default colors
-                    Dim lLineLength As Integer = If(vText?.Length, 0)
-                    Dim lDefaultColor As String = GetDefaultForegroundColor()
-                    
-                    If lLineLength > 0 Then
-                        ReDim pCharacterColors(vLineIndex)(lLineLength - 1)
-                        for j As Integer = 0 To lLineLength - 1
-                            pCharacterColors(vLineIndex)(j) = New CharacterColorInfo(lDefaultColor)
-                        Next
-                    Else
-                        pCharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                    End If
-                End If
                 
                 ' Mark as modified and needs parsing
                 IsModified = True
@@ -196,13 +173,6 @@ Namespace Models
                 ReDim Preserve pLineMetadata(LineMetadata.Length - 2)
             End If
             
-            ' Similar for CharacterColors
-            If CharacterColors IsNot Nothing AndAlso vLineIndex < CharacterColors.Length Then
-                for i As Integer = vLineIndex To CharacterColors.Length - 2
-                    CharacterColors(i) = CharacterColors(i + 1)
-                Next
-                ReDim Preserve CharacterColors(CharacterColors.Length - 2)
-            End If
             
             IsModified = True
             NeedsParsing = True
@@ -249,18 +219,6 @@ Namespace Models
                     ReDim Preserve pLineMetadata(TextLines.Count - 1)
                 End If
                 
-                ' Update CharacterColors array
-                If CharacterColors IsNot Nothing Then
-                    ' Shift remaining colors up
-                    for i As Integer = vStartLine To TextLines.Count - 1
-                        If i + lActualCount < CharacterColors.Length Then
-                            CharacterColors(i) = CharacterColors(i + lActualCount)
-                        End If
-                    Next
-                    
-                    ' Resize array
-                    ReDim Preserve CharacterColors(TextLines.Count - 1)
-                End If
                 
                 ' Mark as modified
                 IsModified = True

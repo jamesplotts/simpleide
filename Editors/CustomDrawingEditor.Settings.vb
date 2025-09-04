@@ -131,9 +131,7 @@ Namespace Editors
             Try
                 ' Reset all character colors to default
                 for i As Integer = 0 To pLineCount - 1
-                    If pCharacterColors IsNot Nothing AndAlso i < pCharacterColors.Length Then
-                        pCharacterColors(i) = New CharacterColorInfo() {}
-                    End If
+                    ' TODO: Is this a violation of separation of concerns?
                     pLineMetadata(i).MarkChanged()
                 Next
                 
@@ -550,27 +548,7 @@ Namespace Editors
             End Try
         End Function
 
-        ''' <summary>
-        ''' Requests asynchronous recoloring of syntax highlighting
-        ''' </summary>
-        ''' <remarks>
-        ''' This is called after theme changes to update syntax colors without blocking the UI
-        ''' </remarks>
-        Private Sub RequestAsyncRecoloring()
-            Try
-                ' If we have a ProjectManager and SourceFileInfo, request recoloring through it
-                If pProjectManager IsNot Nothing AndAlso pSourceFileInfo IsNot Nothing Then
-                    Console.WriteLine("RequestAsyncRecoloring: Requesting color update from ProjectManager")
-                    pProjectManager.UpdateFileColors(pSourceFileInfo)
-                Else
-                    ' Fallback to local recoloring
-                    Console.WriteLine("RequestAsyncRecoloring: Using local ForceRecolorization")
-                    ForceRecolorization()
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"RequestAsyncRecoloring error: {ex.Message}")
-            End Try
-        End Sub
+
         
     End Class
     

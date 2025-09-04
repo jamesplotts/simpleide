@@ -21,6 +21,7 @@ Partial Public Class MainWindow
     ' Store reference to root node for Object Explorer
     Private pRootNode As SyntaxNode
 
+    ' Replace: SimpleIDE.MainWindow.SetupObjectExplorerForEditor
     ''' <summary>
     ''' Set up Object Explorer with current active editor
     ''' </summary>
@@ -39,6 +40,18 @@ Partial Public Class MainWindow
             Dim lStructure As SyntaxNode = vEditor.GetDocumentStructure()
             If lStructure IsNot Nothing Then
                 pObjectExplorer.UpdateStructure(lStructure)
+                
+                ' ADDED: Also update navigation dropdowns if this is the current tab
+                Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+                If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor Is vEditor Then
+                    Console.WriteLine("SetupObjectExplorerForEditor: Initial structure available, updating navigation dropdowns")
+                    UpdateNavigationDropdowns()
+                End If
+            Else
+                ' ADDED: Schedule a parse if no structure available yet
+                If TypeOf vEditor Is CustomDrawingEditor Then
+                    Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
+                End If
             End If
             
         Catch ex As Exception
@@ -47,33 +60,37 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Handle document parsing completion from any editor
+    ''' Enhanced document parsed handler with navigation dropdown support
     ''' </summary>
+    ''' <param name="vRootNode">The root node of the parsed syntax tree</param>
+    ''' <remarks>
+    ''' This method updates both the Object Explorer and navigation dropdowns
+    ''' when a document is parsed. The signature matches IEditor.DocumentParsedEventHandler.
+    ''' </remarks>
     Private Sub OnEditorDocumentParsed(vRootNode As SyntaxNode)
         Try
-            If pObjectExplorer Is Nothing OrElse vRootNode Is Nothing Then Return
+            Console.WriteLine($"OnEditorDocumentParsed: Document parsed, root node = {If(vRootNode IsNot Nothing, vRootNode.Name, "Nothing")}")
             
-            ' FIXED: Don't replace the entire Object Explorer with single file structure
-            ' Instead, check if we have a project open and maintain the project structure
-            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
-                ' Get the full project structure, not just the single file
-                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+            ' Update Object Explorer (existing functionality)
+            UpdateObjectExplorerForActiveTab()
+            UpdateNavigationDropdowns
+            ' Update navigation dropdowns for current tab (new functionality)
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab IsNot Nothing Then
+                Console.WriteLine("OnEditorDocumentParsed: Updating navigation dropdowns for current tab")
+                UpdateNavigationDropdowns()
                 
-                If lProjectTree IsNot Nothing Then
-                    ' Update Object Explorer with the complete project structure
-                    pObjectExplorer.UpdateStructure(lProjectTree)
-                    Console.WriteLine($"Object Explorer updated with full project structure: {lProjectTree.Children.Count} root nodes")
-                Else
-                    ' If no project tree available, fall back to single file
-                    ' (This should only happen for files opened outside of a project)
-                    pObjectExplorer.UpdateStructure(vRootNode)
-                    Console.WriteLine($"Object Explorer updated with single file structure: {vRootNode.Children.Count} root nodes")
+                ' Also update the position to reflect current cursor location
+                If lCurrentTab.NavigationDropdowns IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                    Dim lLine As Integer = lCurrentTab.Editor.CurrentLine
+                    Console.WriteLine($"OnEditorDocumentParsed: Updating position to line {lLine}")
+                    lCurrentTab.NavigationDropdowns.UpdatePosition(lLine)
                 End If
-            Else
-                ' No project open, show just the current file's structure
-                pObjectExplorer.UpdateStructure(vRootNode)
-                Console.WriteLine($"Object Explorer updated with file structure (no project): {vRootNode.Children.Count} root nodes")
             End If
+            
+            ' Note: ProjectManager already has the parse info through SourceFileInfo
+            ' No need to call UpdateFileParseInfo as it doesn't exist
+            ' The parsing is already handled by ProjectManager.ParseFile
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorDocumentParsed error: {ex.Message}")

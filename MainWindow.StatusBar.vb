@@ -27,8 +27,8 @@ Partial Public Class MainWindow
     Private Sub CreateStatusBar()
         ' Create main status bar container
         Dim lStatusContainer As New Box(Orientation.Horizontal, 0)
-        lStatusContainer.SetSizeRequest(-1, 20) ' Minimum Height
-        lStatusContainer.HeightRequest = 20     ' Explicit Height request
+        lStatusContainer.SetSizeRequest(-1, 16) ' Minimum Height
+        lStatusContainer.HeightRequest = 16     ' Explicit Height request
         
         ' Use default GTK theme colors instead of blue
         Dim lCss As String = "box { " & _
@@ -36,7 +36,7 @@ Partial Public Class MainWindow
             "padding-bottom: 1px; " & _
             "padding-left: 8px; " & _
             "padding-right: 8px; " & _
-            "min-height: 20px; " & _
+            "min-height: 16px; " & _
             "border-top: 1px solid @borders; " & _  ' Add subtle top border
             "}"
         CssHelper.ApplyCssToWidget(lStatusContainer, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
@@ -48,7 +48,7 @@ Partial Public Class MainWindow
         ' Remove white color, use default theme colors
         Dim lStatusCss As String = "statusbar { " & _
             "border: none; " & _
-            "min-height: 18px; " & _
+            "min-height: 16px; " & _
             "font-size: 14px; " & _
             "}"
         CssHelper.ApplyCssToWidget(pStatusBar, lStatusCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -15,7 +15,8 @@
     <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-  <Version>1.1.11</Version></PropertyGroup>
+    <Version>1.1.11</Version>
+  </PropertyGroup>
   <PropertyGroup>
     <NoWarn>$(NoWarn);NU1605</NoWarn>
   </PropertyGroup>
@@ -250,7 +251,8 @@
     <Compile Include="Syntax/Token.vb" />
     <Compile Include="Syntax/ParseResults.vb" />
     <Compile Include="Managers/AIManager.vb" />
-  </ItemGroup>
+    <Compile Include="Managers/ProjectParser.Extension1.vb" />
+    <Compile Include="Models/CharacterToken.vb" /></ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->
     <EmbeddedResource Include="Resources/icon.png" />

@@ -239,7 +239,7 @@ Namespace Widgets
         Private Function OnDrawingAreaScroll(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
                 ' Debug output to verify scroll events are received
-                Console.WriteLine($"OnDrawingAreaScroll: Direction={vArgs.Event.Direction}, Ctrl={vArgs.Event.State And ModifierType.ControlMask}")
+                'Console.WriteLine($"OnDrawingAreaScroll: Direction={vArgs.Event.Direction}, Ctrl={vArgs.Event.State And ModifierType.ControlMask}")
                 
                 ' Check for Ctrl key for zoom
                 If vArgs.Event.State and ModifierType.ControlMask Then
@@ -269,7 +269,7 @@ Namespace Widgets
                         Dim lNewValue As Double = Math.Max(pVScrollBar.Adjustment.Lower, 
                                                           pVScrollBar.Value - (pRowHeight * 3))
                         pVScrollBar.Value = lNewValue
-                        Console.WriteLine($"Scrolled up to {lNewValue}")
+                       ' Console.WriteLine($"Scrolled up to {lNewValue}")
                         
                     Case ScrollDirection.Down
                         ' Scroll down by 3 rows
@@ -277,7 +277,7 @@ Namespace Widgets
                         Dim lNewValue As Double = Math.Min(lMaxValue, 
                                                           pVScrollBar.Value + (pRowHeight * 3))
                         pVScrollBar.Value = lNewValue
-                        Console.WriteLine($"Scrolled down to {lNewValue}")
+                        'Console.WriteLine($"Scrolled down to {lNewValue}")
                         
                     Case ScrollDirection.Left
                         ' Horizontal scroll left

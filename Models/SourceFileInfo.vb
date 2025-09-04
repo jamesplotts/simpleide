@@ -34,6 +34,20 @@ Namespace Models
         Private pFileEncoding As Encoding
         Private pProjectManager As ProjectManager
 
+        Private pCharacterTokens As Byte()()
+
+        ''' <summary>
+        ''' Gets or sets the character token array for syntax highlighting
+        ''' </summary>
+        ''' <value>Array of byte arrays, one per line, each byte encoding token type and style</value>
+        Public Property CharacterTokens As Byte()()
+            Get
+                Return pCharacterTokens
+            End Get
+            Set(value As Byte()())
+                pCharacterTokens = value
+            End Set
+        End Property
 
         ''' <summary>
         ''' Raised when the file content changes
@@ -101,39 +115,6 @@ Namespace Models
             End Get
         End Property
   
-
-        Private pCharacterColors As CharacterColorInfo()()
-        
-        ''' <summary>
-        ''' Gets or sets the character color array for syntax highlighting
-        ''' </summary>
-        ''' <value>Array of CharacterColorInfo arrays, one per line</value>
-        Public Property CharacterColors As CharacterColorInfo()()
-            Get
-                Return pCharacterColors
-            End Get
-            Set(vNewCharacterColors As CharacterColorInfo()())
-                If vNewCharacterColors Is Nothing Then
-                    pCharacterColors = Nothing
-                    Return
-                End If
-                
-                ' Copy the array contents, not just the reference
-                ReDim pCharacterColors(vNewCharacterColors.Length - 1)
-                for i As Integer = 0 To vNewCharacterColors.Length - 1
-                    ' Each element is itself an array, so we need to copy that too
-                    If vNewCharacterColors(i) IsNot Nothing Then
-                        ReDim pCharacterColors(i)(vNewCharacterColors(i).Length - 1)
-                        for j As Integer = 0 To vNewCharacterColors(i).Length - 1
-                            pCharacterColors(i)(j) = vNewCharacterColors(i)(j)
-                        Next
-                    Else
-                        pCharacterColors(i) = Nothing
-                    End If
-                Next
-            End Set
-        End Property           
-
         ' Demo Mode is used when you want to display a fictional file's content without having any file IO.
         Public IsDemoMode As Boolean = False
 
@@ -142,6 +123,14 @@ Namespace Models
         ''' </summary>
         Public Event ProjectManagerRequested As EventHandler(Of ProjectManagerRequestEventArgs)
 
+        ''' <summary>
+        ''' Event raised when rendering needs to be updated
+        ''' </summary>
+        ''' <remarks>
+        ''' This event is raised when the character tokens or syntax highlighting
+        ''' changes and the editor needs to redraw the affected lines
+        ''' </remarks>
+        Public Event RenderingChanged As EventHandler
         
         ' ===== Constructor =====
 
@@ -264,10 +253,6 @@ Namespace Models
                     ReDim pLineMetadata(0)
                     pLineMetadata(0) = New LineMetadata()
                 End If
-                If pCharacterColors Is Nothing Then 
-                    ReDim pCharacterColors(0)
-                    pCharacterColors(0) = New CharacterColorInfo() {}
-                End If
             End Try
         End Sub
 
@@ -329,10 +314,6 @@ Namespace Models
                     ReDim pLineMetadata(0)
                     pLineMetadata(0) = New LineMetadata()
                 End If
-                If pCharacterColors Is Nothing Then 
-                    ReDim pCharacterColors(0)
-                    pCharacterColors(0) = New CharacterColorInfo() {}
-                End If
             End Try
         End Sub
 
@@ -377,7 +358,6 @@ Namespace Models
                 
                 ' Ensure arrays are properly initialized
                 EnsureLineMetadata()
-                EnsureCharacterColors()
                 
                 'Console.WriteLine($"SourceFileInfo.LoadContent: Loaded {FileName}")
                 'Console.WriteLine($"  Lines: {pTextLines.Count}")
@@ -808,28 +788,12 @@ Namespace Models
                 
                 ' Reinitialize arrays for new content
                 ReDim pLineMetadata(pTextLines.Count - 1)
-                ReDim pCharacterColors(pTextLines.Count - 1)
                 
                 ' Initialize metadata for each line
                 For i As Integer = 0 To pTextLines.Count - 1
                     pLineMetadata(i) = New LineMetadata
                     pLineMetadata(i).IsChanged = True
                     pLineMetadata(i).UpdateHash(pTextLines(i))
-                Next
-                
-                ' CRITICAL FIX: Initialize CharacterColors with default colors immediately
-                ' Don't wait for async parsing - this ensures pasted text is visible
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                For i As Integer = 0 To pTextLines.Count - 1
-                    Dim lLineLength As Integer = pTextLines(i).Length
-                    If lLineLength > 0 Then
-                        ReDim pCharacterColors(i)(lLineLength - 1)
-                        For j As Integer = 0 To lLineLength - 1
-                            pCharacterColors(i)(j) = New CharacterColorInfo(lDefaultColor)
-                        Next
-                    Else
-                        pCharacterColors(i) = New CharacterColorInfo() {}
-                    End If
                 Next
                 
                 ' Mark as modified and needs parsing
@@ -928,24 +892,6 @@ Namespace Models
                     pLineMetadata(vLineIndex).ParseState = LineParseState.eUnparsed
                 End If
                 
-                ' Update CharacterColors array if length changed
-                If pCharacterColors IsNot Nothing AndAlso vLineIndex < pCharacterColors.Length Then
-                    If lNewLength <> lOldLength Then
-                        Dim lDefaultColor As String = GetDefaultForegroundColor()
-                        
-                        If lNewLength > 0 Then
-                            ' Resize and initialize with default colors
-                            ReDim pCharacterColors(vLineIndex)(lNewLength - 1)
-                            For i As Integer = 0 To lNewLength - 1
-                                pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
-                            Next
-                        Else
-                            ' Empty line
-                            pCharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                        End If
-                    End If
-                End If
-                
                 ' Mark file as modified
                 IsModified = True
                 NeedsParsing = True
@@ -1038,9 +984,6 @@ Namespace Models
                     InsertTextInLine(vLineIndex, vColumn, vText)
                 End If
                 
-                ' CRITICAL FIX: Ensure colors are initialized for affected lines
-                InitializeDefaultColorsForRange(vLineIndex, vLineIndex)
-                
                 ' Mark as modified
                 IsModified = True
                 NeedsParsing = True
@@ -1092,41 +1035,41 @@ Namespace Models
                     LineMetadata(vLineIndex).UpdateHash(lNewLine)
                 End If
                 
-                ' Update CharacterColors if needed
-                If CharacterColors IsNot Nothing AndAlso vLineIndex < CharacterColors.Length Then
-                    Dim lOldLength As Integer = lLine.Length
-                    Dim lNewLength As Integer = lNewLine.Length
-                    
-                    If lNewLength <> lOldLength Then
-                        ' Resize character colors array for this line
-                        Dim lOldColors() As CharacterColorInfo = CharacterColors(vLineIndex)
-                        ReDim CharacterColors(vLineIndex)(Math.Max(0, lNewLength - 1))
-                        
-                        ' Copy colors before insertion point
-                        For i As Integer = 0 To Math.Min(vColumn - 1, lOldLength - 1)
-                            If i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
-                                CharacterColors(vLineIndex)(i) = lOldColors(i)
-                            Else
-                                CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
-                            End If
-                        Next
-                        
-                        ' Initialize colors for inserted text
-                        For i As Integer = vColumn To vColumn + vText.Length - 1
-                            CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
-                        Next
-                        
-                        ' Copy colors after insertion point
-                        For i As Integer = vColumn To lOldLength - 1
-                            Dim lNewIndex As Integer = i + vText.Length
-                            If lNewIndex < lNewLength AndAlso i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
-                                CharacterColors(vLineIndex)(lNewIndex) = lOldColors(i)
-                            ElseIf lNewIndex < lNewLength Then
-                                CharacterColors(vLineIndex)(lNewIndex) = New CharacterColorInfo()
-                            End If
-                        Next
-                    End If
-                End If
+'                 ' Update CharacterColors if needed
+'                 If CharacterColors IsNot Nothing AndAlso vLineIndex < CharacterColors.Length Then
+'                     Dim lOldLength As Integer = lLine.Length
+'                     Dim lNewLength As Integer = lNewLine.Length
+'                     
+'                     If lNewLength <> lOldLength Then
+'                         ' Resize character colors array for this line
+'                         Dim lOldColors() As CharacterColorInfo = CharacterColors(vLineIndex)
+'                         ReDim CharacterColors(vLineIndex)(Math.Max(0, lNewLength - 1))
+'                         
+'                         ' Copy colors before insertion point
+'                         For i As Integer = 0 To Math.Min(vColumn - 1, lOldLength - 1)
+'                             If i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
+'                                 CharacterColors(vLineIndex)(i) = lOldColors(i)
+'                             Else
+'                                 CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
+'                             End If
+'                         Next
+'                         
+'                         ' Initialize colors for inserted text
+'                         For i As Integer = vColumn To vColumn + vText.Length - 1
+'                             CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
+'                         Next
+'                         
+'                         ' Copy colors after insertion point
+'                         For i As Integer = vColumn To lOldLength - 1
+'                             Dim lNewIndex As Integer = i + vText.Length
+'                             If lNewIndex < lNewLength AndAlso i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
+'                                 CharacterColors(vLineIndex)(lNewIndex) = lOldColors(i)
+'                             ElseIf lNewIndex < lNewLength Then
+'                                 CharacterColors(vLineIndex)(lNewIndex) = New CharacterColorInfo()
+'                             End If
+'                         Next
+'                     End If
+'                 End If
                 
                 ' Mark as modified
                 IsModified = True
@@ -1210,38 +1153,38 @@ Namespace Models
                     ' Mark as modified
                     IsModified = True
                     NeedsParsing = True
-                    
-                    ' CRITICAL FIX: Ensure CharacterColors arrays are properly sized for all inserted lines
-                    ' This prevents display issues while waiting for async parse
-                    If pCharacterColors IsNot Nothing Then
-                        ' Ensure array is properly sized
-                        If pCharacterColors.Length < TextLines.Count Then
-                            ReDim Preserve pCharacterColors(TextLines.Count - 1)
-                        End If
-                        
-                        ' Initialize character colors for all affected lines with default color
-                        Dim lDefaultColor As String = GetDefaultForegroundColor()
-                        For lineIdx As Integer = lStartLine To Math.Min(lEndLine, TextLines.Count - 1)
-                            Dim lLineText As String = TextLines(lineIdx)
-                            Dim lLineLength As Integer = lLineText.Length
-                            
-                            If lLineLength > 0 Then
-                                ' Ensure this line has a properly sized color array
-                                If pCharacterColors(lineIdx) Is Nothing OrElse pCharacterColors(lineIdx).Length <> lLineLength Then
-                                    ReDim pCharacterColors(lineIdx)(lLineLength - 1)
-                                End If
-                                
-                                ' Set all characters to default color initially
-                                For charIdx As Integer = 0 To lLineLength - 1
-                                    pCharacterColors(lineIdx)(charIdx) = New CharacterColorInfo(lDefaultColor)
-                                Next
-                            Else
-                                pCharacterColors(lineIdx) = New CharacterColorInfo() {}
-                            End If
-                        Next
-                        
-                        Console.WriteLine($"InsertMultiLineText: Initialized colors for lines {lStartLine} To {lEndLine}")
-                    End If
+'                     
+'                     ' CRITICAL FIX: Ensure CharacterColors arrays are properly sized for all inserted lines
+'                     ' This prevents display issues while waiting for async parse
+'                     If pCharacterColors IsNot Nothing Then
+'                         ' Ensure array is properly sized
+'                         If pCharacterColors.Length < TextLines.Count Then
+'                             ReDim Preserve pCharacterColors(TextLines.Count - 1)
+'                         End If
+'                         
+'                         ' Initialize character colors for all affected lines with default color
+'                         Dim lDefaultColor As String = GetDefaultForegroundColor()
+'                         For lineIdx As Integer = lStartLine To Math.Min(lEndLine, TextLines.Count - 1)
+'                             Dim lLineText As String = TextLines(lineIdx)
+'                             Dim lLineLength As Integer = lLineText.Length
+'                             
+'                             If lLineLength > 0 Then
+'                                 ' Ensure this line has a properly sized color array
+'                                 If pCharacterColors(lineIdx) Is Nothing OrElse pCharacterColors(lineIdx).Length <> lLineLength Then
+'                                     ReDim pCharacterColors(lineIdx)(lLineLength - 1)
+'                                 End If
+'                                 
+'                                 ' Set all characters to default color initially
+'                                 For charIdx As Integer = 0 To lLineLength - 1
+'                                     pCharacterColors(lineIdx)(charIdx) = New CharacterColorInfo(lDefaultColor)
+'                                 Next
+'                             Else
+'                                 pCharacterColors(lineIdx) = New CharacterColorInfo() {}
+'                             End If
+'                         Next
+'                         
+'                         Console.WriteLine($"InsertMultiLineText: Initialized colors for lines {lStartLine} To {lEndLine}")
+'                     End If
                     
                     ' Raise event for multiple lines changed
                     Dim lArgs As New TextLinesChangedEventArgs() With {
@@ -1315,37 +1258,37 @@ Namespace Models
                     LineMetadata(vLineIndex).UpdateHash(lNewLine)
                 End If
                 
-                ' Update CharacterColors if needed
-                If CharacterColors IsNot Nothing AndAlso vLineIndex < CharacterColors.Length Then
-                    Dim lNewLength As Integer = lNewLine.Length
-                    
-                    If lNewLength > 0 Then
-                        Dim lOldColors() As CharacterColorInfo = CharacterColors(vLineIndex)
-                        ReDim CharacterColors(vLineIndex)(lNewLength - 1)
-                        
-                        ' Copy colors before deletion point
-                        For i As Integer = 0 To Math.Min(vStartColumn - 1, lNewLength - 1)
-                            If i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
-                                CharacterColors(vLineIndex)(i) = lOldColors(i)
-                            Else
-                                CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
-                            End If
-                        Next
-                        
-                        ' Copy colors after deletion point
-                        Dim lDeletedCount As Integer = vEndColumn - vStartColumn
-                        For i As Integer = vStartColumn To lNewLength - 1
-                            Dim lOldIndex As Integer = i + lDeletedCount
-                            If lOldIndex < lOldColors.Length AndAlso lOldColors(lOldIndex) IsNot Nothing Then
-                                CharacterColors(vLineIndex)(i) = lOldColors(lOldIndex)
-                            Else
-                                CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
-                            End If
-                        Next
-                    Else
-                        CharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                    End If
-                End If
+'                 ' Update CharacterColors if needed
+'                 If CharacterColors IsNot Nothing AndAlso vLineIndex < CharacterColors.Length Then
+'                     Dim lNewLength As Integer = lNewLine.Length
+'                     
+'                     If lNewLength > 0 Then
+'                         Dim lOldColors() As CharacterColorInfo = CharacterColors(vLineIndex)
+'                         ReDim CharacterColors(vLineIndex)(lNewLength - 1)
+'                         
+'                         ' Copy colors before deletion point
+'                         For i As Integer = 0 To Math.Min(vStartColumn - 1, lNewLength - 1)
+'                             If i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
+'                                 CharacterColors(vLineIndex)(i) = lOldColors(i)
+'                             Else
+'                                 CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
+'                             End If
+'                         Next
+'                         
+'                         ' Copy colors after deletion point
+'                         Dim lDeletedCount As Integer = vEndColumn - vStartColumn
+'                         For i As Integer = vStartColumn To lNewLength - 1
+'                             Dim lOldIndex As Integer = i + lDeletedCount
+'                             If lOldIndex < lOldColors.Length AndAlso lOldColors(lOldIndex) IsNot Nothing Then
+'                                 CharacterColors(vLineIndex)(i) = lOldColors(lOldIndex)
+'                             Else
+'                                 CharacterColors(vLineIndex)(i) = New CharacterColorInfo()
+'                             End If
+'                         Next
+'                     Else
+'                         CharacterColors(vLineIndex) = New CharacterColorInfo() {}
+'                     End If
+'                 End If
                 
                 ' Mark as modified
                 IsModified = True
@@ -1409,9 +1352,6 @@ Namespace Models
                 ' Ensure LineMetadata is properly sized
                 EnsureLineMetadata()
                 
-                ' Ensure CharacterColors is properly sized
-                EnsureCharacterColors()
-                
                 Console.WriteLine($"EnsureDataStructures: {FileName} has {lLineCount} lines, metadata and colors initialized")
                 
             Catch ex As Exception
@@ -1420,10 +1360,14 @@ Namespace Models
         End Sub
 
         ''' <summary>
-        ''' Safely gets the LineMetadata for a specific line
+        ''' Gets the LineMetadata for a specific line
         ''' </summary>
         ''' <param name="vLineIndex">Zero-based line index</param>
         ''' <returns>LineMetadata for the line, or a new instance if not available</returns>
+        ''' <remarks>
+        ''' Ensures both LineMetadata and CharacterTokens arrays are properly sized
+        ''' if they need to be extended to accommodate the requested index
+        ''' </remarks>
         Public Function GetLineMetadata(vLineIndex As Integer) As LineMetadata
             Try
                 ' CRITICAL FIX: Check for Nothing BEFORE accessing Length
@@ -1440,11 +1384,30 @@ Namespace Models
                 ' Check array bounds
                 If vLineIndex >= pLineMetadata.Length Then
                     Console.WriteLine($"GetLineMetadata: Index {vLineIndex} out Of bounds (array length={pLineMetadata.Length})")
-                    ' Resize array to accommodate
+                    
+                    ' Resize both arrays to accommodate
                     ReDim Preserve pLineMetadata(vLineIndex)
+                    ReDim Preserve pCharacterTokens(vLineIndex)
+                    
                     For i As Integer = 0 To vLineIndex
                         If pLineMetadata(i) Is Nothing Then
                             pLineMetadata(i) = New LineMetadata()
+                        End If
+                        
+                        ' Initialize CharacterTokens for this line if needed
+                        If i < TextLines.Count Then
+                            Dim lLineLength As Integer = TextLines(i).Length
+                            If pCharacterTokens(i) Is Nothing OrElse pCharacterTokens(i).Length <> lLineLength Then
+                                If lLineLength > 0 Then
+                                    ReDim pCharacterTokens(i)(lLineLength - 1)
+                                    Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                                    For j As Integer = 0 To lLineLength - 1
+                                        pCharacterTokens(i)(j) = lDefaultToken
+                                    Next
+                                Else
+                                    pCharacterTokens(i) = New Byte() {}
+                                End If
+                            End If
                         End If
                     Next
                 End If
@@ -1473,53 +1436,28 @@ Namespace Models
         ''' <remarks>
         ''' This method is used when the user closes an editor without saving changes.
         ''' It reverts the SourceFileInfo to the last saved version on disk.
+        ''' Properly resets both LineMetadata and CharacterTokens arrays.
         ''' </remarks>
         Public Function ReloadFile() As Boolean
             Try
-                ' Cannot reload in demo mode
-                If IsDemoMode Then
-                    Console.WriteLine("ReloadFile: Cannot reload in demo mode")
-                    Return False
-                End If
-                
-                ' Check if file exists on disk
-                If String.IsNullOrEmpty(FilePath) Then
-                    Console.WriteLine("ReloadFile: No file path specified")
-                    Return False
-                End If
-                
+                ' Check if file exists
                 If Not File.Exists(FilePath) Then
-                    Console.WriteLine($"ReloadFile: File does Not exist: {FilePath}")
-                    ' Clear content for non-existent file
-                    Content = ""
-                    TextLines = New List(Of String) From {""}
-                    IsLoaded = False
-                    IsModified = False
-                    IsParsed = False
-                    NeedsParsing = False
-                    SyntaxTree = Nothing
-                    ParseResult = Nothing
-                    ParseErrors?.Clear()
-                    
-                    ' Clear metadata arrays
-                    pLineMetadata = Nothing
-                    pCharacterColors = Nothing
-                    
+                    Console.WriteLine($"ReloadFile: File not found - {FilePath}")
                     Return False
                 End If
                 
-                Console.WriteLine($"ReloadFile: Reloading {FileName} from disk")
-                
-                ' Store original loaded state
+                ' Store loaded state before reset
                 Dim lWasLoaded As Boolean = IsLoaded
                 
-                ' Read content from disk
-                Dim lDiskContent As String = File.ReadAllText(FilePath)
+                ' Read file content with encoding detection
+                Dim lBytes As Byte() = File.ReadAllBytes(FilePath)
+                Dim lEncoding As Encoding = DetectEncoding(lBytes)
+                pFileEncoding = lEncoding
                 
-                ' Update Content property
-                Content = lDiskContent
+                ' Convert to string using detected encoding
+                Content = lEncoding.GetString(lBytes)
                 
-                ' Split into lines and update TextLines
+                ' Split into lines
                 Dim lLines As String() = Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
                 TextLines = New List(Of String)(lLines)
                 
@@ -1541,10 +1479,21 @@ Namespace Models
                     Next
                 End If
                 
-                ' Reset CharacterColors array
-                If pCharacterColors IsNot Nothing OrElse lWasLoaded Then
-                    ReDim pCharacterColors(Math.Max(0, lLineCount - 1))
-                    ' Character colors will be populated by syntax highlighter
+                ' SYNC: Reset CharacterTokens array
+                If pCharacterTokens IsNot Nothing OrElse lWasLoaded Then
+                    ReDim pCharacterTokens(Math.Max(0, lLineCount - 1))
+                    For i As Integer = 0 To lLineCount - 1
+                        Dim lLineLength As Integer = TextLines(i).Length
+                        If lLineLength > 0 Then
+                            ReDim pCharacterTokens(i)(lLineLength - 1)
+                            Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                            For j As Integer = 0 To lLineLength - 1
+                                pCharacterTokens(i)(j) = lDefaultToken
+                            Next
+                        Else
+                            pCharacterTokens(i) = New Byte() {}
+                        End If
+                    Next
                 End If
                 
                 ' Reset file state flags
@@ -1605,57 +1554,78 @@ Namespace Models
         End Function
         
         ''' <summary>
-        ''' Ensures LineMetadata array is properly initialized and sized
+        ''' Ensures LineMetadata and CharacterTokens arrays are properly initialized and sized
         ''' </summary>
+        ''' <remarks>
+        ''' This method ensures both arrays are in sync with the TextLines count.
+        ''' It's called whenever the line count changes to maintain consistency.
+        ''' </remarks>
         Private Sub EnsureLineMetadata()
             Try
                 Dim lLineCount As Integer = TextLines.Count
                 
                 ' TextLines property ensures at least one line
                 If lLineCount = 0 Then 
-                    'Console.WriteLine("WARNING: EnsureLineMetadata - TextLines.Count Is 0, this shouldn't happen!")
                     Return
                 End If
-                'Console.WriteLine("EnsureLineMetadata called!")
-                ' Check if we need to do anything
+                
+                ' Check if we need to do anything for LineMetadata
                 If pLineMetadata IsNot Nothing AndAlso pLineMetadata.Length = lLineCount Then
-                    ' Already properly sized, just ensure no null entries
+                    ' LineMetadata is properly sized, just ensure no null entries
                     Dim lHasNulls As Boolean = False
-                    for i As Integer = 0 To lLineCount - 1
+                    For i As Integer = 0 To lLineCount - 1
                         If pLineMetadata(i) Is Nothing Then
                             pLineMetadata(i) = New LineMetadata()
                             pLineMetadata(i).UpdateHash(TextLines(i))
                             lHasNulls = True
                         End If
                     Next
-                    ' Only log if we actually did something
-                    If lHasNulls Then
-                        'Console.WriteLine($"EnsureLineMetadata: Initialized null entries")
-                    End If
-                    Return
-                End If
-                
-                ' Initialize or resize LineMetadata array
-                If pLineMetadata Is Nothing Then
-                    'Console.WriteLine($"EnsureLineMetadata: Initializing LineMetadata array with {lLineCount} lines")
-                    ReDim pLineMetadata(lLineCount - 1)
                 Else
-                   'Console.WriteLine($"EnsureLineMetadata: Resizing LineMetadata array from {pLineMetadata.Length} To {lLineCount} lines")
-                    ReDim Preserve pLineMetadata(lLineCount - 1)
+                    ' Initialize or resize LineMetadata array
+                    If pLineMetadata Is Nothing Then
+                        ReDim pLineMetadata(lLineCount - 1)
+                    Else
+                        ReDim Preserve pLineMetadata(lLineCount - 1)
+                    End If
+                    
+                    ' Initialize any null entries
+                    For i As Integer = 0 To lLineCount - 1
+                        If pLineMetadata(i) Is Nothing Then
+                            pLineMetadata(i) = New LineMetadata()
+                        End If
+                        ' Update hash for the line
+                        If i < TextLines.Count Then
+                            pLineMetadata(i).UpdateHash(TextLines(i))
+                        End If
+                    Next
                 End If
                 
-                ' Initialize any null entries
-                for i As Integer = 0 To lLineCount - 1
-                    If pLineMetadata(i) Is Nothing Then
-                        pLineMetadata(i) = New LineMetadata()
+                ' SYNC CharacterTokens array with LineMetadata
+                If pCharacterTokens Is Nothing OrElse pCharacterTokens.Length <> lLineCount Then
+                    If pCharacterTokens Is Nothing Then
+                        ReDim pCharacterTokens(lLineCount - 1)
+                    Else
+                        ReDim Preserve pCharacterTokens(lLineCount - 1)
                     End If
-                    ' Update hash for the line
-                    If i < TextLines.Count Then
-                        pLineMetadata(i).UpdateHash(TextLines(i))
+                End If
+                
+                ' Ensure each line in CharacterTokens has proper token array
+                For i As Integer = 0 To lLineCount - 1
+                    Dim lLineLength As Integer = If(TextLines(i)?.Length, 0)
+                    
+                    If pCharacterTokens(i) Is Nothing OrElse pCharacterTokens(i).Length <> lLineLength Then
+                        If lLineLength > 0 Then
+                            ReDim pCharacterTokens(i)(lLineLength - 1)
+                            ' Initialize with default normal token type
+                            Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                            For j As Integer = 0 To lLineLength - 1
+                                pCharacterTokens(i)(j) = lDefaultToken
+                            Next
+                        Else
+                            pCharacterTokens(i) = New Byte() {}
+                        End If
                     End If
                 Next
-                
-               ' Console.WriteLine($"EnsureLineMetadata: Completed initialization")
                 
             Catch ex As Exception
                 Console.WriteLine($"EnsureLineMetadata error: {ex.Message}")
@@ -1686,59 +1656,54 @@ Namespace Models
 
 
         
-        ''' <summary>
-        ''' Ensures character colors array is properly sized for the current line count
-        ''' </summary>
-        Public Sub EnsureCharacterColors()
-            Try
-                Dim lLineCount As Integer = If(TextLines?.Count, 0)
-                If lLineCount = 0 Then Return
-                
-                ' Resize character colors array if needed
-                If CharacterColors Is Nothing OrElse CharacterColors.Length <> lLineCount Then
-                    ReDim Preserve CharacterColors(lLineCount - 1)
-                End If
-                
-                ' Ensure each line has proper character color array
-                for i As Integer = 0 To lLineCount - 1
-                    Dim lLineLength As Integer = If(TextLines(i)?.Length, 0)
-                    
-                    If CharacterColors(i) Is Nothing OrElse CharacterColors(i).Length <> lLineLength Then
-                        If lLineLength > 0 Then
-                            ReDim CharacterColors(i)(lLineLength - 1)
-                            for j As Integer = 0 To lLineLength - 1
-                                CharacterColors(i)(j) = New CharacterColorInfo()
-                            Next
-                        Else
-                            CharacterColors(i) = New CharacterColorInfo() {}
-                        End If
-                    End If
-                Next
-                
-            Catch ex As Exception
-                Console.WriteLine($"EnsureCharacterColors error: {ex.Message}")
-            End Try
-        End Sub
+
         
         ''' <summary>
-        ''' Ensures the LineMetadata array is properly sized
+        ''' Ensures the LineMetadata and CharacterTokens arrays are properly sized
         ''' </summary>
         ''' <param name="vLineCount">The required number of lines</param>
+        ''' <remarks>
+        ''' Resizes both LineMetadata and CharacterTokens arrays to the specified count
+        ''' </remarks>
         Public Sub EnsureLineMetadataSize(vLineCount As Integer)
+            ' Resize LineMetadata
             If pLineMetadata Is Nothing OrElse pLineMetadata.Length <> vLineCount Then
                 ReDim Preserve pLineMetadata(vLineCount - 1)
                 
                 ' Initialize any new entries
-                for i As Integer = 0 To pLineMetadata.Length - 1
+                For i As Integer = 0 To pLineMetadata.Length - 1
                     If pLineMetadata(i) Is Nothing Then
                         pLineMetadata(i) = New LineMetadata()
                     End If
                 Next
             End If
-        End Sub   
+            
+            ' SYNC: Resize CharacterTokens
+            If pCharacterTokens Is Nothing OrElse pCharacterTokens.Length <> vLineCount Then
+                ReDim Preserve pCharacterTokens(vLineCount - 1)
+            End If
+            
+            ' Ensure each CharacterTokens line is properly sized
+            For i As Integer = 0 To vLineCount - 1
+                If i < TextLines.Count Then
+                    Dim lLineLength As Integer = TextLines(i).Length
+                    If pCharacterTokens(i) Is Nothing OrElse pCharacterTokens(i).Length <> lLineLength Then
+                        If lLineLength > 0 Then
+                            ReDim pCharacterTokens(i)(lLineLength - 1)
+                            Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                            For j As Integer = 0 To lLineLength - 1
+                                pCharacterTokens(i)(j) = lDefaultToken
+                            Next
+                        Else
+                            pCharacterTokens(i) = New Byte() {}
+                        End If
+                    End If
+                End If
+            Next
+        End Sub
 
         ''' <summary>
-        ''' Initializes LineMetadata and CharacterColors arrays with default values
+        ''' Initializes LineMetadata and CharacterTokens arrays with default values
         ''' </summary>
         ''' <remarks>
         ''' Called after loading content to prepare data structures for rendering.
@@ -1747,98 +1712,70 @@ Namespace Models
         ''' </remarks>
         Private Sub InitializeDataArrays()
             Try
-                Dim lLineCount As Integer = pTextLines.Count
+                Dim lLineCount As Integer = If(pTextLines?.Count, 0)
+                
+                ' Ensure we have at least one line
+                If lLineCount = 0 Then
+                    If pTextLines Is Nothing Then pTextLines = New List(Of String)()
+                    pTextLines.Add("")
+                    lLineCount = 1
+                End If
                 
                 ' Initialize LineMetadata array
-                ReDim pLineMetadata(Math.Max(0, lLineCount - 1))
-                for i As Integer = 0 To pLineMetadata.Length - 1
-                    pLineMetadata(i) = New LineMetadata()
-                    ' Initialize hash for each line
-                    pLineMetadata(i).UpdateHash(pTextLines(i))
-                    ' Set default metadata state
-                    pLineMetadata(i).ParseState = LineParseState.eUnparsed
-                Next
+                If pLineMetadata Is Nothing OrElse pLineMetadata.Length <> lLineCount Then
+                    ReDim pLineMetadata(lLineCount - 1)
+                End If
                 
-                ' Initialize CharacterColors array with default foreground color
-                ReDim pCharacterColors(Math.Max(0, lLineCount - 1))
-                
-                ' Get default foreground color from current theme if available
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                
-                for i As Integer = 0 To lLineCount - 1
-                    Dim lLineLength As Integer = If(pTextLines(i)?.Length, 0)
-                    
-                    If lLineLength > 0 Then
-                        ReDim pCharacterColors(i)(lLineLength - 1)
-                        for j As Integer = 0 To lLineLength - 1
-                            ' Initialize each character with default color
-                            pCharacterColors(i)(j) = New CharacterColorInfo(lDefaultColor)
-                        Next
-                    Else
-                        ' Empty line still needs an empty array
-                        pCharacterColors(i) = New CharacterColorInfo() {}
+                For i As Integer = 0 To lLineCount - 1
+                    If pLineMetadata(i) Is Nothing Then
+                        pLineMetadata(i) = New LineMetadata()
+                    End If
+                    ' Initialize hash
+                    If i < pTextLines.Count Then
+                        pLineMetadata(i).UpdateHash(pTextLines(i))
                     End If
                 Next
                 
-                'Console.WriteLine($"InitializeDataArrays: Initialized {lLineCount} lines")
-                'Console.WriteLine($"  Default color: {lDefaultColor}")
+                ' Initialize CharacterTokens array
+                If pCharacterTokens Is Nothing OrElse pCharacterTokens.Length <> lLineCount Then
+                    ReDim pCharacterTokens(lLineCount - 1)
+                End If
+                
+                ' Initialize token arrays for each line
+                For i As Integer = 0 To lLineCount - 1
+                    Dim lLineLength As Integer = If(pTextLines(i)?.Length, 0)
+                    
+                    If lLineLength > 0 Then
+                        ReDim pCharacterTokens(i)(lLineLength - 1)
+                        Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                        For j As Integer = 0 To lLineLength - 1
+                            pCharacterTokens(i)(j) = lDefaultToken
+                        Next
+                    Else
+                        pCharacterTokens(i) = New Byte() {}
+                    End If
+                Next
+                
+                Console.WriteLine($"InitializeDataArrays: Initialized {lLineCount} lines with metadata and tokens")
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeDataArrays error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
                 
-                ' Ensure we have at least minimal valid state
+                ' Ensure minimal state
+                If pTextLines Is Nothing Then pTextLines = New List(Of String)({"" })
                 If pLineMetadata Is Nothing Then
                     ReDim pLineMetadata(0)
                     pLineMetadata(0) = New LineMetadata()
                 End If
-                If pCharacterColors Is Nothing Then
-                    ReDim pCharacterColors(0)
-                    pCharacterColors(0) = New CharacterColorInfo() {}
+                If pCharacterTokens Is Nothing Then
+                    ReDim pCharacterTokens(0)
+                    pCharacterTokens(0) = New Byte() {}
                 End If
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Gets the default foreground color from the current theme
-        ''' </summary>
-        ''' <returns>Hex color string for default foreground</returns>
-        Public Function GetDefaultForegroundColor() As String
-            Try
-                If pProjectManager Is Nothing Then
-                    ' Try to get from ProjectManager's ThemeManager
-                    Dim lArgs As New ProjectManagerRequestEventArgs()
-                    RaiseEvent ProjectManagerRequested(Me, lArgs)
-                End If
-                
-                If Not pProjectManager Is Nothing Then
-                    ' Try to get ThemeManager through reflection
-                    Dim lThemeManagerProp = pProjectManager.GetType().GetProperty("ThemeManager")
-                    If lThemeManagerProp IsNot Nothing Then
-                        Dim lThemeManager = lThemeManagerProp.GetValue(pProjectManager)
-                        If lThemeManager IsNot Nothing Then
-                            Dim lCurrentTheme = lThemeManager.GetType().GetMethod("GetCurrentTheme").Invoke(lThemeManager, Nothing)
-                            If lCurrentTheme IsNot Nothing Then
-                                Dim lForegroundProp = lCurrentTheme.GetType().GetProperty("ForegroundColor")
-                                If lForegroundProp IsNot Nothing Then
-                                    Dim lColor As String = DirectCast(lForegroundProp.GetValue(lCurrentTheme), String)
-                                    If Not String.IsNullOrEmpty(lColor) Then
-                                        Return lColor
-                                    End If
-                                End If
-                            End If
-                        End If
-                    End If
-                End If
-                
-                ' Default to VS Code dark theme foreground
-                Return "#D4D4D4"
-                
-            Catch ex As Exception
-                Console.WriteLine($"GetDefaultForegroundColor error: {ex.Message}")
-                Return "#D4D4D4"
-            End Try
-        End Function
+
         
         ''' <summary>
         ''' Requests async parsing from ProjectManager
@@ -1876,62 +1813,7 @@ Namespace Models
             End Try
         End Sub      
   
-        ''' <summary>
-        ''' Updates character colors for a specific line based on tokens
-        ''' </summary>
-        ''' <param name="vLineIndex">Zero-based line index</param>
-        ''' <param name="vTokens">List of syntax tokens for the line</param>
-        ''' <param name="vColorMap">Map of token types to colors</param>
-        ''' <remarks>
-        ''' Called by ProjectParser during async parsing to update colors
-        ''' </remarks>
-        Public Sub UpdateCharacterColors(vLineIndex As Integer, vTokens As List(Of SyntaxToken), vColorMap As Dictionary(Of SyntaxTokenType, String))
-            Try
-                ' Validate line index
-                If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
-                If pCharacterColors Is Nothing OrElse vLineIndex >= pCharacterColors.Length Then Return
-                
-                Dim lLineText As String = pTextLines(vLineIndex)
-                Dim lLineLength As Integer = lLineText.Length
-                
-                ' Ensure character color array is properly sized
-                If pCharacterColors(vLineIndex) Is Nothing OrElse pCharacterColors(vLineIndex).Length <> lLineLength Then
-                    If lLineLength > 0 Then
-                        ReDim pCharacterColors(vLineIndex)(lLineLength - 1)
-                    Else
-                        pCharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                        Return
-                    End If
-                End If
-                
-                ' First, set all to default color
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                for i As Integer = 0 To lLineLength - 1
-                    pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
-                Next
-                
-                ' Apply colors based on tokens
-                If vTokens IsNot Nothing AndAlso vColorMap IsNot Nothing Then
-                    for each lToken in vTokens
-                        ' Get color for this token type
-                        Dim lColor As String = lDefaultColor
-                        If vColorMap.ContainsKey(lToken.TokenType) Then
-                            lColor = vColorMap(lToken.TokenType)
-                        End If
-                        
-                        ' Apply color to character range
-                        for i As Integer = lToken.StartColumn To Math.Min(lToken.EndColumn - 1, lLineLength - 1)
-                            If i >= 0 AndAlso i < pCharacterColors(vLineIndex).Length Then
-                                pCharacterColors(vLineIndex)(i) = New CharacterColorInfo(lColor)
-                            End If
-                        Next
-                    Next
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateCharacterColors error: {ex.Message}")
-            End Try
-        End Sub
+
         
         ''' <summary>
         ''' Notifies listeners that rendering data has changed
@@ -1959,29 +1841,43 @@ Namespace Models
         ''' </summary>
         ''' <param name="vParseResult">The parse result containing new metadata</param>
         ''' <remarks>
-        ''' Called by ProjectManager after parsing to update the metadata
+        ''' Called by ProjectManager after parsing to update the metadata.
+        ''' Also ensures CharacterTokens array stays in sync.
         ''' </remarks>
         Public Sub UpdateLineMetadata(vParseResult As ParseResult)
             Try
                 If vParseResult Is Nothing OrElse vParseResult.LineMetadata Is Nothing Then
-                    'Console.WriteLine("UpdateLineMetadata: No parse result Or metadata")
                     Return
                 End If
                 
                 Dim lNewCount As Integer = vParseResult.LineMetadata.Length
                 Dim lCurrentCount As Integer = If(pLineMetadata?.Length, 0)
                 
-                ' Resize if needed
+                ' Resize LineMetadata if needed
                 If lCurrentCount <> lNewCount Then
                     ReDim pLineMetadata(Math.Max(0, lNewCount - 1))
                 End If
                 
                 ' Copy the metadata
-                for i As Integer = 0 To lNewCount - 1
+                For i As Integer = 0 To lNewCount - 1
                     pLineMetadata(i) = vParseResult.LineMetadata(i)
                 Next
                 
-               ' Console.WriteLine($"UpdateLineMetadata: Updated {lNewCount} lines Of metadata")
+                ' SYNC: Ensure CharacterTokens array matches
+                If pCharacterTokens Is Nothing OrElse pCharacterTokens.Length <> lNewCount Then
+                    ReDim Preserve pCharacterTokens(Math.Max(0, lNewCount - 1))
+                End If
+                
+                ' Update CharacterTokens for each line that has syntax tokens
+                For i As Integer = 0 To lNewCount - 1
+                    If pLineMetadata(i)?.SyntaxTokens IsNot Nothing AndAlso pLineMetadata(i).SyntaxTokens.Count > 0 Then
+                        ' Update tokens for this line
+                        UpdateCharacterTokens(i, pLineMetadata(i).SyntaxTokens)
+                    Else
+                        ' Apply default tokens
+                        ApplyDefaultTokens(i)
+                    End If
+                Next
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateLineMetadata error: {ex.Message}")
@@ -2315,50 +2211,7 @@ Namespace Models
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Initializes character colors with default color for a range of lines
-        ''' </summary>
-        ''' <param name="vStartLine">Start line index (inclusive)</param>
-        ''' <param name="vEndLine">End line index (inclusive)</param>
-        ''' <remarks>
-        ''' This ensures newly inserted or modified text is visible immediately
-        ''' while waiting for async parsing to apply proper syntax highlighting
-        ''' </remarks>
-        Private Sub InitializeDefaultColorsForRange(vStartLine As Integer, vEndLine As Integer)
-            Try
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                
-                for i As Integer = vStartLine To Math.Min(vEndLine, TextLines.Count - 1)
-                    If i < 0 OrElse i >= TextLines.Count Then Continue for
-                    
-                    Dim lLineLength As Integer = TextLines(i).Length
-                    
-                    ' Ensure CharacterColors array exists and is properly sized
-                    If CharacterColors Is Nothing Then
-                        ReDim CharacterColors(TextLines.Count - 1)
-                    ElseIf i >= CharacterColors.Length Then
-                        ReDim Preserve CharacterColors(TextLines.Count - 1)
-                    End If
-                    
-                    ' Initialize or resize the line's color array
-                    If lLineLength > 0 Then
-                        If CharacterColors(i) Is Nothing OrElse CharacterColors(i).Length <> lLineLength Then
-                            ReDim CharacterColors(i)(lLineLength - 1)
-                        End If
-                        
-                        ' Set all characters to default color
-                        for j As Integer = 0 To lLineLength - 1
-                            CharacterColors(i)(j) = New CharacterColorInfo(lDefaultColor)
-                        Next
-                    Else
-                        CharacterColors(i) = New CharacterColorInfo() {}
-                    End If
-                Next
-                
-            Catch ex As Exception
-                Console.WriteLine($"InitializeDefaultColorsForRange error: {ex.Message}")
-            End Try
-        End Sub
+
 
         ''' <summary>
         ''' Forces immediate synchronous parsing and coloring for specified lines
@@ -2380,8 +2233,6 @@ Namespace Models
                 
                 If vStartLine > vEndLine Then Return
                 
-                ' Ensure arrays are properly sized
-                EnsureCharacterColors()
                 EnsureLineMetadata()
                 
                 ' Parse and color each line in the range
@@ -2396,9 +2247,6 @@ Namespace Models
                         If lTokens IsNot Nothing AndAlso lTokens.Count > 0 Then
                             lTokenCount += lTokens.Count
                             
-                            ' Apply colors directly to this line
-                            ApplyLineColors(lineIdx, lTokens)
-                            
                             ' Update LineMetadata with tokens
                             If LineMetadata IsNot Nothing AndAlso lineIdx < LineMetadata.Length Then
                                 If LineMetadata(lineIdx) Is Nothing Then
@@ -2408,15 +2256,10 @@ Namespace Models
                                 LineMetadata(lineIdx).UpdateHash(lLineText)
                                 LineMetadata(lineIdx).ParseState = LineParseState.eParsed
                             End If
-                        Else
-                            ' No tokens - ensure line has default colors
-                            ApplyDefaultColors(lineIdx)
                         End If
                         
                     Catch ex As Exception
                         Console.WriteLine($"ForceImmediateParsing line {lineIdx} error: {ex.Message}")
-                        ' Apply default colors on error
-                        ApplyDefaultColors(lineIdx)
                     End Try
                 Next
                 
@@ -2431,41 +2274,7 @@ Namespace Models
         End Sub
         
 
-        ''' <summary>
-        ''' Applies default foreground color to an entire line
-        ''' </summary>
-        ''' <param name="vLineIndex">Zero-based line index</param>
-        Private Sub ApplyDefaultColors(vLineIndex As Integer)
-            Try
-                If vLineIndex < 0 OrElse vLineIndex >= TextLines.Count Then Return
-                
-                Dim lLineText As String = TextLines(vLineIndex)
-                Dim lLineLength As Integer = lLineText.Length
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                
-                ' Ensure CharacterColors for this line
-                If vLineIndex >= CharacterColors.Length Then
-                    ReDim Preserve CharacterColors(TextLines.Count - 1)
-                End If
-                
-                If CharacterColors(vLineIndex) Is Nothing OrElse CharacterColors(vLineIndex).Length <> lLineLength Then
-                    If lLineLength > 0 Then
-                        ReDim CharacterColors(vLineIndex)(lLineLength - 1)
-                    Else
-                        CharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                        Return
-                    End If
-                End If
-                
-                ' Set all characters to default color
-                for i As Integer = 0 To lLineLength - 1
-                    CharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
-                Next
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyDefaultColors error: {ex.Message}")
-            End Try
-        End Sub
+
 
         ''' <summary>
         ''' Parses a single line of text and returns syntax tokens with colors
@@ -2499,49 +2308,6 @@ Namespace Models
                     Return lTokens
                 End If
                 
-                ' Get the current theme for colors
-                Dim lTheme As EditorTheme = Nothing
-                If pProjectManager.ThemeManager IsNot Nothing Then
-                    lTheme = pProjectManager.ThemeManager.GetCurrentThemeObject()
-                End If
-                
-                If lTheme Is Nothing Then
-                    lTheme = New EditorTheme("Default")
-                End If
-                
-                ' Create color map from theme
-                Dim lColorMap As New Dictionary(Of SyntaxTokenType, String)
-                If lTheme.SyntaxColors IsNot Nothing Then
-                    for each kvp in lTheme.SyntaxColors
-                        Select Case kvp.Key
-                            Case SyntaxColorSet.Tags.eKeyword
-                                lColorMap(SyntaxTokenType.eKeyword) = kvp.Value
-                            Case SyntaxColorSet.Tags.eString
-                                lColorMap(SyntaxTokenType.eString) = kvp.Value
-                            Case SyntaxColorSet.Tags.eComment
-                                lColorMap(SyntaxTokenType.eComment) = kvp.Value
-                            Case SyntaxColorSet.Tags.eNumber
-                                lColorMap(SyntaxTokenType.eNumber) = kvp.Value
-                            Case SyntaxColorSet.Tags.eType
-                                lColorMap(SyntaxTokenType.eType) = kvp.Value
-                            Case SyntaxColorSet.Tags.eOperator
-                                lColorMap(SyntaxTokenType.eOperator) = kvp.Value
-                            Case SyntaxColorSet.Tags.eIdentifier
-                                lColorMap(SyntaxTokenType.eIdentifier) = kvp.Value
-                        End Select
-                    Next
-                End If
-                
-                ' Add defaults for any missing colors
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eKeyword) Then lColorMap(SyntaxTokenType.eKeyword) = "#569CD6"
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eString) Then lColorMap(SyntaxTokenType.eString) = "#CE9178"
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eComment) Then lColorMap(SyntaxTokenType.eComment) = "#6A9955"
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eNumber) Then lColorMap(SyntaxTokenType.eNumber) = "#B5CEA8"
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eType) Then lColorMap(SyntaxTokenType.eType) = "#4EC9B0"
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eIdentifier) Then lColorMap(SyntaxTokenType.eIdentifier) = lTheme.ForegroundColor
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eOperator) Then lColorMap(SyntaxTokenType.eOperator) = lTheme.ForegroundColor
-                If Not lColorMap.ContainsKey(SyntaxTokenType.eNormal) Then lColorMap(SyntaxTokenType.eNormal) = lTheme.ForegroundColor
-                
                 ' Use VBTokenizer to tokenize the line
                 Dim lTokenizer As New Syntax.VBTokenizer()
                 Dim lRawTokens As List(Of Syntax.Token) = lTokenizer.TokenizeLine(vLineText)
@@ -2549,17 +2315,13 @@ Namespace Models
                 ' Convert Token to SyntaxToken with colors
                 for each lRawToken in lRawTokens
                     ' Map token type
-                    Dim lSyntaxType As SyntaxTokenType = MapTokenTypeToSyntaxType(lRawToken.Type)
-                    
-                    ' Get color for this token type
-                    Dim lColor As String = If(lColorMap.ContainsKey(lSyntaxType), lColorMap(lSyntaxType), lTheme.ForegroundColor)
-                    
+                    Dim lSyntaxType As SyntaxTokenType = MapTokenTypeToSyntaxType(lRawToken.Type) 
+                   
                     ' Create SyntaxToken with color
                     Dim lSyntaxToken As New SyntaxToken(
                         lRawToken.StartColumn,
                         lRawToken.EndColumn - lRawToken.StartColumn + 1,
-                        lSyntaxType,
-                        lColor
+                        lSyntaxType
                     )
                     
                     lTokens.Add(lSyntaxToken)
@@ -2574,171 +2336,161 @@ Namespace Models
         End Function
         
         ''' <summary>
-        ''' Maps a Token type to a SyntaxToken type
+        ''' Maps a TokenType to a SyntaxTokenType
         ''' </summary>
-        ''' <param name="vTokenType">The TokenType from the tokenizer</param>
-        ''' <returns>The corresponding SyntaxTokenType</returns>
-        Private Function MapTokenTypeToSyntaxType(vTokenType As Syntax.TokenType) As SyntaxTokenType
+        ''' <param name="vTokenType">The token type to map</param>
+        ''' <returns>The corresponding syntax token type</returns>
+        Private Function MapTokenTypeToSyntaxType(vTokenType As TokenType) As SyntaxTokenType
             Select Case vTokenType
-                Case Syntax.TokenType.eKeyword
+                Case TokenType.eKeyword
                     Return SyntaxTokenType.eKeyword
-                Case Syntax.TokenType.eIdentifier
+                Case TokenType.eIdentifier
                     Return SyntaxTokenType.eIdentifier
-                Case Syntax.TokenType.eStringLiteral
+                Case TokenType.eStringLiteral
                     Return SyntaxTokenType.eString
-                Case Syntax.TokenType.eNumber
+                Case TokenType.eNumber
                     Return SyntaxTokenType.eNumber
-                Case Syntax.TokenType.eComment
+                Case TokenType.eComment
                     Return SyntaxTokenType.eComment
-                Case Syntax.TokenType.eOperator
+                Case TokenType.eOperator
                     Return SyntaxTokenType.eOperator
-                Case Syntax.TokenType.eType
+                Case TokenType.eType
                     Return SyntaxTokenType.eType
                 Case Else
                     Return SyntaxTokenType.eNormal
             End Select
         End Function
 
-        
-        
-        ' Add: SimpleIDE.Models.SourceFileInfo.ApplyLineColors
-        ' To: SourceFileInfo.vb
-        
         ''' <summary>
-        ''' Applies syntax coloring to a single line based on parsed tokens
+        ''' Ensures character tokens array is properly sized for the current line count
         ''' </summary>
-        ''' <param name="vLineIndex">Zero-based index of the line to color</param>
-        ''' <param name="vTokens">List of syntax tokens with type information</param>
+        Public Sub EnsureCharacterTokens()
+            Try
+                Dim lLineCount As Integer = If(TextLines?.Count, 0)
+                If lLineCount = 0 Then Return
+                
+                ' Resize character tokens array if needed
+                If pCharacterTokens Is Nothing OrElse pCharacterTokens.Length <> lLineCount Then
+                    ReDim Preserve pCharacterTokens(lLineCount - 1)
+                End If
+                
+                ' Ensure each line has proper token array
+                For i As Integer = 0 To lLineCount - 1
+                    Dim lLineLength As Integer = If(TextLines(i)?.Length, 0)
+                    
+                    If pCharacterTokens(i) Is Nothing OrElse pCharacterTokens(i).Length <> lLineLength Then
+                        If lLineLength > 0 Then
+                            ReDim pCharacterTokens(i)(lLineLength - 1)
+                            ' Initialize with default normal token type
+                            For j As Integer = 0 To lLineLength - 1
+                                pCharacterTokens(i)(j) = CharacterToken.CreateDefault()
+                            Next
+                        Else
+                            pCharacterTokens(i) = New Byte() {}
+                        End If
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"EnsureCharacterTokens error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Updates character tokens for a single line based on syntax tokens
+        ''' </summary>
+        ''' <param name="vLineIndex">Zero-based line index</param>
+        ''' <param name="vTokens">List of syntax tokens for the line</param>
         ''' <remarks>
-        ''' This method is used during ForceImmediateParsing to apply immediate syntax highlighting.
-        ''' It retrieves colors from the current theme and applies them to the CharacterColors array.
+        ''' This stores only token types, not actual color strings. The editor will
+        ''' look up colors at render time.
         ''' </remarks>
-        Private Sub ApplyLineColors(vLineIndex As Integer, vTokens As List(Of SyntaxToken))
+        Public Sub UpdateCharacterTokens(vLineIndex As Integer, vTokens As List(Of SyntaxToken))
             Try
                 ' Validate line index
-                If vLineIndex < 0 OrElse vLineIndex >= TextLines.Count Then Return
-                If CharacterColors Is Nothing OrElse vLineIndex >= CharacterColors.Length Then Return
+                If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
+                If pCharacterTokens Is Nothing OrElse vLineIndex >= pCharacterTokens.Length Then Return
                 
-                Dim lLineText As String = TextLines(vLineIndex)
+                Dim lLineText As String = pTextLines(vLineIndex)
                 Dim lLineLength As Integer = lLineText.Length
                 
-                ' Ensure CharacterColors array for this line is properly sized
-                If CharacterColors(vLineIndex) Is Nothing OrElse CharacterColors(vLineIndex).Length <> lLineLength Then
+                ' Ensure character token array is properly sized
+                If pCharacterTokens(vLineIndex) Is Nothing OrElse pCharacterTokens(vLineIndex).Length <> lLineLength Then
                     If lLineLength > 0 Then
-                        ReDim CharacterColors(vLineIndex)(lLineLength - 1)
+                        ReDim pCharacterTokens(vLineIndex)(lLineLength - 1)
                     Else
-                        CharacterColors(vLineIndex) = New CharacterColorInfo() {}
+                        pCharacterTokens(vLineIndex) = New Byte() {}
                         Return
                     End If
                 End If
                 
-                ' Get default color from theme
-                Dim lDefaultColor As String = GetDefaultForegroundColor()
-                
-                ' First, initialize all characters with default color
+                ' First, set all to default token type
+                Dim lDefaultToken As Byte = CharacterToken.EncodeType(SyntaxTokenType.eNormal)
                 For i As Integer = 0 To lLineLength - 1
-                    CharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
+                    pCharacterTokens(vLineIndex)(i) = lDefaultToken
                 Next
                 
-                ' Get theme colors for token types
-                Dim lColorMap As Dictionary(Of SyntaxTokenType, String) = Nothing
-                
-                ' Try to get color map from theme
-                If pProjectManager IsNot Nothing AndAlso pProjectManager.ThemeManager IsNot Nothing Then
-                    Dim lTheme As EditorTheme = pProjectManager.ThemeManager.GetCurrentThemeObject()
-                    If lTheme IsNot Nothing Then
-                        lColorMap = New Dictionary(Of SyntaxTokenType, String)()
-                        
-                        ' Build color map from theme's SyntaxColors
-                        If lTheme.SyntaxColors IsNot Nothing Then
-                            ' SyntaxColors is Dictionary(Of SyntaxColorSet.Tags, String)
-                            ' Map SyntaxColorSet.Tags to SyntaxTokenType
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eKeyword) Then
-                                lColorMap(SyntaxTokenType.eKeyword) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eString) Then
-                                lColorMap(SyntaxTokenType.eString) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eString)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eComment) Then
-                                lColorMap(SyntaxTokenType.eComment) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eComment)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eNumber) Then
-                                lColorMap(SyntaxTokenType.eNumber) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eNumber)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eType) Then
-                                lColorMap(SyntaxTokenType.eType) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eType)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eIdentifier) Then
-                                lColorMap(SyntaxTokenType.eIdentifier) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eOperator) Then
-                                lColorMap(SyntaxTokenType.eOperator) = lTheme.SyntaxColors(SyntaxColorSet.Tags.eOperator)
-                            End If
-                            
-                            If lTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.ePreprocessor) Then
-                                lColorMap(SyntaxTokenType.ePreprocessor) = lTheme.SyntaxColors(SyntaxColorSet.Tags.ePreprocessor)
-                            End If
-                        End If
-                        
-                        ' Add any missing colors with fallback defaults
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eKeyword) Then lColorMap(SyntaxTokenType.eKeyword) = "#569CD6"
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eString) Then lColorMap(SyntaxTokenType.eString) = "#CE9178"
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eComment) Then lColorMap(SyntaxTokenType.eComment) = "#6A9955"
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eNumber) Then lColorMap(SyntaxTokenType.eNumber) = "#B5CEA8"
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eType) Then lColorMap(SyntaxTokenType.eType) = "#4EC9B0"
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eIdentifier) Then lColorMap(SyntaxTokenType.eIdentifier) = lDefaultColor
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eOperator) Then lColorMap(SyntaxTokenType.eOperator) = lDefaultColor
-                        If Not lColorMap.ContainsKey(SyntaxTokenType.eNormal) Then lColorMap(SyntaxTokenType.eNormal) = lDefaultColor
-                    End If
-                End If
-                
-                ' If no color map available, create default one
-                If lColorMap Is Nothing Then
-                    lColorMap = New Dictionary(Of SyntaxTokenType, String)()
-                    lColorMap(SyntaxTokenType.eKeyword) = "#569CD6"
-                    lColorMap(SyntaxTokenType.eString) = "#CE9178"
-                    lColorMap(SyntaxTokenType.eComment) = "#6A9955"
-                    lColorMap(SyntaxTokenType.eNumber) = "#B5CEA8"
-                    lColorMap(SyntaxTokenType.eType) = "#4EC9B0"
-                    lColorMap(SyntaxTokenType.eIdentifier) = lDefaultColor
-                    lColorMap(SyntaxTokenType.eOperator) = lDefaultColor
-                    lColorMap(SyntaxTokenType.eNormal) = lDefaultColor
-                End If
-                
-                ' Apply colors based on tokens
+                ' Apply token types from syntax tokens
                 If vTokens IsNot Nothing Then
                     For Each lToken In vTokens
-                        ' Get color for this token type
-                        Dim lColor As String = lDefaultColor
-                        If lColorMap.ContainsKey(lToken.TokenType) Then
-                            lColor = lColorMap(lToken.TokenType)
-                        End If
-                        
-                        ' Apply color to the character range
-                        ' Ensure bounds are valid
+                        ' Ensure we don't go out of bounds
                         Dim lStartCol As Integer = Math.Max(0, lToken.StartColumn)
                         Dim lEndCol As Integer = Math.Min(lLineLength - 1, lToken.StartColumn + lToken.Length - 1)
                         
+                        ' Encode the token with its style information
+                        Dim lEncodedToken As Byte = CharacterToken.Encode(
+                            lToken.TokenType, 
+                            lToken.IsBold, 
+                            lToken.IsItalic)
+                        
+                        ' Apply to character range
                         For k As Integer = lStartCol To lEndCol
-                            If k >= 0 AndAlso k < CharacterColors(vLineIndex).Length Then
-                                CharacterColors(vLineIndex)(k) = New CharacterColorInfo(lColor)
+                            If k >= 0 AndAlso k < pCharacterTokens(vLineIndex).Length Then
+                                pCharacterTokens(vLineIndex)(k) = lEncodedToken
                             End If
                         Next
                     Next
                 End If
                 
-                Console.WriteLine($"ApplyLineColors: Applied {If(vTokens?.Count, 0)} tokens to line {vLineIndex}")
+            Catch ex As Exception
+                Console.WriteLine($"UpdateCharacterTokens error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Applies default token types to a line (used when no syntax tokens available)
+        ''' </summary>
+        ''' <param name="vLineIndex">Zero-based line index</param>
+        Private Sub ApplyDefaultTokens(vLineIndex As Integer)
+            Try
+                ' Validate line index
+                If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
+                
+                Dim lLineText As String = pTextLines(vLineIndex)
+                Dim lLineLength As Integer = lLineText.Length
+                Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                
+                ' Ensure CharacterTokens for this line
+                If vLineIndex >= pCharacterTokens.Length Then
+                    ReDim Preserve pCharacterTokens(pTextLines.Count - 1)
+                End If
+                
+                If pCharacterTokens(vLineIndex) Is Nothing OrElse pCharacterTokens(vLineIndex).Length <> lLineLength Then
+                    If lLineLength > 0 Then
+                        ReDim pCharacterTokens(vLineIndex)(lLineLength - 1)
+                    Else
+                        pCharacterTokens(vLineIndex) = New Byte() {}
+                        Return
+                    End If
+                End If
+                
+                ' Set all characters to default token
+                For i As Integer = 0 To lLineLength - 1
+                    pCharacterTokens(vLineIndex)(i) = lDefaultToken
+                Next
                 
             Catch ex As Exception
-                Console.WriteLine($"ApplyLineColors error: {ex.Message}")
-                ' On error, apply default colors as fallback
-                ApplyDefaultColors(vLineIndex)
+                Console.WriteLine($"ApplyDefaultTokens error: {ex.Message}")
             End Try
         End Sub
     

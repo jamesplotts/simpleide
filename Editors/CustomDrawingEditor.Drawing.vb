@@ -40,24 +40,31 @@ Namespace Editors
 
 
         ''' <summary>
-        ''' Main content drawing method simplified to use CharacterColors array
+        ''' Main content drawing method simplified to use CharacterTokens array
         ''' </summary>
+        ''' <param name="vContext">The Cairo drawing context</param>
         ''' <remarks>
-        ''' This version just reads from the CharacterColors array in SourceFileInfo
+        ''' This version reads from the CharacterTokens array in SourceFileInfo
         ''' and draws each character with its pre-computed color. No parsing happens here.
+        ''' FIXED: Space characters now properly show selection background.
         ''' </remarks>
         Private Sub DrawContent(vContext As Cairo.Context)
             Try
                 Dim lTopOffset As Integer = -3
                 Dim lBarLengthHalf As Integer = 4
-        
+                
                 ' Create a layout for text rendering
                 Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
                 lLayout.FontDescription = pFontDescription
                 
+                ' Ensure color cache is initialized
+                If pThemeColorCache Is Nothing OrElse pThemeColorCache.Length = 0 Then
+                    InitializeThemeColorCache()
+                End If
+                
                 ' Get current theme
                 Dim lCurrentTheme As EditorTheme = GetActiveTheme()
-        
+                
                 ' Get font metrics
                 Dim lAscent As Integer = 0
                 If pFontMetrics IsNot Nothing Then
@@ -79,7 +86,6 @@ Namespace Editors
                 Dim lLastLine As Integer = Math.Min(lFirstLine + pTotalVisibleLines, pLineCount - 1)
                 Dim lFirstColumn As Integer = pFirstVisibleColumn
                 Dim lLastColumn As Integer = lFirstColumn + pTotalVisibleColumns
-
                 
                 ' Normalize selection bounds once
                 Dim lSelStartLine As Integer = pSelectionStartLine
@@ -101,8 +107,8 @@ Namespace Editors
                     lCurrentLinePattern.Dispose()
                 End If
                 
-                ' Get default foreground color
-                Dim lDefaultFgColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eForegroundColor)
+                ' Get default foreground color from cache
+                Dim lDefaultFgColor As Cairo.Color = GetCachedTokenColor(SyntaxTokenType.eNormal)
                 
                 ' Draw text and selections character by character
                 For lLineIndex As Integer = lFirstLine To lLastLine
@@ -113,58 +119,26 @@ Namespace Editors
                     If pSourceFileInfo IsNot Nothing AndAlso lLineIndex < pSourceFileInfo.TextLines.Count Then
                         lLine = pSourceFileInfo.TextLines(lLineIndex)
                     End If
-
-                    ' SAFETY CHECK: Ensure character colors are initialized for this line
-                    InitializeCharacterColorsIfNeeded(lLineIndex)
                     
-                    ' Get character colors for this line
-                    Dim lCharColors() As CharacterColorInfo = Nothing
+                    ' Get character tokens for this line (using byte array instead of CharacterColorInfo)
+                    Dim lCharTokens() As Byte = Nothing
                     If pSourceFileInfo IsNot Nothing AndAlso 
-                       pSourceFileInfo.CharacterColors IsNot Nothing AndAlso 
-                       lLineIndex < pSourceFileInfo.CharacterColors.Length Then
-                        lCharColors = pSourceFileInfo.CharacterColors(lLineIndex)
+                       pSourceFileInfo.CharacterTokens IsNot Nothing AndAlso 
+                       lLineIndex < pSourceFileInfo.CharacterTokens.Length Then
+                        lCharTokens = pSourceFileInfo.CharacterTokens(lLineIndex)
                     End If
                     
                     ' Calculate Y position for this line
                     Dim lLineTop As Integer = (lLineIndex - lFirstLine - 1) * pLineHeight + pTopPadding + lTopOffset + 3
                     Dim lY As Integer = lLineTop + lAscent
                     
-                    ' Calculate selection bounds for this line
-                    If pSelectionActive Then
-                        ' Calculate selection range for this line
-                        lSelStartLine = Math.Min(pSelectionStartLine, pSelectionEndLine)
-                        lSelEndLine = Math.Max(pSelectionStartLine, pSelectionEndLine)
-                        
-                        If lLineIndex >= lSelStartLine AndAlso lLineIndex <= lSelEndLine Then
-                            If lLineIndex = lSelStartLine AndAlso lLineIndex = lSelEndLine Then
-                                ' Single line selection
-                                lSelStartCol = Math.Min(pSelectionStartColumn, pSelectionEndColumn)
-                                lSelEndCol = Math.Max(pSelectionStartColumn, pSelectionEndColumn)
-                            ElseIf lLineIndex = lSelStartLine Then
-                                ' First line of multi-line selection
-                                lSelStartCol = If(pSelectionStartLine < pSelectionEndLine, pSelectionStartColumn, pSelectionEndColumn)
-                                lSelEndCol = lLine.Length
-                            ElseIf lLineIndex = lSelEndLine Then
-                                ' Last line of multi-line selection
-                                lSelStartCol = 0
-                                lSelEndCol = If(pSelectionStartLine < pSelectionEndLine, pSelectionEndColumn, pSelectionStartColumn)
-                            Else
-                                ' Middle line - entire line is selected
-                                lSelStartCol = 0
-                                lSelEndCol = lLine.Length
-                            End If
-                        End If
-                    End If
-                    
-                    ' Draw each visible character
-                    for lColIndex As Integer = lFirstColumn To Math.Min(lLastColumn, lLine.Length - 1)
-                        If lColIndex >= lLine.Length Then Exit for
+                    ' Draw each visible character in the line
+                    For lColIndex As Integer = lFirstColumn To Math.Min(lLine.Length - 1, lLastColumn)
+                        If lColIndex >= lLine.Length Then Exit For
                         
                         Dim lChar As String = lLine(lColIndex).ToString()
                         
-                        ' FIXED: Calculate X position based on visible column position
-                        ' The character at lFirstColumn should be drawn at pLeftPadding
-                        ' Each subsequent character is offset by pCharWidth from there
+                        ' Calculate X position for this character
                         Dim lVisibleColumnIndex As Integer = lColIndex - lFirstColumn
                         Dim lX As Integer = pLeftPadding + (lVisibleColumnIndex * pCharWidth)
                         
@@ -181,8 +155,8 @@ Namespace Editors
                                 lInSelection = (lColIndex < lSelEndCol)
                             End If
                         End If
-
-                        ' Draw selection background if needed
+                        
+                        ' Draw selection background if needed (including for spaces!)
                         If lInSelection Then
                             Dim lSelColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eSelectionColor)
                             Dim lSelPattern As New Cairo.SolidPattern(lSelColor.R, lSelColor.G, lSelColor.B)
@@ -192,24 +166,45 @@ Namespace Editors
                             lSelPattern.Dispose()
                         End If
                         
-                        ' Get text color from CharacterColors array or use default
-                        Dim lTextColor As Cairo.Color = lDefaultFgColor
-                        If lCharColors IsNot Nothing AndAlso 
-                           lColIndex < lCharColors.Length AndAlso
-                           lCharColors(lColIndex) IsNot Nothing Then
-                            ' Use pre-computed color from array
-                            lTextColor = lCharColors(lColIndex).CairoColor
+                        ' FIXED: Don't skip spaces - we still need to draw them (even if invisible)
+                        ' to maintain proper selection background
+                        If lChar <> " " Then
+                            ' Get text color from token byte array using cached colors
+                            Dim lTextColor As Cairo.Color = lDefaultFgColor
+                            Dim lUseBold As Boolean = False
+                            Dim lUseItalic As Boolean = False
+                            
+                            If lCharTokens IsNot Nothing AndAlso 
+                               lColIndex < lCharTokens.Length Then
+                                ' Decode the token byte
+                                Dim lTokenByte As Byte = lCharTokens(lColIndex)
+                                Dim lTokenType As SyntaxTokenType = CharacterToken.GetTokenType(lTokenByte)
+                                
+                                ' Get cached color for this token type (FAST array lookup!)
+                                lTextColor = GetCachedTokenColor(lTokenType)
+                                
+                                ' Check for style flags
+                                lUseBold = CharacterToken.IsBold(lTokenByte)
+                                lUseItalic = CharacterToken.IsItalic(lTokenByte)
+                            End If
+                            
+                            ' Set font style if needed
+                            If lUseBold OrElse lUseItalic Then
+                                lLayout.FontDescription = GetCachedFont(lUseBold, lUseItalic)
+                            ElseIf lLayout.FontDescription IsNot pFontDescription Then
+                                lLayout.FontDescription = pFontDescription
+                            End If
+                            
+                            ' Set the text color and draw the character
+                            Dim lTextPattern As New Cairo.SolidPattern(lTextColor.R, lTextColor.G, lTextColor.B)
+                            vContext.SetSource(lTextPattern)
+                            
+                            ' Draw the character
+                            vContext.MoveTo(lX, lY)
+                            lLayout.SetText(lChar)
+                            Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                            lTextPattern.Dispose()
                         End If
-                        
-                        ' Set the text color and draw the character
-                        Dim lTextPattern As New Cairo.SolidPattern(lTextColor.R, lTextColor.G, lTextColor.B)
-                        vContext.SetSource(lTextPattern)
-                        
-                        ' Draw the character
-                        vContext.MoveTo(lX, lY)
-                        lLayout.SetText(lChar)
-                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
-                        lTextPattern.Dispose()
                     Next
                 Next
                 
@@ -222,6 +217,10 @@ Namespace Editors
                         ' Draw cursor line
                         Dim lCursorColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
                         Dim lCursorPattern As New Cairo.SolidPattern(lCursorColor.R, lCursorColor.G, lCursorColor.B)
+                        
+                        ' **********************************************
+                        ' CRITICAL: LEAVE MY GODDAMN I BEAM CURSOR ALONE                        
+                        ' **********************************************
                         vContext.SetSource(lCursorPattern)
                         vContext.LineWidth = 2.0
                         vContext.MoveTo(lCursorX, lCursorY + lTopOffset)
@@ -234,19 +233,6 @@ Namespace Editors
                         vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
                         vContext.Stroke()
                         lCursorPattern.Dispose()
-                        
-                        ' Draw cursor position indicators if enabled
-                        If False Then
-                            ' Top indicator
-                            vContext.MoveTo(lCursorX - lBarLengthHalf, 0)
-                            vContext.LineTo(lCursorX + lBarLengthHalf, 0)
-                            vContext.Stroke()
-                            
-                            ' Left indicator
-                            vContext.MoveTo(0, lCursorY + pLineHeight / 2)
-                            vContext.LineTo(pLeftPadding - 2, lCursorY + pLineHeight / 2)
-                            vContext.Stroke()
-                        End If
                     End If
                 End If
                 
@@ -382,99 +368,6 @@ Namespace Editors
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Ensures CharacterColors array is initialized with default colors if needed
-        ''' </summary>
-        ''' <param name="vLineIndex">The line index to check</param>
-        ''' <remarks>
-        ''' This is a safety check to prevent null reference exceptions during drawing.
-        ''' It should NOT overwrite existing colors that were set by parsing.
-        ''' </remarks>
-        Private Sub InitializeCharacterColorsIfNeeded(vLineIndex As Integer)
-            Try
-                If pSourceFileInfo Is Nothing Then Return
-                
-                ' Check if this specific line needs initialization
-                If vLineIndex >= 0 AndAlso vLineIndex < pSourceFileInfo.TextLines.Count Then
-                    Dim lLineLength As Integer = pSourceFileInfo.TextLines(vLineIndex).Length
-                    
-                    ' Check if the line's character array needs to be created or resized
-                    ' CRITICAL: Only initialize if the array doesn't exist or is the wrong size
-                    ' Do NOT reinitialize if colors already exist and are the right size
-                    If vLineIndex >= pSourceFileInfo.CharacterColors.Length Then
-                        ' The main array needs to be extended
-                        ReDim Preserve pSourceFileInfo.CharacterColors(pSourceFileInfo.TextLines.Count - 1)
-                        Console.WriteLine($"InitializeCharacterColorsIfNeeded: Extended main array to {pSourceFileInfo.CharacterColors.Length} lines")
-                    End If
-                    
-                    ' Now check the specific line
-                    If pSourceFileInfo.CharacterColors(vLineIndex) Is Nothing Then
-                        ' Line's character array doesn't exist - create it
-                        If lLineLength > 0 Then
-                            ReDim pSourceFileInfo.CharacterColors(vLineIndex)(lLineLength - 1)
-                            
-                            ' Get default color from theme
-                            Dim lDefaultColor As String = "#D4D4D4"
-                            If pThemeManager IsNot Nothing Then
-                                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                                If lTheme IsNot Nothing Then
-                                    lDefaultColor = lTheme.ForegroundColor
-                                End If
-                            End If
-                            
-                            ' Initialize each character with default color
-                            for i As Integer = 0 To lLineLength - 1
-                                pSourceFileInfo.CharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
-                            Next
-                            
-                            Console.WriteLine($"InitializeCharacterColorsIfNeeded: Created new color array for line {vLineIndex} with {lLineLength} characters")
-                        Else
-                            ' Empty line
-                            pSourceFileInfo.CharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                        End If
-                        
-                    ElseIf pSourceFileInfo.CharacterColors(vLineIndex).Length <> lLineLength Then
-                        ' Line's character array exists but is the wrong size - resize it
-                        ' This can happen when text is edited
-                        Dim lOldColors() As CharacterColorInfo = pSourceFileInfo.CharacterColors(vLineIndex)
-                        
-                        If lLineLength > 0 Then
-                            ReDim pSourceFileInfo.CharacterColors(vLineIndex)(lLineLength - 1)
-                            
-                            ' Get default color from theme
-                            Dim lDefaultColor As String = "#D4D4D4"
-                            If pThemeManager IsNot Nothing Then
-                                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                                If lTheme IsNot Nothing Then
-                                    lDefaultColor = lTheme.ForegroundColor
-                                End If
-                            End If
-                            
-                            ' Preserve existing colors where possible
-                            for i As Integer = 0 To lLineLength - 1
-                                If i < lOldColors.Length AndAlso lOldColors(i) IsNot Nothing Then
-                                    ' Preserve existing color
-                                    pSourceFileInfo.CharacterColors(vLineIndex)(i) = lOldColors(i)
-                                Else
-                                    ' Use default for new characters
-                                    pSourceFileInfo.CharacterColors(vLineIndex)(i) = New CharacterColorInfo(lDefaultColor)
-                                End If
-                            Next
-                            
-                            Console.WriteLine($"InitializeCharacterColorsIfNeeded: Resized color array for line {vLineIndex} from {lOldColors.Length} to {lLineLength} characters")
-                        Else
-                            ' Empty line
-                            pSourceFileInfo.CharacterColors(vLineIndex) = New CharacterColorInfo() {}
-                        End If
-                    End If
-                    ' If the array exists and is the right size, don't touch it!
-                    ' The colors were set by parsing and should be preserved
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"InitializeCharacterColorsIfNeeded error: {ex.Message}")
-            End Try
-        End Sub
         
     End Class
     

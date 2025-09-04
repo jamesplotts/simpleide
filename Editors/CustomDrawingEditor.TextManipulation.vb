@@ -225,21 +225,7 @@ Namespace Editors
                 ' Add indentation (4 spaces or tab based on settings)
                 Dim lIndent As String = If(pUseTabs, vbTab, New String(" "c, pTabWidth))
                 TextLines(vLine) = lIndent & lLine
-                
-                ' Update character colors array
-                If pCharacterColors IsNot Nothing AndAlso vLine < pCharacterColors.Length Then
-                    Dim lNewColors(TextLines(vLine).Length - 1) As CharacterColorInfo
-                    If pCharacterColors(vLine) IsNot Nothing Then
-                        ' Shift existing colors by indent length
-                        for i As Integer = 0 To pCharacterColors(vLine).Length - 1
-                            If i + lIndent.Length < lNewColors.Length Then
-                                lNewColors(i + lIndent.Length) = pCharacterColors(vLine)(i)
-                            End If
-                        Next
-                    End If
-                    pCharacterColors(vLine) = lNewColors
-                End If
-                
+
                 ' If cursor is on this line, adjust cursor position
                 If pCursorLine = vLine Then
                     pCursorColumn += lIndent.Length
@@ -282,21 +268,6 @@ Namespace Editors
                 If lRemoveCount > 0 Then
                     ' Update the line text
                     TextLines(vLine) = lLine.Substring(lRemoveCount)
-                    
-                    ' Update character colors array
-                    If pCharacterColors IsNot Nothing AndAlso vLine < pCharacterColors.Length Then
-                        Dim lNewColors(TextLines(vLine).Length - 1) As CharacterColorInfo
-                        If pCharacterColors(vLine) IsNot Nothing AndAlso pCharacterColors(vLine).Length > lRemoveCount Then
-                            ' Shift colors left
-                            for i As Integer = lRemoveCount To pCharacterColors(vLine).Length - 1
-                                If i - lRemoveCount < lNewColors.Length Then
-                                    lNewColors(i - lRemoveCount) = pCharacterColors(vLine)(i)
-                                End If
-                            Next
-                        End If
-                        pCharacterColors(vLine) = lNewColors
-                    End If
-                    
                     
                     ' If cursor is on this line, adjust cursor position
                     If pCursorLine = vLine AndAlso pCursorColumn > 0 Then

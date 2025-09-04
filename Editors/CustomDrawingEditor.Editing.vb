@@ -914,9 +914,6 @@ Namespace Editors
                     ' This gives the async parse a chance to start but ensures coloring happens
                     Gtk.Application.Invoke(Sub()
                         Try
-                            System.Threading.Thread.Sleep(100) ' Small delay
-                            Console.WriteLine("InsertTextDirect: Forcing recolorization after large paste")
-                            ForceRecolorization()
                             pDrawingArea?.QueueDraw()
                         Catch ex As Exception
                             Console.WriteLine($"InsertTextDirect delayed recolor error: {ex.Message}")

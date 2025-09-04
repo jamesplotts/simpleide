@@ -69,8 +69,6 @@ Partial Public Class MainWindow
             pProjectManager = New ProjectManager()
             pThemeManager = New ThemeManager(pSettingsManager)
 
-            pProjectManager.ThemeManager = pThemeManager
-
             pMemoryManifest = New MemoryManifest(pSettingsManager)
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
 

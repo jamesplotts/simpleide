@@ -14,6 +14,16 @@ Namespace Editors
         ' ===== SetCursorPosition Implementation =====
         
         ' Set the cursor position to the specified line and column
+        
+        ''' <summary>
+        ''' Sets the cursor position to the specified line and column
+        ''' </summary>
+        ''' <param name="vLine">Target line number (0-based)</param>
+        ''' <param name="vColumn">Target column number (0-based)</param>
+        ''' <remarks>
+        ''' This method validates and clamps the position, handles line tracking,
+        ''' and raises appropriate events including NavigationUpdateRequested
+        ''' </remarks>
         Public Sub SetCursorPosition(vLine As Integer, vColumn As Integer) 
             Try
                 ' Store previous position for events and line tracking
@@ -71,6 +81,10 @@ Namespace Editors
                     
                     ' Raise cursor position changed event (1-based for UI)
                     RaiseEvent CursorPositionChanged(pCursorLine + 1, pCursorColumn + 1)
+                    
+                    ' Raise navigation update event for dropdown context updates
+                    ' This fires when cursor position changes to update navigation dropdowns
+                    RaiseEvent NavigationUpdateRequested(Me, EventArgs.Empty)
                 End If
                 
                 ' Restart cursor blink

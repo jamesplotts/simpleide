@@ -341,7 +341,7 @@ Partial Public Class MainWindow
 
             CreateScratchpadToolbarButton()
 
-            CreateDiagnosticToolbarButton()
+            'CreateDiagnosticToolbarButton()
 
             ' Force show all toolbar items
             For Each lItem As Widget In pToolbar.Children

@@ -211,8 +211,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eComment,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eComment)
+                        SyntaxTokenType.eComment
                     )
                     vTokens.Add(lToken)
                     
@@ -240,8 +239,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eString,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eString)
+                        SyntaxTokenType.eString
                     )
                     vTokens.Add(lToken)
                     
@@ -269,8 +267,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eNumber,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eNumber)
+                        SyntaxTokenType.eNumber
                     )
                     vTokens.Add(lToken)
                     
@@ -299,8 +296,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eKeyword,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eKeyword)
+                        SyntaxTokenType.eKeyword
                     )
                     lToken.IsBold = True
                     vTokens.Add(lToken)
@@ -322,8 +318,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eType,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eType)
+                        SyntaxTokenType.eType
                     )
                     vTokens.Add(lToken)
                     
@@ -351,8 +346,7 @@ Namespace Syntax
                     Dim lToken As New SyntaxToken(
                         lMatch.Index,
                         lMatch.Length,
-                        SyntaxTokenType.eOperator,
-                        pColorSet.GetColor(SyntaxColorSet.Tags.eOperator)
+                        SyntaxTokenType.eOperator
                     )
                     vTokens.Add(lToken)
                     
