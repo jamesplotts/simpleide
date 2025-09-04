@@ -557,23 +557,23 @@ Namespace Widgets
         ''' </summary>
         Private Sub ScanDirectoryRecursive(vDirectory As String, vParentNode As ProjectNode, vRelativePath As String)
             Try
-                Console.WriteLine($"ScanDirectoryRecursive: {vDirectory}")
-                Console.WriteLine($"  Parent: {vParentNode?.Name}, RelativePath: '{vRelativePath}'")
+                'Console.WriteLine($"ScanDirectoryRecursive: {vDirectory}")
+                'Console.WriteLine($"  Parent: {vParentNode?.Name}, RelativePath: '{vRelativePath}'")
                 
                 ' Only apply skip logic if we're NOT at the project root
                 If vDirectory <> pProjectDirectory Then
                     Dim lDirName As String = System.IO.Path.GetFileName(vDirectory)
                     If lDirName = "bin" OrElse lDirName = "obj" OrElse lDirName.StartsWith(".") Then
-                        Console.WriteLine($"  Skipping directory: {lDirName}")
+                        'Console.WriteLine($"  Skipping directory: {lDirName}")
                         Return
                     End If
                 Else
-                    Console.WriteLine("  This is the project root - processing all contents")
+                    'Console.WriteLine("  This is the project root - processing all contents")
                 End If
                 
                 ' Get all subdirectories
                 Dim lDirs As String() = Directory.GetDirectories(vDirectory)
-                Console.WriteLine($"  Found {lDirs.Length} subdirectories")
+                'Console.WriteLine($"  Found {lDirs.Length} subdirectories")
                 
                 For Each lDir In lDirs
                     Dim lSubDirName As String = System.IO.Path.GetFileName(lDir)
@@ -582,11 +582,11 @@ Namespace Widgets
                     If lSubDirName.StartsWith(".") OrElse 
                        lSubDirName = "bin" OrElse 
                        lSubDirName = "obj" Then
-                        Console.WriteLine($"    Skipping subdirectory: {lSubDirName}")
+                        'Console.WriteLine($"    Skipping subdirectory: {lSubDirName}")
                         Continue For
                     End If
                     
-                    Console.WriteLine($"    Processing subdirectory: {lSubDirName}")
+                    'Console.WriteLine($"    Processing subdirectory: {lSubDirName}")
                     
                     ' Check if folder already exists
                     Dim lExistingFolder As ProjectNode = vParentNode.Children.FirstOrDefault(
@@ -595,7 +595,7 @@ Namespace Widgets
                     Dim lFolderNode As ProjectNode
                     If lExistingFolder IsNot Nothing Then
                         lFolderNode = lExistingFolder
-                        Console.WriteLine($"      Using existing folder node")
+                        'Console.WriteLine($"      Using existing folder node")
                     Else
                         ' Create folder node
                         lFolderNode = New ProjectNode() With {
@@ -605,7 +605,7 @@ Namespace Widgets
                             .IsFile = False
                         }
                         vParentNode.AddChild(lFolderNode)
-                        Console.WriteLine($"      Created new folder node (Type={lFolderNode.NodeType})")
+                        'Console.WriteLine($"      Created new folder node (Type={lFolderNode.NodeType})")
                     End If
                     
                     ' Recursively scan subdirectory
@@ -617,14 +617,14 @@ Namespace Widgets
                 
                 ' Get all files in current directory
                 Dim lFiles As String() = Directory.GetFiles(vDirectory)
-                Console.WriteLine($"  Found {lFiles.Length} files")
+                'Console.WriteLine($"  Found {lFiles.Length} files")
                 
                 For Each lFile In lFiles
                     Dim lFileName As String = System.IO.Path.GetFileName(lFile)
                     
                     ' Skip hidden files
                     If lFileName.StartsWith(".") Then
-                        Console.WriteLine($"    Skipping hidden file: {lFileName}")
+                        'Console.WriteLine($"    Skipping hidden file: {lFileName}")
                         Continue For
                     End If
                     

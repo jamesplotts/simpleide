@@ -314,17 +314,33 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Public method to focus the line number entry with text selected
+    ''' <summary>
+    ''' Focuses the line number entry with visual feedback and text selection
+    ''' </summary>
     Public Sub FocusLineNumberEntry()
         Try
             If pLineNumberEntry IsNot Nothing Then
+                ' Apply a highlight CSS to show it has focus
+                Dim lHighlightCss As String = "entry { " & _
+                    "background-color: #FFF3CD; " & _
+                    "color: #000000; " & _
+                    "border: 2px solid #007ACC; " & _
+                    "font-weight: bold; " & _
+                    "}"
+                CssHelper.ApplyCssToWidget(pLineNumberEntry, lHighlightCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+                
                 ' Focus the entry
                 pLineNumberEntry.GrabFocus()
+                
                 ' Select all text so user can type to replace
                 pLineNumberEntry.SelectRegion(0, -1)
+                
+                ' Update status bar message to inform user
+                Dim lContext As UInteger = pStatusBar.GetContextId("goto")
+                pStatusBar.Push(lContext, "Enter line number and press Enter (Esc to cancel)")
             End If
         Catch ex As Exception
-            Console.WriteLine($"error focusing Line number entry: {ex.Message}")
+            Console.WriteLine($"Error focusing line number entry: {ex.Message}")
         End Try
     End Sub
     
@@ -394,8 +410,50 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Updates the progress bar percentage
+    ''' </summary>
+    ''' <param name="vPercentage">Percentage complete (0-100)</param>
+    Private Sub UpdateProgressBar(vPercentage As Double)
+        Try
+            If pProgressBar Is Nothing Then Return
+            
+            ' Clamp to valid range
+            If vPercentage < 0 Then vPercentage = 0
+            If vPercentage > 100 Then vPercentage = 100
+            
+            ' Convert to fraction (0-1)
+            pProgressBar.Fraction = vPercentage / 100.0
+            
+            ' Force immediate update
+            While Application.EventsPending()
+                Application.RunIteration(False)
+            End While
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateProgressBar error: {ex.Message}")
+        End Try
+    End Sub
 
-
+    ''' <summary>
+    ''' Shows or hides the progress bar in the status bar
+    ''' </summary>
+    ''' <param name="vShow">True to show, False to hide</param>
+    Private Sub ShowProgressBar(vShow As Boolean)
+        Try
+            If pProgressBar Is Nothing Then Return
+            
+            pProgressBar.Visible = vShow
+            
+            If vShow Then
+                pProgressBar.Fraction = 0
+                pProgressBar.ShowAll()
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShowProgressBar error: {ex.Message}")
+        End Try
+    End Sub
 
 End Class
 

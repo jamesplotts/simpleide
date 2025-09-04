@@ -3,10 +3,12 @@ Imports Gtk
 Imports System
 Imports System.IO
 Imports System.Diagnostics
+Imports SimpleIDE.Editors
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Dialogs
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
     
@@ -238,7 +240,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Git pull
+    ''' <summary>
+    ''' Enhanced GitPull that properly handles file reloading
+    ''' </summary>
     Public Sub GitPull()
         Try
             If Not EnsureGitRepository() Then Return
@@ -247,26 +251,88 @@ Partial Public Class MainWindow
             
             UpdateStatusBar("Pulling from remote...")
             
-            ExecuteGitCommand("Pull", lProjectDir, Sub(output, ExitCode)
+            ExecuteGitCommand("pull", lProjectDir, Sub(output, exitCode)
                 Application.Invoke(Sub()
-                    If ExitCode = 0 Then
-                        ShowInfo("git", "Successfully pulled from remote.")
+                    If exitCode = 0 Then
+                        ShowInfo("Git Pull", "Successfully pulled from remote.")
                         RefreshGitStatus()
-                        ' Reload open files that may have changed
+                        
+                        ' Use enhanced reload that uses ReloadFile
                         ReloadModifiedFiles()
+                        
+                        ' Refresh project explorer to show any new files
+                        If pProjectExplorer IsNot Nothing Then
+                            pProjectExplorer.RefreshProject()
+                        End If
                     Else
-                        ShowError("git error", $"Pull failed: {output}")
+                        ShowError("Git Error", $"Pull failed: {output}")
                     End If
                     UpdateStatusBar("Ready")
                 End Sub)
             End Sub)
             
         Catch ex As Exception
-            Console.WriteLine($"GitPull error: {ex.Message}")
-            ShowError("git error", ex.Message)
+            Console.WriteLine($"GitPullEnhanced error: {ex.Message}")
+            ShowError("Git Error", ex.Message)
         End Try
-    End Sub
-    
+    End Sub   
+
+    ''' <summary>
+    ''' Git checkout with file reloading
+    ''' </summary>
+    ''' <param name="vBranch">Branch name to checkout</param>
+    Public Sub GitCheckout(vBranch As String)
+        Try
+            If Not EnsureGitRepository() Then Return
+            
+            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+            
+            ' Check for uncommitted changes first
+            ExecuteGitCommand("status --porcelain", lProjectDir, Sub(statusOutput, statusExitCode)
+                Application.Invoke(Sub()
+                    If Not String.IsNullOrWhiteSpace(statusOutput) Then
+                        ' Has uncommitted changes
+                        Dim lResponse As Integer = ShowQuestion(
+                            "Uncommitted Changes",
+                            "You have uncommitted changes. Checking out another branch will discard them. Continue?"
+                        )
+                        
+                        If lResponse <> CInt(ResponseType.Yes) Then
+                            Return
+                        End If
+                    End If
+                    
+                    ' Proceed with checkout
+                    UpdateStatusBar($"Checking out branch '{vBranch}'...")
+                    
+                    ExecuteGitCommand($"checkout {vBranch}", lProjectDir, Sub(output, exitCode)
+                        Application.Invoke(Sub()
+                            If exitCode = 0 Then
+                                ShowInfo("Git Checkout", $"Successfully checked out branch '{vBranch}'.")
+                                RefreshGitStatus()
+                                
+                                ' Reload all modified files using ReloadFile
+                                ReloadModifiedFiles()
+                                
+                                ' Refresh project explorer
+                                If pProjectExplorer IsNot Nothing Then
+                                    pProjectExplorer.RefreshProject()
+                                End If
+                            Else
+                                ShowError("Git Error", $"Checkout failed: {output}")
+                            End If
+                            UpdateStatusBar("Ready")
+                        End Sub)
+                    End Sub)
+                End Sub)
+            End Sub)
+            
+        Catch ex As Exception
+            Console.WriteLine($"GitCheckout error: {ex.Message}")
+            ShowError("Git Error", ex.Message)
+        End Try
+    End Sub 
+
     ' Show branch dialog
     Public Sub ShowGitBranchDialog()
         Try
@@ -431,36 +497,175 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Reload files that were modified by pull
+    ''' <summary>
+    ''' Reload files that were modified by git operations (pull, checkout, revert, etc.)
+    ''' </summary>
     Private Sub ReloadModifiedFiles()
         Try
+            ' Track files that need reloading
+            Dim lFilesToReload As New List(Of TabInfo)()
+            Dim lFilesWithConflicts As New List(Of TabInfo)()
+            
             ' Check each open file to see if it was modified
-            For Each lTab In pOpenTabs.Values
-                If File.Exists(lTab.FilePath) Then
-                    Dim lFileTime As DateTime = File.GetLastWriteTime(lTab.FilePath)
+            for each lTab in pOpenTabs.Values
+                If System.IO.File.Exists(lTab.FilePath) Then
+                    Dim lFileTime As DateTime = System.IO.File.GetLastWriteTime(lTab.FilePath)
                     
+                    ' Check if file was modified after last save
                     If lFileTime > lTab.LastSaved Then
-                        Dim lResponse As Integer = ShowQuestion(
-                            "File Modified",
-                            $"the file '{System.IO.Path.GetFileName(lTab.FilePath)}' was Modified outside the Editor. Reload it?"
-                        )
-                        
-                        If lResponse = CInt(ResponseType.Yes) Then
-                            ReLoadFile(lTab.FilePath)
+                        If lTab.Modified Then
+                            ' File has unsaved changes and was also modified externally
+                            lFilesWithConflicts.Add(lTab)
+                        Else
+                            ' File has no unsaved changes, can reload automatically
+                            lFilesToReload.Add(lTab)
                         End If
                     End If
                 End If
             Next
             
+            ' Automatically reload files without conflicts
+            for each lTab in lFilesToReload
+                Console.WriteLine($"Auto-reloading {lTab.FilePath} after git operation")
+                ReloadFileAfterGitOperation(lTab, False) ' Don't prompt, just reload
+            Next
+            
+            ' Handle files with conflicts (unsaved changes + external modifications)
+            If lFilesWithConflicts.Count > 0 Then
+                HandleGitConflictedFiles(lFilesWithConflicts)
+            End If
+            
+            ' Show summary if files were reloaded
+            If lFilesToReload.Count > 0 OrElse lFilesWithConflicts.Count > 0 Then
+                Dim lMessage As String = ""
+                If lFilesToReload.Count > 0 Then
+                    lMessage = $"Reloaded {lFilesToReload.Count} file(s) modified by git operation."
+                End If
+                If lFilesWithConflicts.Count > 0 Then
+                    If lMessage.Length > 0 Then lMessage &= Environment.NewLine
+                    lMessage &= $"Handled {lFilesWithConflicts.Count} file(s) with conflicts."
+                End If
+                UpdateStatusBar(lMessage)
+            End If
+            
         Catch ex As Exception
             Console.WriteLine($"ReloadModifiedFiles error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handle files that have both unsaved changes and external git modifications
+    ''' </summary>
+    ''' <param name="vConflictedFiles">List of files with conflicts</param>
+    Private Sub HandleGitConflictedFiles(vConflictedFiles As List(Of TabInfo))
+        Try
+            for each lTab in vConflictedFiles
+                Dim lDialog As New MessageDialog(
+                    Me,
+                    DialogFlags.Modal,
+                    MessageType.Warning,
+                    ButtonsType.None,
+                    $"The file '{System.IO.Path.GetFileName(lTab.FilePath)}' has unsaved changes " &
+                    $"but was also modified by the git operation.{Environment.NewLine}{Environment.NewLine}" &
+                    "What would you Like To Do?"
+                )
+                
+                lDialog.AddButton("Keep My Changes", ResponseType.No)
+                lDialog.AddButton("Reload from Git", ResponseType.Yes)
+                lDialog.AddButton("Save As...", ResponseType.Apply)
+                
+                Dim lResponse As Integer = lDialog.Run()
+                lDialog.Destroy()
+                
+                Select Case lResponse
+                    Case CInt(ResponseType.Yes)
+                        ' Reload from git (discard local changes)
+                        ReloadFileAfterGitOperation(lTab, False)
+                        
+                    Case CInt(ResponseType.No)
+                        ' Keep local changes
+                        Console.WriteLine($"Keeping local changes for {lTab.FilePath}")
+                        ' File remains modified
+                        
+                    Case CInt(ResponseType.Apply)
+                        ' Save local changes with a different name
+                        SaveFileAs(lTab)
+                        ' Then reload original from git
+                        ReloadFileAfterGitOperation(lTab, False)
+                End Select
+            Next
+            
+        Catch ex As Exception
+            Console.WriteLine($"HandleGitConflictedFiles error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Reload a single file after a git operation using ReloadFile
+    ''' </summary>
+    ''' <param name="vTabInfo">The tab to reload</param>
+    ''' <param name="vPrompt">Whether to prompt the user before reloading</param>
+    Private Sub ReloadFileAfterGitOperation(vTabInfo As TabInfo, vPrompt As Boolean)
+        Try
+            If vTabInfo Is Nothing OrElse String.IsNullOrEmpty(vTabInfo.FilePath) Then
+                Return
+            End If
+            
+            ' Prompt if requested
+            If vPrompt Then
+                Dim lResponse As Integer = ShowQuestion(
+                    "File Modified by Git",
+                    $"The file '{System.IO.Path.GetFileName(vTabInfo.FilePath)}' was modified by the git operation.{Environment.NewLine}Reload it from disk?"
+                )
+                
+                If lResponse <> CInt(ResponseType.Yes) Then
+                    Return
+                End If
+            End If
+            
+            ' Get SourceFileInfo and reload
+            If pProjectManager IsNot Nothing Then
+                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
+                If lSourceFileInfo IsNot Nothing Then
+                    ' Use ReloadFile for proper state management
+                    If lSourceFileInfo.ReloadFile() Then
+                        ' Update editor
+                        If vTabInfo.Editor IsNot Nothing Then
+                            If TypeOf vTabInfo.Editor Is CustomDrawingEditor Then
+                                Dim lEditor As CustomDrawingEditor = DirectCast(vTabInfo.Editor, CustomDrawingEditor)
+                                
+                                ' Update content
+                                lEditor.SetText(lSourceFileInfo.GetAllText())
+                                
+                                ' Clear modified flags
+                                vTabInfo.Modified = False
+                                lEditor.IsModified = False
+                                
+                                ' Update UI
+                                UpdateTabLabel(vTabInfo)
+                                
+                                ' Update last saved timestamp
+                                UpdateLastSavedTimestamp(vTabInfo)
+                                
+                                ' Request re-parsing
+                                If lSourceFileInfo.NeedsParsing Then
+                                    pProjectManager.ParseFile(lSourceFileInfo)
+                                End If
+                            End If
+                        End If
+                    End If
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"ReloadFileAfterGitOperation error: {ex.Message}")
         End Try
     End Sub
     
     Private Sub OnGitPush(vSender As Object, vArgs As EventArgs)
         Try
             ' TODO: Implement Git push
-            ShowInfo("Git Push", "Git push not yet implemented.")
+            ShowInfo("Git Push", "Git push Not yet implemented.")
         Catch ex As Exception
             Console.WriteLine($"OnGitPush error: {ex.Message}")
         End Try
@@ -469,7 +674,7 @@ Partial Public Class MainWindow
     Private Sub OnGitPull(vSender As Object, vArgs As EventArgs)
         Try
             ' TODO: Implement Git pull
-            ShowInfo("Git Pull", "Git pull not yet implemented.")
+            ShowInfo("Git Pull", "Git pull Not yet implemented.")
         Catch ex As Exception
             Console.WriteLine($"OnGitPull error: {ex.Message}")
         End Try

@@ -8,6 +8,8 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Dialogs
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Interfaces
+
 
 Partial Public Class MainWindow
     
@@ -25,6 +27,9 @@ Partial Public Class MainWindow
 
     ' ===== Auto-Hide Timer Fields =====
     Private pAutoHideTimerId As UInteger = 0
+
+    Private pVersionIncrementedThisSession As Boolean = False
+
     
     ''' <summary>
     ''' Initialize build system components
@@ -64,18 +69,14 @@ Partial Public Class MainWindow
             Console.WriteLine($"Stack trace: {ex.StackTrace}")
         End Try
     End Sub
-    
-
-
 
     Private pIsBuildingNow As Boolean
 
-    ' Replace: SimpleIDE.MainWindow.BuildProject
     ''' <summary>
-    ''' Build the current project - Main entry point for F6
+    ''' Build the current project - Main entry point for F6 and build operations
     ''' </summary>
     ''' <remarks>
-    ''' Simplified to use only instance-level flag without static variable
+    ''' Ensures pIsBuildingNow flag is properly managed on all exit paths
     ''' </remarks>
     Public Sub BuildProject()
         Try
@@ -85,12 +86,19 @@ Partial Public Class MainWindow
                 Return
             End If
             
+            ' Also check BuildManager's state
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("BuildProject: BuildManager reports build in progress")
+                Return
+            End If
+            
             ' Set flag immediately
             pIsBuildingNow = True
             
             ' DEBUG: Simple console output to verify method is called
             Console.WriteLine("===============================================")
             Console.WriteLine("BUILD PROJECT CALLED!")
+            Console.WriteLine($"Time: {DateTime.Now:HH:mm:ss.fff}")
             Console.WriteLine($"Project Path: {pCurrentProject}")
             Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
             Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
@@ -98,7 +106,7 @@ Partial Public Class MainWindow
              
             If String.IsNullOrEmpty(pCurrentProject) Then
                 ShowError("No project", "Please open a project before building.")
-                pIsBuildingNow = False
+                pIsBuildingNow = False ' Reset flag on early exit
                 Return
             End If
     
@@ -112,14 +120,14 @@ Partial Public Class MainWindow
             If pBuildManager Is Nothing Then
                 Console.WriteLine("BuildProject: ERROR - BuildManager is Nothing after initialization")
                 ShowError("Build Error", "Failed to initialize build system")
-                pIsBuildingNow = False
+                pIsBuildingNow = False ' Reset flag on error
                 Return
             End If
             
             If pBuildConfiguration Is Nothing Then
                 Console.WriteLine("BuildProject: ERROR - BuildConfiguration is Nothing after initialization")
                 ShowError("Build Error", "Failed to initialize build configuration")
-                pIsBuildingNow = False
+                pIsBuildingNow = False ' Reset flag on error
                 Return
             End If
     
@@ -127,7 +135,7 @@ Partial Public Class MainWindow
             If pBuildManager.IsBuilding Then
                 Console.WriteLine("BuildProject: Build already in progress (BuildManager check)")
                 ShowInfo("Build in Progress", "A build is already in progress.")
-                pIsBuildingNow = False
+                pIsBuildingNow = False ' Reset flag since we're not starting a new build
                 Return
             End If
     
@@ -157,13 +165,20 @@ Partial Public Class MainWindow
                     Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
                     Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
                     
-                    ' Reset building flag when complete
-                    pIsBuildingNow = False
+                    ' Reset building flag when complete (on UI thread for safety)
+                    Application.Invoke(Sub()
+                        pIsBuildingNow = False
+                        Console.WriteLine("BuildProject: pIsBuildingNow flag reset to False")
+                    End Sub)
                     
                     Return lResult
                 Catch ex As Exception
                     Console.WriteLine($"BuildProject: Async task error: {ex.Message}")
-                    pIsBuildingNow = False
+                    ' Reset flag on error (on UI thread for safety)
+                    Application.Invoke(Sub()
+                        pIsBuildingNow = False
+                        Console.WriteLine("BuildProject: pIsBuildingNow flag reset to False (error path)")
+                    End Sub)
                     Return Nothing
                 End Try
             End Function)
@@ -172,124 +187,21 @@ Partial Public Class MainWindow
             Console.WriteLine($"BuildProject error: {ex.Message}")
             ShowError("Build Error", ex.Message)
             SetBuildButtonsEnabled(True)
-            pIsBuildingNow = False
+            pIsBuildingNow = False ' Reset flag on exception
         End Try
     End Sub
 
-'     ''' <summary>
-'     ''' Build the current project - Main entry point for F6
-'     ''' </summary>
-'     Public Sub BuildProject()
-'         Static bolAlreadyRunning As Boolean
-'         If Not bolAlreadyRunning Then
-'             bolAlreadyRunning = True
-'         Else
-'             Exit Sub
-'         End If 
-'         Try
-'             ' Use instance flag with immediate set to prevent race conditions
-'             If pIsBuildingNow = True Then 
-'                 Console.WriteLine("BuildProject: Already building (prevented duplicate)")
-'                 Exit Sub
-'             End If
-'             pIsBuildingNow = True
-' 
-'             If pIsBuildingNow = True Then Exit Sub
-'             pIsBuildingNow = True
-'             ' DEBUG: Simple console output to verify method is called
-'             Console.WriteLine("===============================================")
-'             Console.WriteLine("BUILD PROJECT CALLED!")
-'             Console.WriteLine($"Project Path: {pCurrentProject}")
-'             Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
-'             Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
-'             Console.WriteLine("===============================================")
-'                  
-'             If String.IsNullOrEmpty(pCurrentProject) Then
-'                 ShowError("No project", "Please open a project before building.")
-'                 Return
-'             End If
-'     
-'             ' Initialize build system if needed
-'             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
-'                 Console.WriteLine("BuildProject: Initializing build system")
-'                 InitializeBuildSystem()
-'             End If
-'             
-'             ' Verify initialization succeeded
-'             If pBuildManager Is Nothing Then
-'                 Console.WriteLine("BuildProject: ERROR - BuildManager is Nothing after initialization")
-'                 ShowError("Build Error", "Failed to initialize build system")
-'                 Return
-'             End If
-'             
-'             If pBuildConfiguration Is Nothing Then
-'                 Console.WriteLine("BuildProject: ERROR - BuildConfiguration is Nothing after initialization")
-'                 ShowError("Build Error", "Failed to initialize build configuration")
-'                 Return
-'             End If
-'     
-'             ' Check if already building - use the BuildManager's IsBuilding property
-'             If pBuildManager.IsBuilding Then
-'                 Console.WriteLine("BuildProject: Build already in progress, exiting")
-'                 ShowInfo("Build in Progress", "A build is already in progress.")
-'                 Return
-'             End If
-'     
-'             ' Auto-increment version if enabled
-'             TryIncrementVersionBeforeBuild()
-'     
-'             ' Start the build
-'             SetBuildButtonsEnabled(False)
-'             UpdateStatusBar("Building project...")
-'     
-'             ' Save all open files before building
-'             SaveAllFiles()
-'     
-'             ' Set project path and configuration for build manager
-'             Console.WriteLine($"BuildProject: Setting project path = {pCurrentProject}")
-'             pBuildManager.ProjectPath = pCurrentProject
-'             
-'             ' Ensure configuration is set
-'             Console.WriteLine($"BuildProject: Setting configuration = {pBuildConfiguration.Configuration}")
-'             pBuildManager.Configuration = pBuildConfiguration
-'             
-' 
-' 
-'             ' Start async build - Pass the configuration explicitly
-'             Console.WriteLine("BuildProject: Starting async build")
-'             Task.Run(Async Function() 
-'                 Try
-'                     Console.WriteLine("BuildProject: Async task started")
-'                     Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
-'                     Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
-'                     
-'                     ' Reset the building flag after completion
-'                     pIsBuildingNow = False
-'                     
-'                     Return lResult
-'                 Catch ex As Exception
-'                     Console.WriteLine($"BuildProject: Async task error: {ex.Message}")
-'                     pIsBuildingNow = False
-'                     Return Nothing
-'                 End Try
-'             End Function)            
-' 
-'         Catch ex As Exception
-'             Console.WriteLine($"BuildProject error: {ex.Message}")
-'             ShowError("Build Error", ex.Message)
-'             SetBuildButtonsEnabled(True)
-'         Finally
-'             bolAlreadyRunning = False
-'             pIsBuildingNow = False
-'         End Try
-'     End Sub
+
 
     ''' <summary>
     ''' Try to increment version before build if enabled
     ''' </summary>
     Private Sub TryIncrementVersionBeforeBuild()
         Try
-            ' Only increment if we have a current project
+            ' First, check if we should increment the IDE's own version
+            TryIncrementVersion()
+            
+            ' Then increment the current project's version (existing functionality)
             If String.IsNullOrEmpty(pCurrentProject) Then Return
             
             ' Create version manager for current project
@@ -297,17 +209,17 @@ Partial Public Class MainWindow
             
             ' Try to increment (will only do so if auto-increment is enabled)
             If lVersionManager.IncrementBuildNumberIfEnabled() Then
-                Console.WriteLine("Assembly version incremented before build")
+                Console.WriteLine("Project version incremented before build")
                 
                 ' Refresh any open AssemblyInfo editors
                 RefreshAssemblyRelatedEditors()
                 
                 ' Update status
-                UpdateStatusBar("Version incremented - building project...")
+                UpdateStatusBar("Project version incremented - building...")
                 
                 ' Log the new version
                 Dim lNewVersion As Version = lVersionManager.GetCurrentVersion()
-                pBuildOutputPanel?.AppendOutput($"Version incremented to: {lNewVersion}{Environment.NewLine}")
+                pBuildOutputPanel?.AppendOutput($"Project version incremented to: {lNewVersion}{Environment.NewLine}")
             End If
             
         Catch ex As Exception
@@ -315,6 +227,129 @@ Partial Public Class MainWindow
             ' Don't fail the build if version increment fails
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Try to increment the Project's version if auto-increment is enabled
+    ''' </summary>
+    Private Sub TryIncrementVersion()
+        Try
+            ' Check if auto-increment is enabled in settings
+            If Not pSettingsManager.AutoIncrementVersion Then
+                Return
+            End If
+            
+            ' Find the *.vbproj file
+            Dim lIdeProjectPath As String = FindProjectFile()
+            If String.IsNullOrEmpty(lIdeProjectPath) Then
+                Console.WriteLine("Could not find the *.vbproj for version increment")
+                Return
+            End If
+            
+            ' Create version manager for project
+            Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath)
+            
+            ' Get current version
+            Dim lCurrentVersion As Version = lVersionManager.GetCurrentVersion()
+            
+            ' Check if we should increment (e.g., only once per session or once per day)
+            If ShouldIncrementVersion(lCurrentVersion) Then
+                ' Increment the build number
+                Dim lNewVersion As New Version(
+                    lCurrentVersion.Major,
+                    lCurrentVersion.Minor,
+                    lCurrentVersion.Build + 1,
+                    lCurrentVersion.Revision)
+                
+                ' Set the new version
+                If lVersionManager.SetVersion(lNewVersion) Then
+                    Console.WriteLine($"Project version incremented from {lCurrentVersion} to {lNewVersion}")
+                    
+                    ' Record the increment time
+                    pSettingsManager.LastVersionIncrement = DateTime.Now
+                    
+                    ' Clear cached version so UI updates
+                    ApplicationVersion.ClearCache()
+                    
+                    ' Update window title to show new version
+                    UpdateWindowTitle()
+                    
+                    ' Update status bar
+                    UpdateStatusBar($"Project version incremented to {lNewVersion.Major}.{lNewVersion.Minor}.{lNewVersion.Build}")
+                    
+                    ' Log to build output
+                    pBuildOutputPanel?.AppendOutput($"Project version incremented to: {lNewVersion}{Environment.NewLine}")
+                    
+                    ' Store that we've incremented this session
+                    pVersionIncrementedThisSession = True
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"TryIncrementVersion error: {ex.Message}")
+            ' Don't fail the build if project version increment fails
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Determine if we should increment the IDE version
+    ''' </summary>
+    Private Function ShouldIncrementVersion(vCurrentVersion As Version) As Boolean
+        Try
+            ' Option 1: Only increment once per session
+            If pSettingsManager.IncrementOncePerSession Then
+                Return Not pVersionIncrementedThisSession
+            End If
+            
+            ' Option 2: Only increment once per day
+            If pSettingsManager.IncrementOncePerDay Then
+                Dim lLastIncrement As DateTime = pSettingsManager.LastVersionIncrement
+                Return lLastIncrement.Date < DateTime.Today
+            End If
+            
+            ' Option 3: Increment on every build (default)
+            Return True
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShouldIncrementVersion error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+    
+    ''' <summary>
+    ''' Find the .vbproj file
+    ''' </summary>
+    Private Function FindProjectFile() As String
+        Try
+            ' Start from the executable's directory
+            Dim lExePath As String = Reflection.Assembly.GetExecutingAssembly().Location
+            Dim lCurrentDir As New IO.DirectoryInfo(IO.Path.GetDirectoryName(lExePath))
+            
+            ' Search up the directory tree
+            While lCurrentDir IsNot Nothing
+                ' Check for SimpleIDE.vbproj
+                Dim lProjectPath As String = IO.Path.Combine(lCurrentDir.FullName, "SimpleIDE.vbproj")
+                If IO.File.Exists(lProjectPath) Then
+                    Return lProjectPath
+                End If
+                
+                ' Also check for VbIDE.vbproj (alternate name)
+                lProjectPath = IO.Path.Combine(lCurrentDir.FullName, "VbIDE.vbproj")
+                If IO.File.Exists(lProjectPath) Then
+                    Return lProjectPath
+                End If
+                
+                ' Check parent directory
+                lCurrentDir = lCurrentDir.Parent
+            End While
+            
+            Return ""
+            
+        Catch ex As Exception
+            Console.WriteLine($"FindIdeProjectFile error: {ex.Message}")
+            Return ""
+        End Try
+    End Function
+    
     
     ' Rebuild the current project
     Public Sub RebuildProject()
@@ -721,6 +756,106 @@ Partial Public Class MainWindow
         Catch ex As Exception
             Console.WriteLine($"OnAutoHideBottomPanelTimeout error: {ex.Message}")
             pAutoHideTimerId = 0
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Checks if any open files have been modified since last save
+    ''' </summary>
+    ''' <returns>True if any files are modified, False otherwise</returns>
+    Private Function HasModifiedFiles() As Boolean
+        Try
+            ' Check all open editors for modifications
+            If pNotebook IsNot Nothing Then
+                for i As Integer = 0 To pNotebook.NPages - 1
+                    Dim lPage As Widget = pNotebook.GetNthPage(i)
+                    Dim lEditor As IEditor = TryCast(lPage, IEditor)
+                    
+                    If lEditor IsNot Nothing AndAlso lEditor.IsModified Then
+                        Return True
+                    End If
+                Next
+            End If
+            
+            Return False
+            
+        Catch ex As Exception
+            Console.WriteLine($"HasModifiedFiles error: {ex.Message}")
+            ' If we can't determine, assume files are modified to be safe
+            Return True
+        End Try
+    End Function
+    
+    ' Add: SimpleIDE.MainWindow.HasBuildOutput
+    ' To: MainWindow.Build.vb
+    
+    ''' <summary>
+    ''' Checks if build output exists for the current project
+    ''' </summary>
+    ''' <returns>True if build output exists, False otherwise</returns>
+    Private Function HasBuildOutput() As Boolean
+        Try
+            If String.IsNullOrEmpty(pCurrentProject) Then
+                Return False
+            End If
+            
+            ' Get the project directory
+            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+            If String.IsNullOrEmpty(lProjectDir) Then
+                Return False
+            End If
+            
+            ' Check for build output based on current configuration
+            Dim lConfiguration As String = "Debug"  ' Default
+            If pBuildConfiguration IsNot Nothing Then
+                lConfiguration = pBuildConfiguration.Configuration
+            End If
+            
+            ' Check for typical .NET build output paths
+            Dim lBuildPaths As String() = {
+                System.IO.Path.Combine(lProjectDir, "bin", lConfiguration),
+                System.IO.Path.Combine(lProjectDir, "bin", lConfiguration, "net8.0"),
+                System.IO.Path.Combine(lProjectDir, "bin", lConfiguration, "net7.0"),
+                System.IO.Path.Combine(lProjectDir, "bin", lConfiguration, "net6.0")
+            }
+            
+            ' Check if any build path exists and contains assemblies
+            for each lPath As String in lBuildPaths
+                If Directory.Exists(lPath) Then
+                    ' Look for .dll or .exe files
+                    Dim lDllFiles As String() = Directory.GetFiles(lPath, "*.dll")
+                    Dim lExeFiles As String() = Directory.GetFiles(lPath, "*.exe")
+                    
+                    If lDllFiles.Length > 0 OrElse lExeFiles.Length > 0 Then
+                        ' Check if the main project output exists
+                        Dim lProjectName As String = System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)
+                        Dim lMainDll As String = System.IO.Path.Combine(lPath, $"{lProjectName}.dll")
+                        Dim lMainExe As String = System.IO.Path.Combine(lPath, $"{lProjectName}.exe")
+                        
+                        If File.Exists(lMainDll) OrElse File.Exists(lMainExe) Then
+                            ' Check if it's newer than the project file
+                            Dim lProjectTime As DateTime = File.GetLastWriteTime(pCurrentProject)
+                            Dim lOutputTime As DateTime = DateTime.MinValue
+                            
+                            If File.Exists(lMainDll) Then
+                                lOutputTime = File.GetLastWriteTime(lMainDll)
+                            ElseIf File.Exists(lMainExe) Then
+                                lOutputTime = File.GetLastWriteTime(lMainExe)
+                            End If
+                            
+                            ' If output is newer than project file, we have a build
+                            Return lOutputTime > lProjectTime
+                        End If
+                    End If
+                End If
+            Next
+            
+            Return False
+            
+        Catch ex As Exception
+            Console.WriteLine($"HasBuildOutput error: {ex.Message}")
+            ' If we can't determine, assume no build output
             Return False
         End Try
     End Function

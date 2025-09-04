@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports System.Collections.Generic
 Imports System.IO
+Imports System.Text
 Imports System.Diagnostics
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
@@ -171,7 +172,7 @@ Namespace Widgets
                 lPreviewSourceInfo.IsLoaded = True
                 
                 ' Create the editor with proper initialization
-                pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo)
+                pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo, pThemeManager)
                 pPreviewEditor.IsReadOnly = True
                 
                 ' IMPORTANT: Set the ThemeManager before applying theme
@@ -334,40 +335,43 @@ Namespace Widgets
         
         ' Get preview code
         Private Function GetPreviewText() As String
-            Return "' VB.NET Theme Preview
-Imports System
-Imports System.Collections.Generic
-
-Namespace Preview
-    ''' <summary>
-    ''' Sample class for theme preview
-    ''' </summary>
-    Public Class ThemePreview
-        Private pCount As Integer = 42
-        Private pName As String = ""Hello World""
-        
-        Public Sub New()
-            ' Constructor comment
-            Initialize()
-        End Sub
-        
-        Public Function Calculate(vValue As Double) As Double
-            Dim lResult As Double = vValue * 3.14159
-            Return lResult
-        End Function
-        
-        #Region ""Properties""
-        Public Property Count As Integer
-            Get
-                Return pCount
-            End Get
-            Set(Value As Integer)
-                pCount = Value
-            End Set
-        End Property
-        #End Region
-    End Class
-End Namespace"
+            Dim retval As String = ""
+            retval += "' VB.NET Theme Preview" + Environment.NewLine
+            retval += "Imports System" + Environment.NewLine
+            retval += "Imports System.Collections.Generic" + Environment.NewLine
+            retval += "" + Environment.NewLine
+            retval += "Namespace Preview" + Environment.NewLine
+            retval += "    ''' <summary>" + Environment.NewLine
+            retval += "    ''' Sample class for theme preview" + Environment.NewLine
+            retval += "    ''' </summary>" + Environment.NewLine
+            retval += "    Public Class ThemePreview" + Environment.NewLine
+            retval += "        Private pCount As Integer = 42" + Environment.NewLine
+            retval += "        Private pName As String = ""Hello World""" + Environment.NewLine
+            retval += "        " + Environment.NewLine
+            retval += "        Public Sub New()" + Environment.NewLine
+            retval += "            ' Constructor comment" + Environment.NewLine
+            retval += "            Initialize()" + Environment.NewLine
+            retval += "        End Sub" + Environment.NewLine
+            retval += "        " + Environment.NewLine
+            retval += "        Public Function Calculate(vValue As Double) As Double" + Environment.NewLine
+            retval += "            Dim lResult As Double = vValue * 3.14159" + Environment.NewLine
+            retval += "            Return lResult" + Environment.NewLine
+            retval += "        End Function" + Environment.NewLine
+            retval += "        " + Environment.NewLine
+            retval += "        #Region ""Properties""" + Environment.NewLine
+            retval += "        Public Property Count As Integer" + Environment.NewLine
+            retval += "            Get" + Environment.NewLine
+            retval += "                Return pCount" + Environment.NewLine
+            retval += "            End Get" + Environment.NewLine
+            retval += "            Set(Value As Integer)" + Environment.NewLine
+            retval += "                pCount = Value" + Environment.NewLine
+            retval += "            End Set" + Environment.NewLine
+            retval += "        End Property" + Environment.NewLine
+            retval += "        #End Region" + Environment.NewLine
+            retval += "            " + Environment.NewLine
+            retval += "    End Class" + Environment.NewLine
+            retval += "End Namespace"
+            Return retval
         End Function
         
         ' === Event Handlers ===
@@ -739,8 +743,8 @@ End Namespace"
         ''' <summary>
         ''' Handle property selection from the property list
         ''' </summary>
-        ''' <param name="vSender">The property list box</param>
-        ''' <param name="vArgs">Row selection event arguments</param>
+        ''' <param name="vIndex">Index of the selected property</param>
+        ''' <param name="vItem">The selected ListBoxItem</param>
         Private Sub OnPropertySelected(vIndex As Integer, vItem As ListBoxItem)
             Try
                 If vItem Is Nothing OrElse pCurrentTheme Is Nothing Then Return
@@ -752,10 +756,11 @@ End Namespace"
                 ' Get current color for this property
                 Dim lColorHex As String = GetThemeColor(lTag)
                 
-                ' Parse and set color in ColorPicker
+                ' Parse color
                 Dim lColor As New Gdk.RGBA()
                 If lColor.Parse(lColorHex) Then
-                    pColorPicker.CurrentColor = lColor
+                    ' Use SetColor method for immediate visual update
+                    pColorPicker.SetColor(lColor)
                 End If
                 
             Catch ex As Exception

@@ -130,49 +130,49 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateObjectExplorerForActiveTab error: {ex.Message}")
         End Try
     End Sub
-    
-    ''' <summary>
-    ''' Set up editor for Object Explorer integration without redundant parsing
-    ''' </summary>
-    Private Sub SetupEditorForObjectExplorer(vEditor As IEditor)
-        Try
-            If vEditor Is Nothing Then Return
-            
-            ' Set up Object Explorer integration
-            SetupObjectExplorerForEditor(vEditor)
-            
-            ' FIXED: Only trigger parsing if we don't already have structure
-            Dim lCustomEditor As CustomDrawingEditor = TryCast(vEditor, CustomDrawingEditor)
-            If lCustomEditor IsNot Nothing Then
-                ' Check if the editor already has parsed structure
-                Dim lStructure As SyntaxNode = lCustomEditor.GetDocumentStructure()
-                
-                If lStructure Is Nothing Then
-                    ' No existing structure, request initial parse
-                    Console.WriteLine("No existing structure, requesting parse")
-                    lCustomEditor.RefreshSyntaxHighlighting()
-                Else
-                    ' Already has structure, just update Object Explorer
-                    Console.WriteLine("Editor already has parsed structure, updating Object Explorer")
-                    If pObjectExplorer IsNot Nothing Then
-                        ' If project is open, show full project structure
-                        If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
-                            Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
-                            If lProjectTree IsNot Nothing Then
-                                pObjectExplorer.UpdateStructure(lProjectTree)
-                            End If
-                        Else
-                            ' No project, show file structure
-                            pObjectExplorer.UpdateStructure(lStructure)
-                        End If
-                    End If
-                End If
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"SetupEditorForObjectExplorer error: {ex.Message}")
-        End Try
-    End Sub
+'     
+'     ''' <summary>
+'     ''' Set up editor for Object Explorer integration without redundant parsing
+'     ''' </summary>
+'     Private Sub SetupEditorForObjectExplorer(vEditor As IEditor)
+'         Try
+'             If vEditor Is Nothing Then Return
+'             
+'             ' Set up Object Explorer integration
+'             SetupObjectExplorerForEditor(vEditor)
+'             
+' '             ' FIXED: Only trigger parsing if we don't already have structure
+' '             Dim lCustomEditor As CustomDrawingEditor = TryCast(vEditor, CustomDrawingEditor)
+' '             If lCustomEditor IsNot Nothing Then
+' '                 ' Check if the editor already has parsed structure
+' '                 Dim lStructure As SyntaxNode = lCustomEditor.GetDocumentStructure()
+' '                 
+' '                 If lStructure Is Nothing Then
+' '                     ' No existing structure, request initial parse
+' '                     Console.WriteLine("No existing structure, requesting parse")
+' '                     lCustomEditor.RefreshSyntaxHighlighting()
+' '                 Else
+' '                     ' Already has structure, just update Object Explorer
+' '                     Console.WriteLine("Editor already has parsed structure, updating Object Explorer")
+' '                     If pObjectExplorer IsNot Nothing Then
+' '                         ' If project is open, show full project structure
+' '                         If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+' '                             Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+' '                             If lProjectTree IsNot Nothing Then
+' '                                 pObjectExplorer.UpdateStructure(lProjectTree)
+' '                             End If
+' '                         Else
+' '                             ' No project, show file structure
+' '                             pObjectExplorer.UpdateStructure(lStructure)
+' '                         End If
+' '                     End If
+' '                 End If
+' '             End If
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"SetupEditorForObjectExplorer error: {ex.Message}")
+'         End Try
+'     End Sub
     
     ''' <summary>
     ''' Object Explorer toolbar integration
@@ -264,28 +264,6 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Handle notebook page switch
-    ''' </summary>
-    Private Sub OnNotebookSwitchPageFixed(vSender As Object, vArgs As SwitchPageArgs)
-        Try
-            ' Call existing switch page logic
-            OnNotebookSwitchPage(vSender, vArgs)
-            
-            ' Get the current tab
-            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
-            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' Update current editor
-                If pObjectExplorer IsNot Nothing Then
-                    pObjectExplorer.SetCurrentEditor(lCurrentTab.Editor)
-                End If
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnNotebookSwitchPageFixed error: {ex.Message}")
-        End Try
-    End Sub
-    
-    ''' <summary>
     ''' Parse all project files and build complete project structure
     ''' </summary>
     Public Sub ParseProjectStructure(vProjectPath As String)
@@ -338,7 +316,7 @@ Partial Public Class MainWindow
         Try
             If pLeftNotebook IsNot Nothing AndAlso pObjectExplorer IsNot Nothing Then
                 ' Find the Object Explorer page index
-                For i As Integer = 0 To pLeftNotebook.NPages - 1
+                for i As Integer = 0 To pLeftNotebook.NPages - 1
                     Dim lPage As Widget = pLeftNotebook.GetNthPage(i)
                     If lPage Is pObjectExplorer Then
                         pLeftNotebook.CurrentPage = i
@@ -350,7 +328,7 @@ Partial Public Class MainWindow
                         ' Call OnPageActivated to ensure proper initialization
                         pObjectExplorer.OnPageActivated()
                         
-                        Exit For
+                        Exit for
                     End If
                 Next
             End If

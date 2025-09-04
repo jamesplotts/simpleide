@@ -18,6 +18,11 @@ Imports SimpleIDE.Managers
 Partial Public Class MainWindow
     Inherits Window
 
+    Public ReadOnly Property ProjectManager As ProjectManager
+        Get
+            Return pProjectManager
+        End Get
+    End Property
     
     ' ===== Project Manager Event Handlers =====
     Private Sub OnProjectManagerProjectLoaded(vProjectPath As String)
@@ -30,7 +35,7 @@ Partial Public Class MainWindow
             ' Update status
             Dim lStatusContext As UInteger = pStatusBar.GetContextId("Main")
             pStatusBar.Pop(lStatusContext)
-            pStatusBar.Push(lStatusContext, $"loaded project: {System.IO.Path.GetFileName(vProjectPath)}")
+            pStatusBar.Push(lStatusContext, $"Loading project: {System.IO.Path.GetFileName(vProjectPath)}")
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectManagerProjectLoaded error: {ex.Message}")
@@ -50,38 +55,24 @@ Partial Public Class MainWindow
     
     Private Sub OnProjectManagerProjectModified()
         Try
-            ' Mark project as modified in UI
+            Console.WriteLine("Project structure modified")
+            
+            ' Update title bar to show modified state
             UpdateWindowTitle()
+            
+            ' Update toolbar buttons
+            UpdateToolbarButtons()
+            
+            ' Refresh project explorer if needed
+            If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                ' Only refresh if the structure actually changed
+                ' The ProjectManager will handle determining if a refresh is needed
+            End If
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectManagerProjectModified error: {ex.Message}")
         End Try
     End Sub
-    
-
-    
-
-    
-    Private Sub OnProjectManagerIdentifierMapUpdated()
-        Try
-            ' Update all open editors with new identifier map
-            Dim lIdentifierMap As Dictionary(Of String, String) = pProjectManager.GetIdentifierCaseMap()
-            
-            for each lTabEntry in pOpenTabs
-                Dim lEditor As CustomDrawingEditor = TryCast(lTabEntry.Value.Editor, CustomDrawingEditor)
-                If lEditor IsNot Nothing Then
-                    ' Clear and reload identifier map
-                    for each kvp in lIdentifierMap
-                        lEditor.UpdateIdentifierCaseMap(kvp.key, kvp.Value)
-                    Next
-                End If
-            Next
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnProjectManagerIdentifierMapUpdated error: {ex.Message}")
-        End Try
-    End Sub
-    
 
     
     ' ===== Project Structure Event Handlers =====
@@ -281,8 +272,6 @@ Partial Public Class MainWindow
                 OnProjectChangedUpdateScratchpad
 
 
-                ' Raise event
-                RaiseEvent ProjectChanged(vProjectFile)
             Else
                 ShowError("Load project error", "Failed To load the project file.")
             End If
@@ -430,58 +419,214 @@ Partial Public Class MainWindow
 
     ' ===== Enhanced Project Loading =====
     
+    ' Replace: SimpleIDE.MainWindow.LoadProjectEnhanced
+    ''' <summary>
+    ''' Loads a project asynchronously with immediate UI response and progress bar updates
+    ''' </summary>
+    ''' <param name="vProjectPath">Path to the project file</param>
     Private Sub LoadProjectEnhanced(vProjectPath As String)
         Try
-            Console.WriteLine($"Loading project with full parsing: {vProjectPath}")
+            Console.WriteLine($"LoadProjectEnhanced: Loading project asynchronously: {vProjectPath}")
             
             ' CRITICAL FIX: Set the current project path!
             pCurrentProject = vProjectPath
             Console.WriteLine($"Set pCurrentProject = {pCurrentProject}")
             
-            ' Show progress dialog or status
+            ' Show progress in status bar
             UpdateStatusBar("Loading project Structure...")
+            ShowProgressBar(True)
+            UpdateProgressBar(0)
             
-            ' Hook up ProjectManager events
+            ' Update UI immediately to show we're loading
+            UpdateWindowTitle()
+            UpdateToolbarButtons()
+            
+            ' Clear existing content in explorers
+            pProjectExplorer?.ClearProject()
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.ClearStructure()
+            End If
+            
+            ' Show loading placeholder in explorers
+            ShowExplorerLoadingState()
+            
+            ' Hook up ProjectManager events - USE THE RIGHT HANDLER FOR PROGRESS BAR!
             RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
             RemoveHandler pProjectManager.FileParsed, AddressOf OnProjectFileParsed
-            RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgress
+            RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar  ' Use WithBar version!
+            RemoveHandler pProjectManager.AllFilesParseCompleted, AddressOf OnAllFilesParseCompleted
             
             AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
             AddHandler pProjectManager.FileParsed, AddressOf OnProjectFileParsed
-            AddHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgress
+            AddHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar  ' Use WithBar version!
+            AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnAllFilesParseCompleted
             
-            ' Load project with parsing
-            If pProjectManager.LoadProjectWithParsing(vProjectPath) Then
-                ' Set project root for all components
-                SetProjectRoot(vProjectPath)
-                
-                ' Update UI - Use the new method!
-                ' pProjectExplorer.LoadProject(vPropProjectExplorer.LoadProjectFromManagerjectPath)  ' OLD WAY
-                Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.LoadProjectEnhanced")
-                pProjectExplorer.LoadProjectFromManager
-                
-                UpdateWindowTitle()
-                UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
-               
-                ' Enable project-related menu items and toolbar buttons
-                UpdateProjectRelatedUIState(True)
-                
-                ' Add to recent projects
-                If pSettingsManager IsNot Nothing Then
-                    pSettingsManager.AddRecentProject(vProjectPath)
-                End If
-                
-                Console.WriteLine($"Project loaded successfully: {vProjectPath}")
-            Else
-                ' Reset if loading failed
-                pCurrentProject = ""
-                ShowError("Project Load Failed", $"Failed To load project: {vProjectPath}")
-            End If
+            ' Initialize progress tracking
+            pTotalFilesToParse = 0
+            pCurrentFileParsed = 0
+            
+            ' Start async loading - DON'T BLOCK THE UI
+            Task.Run(Async Function() As Task
+                Try
+                    ' Load project structure first (fast)
+                    Dim lSuccess As Boolean = Await Task.Run(Function() 
+                        Return pProjectManager.LoadProjectWithParsing(vProjectPath)
+                    End Function)
+                    
+                    If lSuccess Then
+                        ' Update UI on main thread
+                        Gtk.Application.Invoke(Sub()
+                            ' Set project root for all components
+                            SetProjectRoot(vProjectPath)
+                            
+                            ' Load project structure in Project Explorer (fast)
+                            pProjectExplorer?.LoadProjectFromManager()
+                            
+                            ' Update UI state
+                            UpdateProjectRelatedUIState(True)
+                            pSettingsManager?.AddRecentProject(vProjectPath)
+                            
+                            ' Update status
+                            Dim lFileCount As Integer = pProjectManager.GetSourceFileCount()
+                            If lFileCount > 0 Then
+                                UpdateStatusBar($"Parsing {lFileCount} files...")
+                                UpdateProgressBar(5) ' Show we've started
+                            Else
+                                UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
+                                UpdateProgressBar(100)
+                            End If
+                        End Sub)
+                        
+                        ' The file parsing will continue in background
+                        ' Progress updates via OnProjectParsingProgressWithBar
+                        
+                    Else
+                        ' Failed - update UI on main thread
+                        Gtk.Application.Invoke(Sub()
+                            pCurrentProject = ""
+                            ShowProgressBar(False)
+                            UpdateStatusBar("Failed To load project")
+                            ShowError("Project Load Failed", $"Failed To load project: {vProjectPath}")
+                            HideExplorerLoadingState()
+                        End Sub)
+                    End If
+                    
+                Catch ex As Exception
+                    Console.WriteLine($"LoadProjectEnhanced async error: {ex.Message}")
+                    Gtk.Application.Invoke(Sub()
+                        pCurrentProject = ""
+                        ShowProgressBar(False)
+                        UpdateStatusBar("Project load error")
+                        ShowError("Project Load error", ex.Message)
+                        HideExplorerLoadingState()
+                    End Sub)
+                End Try
+            End Function)
             
         Catch ex As Exception
             Console.WriteLine($"LoadProjectEnhanced error: {ex.Message}")
-            pCurrentProject = "" ' Reset on error
+            pCurrentProject = ""
+            UpdateStatusBar("Project load error")
             ShowError("Project Load error", ex.Message)
+        Finally
+            ' Clean up event handlers after a delay
+            GLib.Timeout.Add(5000, Function()
+                RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar
+                Return False
+            End Function)
+        End Try
+    End Sub
+    ''' <summary>
+    ''' Shows loading state in explorers
+    ''' </summary>
+    Private Sub ShowExplorerLoadingState()
+        Try
+            ' Show loading message in Project Explorer
+            If pProjectExplorer IsNot Nothing Then
+                ' Could add a loading spinner or message
+                pProjectExplorer.ShowAll()
+            End If
+            
+            ' Show loading message in Object Explorer
+            If pObjectExplorer IsNot Nothing Then
+                ' The Object Explorer can show a "Loading..." message
+                pObjectExplorer.ShowLoadingState()
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"ShowExplorerLoadingState error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Hides loading state in explorers
+    ''' </summary>
+    Private Sub HideExplorerLoadingState()
+        Try
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.HideLoadingState()
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"HideExplorerLoadingState error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles parsing progress updates with smoother progress bar
+    ''' </summary>
+    Private Sub OnProjectParsingProgress(vFilesCompleted As Integer, vTotalFiles As Integer)
+        Try
+            ' Update on UI thread
+            Gtk.Application.Invoke(Sub()
+                If vTotalFiles > 0 Then
+                    ' Calculate percentage (reserve 0-5% for loading, 5-95% for parsing)
+                    Dim lParseProgress As Double = (vFilesCompleted / vTotalFiles) * 90.0
+                    UpdateProgressBar(5 + lParseProgress)
+                    
+                    ' Update status message periodically (not every file to reduce flicker)
+                    If vFilesCompleted Mod 10 = 0 OrElse vFilesCompleted = vTotalFiles Then
+                        UpdateStatusBar($"Parsing files... ({vFilesCompleted}/{vTotalFiles})")
+                    End If
+                End If
+            End Sub)
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectParsingProgress error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles completion of all file parsing
+    ''' </summary>
+    Private Sub OnAllFilesParseCompleted(vFileCount As Integer, vTotalMilliseconds As Double)
+        Try
+            Console.WriteLine($"All files parsed: {vFileCount} files in {vTotalMilliseconds:F0}ms")
+            
+            ' Update UI on main thread
+            Gtk.Application.Invoke(Sub()
+                ' Complete the progress bar
+                UpdateProgressBar(100)
+                
+                ' Update status
+                Dim lSeconds As Double = vTotalMilliseconds / 1000.0
+                UpdateStatusBar($"Project loaded: {vFileCount} files parsed in {lSeconds:F1}s")
+                
+                ' Hide progress bar after a short delay
+                GLib.Timeout.Add(1000, Function()
+                    ShowProgressBar(False)
+                    Return False ' Don't repeat
+                End Function)
+                
+                ' Hide loading states
+                HideExplorerLoadingState()
+                
+                ' Refresh the Object Explorer if it has content
+                If pObjectExplorer IsNot Nothing AndAlso pProjectManager.ProjectSyntaxTree IsNot Nothing Then
+                    pObjectExplorer.RefreshView()
+                End If
+            End Sub)
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnAllFilesParseCompleted error: {ex.Message}")
         End Try
     End Sub
     
@@ -535,44 +680,23 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OpenFileWithProjectIntegration(vFilePath As String)
         Try
+            Dim  lIsNewFile As Boolean = false
+
             ' Get file info from project manager if available
             Dim lSourceFileInfo As SourceFileInfo = Nothing
             If pProjectManager.IsProjectOpen Then
                 lSourceFileInfo = pProjectManager.GetSourceFileInfo(vFilePath)
-            End If
-            ' Don't update status here - let the caller handle status messages
-            ' UpdateStatusBar("Loading: " + vFilePath)
-    
-            ' Open the file normally
-            OpenFile(vFilePath)
-            
-            ' Get the newly created tab
-            Dim lTab As TabInfo = GetCurrentTabInfo()
-            If lTab Is Nothing OrElse lTab.Editor Is Nothing Then Return
-            
-            ' If we have project file info, sync it with the editor
-            If lSourceFileInfo IsNot Nothing Then
-                'lSourceFileInfo.IsLoaded = True
-                lSourceFileInfo.Editor = lTab.Editor
-                
-                ' FIXED: Don't update Object Explorer with single file structure
-                ' Always maintain the full project structure when a project is open
-                If pProjectManager.IsProjectOpen Then
-                    ' Get the full project structure
-                    Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
-                    If lProjectTree IsNot Nothing Then
-                        pObjectExplorer?.UpdateStructure(lProjectTree)
-                        Console.WriteLine("Object Explorer maintained with full project Structure after file open")
-                    End If
-                ElseIf lSourceFileInfo.SyntaxTree IsNot Nothing Then
-                    ' Only update with single file if no project is open
-                    pObjectExplorer?.UpdateStructure(lSourceFileInfo.SyntaxTree)
+                if lSourceFileInfo Is Nothing Then 
+                    lSourceFileInfo = pProjectManager.CreateEmptyFile(vFilePath)
+                    lIsNewFile = true
                 End If
             End If
+            ' Don't update status here - let the caller handle status messages
+            UpdateStatusBar("Loading: " + vFilePath)
             
-            ' Set up Object Explorer for this editor
-            SetupEditorForObjectExplorer(lTab.Editor)
-            
+            ' Create new tab
+            CreateNewTab(vFilePath, lSourceFileInfo, lIsNewFile)
+
         Catch ex As Exception
             Console.WriteLine($"OpenFileWithProjectIntegration error: {ex.Message}")
         End Try
@@ -580,73 +704,41 @@ Partial Public Class MainWindow
     
     ' ===== Enhanced Tab Switching =====
     
-    ''' <summary>
-    ''' Enhanced notebook page switch that updates from project structure
-    ''' </summary>
-    Private Sub OnNotebookSwitchPageWithProjectIntegration(vSender As Object, vArgs As SwitchPageArgs)
-        Try
-            ' Call original handler
-            OnNotebookSwitchPage(vSender, vArgs)
-            
-            ' Get the current tab
-            Dim lTab As TabInfo = GetCurrentTabInfo()
-            If lTab Is Nothing Then Return
-            
-            ' If project is open, check if we have structure for this file
-            If pProjectManager.IsProjectOpen AndAlso Not String.IsNullOrEmpty(lTab.FilePath) Then
-                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lTab.FilePath)
-                
-                If lSourceFileInfo IsNot Nothing AndAlso lSourceFileInfo.SyntaxTree IsNot Nothing Then
-                    ' Update Object Explorer with project structure for this file
-                    ' This ensures consistency even if the editor hasn't parsed yet
-                    If pObjectExplorer IsNot Nothing Then
-                        ' We could show just this file's structure or the whole project
-                        ' For now, show the whole project structure
-                        Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
-                        If lProjectTree IsNot Nothing Then
-                            pObjectExplorer.UpdateStructure(lProjectTree)
-                        End If
-                    End If
-                End If
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnNotebookSwitchPageWithProjectIntegration error: {ex.Message}")
-        End Try
-    End Sub
+
     
     ' ===== Editor Content Changes =====
     
-    ''' <summary>
-    ''' Handle editor content changes to update project structure
-    ''' </summary>
-    Private Sub OnEditorContentChangedWithProjectUpdate(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Get the editor that changed
-            Dim lEditor As IEditor = TryCast(vSender, IEditor)
-            If lEditor Is Nothing Then Return
-            
-            ' Find the tab for this editor
-            Dim lTab As TabInfo = Nothing
-            For Each lT In pOpenTabs
-                If lT.Value.Editor Is lEditor Then
-                    lTab = lT.Value
-                    Exit For
-                End If
-            Next
-            
-            If lTab Is Nothing OrElse String.IsNullOrEmpty(lTab.FilePath) Then Return
-            
-            ' If project is open, update the file structure
-            If pProjectManager.IsProjectOpen Then
-                ' This will trigger a reparse and update events
-                if pProjectManager.LoadProjectStructure() Then pProjectManager.DiagnoseProjectStructure() 
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnEditorContentChangedWithProjectUpdate error: {ex.Message}")
-        End Try
-    End Sub
+'     ''' <summary>
+'     ''' Handle editor content changes to update project structure
+'     ''' </summary>
+'     Private Sub OnEditorContentChangedWithProjectUpdate(vSender As Object, vArgs As EventArgs)
+'         Try
+'             ' Get the editor that changed
+'             Dim lEditor As IEditor = TryCast(vSender, IEditor)
+'             If lEditor Is Nothing Then Return
+'             
+'             ' Find the tab for this editor
+'             Dim lTab As TabInfo = Nothing
+'             For Each lT In pOpenTabs
+'                 If lT.Value.Editor Is lEditor Then
+'                     lTab = lT.Value
+'                     Exit For
+'                 End If
+'             Next
+'             
+'             If lTab Is Nothing OrElse String.IsNullOrEmpty(lTab.FilePath) Then Return
+'             
+'             ' If project is open, update the file structure
+'             If pProjectManager.IsProjectOpen Then
+'                 ' This will trigger a reparse and update events
+'                 pProjectManager.LoadProjectStructure()
+' '                if pProjectManager.LoadProjectStructure() Then pProjectManager.DiagnoseProjectStructure() 
+'             End If
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"OnEditorContentChangedWithProjectUpdate error: {ex.Message}")
+'         End Try
+'     End Sub
     
     ' ===== Refresh Commands =====
     
@@ -783,7 +875,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"=== OnProjectStructureLoaded START ===")
             Console.WriteLine($"Project Structure loaded with root: {vRootNode?.Name} ({vRootNode?.NodeType})")
             Console.WriteLine($"Root has {vRootNode?.Children.Count} children")
-            
+            ApplyThemeToAllEditors()
             ' List the children for debugging
             If vRootNode IsNot Nothing AndAlso vRootNode.Children.Count > 0 Then
                 Console.WriteLine("Root children:")
@@ -994,6 +1086,173 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectManagerReferenceRemoved error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles file added event from ProjectManager - refreshes project explorer
+    ''' </summary>
+    ''' <param name="vFilePath">Path of added file</param>
+    Private Sub OnProjectManagerFileAdded(vFilePath As String)
+        Try
+            Console.WriteLine($"File added To project: {vFilePath}")
+            
+            ' Refresh the project explorer by reloading from ProjectManager
+            If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                ' Use LoadProjectFromManager to refresh from the already-loaded project
+                pProjectExplorer.LoadProjectFromManager()
+            End If
+            
+            ' Update Object Explorer as well
+            If pObjectExplorer IsNot Nothing Then
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                If lProjectTree IsNot Nothing Then
+                    pObjectExplorer.UpdateStructure(lProjectTree)
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerFileAdded error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles file removed event from ProjectManager - refreshes project explorer
+    ''' </summary>
+    ''' <param name="vFilePath">Path of removed file</param>
+    Private Sub OnProjectManagerFileRemoved(vFilePath As String)
+        Try
+            Console.WriteLine($"File removed from project: {vFilePath}")
+            
+            ' Refresh the project explorer by reloading from ProjectManager
+            If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                ' Use LoadProjectFromManager to refresh from the already-loaded project
+                pProjectExplorer.LoadProjectFromManager()
+            End If
+            
+            ' Update Object Explorer as well
+            If pObjectExplorer IsNot Nothing Then
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                If lProjectTree IsNot Nothing Then
+                    pObjectExplorer.UpdateStructure(lProjectTree)
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerFileRemoved error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles file renamed event from ProjectManager - refreshes project explorer
+    ''' </summary>
+    ''' <param name="vOldPath">Old file path</param>
+    ''' <param name="vNewPath">New file path</param>
+    Private Sub OnProjectManagerFileRenamed(vOldPath As String, vNewPath As String)
+        Try
+            Console.WriteLine($"File renamed: {vOldPath} -> {vNewPath}")
+            
+            ' Refresh the project explorer by reloading from ProjectManager
+            If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                ' Use LoadProjectFromManager to refresh from the already-loaded project
+                pProjectExplorer.LoadProjectFromManager()
+            End If
+            
+            ' Update Object Explorer as well
+            If pObjectExplorer IsNot Nothing Then
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                If lProjectTree IsNot Nothing Then
+                    pObjectExplorer.UpdateStructure(lProjectTree)
+                End If
+            End If
+            
+            ' Update any open tabs with the old file path
+            UpdateTabsForRenamedFile(vOldPath, vNewPath)
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectManagerFileRenamed error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Helper method to update tabs when a file is renamed
+    ''' </summary>
+    Private Sub UpdateTabsForRenamedFile(vOldPath As String, vNewPath As String)
+        Try
+            ' Find and update any tabs with the old file path
+            For Each lTab As TabInfo In pOpenTabs.Values
+                If lTab.FilePath = vOldPath Then
+                    lTab.FilePath = vNewPath
+                    Dim lNewFileName as String = System.IO.Path.GetFileName(vNewPath)
+                    
+                    ' Update tab label
+                    Dim lLabel As Label = lTab.TabLabel
+                    If lLabel IsNot Nothing Then lLabel.Text = lNewFileName
+                    
+                    ' Update the SourceFileInfo in the editor
+                    If lTab.Editor IsNot Nothing AndAlso lTab.Editor.SourceFileInfo IsNot Nothing Then
+                        lTab.Editor.SourceFileInfo.FilePath = vNewPath
+                        lTab.Editor.SourceFileInfo.FileName = System.IO.Path.GetFileName(vNewPath)
+                    End If
+                End If
+            Next
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateTabsForRenamedFile error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Animates the progress bar smoothly from one value to another
+    ''' </summary>
+    ''' <param name="vFrom">Starting percentage (0-100)</param>
+    ''' <param name="vTo">Target percentage (0-100)</param>
+    ''' <param name="vDurationMs">Animation duration in milliseconds</param>
+    Private Sub AnimateProgressBar(vFrom As Double, vTo As Double, vDurationMs As Integer)
+        Try
+            If pProgressBar Is Nothing OrElse Not pProgressBar.Visible Then Return
+            
+            ' Don't animate tiny changes
+            If Math.Abs(vTo - vFrom) < 1 Then
+                UpdateProgressBar(vTo)
+                Return
+            End If
+            
+            Dim lSteps As Integer = Math.Max(5, Math.Min(20, CInt(vDurationMs / 20))) ' 20-50ms per step
+            Dim lStepSize As Double = (vTo - vFrom) / lSteps
+            Dim lCurrentValue As Double = vFrom
+            Dim lStepCount As Integer = 0
+            
+            ' Use a timer for smooth animation
+            GLib.Timeout.Add(CUInt(vDurationMs / lSteps), Function()
+                lStepCount += 1
+                
+                ' Use easing function for smoother animation
+                Dim lProgress As Double = lStepCount / CDbl(lSteps)
+                ' Ease-in-out quadratic
+                If lProgress < 0.5 Then
+                    lCurrentValue = vFrom + (vTo - vFrom) * (2 * lProgress * lProgress)
+                Else
+                    lProgress = lProgress - 0.5
+                    lCurrentValue = vFrom + (vTo - vFrom) * (1 - 2 * (0.5 - lProgress) * (0.5 - lProgress))
+                End If
+                
+                ' Ensure we don't overshoot
+                If lStepCount >= lSteps Then
+                    lCurrentValue = vTo
+                End If
+                
+                ' Update the progress bar
+                UpdateProgressBar(lCurrentValue)
+                
+                ' Continue animation if not complete
+                Return lStepCount < lSteps
+            End Function)
+            
+        Catch ex As Exception
+            Console.WriteLine($"AnimateProgressBar error: {ex.Message}")
+            ' Fallback to direct update
+            UpdateProgressBar(vTo)
         End Try
     End Sub
     

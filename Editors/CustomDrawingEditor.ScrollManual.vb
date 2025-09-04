@@ -19,21 +19,53 @@ Namespace Editors
         Private Const PAGE_SCROLL_FACTOR As Double = 0.9
         
         ' ===== Scrollbar Value Changed Handlers =====
+
         ''' <summary>
         ''' Handles vertical scrollbar value changes
         ''' </summary>
         Private Sub OnVScrollbarValueChanged(vSender As Object, vArgs As EventArgs)
             Try
-                Dim lNewFirstLine As Integer = CInt(pVScrollbar.Value)
+                ' The scrollbar value represents the first visible line
+                Dim lNewFirstLine As Integer = CInt(Math.Floor(pVScrollbar.Value))
+                
+                ' Calculate the maximum valid first visible line
+                ' This ensures we can see all lines including the last one
+                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                
+                ' CRITICAL FIX: Also handle the case where we have fewer lines than visible area
+                ' In this case, we should always start at line 0
+                If pLineCount <= pTotalVisibleLines Then
+                    lNewFirstLine = 0
+                Else
+                    ' Clamp to valid range - ensure we can scroll to show the last line
+                    lNewFirstLine = Math.Max(0, Math.Min(lNewFirstLine, lMaxFirstLine))
+                End If
+                
+                ' Only update if the value actually changed
                 If lNewFirstLine <> pFirstVisibleLine Then
                     pFirstVisibleLine = lNewFirstLine
-                    pDrawingArea.QueueDraw()
+                    
+                    ' Update scroll position for deferred formatting
+                    pScrollY = pFirstVisibleLine * pLineHeight
+                    
+                    ' Trigger deferred formatting for newly visible lines
+                    If pDeferredFormattingEnabled Then
+                        OnScrollChanged()
+                    End If
+                    
+                    ' Queue redraw for main drawing area
+                    pDrawingArea?.QueueDraw()
                     
                     ' Update line number widget
                     If pLineNumberWidget IsNot Nothing Then
                         pLineNumberWidget.QueueDraw()
                     End If
+                    
+                    ' Debug output to track scrolling
+                    Console.WriteLine($"OnVScrollbarValueChanged: FirstLine={pFirstVisibleLine}, " & _
+                                    $"MaxFirstLine={lMaxFirstLine}, ScrollValue={pVScrollbar.Value}")
                 End If
+                
             Catch ex As Exception
                 Console.WriteLine($"OnVScrollbarValueChanged error: {ex.Message}")
             End Try
@@ -44,10 +76,23 @@ Namespace Editors
         ''' </summary>
         Private Sub OnHScrollbarValueChanged(vSender As Object, vArgs As EventArgs)
             Try
-                Dim lNewFirstColumn As Integer = CInt(pHScrollbar.Value)
+                ' CRITICAL FIX: The scrollbar value represents the first visible column directly
+                Dim lNewFirstColumn As Integer = CInt(Math.Floor(pHScrollbar.Value))
+                
+                ' Calculate max first column based on content width
+                Dim lMaxColumns As Integer = If(pCharWidth > 0, 
+                                               CInt(Math.Ceiling(CDbl(pMaxLineWidth) / pCharWidth)), 
+                                               80)
+                Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
+                
+                ' Clamp to valid range
+                lNewFirstColumn = Math.Max(0, Math.Min(lNewFirstColumn, lMaxFirstColumn))
+                
                 If lNewFirstColumn <> pFirstVisibleColumn Then
                     pFirstVisibleColumn = lNewFirstColumn
-                    pDrawingArea.QueueDraw()
+                    
+                    ' Queue redraw
+                    pDrawingArea?.QueueDraw()
                 End If
             Catch ex As Exception
                 Console.WriteLine($"OnHScrollbarValueChanged error: {ex.Message}")
@@ -84,8 +129,84 @@ Namespace Editors
         End Sub
         
         ' ===== Update Scrollbars =====
+
+        
+        
         ''' <summary>
-        ''' Updates scrollbar ranges and visibility
+        ''' Updates vertical scrollbar adjustment values
+        ''' </summary>
+        Private Sub UpdateVerticalScrollbar()
+            Try
+                ' FIXED: Check for valid viewport height to prevent infinity
+                If pViewportHeight <= 0 OrElse pVScrollbar Is Nothing Then
+                    Return
+                End If
+                
+                Dim lAdjustment As Adjustment = pVScrollbar.Adjustment
+                
+                ' Calculate the actual number of lines that can be scrolled to
+                ' The maximum first visible line is total lines minus visible lines
+                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                
+                ' Store the handler reference if we don't have it yet
+                If pVScrollbarHandler Is Nothing Then
+                    pVScrollbarHandler = New EventHandler(AddressOf OnVScrollbarValueChanged)
+                End If
+                
+                ' Temporarily remove handler to prevent recursive calls
+                RemoveHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                
+                ' CRITICAL FIX: Set the scrollbar range correctly
+                ' The Upper value should be set so that when Value = Upper - PageSize,
+                ' we're showing the last page of content
+                lAdjustment.Lower = 0
+                
+                ' Set Upper to line count (total content)
+                ' But we need to ensure that Value can never exceed the maximum first visible line
+                lAdjustment.Upper = Math.Max(pTotalVisibleLines, pLineCount)
+                
+                ' PageSize represents how many lines are visible at once
+                ' This affects the thumb size and how far we can scroll
+                lAdjustment.PageSize = pTotalVisibleLines
+                
+                ' Step increment for arrow keys/mouse wheel
+                lAdjustment.StepIncrement = 1
+                
+                ' Page increment for page up/down or clicking in scrollbar track
+                lAdjustment.PageIncrement = Math.Max(1, CInt(pTotalVisibleLines * PAGE_SCROLL_FACTOR))
+                
+                ' Clamp current value to valid range
+                ' The maximum value should be Upper - PageSize
+                Dim lMaxValue As Double = Math.Max(0, lAdjustment.Upper - lAdjustment.PageSize)
+                If pFirstVisibleLine > lMaxValue Then
+                    pFirstVisibleLine = CInt(Math.Floor(lMaxValue))
+                End If
+                
+                ' Set the current value
+                lAdjustment.Value = pFirstVisibleLine
+                
+                ' Re-add handler - this ensures it's always connected
+                AddHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                
+                ' Show/hide scrollbar based on need
+                pVScrollbar.Visible = (pLineCount > pTotalVisibleLines)
+                
+                ' Debug output to verify scrollbar settings
+                Console.WriteLine($"UpdateVerticalScrollbar: Lines={pLineCount}, VisibleLines={pTotalVisibleLines}, " & _
+                                 $"Upper={lAdjustment.Upper}, PageSize={lAdjustment.PageSize}, MaxValue={lMaxValue}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateVerticalScrollbar error: {ex.Message}")
+                ' Ensure handler is reconnected even on error
+                If pVScrollbar IsNot Nothing AndAlso pVScrollbarHandler IsNot Nothing Then
+                    RemoveHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                    AddHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+                End If
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Updates scrollbar ranges and visibility with deferred formatting support
         ''' </summary>
         Public Sub UpdateScrollbars()
             Try
@@ -106,62 +227,33 @@ Namespace Editors
                 ' Update horizontal scrollbar
                 UpdateHorizontalScrollbar()
                 
+                ' Hook up deferred formatting if enabled
+                If pDeferredFormattingEnabled Then
+                    ' Trigger formatting check for current view
+                    OnScrollChanged()
+                End If
+                
             Catch ex As Exception
                 Console.WriteLine($"UpdateScrollbars error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Updates vertical scrollbar adjustment values
+        ''' Handle vertical scroll value changes for deferred formatting
         ''' </summary>
-        Private Sub UpdateVerticalScrollbar()
+        Private Sub OnVerticalScrollValueChanged(vSender As Object, vArgs As EventArgs)
             Try
-                ' FIXED: Check for valid viewport height to prevent infinity
-                If pViewportHeight <= 0 Then
-                    Return
-                End If
+                ' Update scroll position
+                pScrollY = CInt(pVScrollbar.Adjustment.Value)
                 
-                Dim lAdjustment As Adjustment = pVScrollbar.Adjustment
+                ' Trigger deferred formatting for newly visible lines
+                OnScrollChanged()
                 
-                ' Calculate values
-                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
-                Dim lPageSize As Double = pTotalVisibleLines
-                Dim lThumbSize As Double = If(pLineCount > 0, CDbl(pTotalVisibleLines) / pLineCount, 1.0)
-                
-                ' Ensure minimum thumb size
-                If lThumbSize * pViewportHeight < MINIMUM_THUMB_SIZE AndAlso pLineCount > pTotalVisibleLines Then
-                    lPageSize = CDbl(MINIMUM_THUMB_SIZE * pLineCount) / pViewportHeight
-                End If
-                
-                ' FIXED: Ensure page size is not infinity or NaN
-                If Double.IsInfinity(lPageSize) OrElse Double.IsNaN(lPageSize) Then
-                    lPageSize = 1.0
-                End If
-                
-                ' Temporarily remove handler to prevent recursive calls
-                RemoveHandler pVScrollbar.ValueChanged, AddressOf OnVScrollbarValueChanged
-                
-                ' Update adjustment
-                lAdjustment.Lower = 0
-                lAdjustment.Upper = pLineCount
-                lAdjustment.PageSize = lPageSize
-                lAdjustment.StepIncrement = 1
-                lAdjustment.PageIncrement = Math.Max(1, CInt(pTotalVisibleLines * PAGE_SCROLL_FACTOR))
-                
-                ' Clamp current value
-                If pFirstVisibleLine > lMaxFirstLine Then
-                    pFirstVisibleLine = lMaxFirstLine
-                End If
-                lAdjustment.Value = pFirstVisibleLine
-                
-                ' Re-add handler
-                AddHandler pVScrollbar.ValueChanged, AddressOf OnVScrollbarValueChanged
-                
-                ' Show/hide scrollbar based on need
-                pVScrollbar.Visible = (pLineCount > pTotalVisibleLines)
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
-                Console.WriteLine($"UpdateVerticalScrollbar error: {ex.Message}")
+                Console.WriteLine($"OnVerticalScrollValueChanged error: {ex.Message}")
             End Try
         End Sub
             
@@ -171,7 +263,7 @@ Namespace Editors
         Private Sub UpdateHorizontalScrollbar()
             Try
                 ' FIXED: Check for valid viewport width to prevent infinity
-                If pViewportWidth <= 0 Then
+                If pViewportWidth <= 0 OrElse pHScrollbar Is Nothing Then
                     Return
                 End If
                 
@@ -195,8 +287,13 @@ Namespace Editors
                     lPageSize = 1.0
                 End If
                 
+                ' Store the handler reference if we don't have it yet
+                If pHScrollbarHandler Is Nothing Then
+                    pHScrollbarHandler = New EventHandler(AddressOf OnHScrollbarValueChanged)
+                End If
+                
                 ' Temporarily remove handler to prevent recursive calls
-                RemoveHandler pHScrollbar.ValueChanged, AddressOf OnHScrollbarValueChanged
+                RemoveHandler pHScrollbar.ValueChanged, pHScrollbarHandler
                 
                 ' Update adjustment
                 lAdjustment.Lower = 0
@@ -211,18 +308,24 @@ Namespace Editors
                 End If
                 lAdjustment.Value = pFirstVisibleColumn
                 
-                ' Re-add handler
-                AddHandler pHScrollbar.ValueChanged, AddressOf OnHScrollbarValueChanged
+                ' Re-add handler - this ensures it's always connected
+                AddHandler pHScrollbar.ValueChanged, pHScrollbarHandler
                 
                 ' Show/hide scrollbar based on need
                 pHScrollbar.Visible = (lMaxColumns > pTotalVisibleColumns)
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateHorizontalScrollbar error: {ex.Message}")
+                ' Ensure handler is reconnected even on error
+                If pHScrollbar IsNot Nothing AndAlso pHScrollbarHandler IsNot Nothing Then
+                    RemoveHandler pHScrollbar.ValueChanged, pHScrollbarHandler
+                    AddHandler pHScrollbar.ValueChanged, pHScrollbarHandler
+                End If
             End Try
         End Sub
         
         ' ===== Scroll Event =====
+
         ''' <summary>
         ''' Handles mouse scroll wheel events
         ''' </summary>
@@ -301,19 +404,31 @@ Namespace Editors
         End Function
 
         ' ===== Scrolling Methods =====
+
         ''' <summary>
         ''' Scrolls the editor up by the specified number of lines
         ''' </summary>
+        ''' <param name="vLines">Number of lines to scroll up</param>
         Private Sub ScrollUp(vLines As Integer)
             Try
                 If pFirstVisibleLine > 0 Then
-                    pFirstVisibleLine = Math.Max(0, pFirstVisibleLine - vLines)
-                    UpdateScrollbars()
-                    pDrawingArea.QueueDraw()
+                    ' Calculate new first visible line
+                    Dim lNewFirstLine As Integer = Math.Max(0, pFirstVisibleLine - vLines)
                     
-                    ' Update line number widget - check both new and old widgets
-                    If pLineNumberWidget IsNot Nothing Then
-                        pLineNumberWidget.QueueDraw()
+                    If lNewFirstLine <> pFirstVisibleLine Then
+                        pFirstVisibleLine = lNewFirstLine
+                        
+                        ' Update the scrollbar value to match
+                        If pVScrollbar IsNot Nothing Then
+                            pVScrollbar.Value = pFirstVisibleLine
+                        End If
+                        
+                        ' Update scrollbars and redraw
+                        UpdateScrollbars()
+                        pDrawingArea?.QueueDraw()
+                        pLineNumberWidget?.QueueDraw()
+                        
+                        Console.WriteLine($"ScrollUp: Scrolled to line {pFirstVisibleLine}")
                     End If
                 End If
             Catch ex As Exception
@@ -324,31 +439,70 @@ Namespace Editors
         ''' <summary>
         ''' Scrolls the editor down by the specified number of lines
         ''' </summary>
+        ''' <param name="vLines">Number of lines to scroll down</param>
         Private Sub ScrollDown(vLines As Integer)
             Try
+                ' Calculate the maximum valid first visible line
+                ' This ensures the last line can be visible at the bottom of the viewport
                 Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                
                 If pFirstVisibleLine < lMaxFirstLine Then
-                    pFirstVisibleLine = Math.Min(lMaxFirstLine, pFirstVisibleLine + vLines)
-                    UpdateScrollbars()
-                    pDrawingArea.QueueDraw()
+                    ' Calculate new first visible line
+                    Dim lNewFirstLine As Integer = Math.Min(lMaxFirstLine, pFirstVisibleLine + vLines)
                     
-                    ' Update line number widget - check both new and old widgets
-                    If pLineNumberWidget IsNot Nothing Then
-                        pLineNumberWidget.QueueDraw()
+                    If lNewFirstLine <> pFirstVisibleLine Then
+                        pFirstVisibleLine = lNewFirstLine
+                        
+                        ' Update the scrollbar value to match
+                        If pVScrollbar IsNot Nothing Then
+                            pVScrollbar.Value = pFirstVisibleLine
+                        End If
+                        
+                        ' Update scrollbars and redraw
+                        UpdateScrollbars()
+                        pDrawingArea?.QueueDraw()
+                        pLineNumberWidget?.QueueDraw()
+                        
+                        Console.WriteLine($"ScrollDown: Scrolled to line {pFirstVisibleLine}, Max={lMaxFirstLine}")
+                    End If
+                ElseIf pLineCount > pTotalVisibleLines Then
+                    ' CRITICAL FIX: If we think we're at the bottom but we're not showing all lines,
+                    ' try to scroll to the absolute maximum to show the last lines
+                    Dim lAbsoluteMax As Integer = pLineCount - pTotalVisibleLines
+                    If pFirstVisibleLine < lAbsoluteMax Then
+                        pFirstVisibleLine = lAbsoluteMax
+                        
+                        If pVScrollbar IsNot Nothing Then
+                            pVScrollbar.Value = pFirstVisibleLine
+                        End If
+                        
+                        UpdateScrollbars()
+                        pDrawingArea?.QueueDraw()
+                        pLineNumberWidget?.QueueDraw()
+                        
+                        Console.WriteLine($"ScrollDown: Force scrolled to absolute max {pFirstVisibleLine}")
                     End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"ScrollDown error: {ex.Message}")
             End Try
         End Sub
-        
+
+     
         ''' <summary>
         ''' Scrolls the editor left by the specified number of columns
         ''' </summary>
+        ''' <param name="vColumns">Number of columns to scroll left</param>
         Private Sub ScrollLeft(vColumns As Integer)
             Try
                 If pFirstVisibleColumn > 0 Then
                     pFirstVisibleColumn = Math.Max(0, pFirstVisibleColumn - vColumns)
+                    
+                    ' Update the scrollbar value to match
+                    If pHScrollbar IsNot Nothing Then
+                        pHScrollbar.Value = pFirstVisibleColumn
+                    End If
+                    
                     UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                 End If
@@ -360,6 +514,7 @@ Namespace Editors
         ''' <summary>
         ''' Scrolls the editor right by the specified number of columns
         ''' </summary>
+        ''' <param name="vColumns">Number of columns to scroll right</param>
         Private Sub ScrollRight(vColumns As Integer)
             Try
                 Dim lMaxColumns As Integer = If(pCharWidth > 0, 
@@ -368,6 +523,12 @@ Namespace Editors
                 Dim lMaxFirstColumn As Integer = Math.Max(0, lMaxColumns - pTotalVisibleColumns)
                 If pFirstVisibleColumn < lMaxFirstColumn Then
                     pFirstVisibleColumn = Math.Min(lMaxFirstColumn, pFirstVisibleColumn + vColumns)
+                    
+                    ' Update the scrollbar value to match
+                    If pHScrollbar IsNot Nothing Then
+                        pHScrollbar.Value = pFirstVisibleColumn
+                    End If
+                    
                     UpdateScrollbars()
                     pDrawingArea.QueueDraw()
                 End If
@@ -375,6 +536,7 @@ Namespace Editors
                 Console.WriteLine($"ScrollRight error: {ex.Message}")
             End Try
         End Sub
+
         
         ' ===== Helper methods =====
         ''' <summary>
@@ -587,8 +749,8 @@ Namespace Editors
             Try
                 pMaxLineWidth = 0
                 for i As Integer = 0 To pLineCount - 1
-                    If pTextLines(i) IsNot Nothing Then
-                        pMaxLineWidth = Math.Max(pMaxLineWidth, pTextLines(i).Length)
+                    If TextLines(i) IsNot Nothing Then
+                        pMaxLineWidth = Math.Max(pMaxLineWidth, TextLines(i).Length)
                     End If
                 Next
             Catch ex As Exception

@@ -382,6 +382,21 @@ Namespace Syntax
                 Return False
             End Try
         End Function
+
+        ''' <summary>
+        ''' Updates the color set used by the syntax highlighter
+        ''' </summary>
+        ''' <param name="vColorSet">The new color set to use</param>
+        Public Sub SetColorSet(vColorSet As SyntaxColorSet)
+            Try
+                If vColorSet IsNot Nothing Then
+                    pColorSet = vColorSet
+                    Console.WriteLine("VBSyntaxHighlighter: Color Set updated")
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"SetColorSet error: {ex.Message}")
+            End Try
+        End Sub
         
         ' ===== IDisposable Implementation =====
         

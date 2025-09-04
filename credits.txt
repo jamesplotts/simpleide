@@ -2,5 +2,7 @@
 <a href="https://www.flaticon.com/free-icons/indent" title="indent icons">Indent icons created by Google - Flaticon</a>
 <a href="https://www.flaticon.com/free-icons/edit-tools" title="edit tools icons">Edit tools icons created by bqlqn - Flaticon</a>
 <a href="https://iconscout.com/icons/git" class="text-underline font-size-sm" target="_blank">Git</a> by <a href="https://iconscout.com/contributors/icon-mafia" class="text-underline font-size-sm" target="_blank">Icon Mafia</a>
-
+<a href="https://iconscout.com/icons/cut" class="text-underline font-size-sm" target="_blank">Cut</a> by <a href="https://iconscout.com/contributors/irfansusanto98" class="text-underline font-size-sm">Barudak Lier</a> on <a href="https://iconscout.com" class="text-underline font-size-sm">IconScout</a>
 <a target="_blank" href="https://icons8.com/icon/vgMoO3QkEnKf/visual-basic">Visual Basic</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+<a href="https://iconscout.com/icons/up-bar-arrow" class="text-underline font-size-sm" target="_blank">Up bar arrow</a> by <a href="https://iconscout.com/contributors/artist-nirvaan" class="text-underline font-size-sm">Nirvaan Designs</a> on <a href="https://iconscout.com" class="text-underline font-size-sm">IconScout</a>
+<a href="https://www.flaticon.com/free-icons/search" title="search icons">Search icons created by Freepik - Flaticon</a>

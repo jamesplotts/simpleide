@@ -32,6 +32,7 @@ Namespace Interfaces
         
         ' Content Properties
         Property Text As String
+        ReadOnly Property TextLines As List(Of String)
         ReadOnly Property LineCount As Integer
         ReadOnly Property CharCount As Integer
         ReadOnly Property CurrentLine As Integer
@@ -49,7 +50,8 @@ Namespace Interfaces
         ReadOnly Property SupportsLineNumbers As Boolean
         ReadOnly Property SupportsSyntaxHighlighting As Boolean
         ReadOnly Property SupportsNavigation As Boolean
-        ReadOnly Property RootNode as SyntaxNode
+        ReadOnly Property RootNode As SyntaxNode
+        ReadOnly Property SourceFileInfo As SourceFileInfo
         
         ' Events
         Event Modified(vIsModified As Boolean)
@@ -59,6 +61,7 @@ Namespace Interfaces
         Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean)
         Event DocumentParsed(vRootNode As SyntaxNode)
         Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs)
+        Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs)
         
         ' Helper method for setting file path (used by EditorFactory)
         Sub SetFilePath(vFilePath As String)
@@ -90,7 +93,7 @@ Namespace Interfaces
         ' Selection - Updated to use EditorPosition
         Sub SetSelection(vStartPosition As EditorPosition, vEndPosition As EditorPosition)
         Sub DeleteSelection()
-        Sub ReplaceSelection(vText as String)
+        Sub ReplaceSelection(vText As String)
         Sub ClearSelection()
         Sub SelectLine(vLine As Integer)
         Sub SelectLines(vStartLine As Integer, vEndLine As Integer)
@@ -98,7 +101,8 @@ Namespace Interfaces
         Function GetSelectedText() As String
         Sub SquareSelection()
         Sub EnsureCursorVisible()
-        Function GetCursorPosition() as EditorPosition
+        Function GetCursorPosition() As EditorPosition
+        Sub OnShown()
         
         ' Text Manipulation - Updated to use EditorPosition
         Sub InsertText(vText As String)
@@ -132,11 +136,9 @@ Namespace Interfaces
         Sub SetWordWrap(vEnable As Boolean)
         
         ' Advanced Features
-        Sub RefreshSyntaxHighlighting()
         Function GetWordAtCursor() As String
         Function GetLineText(vLine As Integer) As String
         Function GetDocumentStructure() As SyntaxNode
-        Sub RequestParse()
         Sub ZoomIn()
         Sub ZoomOut()
         Sub ZoomReset()
@@ -155,13 +157,25 @@ Namespace Interfaces
         Property Encoding As Encoding
         Property ShowLineNumbers As Boolean
         Property WordWrap As Boolean
-        ReadOnly Property DisplayName() as String
-        ReadOnly Property SupportsCodesense() as Boolean
+        ReadOnly Property DisplayName() As String
+        ReadOnly Property SupportsCodesense() As Boolean
         Sub StartCodeSense(vContext As CodeSenseContext)
         Sub CancelCodeSense()
         Sub NavigateToLineNumberForPresentment(vLineNumber As Integer)
         Function FindAll(vFindText As String) As List(Of EditorPosition)
         Function GetDocumentNodes() As Dictionary(Of String, DocumentNode)
+
+        ''' <summary>
+        ''' Performs a smart paste operation with comment stripping and auto-indentation
+        ''' </summary>
+        ''' <remarks>
+        ''' This method:
+        ''' 1. Strips leading artifact comment lines (lines starting with ')
+        ''' 2. Strips leading empty lines
+        ''' 3. Adjusts indentation to match the current context
+        ''' Used with Ctrl+Shift+V shortcut
+        ''' </remarks>
+        Sub SmartPaste()
 
     End Interface
     

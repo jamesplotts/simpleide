@@ -92,13 +92,33 @@ Partial Public Class MainWindow
                         OnBuildProject(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
-                        
-                    Case "F1"
-                        ' F1 - Show Help
-                        ShowContextHelp("")
+
+                    Case "F2"
+                        ' F2 - Quick Find from Clipboard
+                        Console.WriteLine("F2 pressed - Quick Find from Clipboard")
+                        OnQuickFindFromClipboard(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
                         
+                    Case "F1"
+                        ' F1 - Show Help in a tab
+                        Console.WriteLine("F1 pressed - Show Help")
+                        Dim lContext As String = GetCurrentHelpContext()
+                        If Not String.IsNullOrEmpty(lContext) Then
+                            ShowContextHelpInTab(lContext)
+                        Else
+                            OpenHelpTab()
+                        End If
+                        vArgs.RetVal = True
+                        Return      
+                                      
+                    Case "F3"
+                        ' F3 - Find Next
+                        Console.WriteLine("F3 pressed - Find Next")
+                        FindNextOccurrence()
+                        vArgs.RetVal = True
+                        Return
+
                     Case "F11"
                         ' F11 - Toggle Full Screen
                         OnToggleFullScreen(Nothing, Nothing)
@@ -117,6 +137,13 @@ Partial Public Class MainWindow
             If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask AndAlso
                (lCleanModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
                 Select Case lKeyString
+                    Case "F3"
+                        ' Shift+F3 - Find Previous
+                        Console.WriteLine("Shift+F3 pressed - Find Previous")
+                        FindPreviousOccurrence()
+                        vArgs.RetVal = True
+                        Return
+
                     Case "F5"
                         ' Shift+F5 - Stop Debugging
                         OnStopDebugging(Nothing, Nothing)
@@ -209,6 +236,36 @@ Partial Public Class MainWindow
                         Return
                 End Select
             End If
+
+            ' ===== Handle Alt Key combinations =====
+            If (lCleanModifiers and ModifierType.Mod1Mask) = ModifierType.Mod1Mask AndAlso
+               (lCleanModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
+                Select Case lKeyString
+                    Case "Left"
+                        ' Alt+Left - Navigate back in help tab
+                        If IsCurrentTabHelp() Then
+                            NavigateHelpBack()
+                            vArgs.RetVal = True
+                            Return
+                        End If
+                        
+                    Case "Right"
+                        ' Alt+Right - Navigate forward in help tab
+                        If IsCurrentTabHelp() Then
+                            NavigateHelpForward()
+                            vArgs.RetVal = True
+                            Return
+                        End If
+                        
+                    Case "Home"
+                        ' Alt+Home - Navigate to help home
+                        If IsCurrentTabHelp() Then
+                            NavigateHelpHome()
+                            vArgs.RetVal = True
+                            Return
+                        End If
+                End Select
+            End If
             
             ' Let unhandled keys pass through to focused widget
             vArgs.RetVal = False
@@ -219,258 +276,20 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-'     Private Sub OnWindowKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
-'         Try
-'             ' Get key info
-'             Dim lKeyString As String = KeyboardHelper.GetKeyString(vArgs.Event.KeyValue)
-'             Dim lModifiers As ModifierType = vArgs.Event.State
-'             
-'             ' Debug output for testing
-'             Console.WriteLine($"MainWindow Key: {lKeyString}, Modifiers: {lModifiers}")
-'             
-'             ' Filter out lock key modifiers (NumLock, CapsLock, ScrollLock) and Release mask
-'             ' These shouldn't affect function key detection
-'             Dim lCleanModifiers As ModifierType = lModifiers and Not (ModifierType.LockMask Or 
-'                                                                       ModifierType.Mod2Mask Or 
-'                                                                       ModifierType.ReleaseMask)
-' 
-'             
-'             ' ===== Handle Function Keys (F1-F12) without modifiers first =====
-'             ' Check if no meaningful modifiers are pressed (ignoring NumLock, etc.)
-'             If lCleanModifiers = ModifierType.None Then
-'                 Select Case lKeyString
-'                     Case "F5"
-'                         ' F5 - Build and Run
-'                         Console.WriteLine("F5 pressed - Build and Run")
-'                         OnBuildAndRun(Nothing, Nothing)
-'                         vArgs.RetVal = True
-'                         Return
-'                         
-'                     Case "F6"
-'                         ' F6 - Build Project
-'                         Console.WriteLine("F6 pressed - Build Project")
-'                         OnBuildProject(Nothing, Nothing)
-'                         vArgs.RetVal = True
-'                         Return
-'                         
-'                     Case "F1"
-'                         ' F1 - Show Help
-'                         ShowContextHelp("")
-'                         vArgs.RetVal = True
-'                         Return
-'                         
-'                     Case "F11"
-'                         ' F11 - Toggle Full Screen
-'                         OnToggleFullScreen(Nothing, Nothing)
-'                         vArgs.RetVal = True
-'                         Return
-'                         
-'                     Case "F12"
-'                         ' F12 - Go to Definition
-'                         GoToDefinition()
-'                         vArgs.RetVal = True
-'                         Return
-'                 End Select
-'             End If
-'             
-'             ' ===== Handle Shift + Function Key combinations =====
-'             If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask AndAlso
-'                (lCleanModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
-'                 Select Case lKeyString
-'                     Case "F5"
-'                         ' Shift+F5 - Stop Debugging
-'                         OnStopDebugging(Nothing, Nothing)
-'                         vArgs.RetVal = True
-'                         Return
-'                 End Select
-'             End If
-'             
-'             ' ===== Handle Ctrl + Function Key combinations =====
-'             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask AndAlso
-'                (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
-'                 Select Case lKeyString
-'                     Case "F5"
-'                         ' Ctrl+F5 - Run without debugging (just run, don't build)
-'                         Task.Run(Async Function()
-'                             Await RunProject()
-'                             Return Nothing
-'                         End Function)
-'                         vArgs.RetVal = True
-'                         Return
-'                 End Select
-'             End If
-'             
-'             ' ===== Handle Ctrl key combinations =====
-'             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
-'                 ' Handle Ctrl+Shift combinations first
-'                 If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
-'                     Select Case lKeyString.ToLower()
-'                         ' Ctrl+Shift+Z - Redo (standard alternative)
-'                         Case "z"
-'                             OnRedo(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Ctrl+Shift+B - Build Solution
-'                         Case "b"
-'                             RebuildProject
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Ctrl+Shift+F - Find in Files
-'                         Case "f"
-'                             OnFind(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Ctrl+Shift+Tab - Previous Tab
-'                         Case "tab", "iso_left_tab"
-'                             SwitchToPreviousTab()
-'                             vArgs.RetVal = True
-'                             Return
-'                     End Select
-'                 End If
-'                 
-'                 ' Handle regular Ctrl combinations (no Shift)
-'                 If (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
-'                     Select Case lKeyString.ToLower()
-'                         ' File operations
-'                         Case "n"
-'                             ' Ctrl+N - New File
-'                             OnNewFile(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "o"
-'                             ' Ctrl+O - Open File
-'                             OnOpenFile(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "s"
-'                             ' Ctrl+S - Save File
-'                             OnSaveFile(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "w"
-'                             ' Ctrl+W - Close Tab
-'                             CloseCurrentTab()
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "q"
-'                             ' Ctrl+Q - Quit
-'                             OnWindowDelete(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Edit operations
-'                         Case "z"
-'                             ' Ctrl+Z - Undo
-'                             OnUndo(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "r"
-'                             ' Ctrl+R - Redo
-'                             OnRedo(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "y"
-'                             ' Ctrl+Y - Cut Line (VB.NET tradition)
-'                             OnCutLine(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "x"
-'                             ' Ctrl+X - Cut
-'                             OnCut(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "c"
-'                             ' Ctrl+C - Copy
-'                             OnCopy(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "v"
-'                             ' Ctrl+V - Paste
-'                             OnPaste(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "a"
-'                             ' Ctrl+A - Select All
-'                             OnSelectAll(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Search operations
-'                         Case "f"
-'                             ' Ctrl+F - Find
-'                             OnFind(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "h"
-'                             ' Ctrl+H - Replace
-'                             OnReplace(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         Case "g"
-'                             ' Ctrl+G - Go to Line
-'                             OnGoToLine(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Build operations
-'                         Case "b"
-'                             ' Ctrl+B - Build
-'                             OnBuildProject(Nothing, Nothing)
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' View operations
-'                         Case "e"
-'                             ' Ctrl+E - Toggle Project Explorer
-'                             ToggleProjectExplorer()
-'                             vArgs.RetVal = True
-'                             Return
-'                             
-'                         ' Tab navigation
-'                         Case "tab"
-'                             ' Ctrl+Tab - Next Tab
-'                             SwitchToNextTab()
-'                             vArgs.RetVal = True
-'                             Return
-'                     End Select
-'                 End If
-'             End If
-'             
-'             ' Let unhandled keys pass through to focused widget
-'             vArgs.RetVal = False
-'             
-'         Catch ex As Exception
-'             Console.WriteLine($"OnWindowKeyPress error: {ex.Message}")
-'             vArgs.RetVal = False
-'         End Try
-'     End Sub
+
     
     ' ===== Helper Methods =====
 
     ''' <summary>
-    ''' Closes the current tab with confirmation if modified
+    ''' Helper method to close the current tab
     ''' </summary>
-    Private Sub CloseCurrentTab()
+    Public Sub CloseCurrentTab()
         Try
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing Then
                 CloseTab(lCurrentTab)
             End If
+            
         Catch ex As Exception
             Console.WriteLine($"CloseCurrentTab error: {ex.Message}")
         End Try
@@ -623,8 +442,7 @@ Partial Public Class MainWindow
     End Sub
     
     Private Sub NavigateToNextCompilationError()
-        
-Console.WriteLine("Next Compilation Error - Not yet implemented")
+        Console.WriteLine("Next Compilation Error - Not yet implemented")
         ' TODO: Navigate to next compilation error
     End Sub
     
@@ -657,18 +475,31 @@ Console.WriteLine("Next Compilation Error - Not yet implemented")
     End Sub
     
     ''' <summary>
-    ''' Handles Build Project command (F6)
+    ''' Handles Build Project command (F6) - Build only, no run
     ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Event arguments</param>
     Public Sub OnBuildProject(vSender As Object, vArgs As EventArgs)
         Try
-            Console.WriteLine("OnBuildProject called")
+            Console.WriteLine("OnBuildProject called (F6 - Build Only)")
             
-            ' Check if already building using BuildManager
-            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
-                Console.WriteLine("OnBuildProject: Build already in progress")
+            ' Check if already building
+            If pIsBuildingNow Then
+                Console.WriteLine("OnBuildProject: Already building (pIsBuildingNow check)")
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If
+            
+            ' Check if already building using BuildManager
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("OnBuildProject: Build already in progress (BuildManager check)")
+                ShowInfo("Build in Progress", "A build is already in progress.")
+                Return
+            End If
+            
+            ' IMPORTANT: Make sure we DON'T set pRunAfterBuild flag
+            ' This ensures it's build-only, not build-and-run
+            pRunAfterBuild = False
             
             ' Call the BuildProject method
             BuildProject()
@@ -687,5 +518,121 @@ Console.WriteLine("Next Compilation Error - Not yet implemented")
             Console.WriteLine($"ShowHelpPanel error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Handles F1 key press for context-sensitive help
+    ''' </summary>
+    ''' <param name="vKey">The key that was pressed</param>
+    ''' <returns>True if handled, False otherwise</returns>
+    Private Function HandleF1Help(vKey As Gdk.Key) As Boolean
+        Try
+            If vKey = Gdk.Key.F1 Then
+                ' Get current context for help
+                Dim lContext As String = GetCurrentHelpContext()
+                
+                If Not String.IsNullOrEmpty(lContext) Then
+                    ' Show context-specific help
+                    ShowContextHelpInTab(lContext)
+                Else
+                    ' Show general help
+                    OpenHelpTab()
+                End If
+                
+                Return True
+            End If
+            
+            Return False
+            
+        Catch ex As Exception
+            Console.WriteLine($"HandleF1Help error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Gets keyboard shortcuts help text including F2 for Quick Find
+    ''' </summary>
+    ''' <returns>Formatted help text for keyboard shortcuts</returns>
+    Private Function GetKeyboardShortcutsHelp() As String
+        Dim lText As New System.Text.StringBuilder()
+        
+        lText.AppendLine("KEYBOARD SHORTCUTS")
+        lText.AppendLine("==================")
+        lText.AppendLine()
+        
+        lText.AppendLine("File Operations:")
+        lText.AppendLine("  Ctrl+N          New File")
+        lText.AppendLine("  Ctrl+O          Open File")
+        lText.AppendLine("  Ctrl+S          Save File")
+        lText.AppendLine("  Ctrl+Shift+S    Save All Files")
+        lText.AppendLine("  Ctrl+W          Close Tab")
+        lText.AppendLine()
+        
+        lText.AppendLine("Edit Operations:")
+        lText.AppendLine("  Ctrl+Z          Undo")
+        lText.AppendLine("  Ctrl+R          Redo")
+        lText.AppendLine("  Ctrl+Shift+Z    Redo (alternate)")
+        lText.AppendLine("  Ctrl+X          Cut")
+        lText.AppendLine("  Ctrl+C          Copy")
+        lText.AppendLine("  Ctrl+V          Paste")
+        lText.AppendLine("  Ctrl+A          Select All")
+        lText.AppendLine("  Ctrl+Y          Cut Line (VB style)")
+        lText.AppendLine("  Ctrl+D          Duplicate Line")
+        lText.AppendLine()
+        
+        lText.AppendLine("Search Operations:")
+        lText.AppendLine("  Ctrl+F          Find")
+        lText.AppendLine("  Ctrl+H          Replace")
+        lText.AppendLine("  F2              Quick Find (clipboard text)")
+        lText.AppendLine("  F3              Find Next")
+        lText.AppendLine("  Shift+F3        Find Previous")
+        lText.AppendLine("  Ctrl+G          Go to Line")
+        lText.AppendLine()
+        
+        lText.AppendLine("Build/Debug Operations:")
+        lText.AppendLine("  F5              Build and Run")
+        lText.AppendLine("  F6              Build Only")
+        lText.AppendLine("  Ctrl+F5         Run without debugging")
+        lText.AppendLine("  Shift+F5        Stop debugging")
+        lText.AppendLine("  Ctrl+Shift+B    Build Solution")
+        lText.AppendLine("  F12             Go to Definition")
+        lText.AppendLine()
+        
+        lText.AppendLine("View Operations:")
+        lText.AppendLine("  Ctrl+E          Toggle Project Explorer")
+        lText.AppendLine("  F11             Toggle Full Screen")
+        lText.AppendLine("  Ctrl+Tab        Next Tab")
+        lText.AppendLine("  Ctrl+Shift+Tab  Previous Tab")
+        lText.AppendLine()
+        
+        lText.AppendLine("Text Navigation:")
+        lText.AppendLine("  Ctrl+Home       Go to start of document")
+        lText.AppendLine("  Ctrl+End        Go to end of document")
+        lText.AppendLine("  Ctrl+Left       Previous word")
+        lText.AppendLine("  Ctrl+Right      Next word")
+        lText.AppendLine("  Home            Start of line")
+        lText.AppendLine("  End             End of line")
+        lText.AppendLine("  Page Up         Page up")
+        lText.AppendLine("  Page Down       Page down")
+        lText.AppendLine()
+        
+        lText.AppendLine("Special Keys:")
+        lText.AppendLine("  Tab             Indent/Accept IntelliSense")
+        lText.AppendLine("  Shift+Tab       Outdent")
+        lText.AppendLine("  Escape          Cancel operation/Clear selection")
+        lText.AppendLine("  Ctrl+Space      Trigger IntelliSense")
+        lText.AppendLine("  Ctrl+Shift+Space  Parameter hints")
+        lText.AppendLine()
+        
+        lText.AppendLine("Quick Find (F2) Tip:")
+        lText.AppendLine("  Copy any text to clipboard, then press F2 to instantly")
+        lText.AppendLine("  search for it across your entire project.")
+        lText.AppendLine()
+        
+        lText.AppendLine("Note: Ctrl+Y is the traditional VB 'Cut Line' command,")
+        lText.AppendLine("      not Redo. Use Ctrl+R or Ctrl+Shift+Z for Redo.")
+        
+        Return lText.ToString()
+    End Function
 
 End Class

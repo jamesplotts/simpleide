@@ -14,12 +14,6 @@ Namespace Editors
         Implements IEditor
 
 
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnKeyPress
         ''' <summary>
         ''' Handles key press events with mouse cursor auto-hide
         ''' </summary>
@@ -128,7 +122,13 @@ Namespace Editors
                             Return True
                             
                         Case 118, 86  ' v or V
-                            Paste()
+                            If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                                ' Ctrl+Shift+V - Smart Paste
+                                SmartPaste()
+                            Else
+                                ' Ctrl+V - Regular Paste
+                                Paste()
+                            End If
                             vArgs.RetVal = True
                             Return True
                             
@@ -275,26 +275,43 @@ Namespace Editors
                         Return True
                         
                     Case Else
-                        ' Handle printable characters
+                        ' CRITICAL FIX: Handle keypad characters first
+                        ' Keypad numbers and operators need special handling
+                        If HandleKeypadCharacter(lKey) Then
+                            vArgs.RetVal = True
+                            Return True
+                        End If
+                        
+                        ' Handle regular printable characters
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
                             
                             ' Handle character insertion
                             If pHasSelection Then
-                                ' Replace selection with character
                                 DeleteSelection()
                             End If
                             
-                            If pInsertMode OrElse pCursorColumn >= pTextLines(pCursorLine).Length Then
+                            ' Get current line from SourceFileInfo
+                            Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                            
+                            If pInsertMode OrElse pCursorColumn >= lLine.Length Then
                                 ' Insert mode or at end of line
-                                InsertText(lChar.ToString())
+                                Dim lNewLine As String = lLine.Insert(Math.Min(pCursorColumn, lLine.Length), lChar.ToString())
+                                pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
                             Else
                                 ' Overwrite mode
-                                pTextLines(pCursorLine) = pTextLines(pCursorLine).Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.ToString())
-                                SetCursorPosition(pCursorLine, pCursorColumn + 1)
-                                InvalidateLine(pCursorLine)
-                                RaiseEvent TextChanged(Me, New EventArgs)
+                                Dim lNewLine As String = lLine.Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.ToString())
+                                pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
                             End If
+                            
+                            ' Move cursor forward
+                            SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                            
+                            ' Track modification
+                            OnTextModified()
+                            
+                            ' Redraw
+                            InvalidateLine(pCursorLine)
                             
                             vArgs.RetVal = True
                             Return True
@@ -342,44 +359,11 @@ Namespace Editors
             End Try
         End Sub
         
-        Private Sub InsertLineMetadata(vLineIndex As Integer)
-            Try
-                If vLineIndex < 0 OrElse vLineIndex > pLineMetadata.Length Then Return
-                
-                ' Create new arrays with one more element
-                Dim lNewMetadata(pLineMetadata.Length) As LineMetadata
-                Dim lNewColors(pCharacterColors.Length)() As CharacterColorInfo
-                
-                ' Copy before insertion point
-                for i As Integer = 0 To vLineIndex - 1
-                    If i < pLineMetadata.Length Then
-                        lNewMetadata(i) = pLineMetadata(i)
-                        lNewColors(i) = pCharacterColors(i)
-                    End If
-                Next
-                
-                ' Insert new metadata
-                lNewMetadata(vLineIndex) = New LineMetadata()
-                lNewColors(vLineIndex) = New CharacterColorInfo() {}
-                
-                ' Copy after insertion point
-                for i As Integer = vLineIndex To pLineMetadata.Length - 1
-                    lNewMetadata(i + 1) = pLineMetadata(i)
-                    lNewColors(i + 1) = pCharacterColors(i)
-                Next
-                
-                pLineMetadata = lNewMetadata
-                pCharacterColors = lNewColors
-                
-            Catch ex As Exception
-                Console.WriteLine($"InsertLineMetadata error: {ex.Message}")
-            End Try
-        End Sub
         
         ' ===== Word Navigation Methods =====
         Private Sub MoveToPreviousWord()
             Try
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 Dim lColumn As Integer = pCursorColumn
                 
                 ' Skip current word if we're in the middle of one
@@ -401,7 +385,7 @@ Namespace Editors
                     SetCursorPosition(pCursorLine, lColumn)
                 ElseIf pCursorLine > 0 Then
                     ' Move to end of previous line
-                    SetCursorPosition(pCursorLine - 1, pTextLines(pCursorLine - 1).Length)
+                    SetCursorPosition(pCursorLine - 1, TextLines(pCursorLine - 1).Length)
                 End If
                 
             Catch ex As Exception
@@ -411,7 +395,7 @@ Namespace Editors
         
         Private Sub MoveToNextWord()
             Try
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 Dim lColumn As Integer = pCursorColumn
                 
                 ' Skip current word
@@ -465,7 +449,7 @@ Namespace Editors
                 
                 If pCursorLine > 0 Then
                     Dim lNewLine As Integer = pCursorLine - 1
-                    Dim lNewColumn As Integer = Math.Min(pDesiredColumn, pTextLines(lNewLine).Length)
+                    Dim lNewColumn As Integer = Math.Min(pDesiredColumn, TextLines(lNewLine).Length)
                     
                     SetCursorPosition(lNewLine, lNewColumn)
                     
@@ -493,7 +477,7 @@ Namespace Editors
                 
                 If pCursorLine < pLineCount - 1 Then
                     Dim lNewLine As Integer = pCursorLine + 1
-                    Dim lNewColumn As Integer = Math.Min(pDesiredColumn, pTextLines(lNewLine).Length)
+                    Dim lNewColumn As Integer = Math.Min(pDesiredColumn, TextLines(lNewLine).Length)
                     
                     SetCursorPosition(lNewLine, lNewColumn)
                     
@@ -529,7 +513,7 @@ Namespace Editors
                         SetCursorPosition(pCursorLine, pCursorColumn - 1)
                     ElseIf pCursorLine > 0 Then
                         ' Move to end of previous line
-                        SetCursorPosition(pCursorLine - 1, pTextLines(pCursorLine - 1).Length)
+                        SetCursorPosition(pCursorLine - 1, TextLines(pCursorLine - 1).Length)
                     End If
                 End If
                 
@@ -562,7 +546,7 @@ Namespace Editors
                     MoveToNextWord()
                 Else
                     ' Move by character
-                    If pCursorColumn < pTextLines(pCursorLine).Length Then
+                    If pCursorColumn < TextLines(pCursorLine).Length Then
                         SetCursorPosition(pCursorLine, pCursorColumn + 1)
                     ElseIf pCursorLine < pLineCount - 1 Then
                         ' Move to beginning of next line
@@ -643,7 +627,7 @@ Namespace Editors
                 If vModifiers.HasFlag(ModifierType.ControlMask) Then
                     ' Ctrl+End - go to end of document
                     Dim lLastLine As Integer = pLineCount - 1
-                    Dim lLastLineLength As Integer = If(pTextLines(lLastLine)?.Length, 0)
+                    Dim lLastLineLength As Integer = If(TextLines(lLastLine)?.Length, 0)
                     
                     If vModifiers.HasFlag(ModifierType.ShiftMask) Then
                         ' Ctrl+Shift+End - extend selection to end
@@ -665,7 +649,7 @@ Namespace Editors
                     
                 Else
                     ' Regular End - go to end of line
-                    Dim lLineLength As Integer = If(pTextLines(pCursorLine)?.Length, 0)
+                    Dim lLineLength As Integer = If(TextLines(pCursorLine)?.Length, 0)
                     
                     If vModifiers.HasFlag(ModifierType.ShiftMask) Then
                         ' Shift+End - extend selection to end of line
@@ -733,6 +717,7 @@ Namespace Editors
         End Sub
         
         ' ===== Focus Events =====
+
         Private Function OnFocusIn(vSender As Object, vArgs As FocusInEventArgs) As Boolean
             Try
                 pCursorVisible = True
@@ -757,90 +742,95 @@ Namespace Editors
             End Try
         End Function
         
-        ' ===== Cut Line Implementation (Ctrl+Y) =====
-
         ''' <summary>
-        ''' Cuts the entire current line to clipboard (VB classic Ctrl+Y behavior)
+        ''' Handles keypad character input (numbers and operators)
         ''' </summary>
-        Friend Sub CutLine()
+        ''' <param name="vKey">The keypad key pressed</param>
+        ''' <returns>True if handled, False otherwise</returns>
+        Private Function HandleKeypadCharacter(vKey As Gdk.Key) As Boolean
             Try
-                If pIsReadOnly OrElse pLineCount = 0 Then Return
+                If pIsReadOnly Then Return False
                 
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
+                Dim lChar As Char? = Nothing
                 
-                ' Get the current line text including line ending
-                Dim lLineText As String = pTextLines(pCursorLine)
-                If pCursorLine < pLineCount - 1 Then
-                    ' Not the last line, include the line ending
-                    lLineText &= Environment.NewLine
-                End If
+                ' Convert keypad key to character
+                Select Case vKey
+                    ' Keypad numbers
+                    Case Gdk.Key.KP_0
+                        lChar = "0"c
+                    Case Gdk.Key.KP_1
+                        lChar = "1"c
+                    Case Gdk.Key.KP_2
+                        lChar = "2"c
+                    Case Gdk.Key.KP_3
+                        lChar = "3"c
+                    Case Gdk.Key.KP_4
+                        lChar = "4"c
+                    Case Gdk.Key.KP_5
+                        lChar = "5"c
+                    Case Gdk.Key.KP_6
+                        lChar = "6"c
+                    Case Gdk.Key.KP_7
+                        lChar = "7"c
+                    Case Gdk.Key.KP_8
+                        lChar = "8"c
+                    Case Gdk.Key.KP_9
+                        lChar = "9"c
+                        
+                    ' Keypad operators
+                    Case Gdk.Key.KP_Add
+                        lChar = "+"c
+                    Case Gdk.Key.KP_Subtract
+                        lChar = "-"c
+                    Case Gdk.Key.KP_Multiply
+                        lChar = "*"c
+                    Case Gdk.Key.KP_Divide
+                        lChar = "/"c
+                    Case Gdk.Key.KP_Decimal
+                        lChar = "."c
+                        
+                    Case Else
+                        Return False  ' Not a keypad character
+                End Select
                 
-                ' Copy line text to clipboard
-                Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
-                lClipboard.Text = lLineText
-                
-                ' Also copy to primary selection (X11 style)
-                Dim lPrimary As Clipboard = Clipboard.Get(Gdk.Selection.Primary)
-                lPrimary.Text = lLineText
-                
-                ' Delete the line
-                If pLineCount > 1 Then
-                    ' Multiple lines - remove this line
-                    If pUndoRedoManager IsNot Nothing Then
-                        ' Use EditorPosition for the new cursor position
-                        Dim lNewCursorPos As New EditorPosition(pCursorLine, 0)
-                        pUndoRedoManager.RecordDeleteLine(pCursorLine, lLineText, lNewCursorPos)
+                If lChar.HasValue Then
+                    ' Handle character insertion
+                    If pHasSelection Then
+                        DeleteSelection()
                     End If
                     
-                    pTextLines.RemoveAt(pCursorLine)
-                    RemoveLineMetadata(pCursorLine)
-                    pLineCount -= 1
+                    ' Get current line from SourceFileInfo
+                    Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
                     
-                    ' Adjust cursor position
-                    If pCursorLine >= pLineCount Then
-                        ' Was on last line, move to new last line
-                        SetCursorPosition(pLineCount - 1, 0)
+                    If pInsertMode OrElse pCursorColumn >= lLine.Length Then
+                        ' Insert mode or at end of line
+                        Dim lNewLine As String = lLine.Insert(Math.Min(pCursorColumn, lLine.Length), lChar.Value.ToString())
+                        pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
                     Else
-                        ' Stay on same line number (which now has the next line's content)
-                        SetCursorPosition(pCursorLine, 0)
-                    End If
-                Else
-                    ' Only one line - just clear it
-                    If pUndoRedoManager IsNot Nothing Then
-                        ' Record as delete text, not delete line
-                        Dim lStartPos As New EditorPosition(0, 0)
-                        Dim lEndPos As New EditorPosition(0, lLineText.Length)
-                        Dim lCursorPos As New EditorPosition(0, 0)
-                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lLineText, lCursorPos)
+                        ' Overwrite mode
+                        Dim lNewLine As String = lLine.Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.Value.ToString())
+                        pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
                     End If
                     
-                    pTextLines(0) = ""
-                    pLineMetadata(0).MarkChanged()
-                    SetCursorPosition(0, 0)
+                    ' Move cursor forward
+                    SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                    
+                    ' Track modification
+                    OnTextModified()
+                    
+                    ' Redraw
+                    InvalidateLine(pCursorLine)
+                    
+                    Return True
                 End If
                 
-                ' Clear any selection
-                ClearSelection()
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                ' Update UI
-                IsModified = True
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                pDrawingArea.QueueDraw()
-                RaiseEvent TextChanged(Me, New EventArgs())
+                Return False
                 
             Catch ex As Exception
-                Console.WriteLine($"CutLine error: {ex.Message}")
+                Console.WriteLine($"HandleKeypadCharacter error: {ex.Message}")
+                Return False
             End Try
-        End Sub
+        End Function
         
     End Class
     

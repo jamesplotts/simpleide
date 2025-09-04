@@ -13,32 +13,60 @@ Partial Public Class MainWindow
     
     ' Note: ReloadFile is already implemented in MainWindow.Editor.vb as an Async Sub
     
-    ' Show notification when external file change is detected
+    ''' <summary>
+    ''' Show notification when external file change is detected
+    ''' </summary>
     Private Sub ShowFileChangedNotification(vFilePath As String)
         Try
             If Not pOpenTabs.ContainsKey(vFilePath) Then Return
-
-            ' Create info bar for notification
-            Dim lInfoBar As New InfoBar()
-            lInfoBar.MessageType = MessageType.Warning
             
-            ' Add message
-            Dim lContentArea As Box = CType(lInfoBar.ContentArea, Box)
-            Dim lLabel As New Label($"the file '{System.IO.Path.GetFileName(vFilePath)}' has been Modified outside the Editor.")
-            lContentArea.PackStart(lLabel, False, False, 0)
+            Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
             
-            ' Add buttons
-            lInfoBar.AddButton("Reload", ResponseType.Yes)
-            lInfoBar.AddButton("Ignore", ResponseType.No)
+            ' Create dialog to notify user
+            Dim lDialog As New MessageDialog(
+                Me,
+                DialogFlags.Modal,
+                MessageType.Warning,
+                ButtonsType.None,
+                $"The file '{System.IO.Path.GetFileName(vFilePath)}' has been modified outside the editor."
+            )
             
-'            ' Handle response
-'            AddHandler lInfoBar.Response, AddressOf HandleResponse
+            ' Add appropriate buttons based on whether the file has unsaved changes
+            If lTabInfo.Modified Then
+                lDialog.Text = lDialog.Text & $"{Environment.NewLine}{Environment.NewLine}You have unsaved changes. What would you Like To Do?"
+                lDialog.AddButton("Keep My Changes", ResponseType.No)
+                lDialog.AddButton("Reload from Disk", ResponseType.Yes)
+                lDialog.AddButton("Compare", ResponseType.Apply) ' Future feature
+            Else
+                lDialog.Text = lDialog.Text & $"{Environment.NewLine}{Environment.NewLine}Would you Like To reload it?"
+                lDialog.AddButton("Keep Current", ResponseType.No)
+                lDialog.AddButton("Reload", ResponseType.Yes)
+            End If
             
-            ' Add to UI (assuming we have a notification area or we'll add to status bar area)
-            ' For now, show as dialog
-            Dim lDialog As New Dialog("File Changed", Me, DialogFlags.Modal)
-            lDialog.ContentArea.Add(lInfoBar)
-            lDialog.ShowAll()
+            Dim lResponse As Integer = lDialog.Run()
+            lDialog.Destroy()
+            
+            Select Case lResponse
+                Case CInt(ResponseType.Yes)
+                    ' User wants to reload from disk
+                    lTabInfo.Editor.SourceFileInfo.ReloadFile()
+                    'ReloadFileFromDisk(lTabInfo)
+                    
+                Case CInt(ResponseType.No)
+                    ' User wants to keep current version
+                    Console.WriteLine($"Keeping current version Of {vFilePath}")
+                    ' Mark as modified if it wasn't already
+                    If Not lTabInfo.Modified AndAlso lTabInfo.Editor IsNot Nothing Then
+                        ' The file differs from disk, so mark it as modified
+                        lTabInfo.Modified = True
+                        lTabInfo.Editor.IsModified = True
+                        UpdateTabLabel(lTabInfo)
+                    End If
+                    
+                Case CInt(ResponseType.Apply)
+                    ' Future: Show diff/compare window
+                    ShowInfo("Compare", "File comparison feature coming soon!")
+            End Select
             
         Catch ex As Exception
             Console.WriteLine($"ShowFileChangedNotification error: {ex.Message}")
@@ -291,7 +319,7 @@ Partial Public Class MainWindow
     Private Function CheckForUnsavedChanges() As Boolean
         Try
             ' Check all open tabs for unsaved changes
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 Dim lTabInfo As TabInfo = lTabEntry.Value
                 If lTabInfo.Modified Then
                     Dim lResponse As Integer = ShowQuestion(
@@ -345,7 +373,7 @@ Partial Public Class MainWindow
                         lProjectDir = System.IO.Path.GetDirectoryName(vTabInfo.FilePath)
                     End If
                     
-                    lSourceFileInfo = New SourceFileInfo(vTabInfo.FilePath, lProjectDir)
+                    lSourceFileInfo = New SourceFileInfo(vTabInfo.FilePath, "", lProjectDir)
                     lSourceFileInfo.Content = vTabInfo.Editor.Text
                     lSourceFileInfo.TextLines = New List(Of String)(lSourceFileInfo.Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
                     If lSourceFileInfo.TextLines.Count = 0 Then
@@ -394,7 +422,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"SaveFile error: {ex.Message}")
-            ShowError("Save File Error", $"Failed to save file: {ex.Message}")
+            ShowError("Save File error", $"Failed To save file: {ex.Message}")
             Return False
         End Try
     End Function

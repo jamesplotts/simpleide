@@ -42,6 +42,7 @@ Namespace Editors
         Private pSyntaxColorSet As SyntaxColorSet
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
+        Private pThemeManager As ThemeManager
         
         ' State
         Private pSyncScrolling As Boolean = True
@@ -71,10 +72,11 @@ Namespace Editors
 
         
         ' ===== Constructor =====
-        Public Sub New(vSyntaxColorSet As SyntaxColorSet, vSettingsManager As SettingsManager, Optional vProjectManager As ProjectManager = Nothing)
+        Public Sub New(vSyntaxColorSet As SyntaxColorSet, vSettingsManager As SettingsManager, vThemeManager As ThemeManager, Optional vProjectManager As ProjectManager = Nothing)
             MyBase.New(Orientation.Vertical, 0)
             
             Try
+                pThemeManager = vThemeManager
                 pSyntaxColorSet = vSyntaxColorSet
                 pSettingsManager = vSettingsManager
                 pProjectManager = vProjectManager
@@ -100,9 +102,9 @@ Namespace Editors
                 CreateLeftHeader()
                 
                 ' Create left editor with temporary SourceFileInfo
-                pLeftSourceFileInfo = New SourceFileInfo("", "")
+                pLeftSourceFileInfo = New SourceFileInfo("", "", "")
                 pLeftSourceFileInfo.TextLines.Add("")
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo)
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
                 pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pLeftContainer.PackStart(pLeftHeader, False, False, 0)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
@@ -112,9 +114,9 @@ Namespace Editors
                 CreateRightHeader()
                 
                 ' Create right editor with temporary SourceFileInfo
-                pRightSourceFileInfo = New SourceFileInfo("", "")
+                pRightSourceFileInfo = New SourceFileInfo("", "", "")
                 pRightSourceFileInfo.TextLines.Add("")
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo)
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
                 pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pRightContainer.PackStart(pRightHeader, False, False, 0)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
@@ -170,7 +172,7 @@ Namespace Editors
                     
                     ' Recreate left editor with the loaded SourceFileInfo
                     pLeftContainer.Remove(pLeftEditor)
-                    pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo)
+                    pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
                     pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                     pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                     
@@ -188,7 +190,7 @@ Namespace Editors
                     
                     ' Recreate right editor with the loaded SourceFileInfo
                     pRightContainer.Remove(pRightEditor)
-                    pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo)
+                    pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
                     pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                     pRightContainer.PackStart(pRightEditor, True, True, 0)
                     
@@ -221,7 +223,7 @@ Namespace Editors
                 
                 Dim lMaxLines As Integer = Math.Max(lLeftLines.Length, lRightLines.Length)
                 
-                For i As Integer = 0 To lMaxLines - 1
+                for i As Integer = 0 To lMaxLines - 1
                     Dim lLeftLine As String = If(i < lLeftLines.Length, lLeftLines(i), Nothing)
                     Dim lRightLine As String = If(i < lRightLines.Length, lRightLines(i), Nothing)
                     
@@ -229,7 +231,7 @@ Namespace Editors
                         ' Both sides have content
                         If lLeftLine <> lRightLine Then
                             ' Modified line
-                            pDifferences.Add(New DifferenceInfo With {
+                            pDifferences.Add(New DifferenceInfo with {
                                 .LeftStartLine = i,
                                 .LeftEndLine = i,
                                 .RightStartLine = i,
@@ -239,7 +241,7 @@ Namespace Editors
                         End If
                     ElseIf lLeftLine IsNot Nothing Then
                         ' Line deleted from right
-                        pDifferences.Add(New DifferenceInfo With {
+                        pDifferences.Add(New DifferenceInfo with {
                             .LeftStartLine = i,
                             .LeftEndLine = i,
                             .RightStartLine = -1,
@@ -248,7 +250,7 @@ Namespace Editors
                         })
                     ElseIf lRightLine IsNot Nothing Then
                         ' Line added to right
-                        pDifferences.Add(New DifferenceInfo With {
+                        pDifferences.Add(New DifferenceInfo with {
                             .LeftStartLine = -1,
                             .LeftEndLine = -1,
                             .RightStartLine = i,
@@ -402,7 +404,7 @@ Namespace Editors
         Public Sub LoadContent(vLeftContent As String, vLeftName As String, vRightContent As String, vRightName As String)
             Try
                 ' Update left SourceFileInfo with content
-                pLeftSourceFileInfo = New SourceFileInfo(vLeftName, "")
+                pLeftSourceFileInfo = New SourceFileInfo(vLeftName, "", "")
                 pLeftSourceFileInfo.Content = vLeftContent
                 pLeftSourceFileInfo.TextLines = New List(Of String)(vLeftContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
                 If pLeftSourceFileInfo.TextLines.Count = 0 Then
@@ -412,13 +414,13 @@ Namespace Editors
                 
                 ' Recreate left editor
                 pLeftContainer.Remove(pLeftEditor)
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo)
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
                 pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                 pLeftFileLabel.Text = vLeftName
                 
                 ' Update right SourceFileInfo with content
-                pRightSourceFileInfo = New SourceFileInfo(vRightName, "")
+                pRightSourceFileInfo = New SourceFileInfo(vRightName, "", "")
                 pRightSourceFileInfo.Content = vRightContent
                 pRightSourceFileInfo.TextLines = New List(Of String)(vRightContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
                 If pRightSourceFileInfo.TextLines.Count = 0 Then
@@ -428,7 +430,7 @@ Namespace Editors
                 
                 ' Recreate right editor
                 pRightContainer.Remove(pRightEditor)
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo)
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
                 pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
                 pRightFileLabel.Text = vRightName
@@ -470,11 +472,11 @@ Namespace Editors
                 
                 ' Create new SourceFileInfo
                 Dim lProjectDir As String = System.IO.Path.GetDirectoryName(vFilePath)
-                Return New SourceFileInfo(vFilePath, lProjectDir)
+                Return New SourceFileInfo(vFilePath, "", lProjectDir)
                 
             Catch ex As Exception
                 Console.WriteLine($"GetOrCreateSourceFileInfo error: {ex.Message}")
-                Return New SourceFileInfo(vFilePath, "")
+                Return New SourceFileInfo(vFilePath, "", "")
             End Try
         End Function
         
@@ -543,13 +545,13 @@ Namespace Editors
                 ' Recreate editors with swapped SourceFileInfo
                 ' Remove and recreate left editor
                 pLeftContainer.Remove(pLeftEditor)
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo)
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
                 pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                 
                 ' Remove and recreate right editor
                 pRightContainer.Remove(pRightEditor)
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo)
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
                 pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
                 

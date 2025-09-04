@@ -14,7 +14,7 @@ Namespace Editors
         ' ===== SetCursorPosition Implementation =====
         
         ' Set the cursor position to the specified line and column
-        Public Sub SetCursorPosition(vLine as Integer, vColumn as Integer) 
+        Public Sub SetCursorPosition(vLine As Integer, vColumn As Integer) 
             Try
                 ' Store previous position for events and line tracking
                 Dim lOldLine As Integer = pCursorLine
@@ -28,8 +28,8 @@ Namespace Editors
                 End If
                 
                 ' Validate and clamp column based on line length
-                If vLine < pLineCount AndAlso pTextLines(vLine) IsNot Nothing Then
-                    Dim lLineLength As Integer = pTextLines(vLine).Length
+                If vLine < pLineCount AndAlso TextLines(vLine) IsNot Nothing Then
+                    Dim lLineLength As Integer = TextLines(vLine).Length
                     
                     ' Allow cursor at end of line (after last character)
                     If vColumn < 0 Then
@@ -125,7 +125,7 @@ Namespace Editors
             Try
                 If pCursorLine >= pLineCount Then Return 0
                 
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 If String.IsNullOrEmpty(lLine) Then Return 0
                 
                 ' For now, return the stored column
@@ -152,8 +152,8 @@ Namespace Editors
                 End If
                 
                 ' Ensure cursor column is valid for current line
-                If pCursorLine < pLineCount AndAlso pTextLines(pCursorLine) IsNot Nothing Then
-                    Dim lLineLength As Integer = pTextLines(pCursorLine).Length
+                If pCursorLine < pLineCount AndAlso TextLines(pCursorLine) IsNot Nothing Then
+                    Dim lLineLength As Integer = TextLines(pCursorLine).Length
                     If pCursorColumn > lLineLength Then
                         pCursorColumn = lLineLength
                     End If

@@ -53,12 +53,10 @@ Partial Public Class MainWindow
     Private pBottomPanelVisible As Boolean = False
     Private pIsBuilding As Boolean = False
     Private pIsFullScreen As Boolean = False
+    Private pPendingProjectFile As String = Nothing
+    Private pTotalFilesToParse As Integer = 0
+    Private pCurrentFileParsed As Integer = 0
     
-    ' Events
-    Public Event ProjectChanged(vProjectPath As String)
-    Public Event FileOpened(vFilePath As String)
-    Public Event FileClosed(vFilePath As String)
-    Public Event FileSaved(vFilePath As String)
     
     ' ===== Constructor =====
     
@@ -68,9 +66,16 @@ Partial Public Class MainWindow
         Try
             ' Initialize settings FIRST
             pSettingsManager = New SettingsManager()
+            pProjectManager = New ProjectManager()
             pThemeManager = New ThemeManager(pSettingsManager)
+
+            pProjectManager.ThemeManager = pThemeManager
+
             pMemoryManifest = New MemoryManifest(pSettingsManager)
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
+
+            InitializeThemeSystem()
+
             InitializeScratchpad()
             
             ' Setup window
@@ -87,7 +92,6 @@ Partial Public Class MainWindow
             InitializeLeftPanelWidth()
             
             ' NOW safe to create project manager
-            pProjectManager = New ProjectManager()
             AddHandler pProjectManager.ProjectLoaded, AddressOf OnProjectManagerProjectLoaded
             AddHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
             AddHandler pProjectManager.ProjectModified, AddressOf OnProjectManagerProjectModified
@@ -122,10 +126,20 @@ Partial Public Class MainWindow
             InitializeBuildSystem()
             
             ' Wire up ProjectExplorer with ProjectManager
-            InitializeProjectExplorerWithManager()
-            
+            If pProjectExplorer IsNot Nothing Then
+                pProjectExplorer.SetProjectManager(pProjectManager)
+                
+                ' Wire up ProjectManager events to refresh Project Explorer
+                AddHandler pProjectManager.FileAdded, AddressOf OnProjectManagerFileAdded
+                AddHandler pProjectManager.FileRemoved, AddressOf OnProjectManagerFileRemoved
+                AddHandler pProjectManager.FileRenamed, AddressOf OnProjectManagerFileRenamed
+                ' Note: OnProjectManagerProjectModified is already wired up elsewhere
+                
+                Console.WriteLine("ProjectExplorer integrated with ProjectManager")
+            End If            
+
             ' Apply theme
-            ApplyTheme()
+            'ApplyTheme()
             
             ' Apply settings
             ApplySettings()
@@ -137,12 +151,12 @@ Partial Public Class MainWindow
             SetupFileSystemWatcher()
             
             pEditorFactory = New EditorFactory()
-            EditorFactory.Initialize(pSyntaxColorSet, pSettingsManager, pProjectManager)
+            EditorFactory.Initialize(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
             
-            InitializeWithObjectExplorerIntegration()
-            InitializeCapitalizationManager()
+            InitializeObjectExplorer()
             InitializeCodeSense()
             InitializeProjectManagerReferences()
+            'InitializeCapitalizationSystem
 
             ' Setup window state tracking
             ' TODO: SetupWindowStateTracking()
@@ -150,8 +164,10 @@ Partial Public Class MainWindow
             ' ADD THIS LINE: Setup window focus handling
             ' TODO: SetupWindowFocusHandling()
             
-            ' Show welcome tab on startup
-            ShowWelcomeTab()
+            ' Show welcome tab on startup (only if no pending project)
+            If String.IsNullOrEmpty(pPendingProjectFile) Then
+                ShowWelcomeTab()
+            End If
 
             SetupKeyboardShortcuts()
             
@@ -162,6 +178,14 @@ Partial Public Class MainWindow
                 UpdateToolbarButtons()
                 Return False ' Remove idle handler
             End Function)
+
+            ShowAll()
+
+            ' If we're not loading a project via the other constructor,
+            ' check for auto-detect or recent projects after UI is shown
+            If String.IsNullOrEmpty(pPendingProjectFile) Then
+                AddHandler Me.Shown, AddressOf OnWindowShownNoProject
+            End If
             
             Console.WriteLine("MainWindow initialized successfully")
             
@@ -172,24 +196,55 @@ Partial Public Class MainWindow
     End Sub
 
     ' ===== Overloaded Constructor for opening with project =====    
+
+    ''' <summary>
+    ''' Constructor for opening MainWindow with a project file (Alternative approach)
+    ''' </summary>
+    ''' <param name="vProjectFile">Path to the project file to load</param>
     Public Sub New(vProjectFile As String)
         ' Call the default constructor first
         Me.New()
         
         Try
-            ' Load pending project file if any (after UI is ready)
-            If Not String.IsNullOrEmpty(vProjectFile) AndAlso File.Exists(vProjectFile) Then
-                GLib.Idle.Add(Function()
-                    LoadProjectEnhanced(vProjectFile)
-                    Return False ' Remove idle handler
-                End Function)
-            End If
+            Console.WriteLine($"MainWindow(project) constructor: Starting with project: {vProjectFile}")
+            
+            ' Store the project file to load after UI is ready
+            pPendingProjectFile = vProjectFile
+            Console.WriteLine($"MainWindow(project) constructor: Set pPendingProjectFile = {pPendingProjectFile}")
+            
+            ' Use a timeout to load the project after the UI is ready
+            ' This gives GTK time to fully initialize and show the window
+            GLib.Timeout.Add(100, Function()
+                Console.WriteLine($"MainWindow(project) Timeout: Checking if ready to load project")
+                
+                ' Check if window is realized and visible
+                If Me.IsRealized AndAlso Me.Visible Then
+                    Console.WriteLine($"MainWindow(project) Timeout: Window ready, loading project")
+                    
+                    ' Load the project asynchronously
+                    If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso 
+                       File.Exists(pPendingProjectFile) AndAlso
+                       String.IsNullOrEmpty(pCurrentProject) Then
+                        
+                        LoadProjectEnhanced(pPendingProjectFile)
+                        pPendingProjectFile = Nothing
+                    End If
+                    
+                    Return False ' Remove timeout
+                Else
+                    Console.WriteLine($"MainWindow(project) Timeout: Window not ready yet, will retry")
+                    Return True ' Keep trying
+                End If
+            End Function)
+            
+            Console.WriteLine("MainWindow(project) constructor: Complete")
+            
         Catch ex As Exception
-            Console.WriteLine($"MainWindow constructor with project error: {ex.Message}")
-            ShowError("project Load error", $"Failed to load project '{vProjectFile}': {ex.Message}")
+            Console.WriteLine($"MainWindow(project) constructor error: {ex.Message}")
+            ShowError("Initialization Error", $"Failed To initialize with project: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub BuildUI()
         Try
             ' Create main vertical box
@@ -237,8 +292,6 @@ Partial Public Class MainWindow
             
             ' Create bottom panel manager
             pBottomPanelManager = New BottomPanelManager(pSettingsManager)
-            pBottomPanelManager.Initialize()
-            'pBottomNotebook = pBottomPanelManager.Notebook
             
             ' Connect bottom panel events
             AddHandler pBottomPanelManager.FindResultSelected, AddressOf OnFindResultSelected
@@ -318,22 +371,28 @@ Partial Public Class MainWindow
             
             ' Update bottom panel visibility using BottomPanelManager
             If pBottomPanelManager IsNot Nothing Then
+                If pBottomPanelVisible Then
+                    pBottomPanelManager.Show()
+                Else
+                    pBottomPanelManager.Hide()
+                End If
+                
                 pBottomPanelManager.IsVisible = pBottomPanelVisible
                 
                 ' Only adjust position if showing the panel
                 If pBottomPanelVisible AndAlso pCenterVPaned IsNot Nothing Then
-                    ' Restore saved height
-                    Dim lHeight As Integer = pSettingsManager.BottomPanelHeight
-                    If lHeight < 50 Then lHeight = BOTTOM_PANEL_HEIGHT
+                    ' Use fixed default height instead of saved value
+                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
                     
                     ' Ensure we don't exceed allocated height
                     If pCenterVPaned.AllocatedHeight > 0 Then
                         Dim lMaxPosition As Integer = pCenterVPaned.AllocatedHeight - 50
-                        pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, pCenterVPaned.AllocatedHeight - lHeight))
+                        Dim lTargetPosition As Integer = pCenterVPaned.AllocatedHeight - lDefaultHeight
+                        pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
                     End If
                 End If
-            End If
-            
+            End If            
+
             ' Update menu items
             UpdateMenuStates()
             
@@ -590,6 +649,113 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    
+    ''' <summary>
+    ''' Initializes Object Explorer integration in the main window
+    ''' </summary>
+    Private Sub InitializeObjectExplorer()
+        Try
+            ' Ensure Object Explorer is properly set up
+            If pObjectExplorer Is Nothing Then
+                Console.WriteLine("Warning: Object Explorer Not initialized")
+                Return
+            End If
+            
+            ' Set up initial Object Explorer state
+            UpdateObjectExplorerForActiveTab()
+            
+            ' Hook up notebook events with Object Explorer integration
+            If pNotebook IsNot Nothing Then
+                ' Remove any existing handler to avoid duplicates
+                RemoveHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
+                AddHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
+            End If
+            
+            ' Hook up left notebook page changes for Object Explorer activation
+            If pLeftNotebook IsNot Nothing Then
+                RemoveHandler pLeftNotebook.SwitchPage, AddressOf OnLeftNotebookPageChanged
+                AddHandler pLeftNotebook.SwitchPage, AddressOf OnLeftNotebookPageChanged
+            End If
+            
+            Console.WriteLine("Object Explorer integration initialized")
+            
+        Catch ex As Exception
+            Console.WriteLine($"InitializeObjectExplorer error: {ex.Message}")
+        End Try
+    End Sub    
+
+    ''' <summary>
+    ''' Handles the Shown event when a project needs to be loaded
+    ''' </summary>
+    ''' <param name="sender">Event sender</param>
+    ''' <param name="e">Event arguments</param>
+    Private Sub OnWindowShownWithProject(sender As Object, e As EventArgs)
+        Try
+            Console.WriteLine($"OnWindowShownWithProject: Called with pending file: {pPendingProjectFile}")
+            
+            ' Unhook BOTH events so they don't fire again
+            RemoveHandler Me.Shown, AddressOf OnWindowShownWithProject
+            RemoveHandler Me.Realized, AddressOf OnWindowRealizedWithProject
+            
+            ' Check if we have a pending project to load
+            If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso File.Exists(pPendingProjectFile) Then
+                Console.WriteLine($"OnWindowShownWithProject: Scheduling project load for: {pPendingProjectFile}")
+                
+                ' Use idle handler to ensure UI is fully rendered
+                GLib.Idle.Add(Function()
+                    Console.WriteLine($"OnWindowShownWithProject (Idle): Loading project asynchronously")
+                    ' Use the async loading method instead of the synchronous one
+                    LoadProjectEnhanced(pPendingProjectFile)
+                    pPendingProjectFile = Nothing ' Clear the pending file
+                    Return False ' Remove idle handler
+                End Function)
+            Else
+                If String.IsNullOrEmpty(pPendingProjectFile) Then
+                    Console.WriteLine("OnWindowShownWithProject: No pending project file")
+                ElseIf Not File.Exists(pPendingProjectFile) Then
+                    Console.WriteLine($"OnWindowShownWithProject: File doesn't exist: {pPendingProjectFile}")
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowShownWithProject error: {ex.Message}")
+            Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            ShowError("Project Load error", $"Failed To load project: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the Realized event as a backup for loading projects
+    ''' </summary>
+    ''' <param name="sender">Event sender</param>
+    ''' <param name="e">Event arguments</param>
+    Private Sub OnWindowRealizedWithProject(sender As Object, e As EventArgs)
+        Try
+            Console.WriteLine($"OnWindowRealizedWithProject: Called with pending file: {pPendingProjectFile}")
+            
+            ' Unhook the event so it doesn't fire again
+            RemoveHandler Me.Realized, AddressOf OnWindowRealizedWithProject
+            
+            ' Check if we have a pending project to load AND it hasn't been loaded yet
+            If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso 
+               File.Exists(pPendingProjectFile) AndAlso 
+               String.IsNullOrEmpty(pCurrentProject) Then
+                
+                Console.WriteLine($"OnWindowRealizedWithProject: Scheduling project load")
+                
+                ' Use idle handler to ensure UI is fully rendered
+                GLib.Idle.Add(Function()
+                    Console.WriteLine($"OnWindowRealizedWithProject (Idle): Loading project now")
+                    LoadProjectEnhanced(pPendingProjectFile)
+                    pPendingProjectFile = Nothing ' Clear the pending file
+                    Return False ' Remove idle handler
+                End Function)
+            Else
+                Console.WriteLine($"OnWindowRealizedWithProject: Not loading - already loaded Or no pending file")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowRealizedWithProject error: {ex.Message}")
+        End Try
+    End Sub
     
 End Class

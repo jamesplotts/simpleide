@@ -95,26 +95,70 @@ Namespace Editors
 
         Protected Overrides Sub Dispose(vDisposing As Boolean)
             Try
-                If vDisposing AndAlso Not pIsDisposed Then
-                    ' Remove timer
-                    If pCursorBlinkTimer > 0 Then
-                        GLib.Source.Remove(pCursorBlinkTimer)
-                        pCursorBlinkTimer = 0
+                ' Only dispose once
+                If pIsDisposed Then 
+                    MyBase.Dispose(vDisposing)
+                    Return
+                End If
+                
+                If vDisposing Then
+                    ' Stop cursor blink timer
+                    If pCursorBlinkTimer <> 0 Then
+                        Dim lTimerId As UInteger = pCursorBlinkTimer
+                        pCursorBlinkTimer = 0  ' Clear BEFORE removing
+                        Try
+                            GLib.Source.Remove(lTimerId)
+                        Catch
+                            ' Timer may have already expired - this is OK
+                        End Try
+                    End If
+        
+                    ' Unsubscribe from ProjectManager
+                    If pProjectManager IsNot Nothing Then
+                        RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted
+                        RemoveHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
+                        RemoveHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
+                        pProjectManager = Nothing
                     End If
                     
-                    ' Remove event handlers
+                    ' Unsubscribe from SourceFileInfo
+                    If pSourceFileInfo IsNot Nothing Then
+                        RemoveHandler pSourceFileInfo.ContentChanged, AddressOf OnSourceFileContentChanged
+                        pSourceFileInfo = Nothing
+                    End If
+        
+                    ' Clear collections
+                    pSearchMatches?.Clear()
+                    pIdentifierCaseMap?.Clear()
+                    
+                    ' Clean up GTK resources
                     If pDrawingArea IsNot Nothing Then
-                        If pDrawnHandler IsNot Nothing Then RemoveHandler pDrawingArea.Drawn, pDrawnHandler
-                        If pKeyPressHandler IsNot Nothing Then RemoveHandler pDrawingArea.KeyPressEvent, pKeyPressHandler
-                        If pKeyReleaseHandler IsNot Nothing Then RemoveHandler pDrawingArea.KeyReleaseEvent, pKeyReleaseHandler
-                        If pButtonPressHandler IsNot Nothing Then RemoveHandler pDrawingArea.ButtonPressEvent, pButtonPressHandler
-                        If pButtonReleaseHandler IsNot Nothing Then RemoveHandler pDrawingArea.ButtonReleaseEvent, pButtonReleaseHandler
-                        If pMotionNotifyHandler IsNot Nothing Then RemoveHandler pDrawingArea.MotionNotifyEvent, pMotionNotifyHandler
-                        If pScrollHandler IsNot Nothing Then RemoveHandler pDrawingArea.ScrollEvent, pScrollHandler
+                        ' Remove all event handlers using stored delegates
+                        ' Create local delegates to ensure proper type matching
+                        Dim lDrawnHandler As DrawnHandler = AddressOf OnDrawn
+                        Dim lKeyPressHandler As KeyPressEventHandler = AddressOf OnKeyPress
+                        Dim lKeyReleaseHandler As KeyReleaseEventHandler = AddressOf OnKeyRelease
+                        Dim lButtonPressHandler As ButtonPressEventHandler = AddressOf OnButtonPress
+                        Dim lButtonReleaseHandler As ButtonReleaseEventHandler = AddressOf OnButtonRelease
+                        Dim lMotionNotifyHandler As MotionNotifyEventHandler = AddressOf OnMotionNotify
+                        Dim lScrollHandler As ScrollEventHandler = AddressOf OnScrollEvent
+                        Dim lFocusInHandler As FocusInEventHandler = AddressOf OnFocusIn
+                        Dim lFocusOutHandler As FocusOutEventHandler = AddressOf OnFocusOut
+                        
+                        RemoveHandler pDrawingArea.Drawn, lDrawnHandler
+                        RemoveHandler pDrawingArea.KeyPressEvent, lKeyPressHandler
+                        RemoveHandler pDrawingArea.KeyReleaseEvent, lKeyReleaseHandler
+                        RemoveHandler pDrawingArea.ButtonPressEvent, lButtonPressHandler
+                        RemoveHandler pDrawingArea.ButtonReleaseEvent, lButtonReleaseHandler
+                        RemoveHandler pDrawingArea.MotionNotifyEvent, lMotionNotifyHandler
+                        RemoveHandler pDrawingArea.ScrollEvent, lScrollHandler
+                        RemoveHandler pDrawingArea.FocusInEvent, lFocusInHandler
+                        RemoveHandler pDrawingArea.FocusOutEvent, lFocusOutHandler
+                        
+                        pDrawingArea.Dispose()
+                        pDrawingArea = Nothing
                     End If
-                    
-                    ' LineNumberWidget handles its own disposal
-                    
+        
                     If pVScrollbar IsNot Nothing AndAlso pVScrollbarHandler IsNot Nothing Then
                         RemoveHandler pVScrollbar.ValueChanged, pVScrollbarHandler
                     End If
@@ -123,9 +167,12 @@ Namespace Editors
                         RemoveHandler pHScrollbar.ValueChanged, pHScrollbarHandler
                     End If
                     
+                    ' Clear references
+                    pRootNode = Nothing
+                    pFilePath = Nothing
+        
                     ' Dispose widgets
                     pLineNumberWidget?.Dispose()
-                    pDrawingArea?.Dispose()
                     pVScrollbar?.Dispose()
                     pHScrollbar?.Dispose()
                     pCornerBox?.Dispose()
@@ -143,103 +190,24 @@ Namespace Editors
                     pCornerBox = Nothing
                     pMainGrid = Nothing
                     
-                    pIsDisposed = True
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"Dispose error: {ex.Message}")
-            End Try
-            
-            MyBase.Dispose(vDisposing)
-        End Sub
-        
-        ' ===== IDisposable Implementation =====
-        
-        ''' <summary>
-        ''' Clean up resources when disposing
-        ''' </summary>
-        ''' <remarks>
-        ''' Updated to remove parse timer cleanup since we no longer use local parsing
-        ''' </remarks>
-        Private Sub CleanupResources()
-            Try
-                ' Stop cursor blink timer
-                If pCursorBlinkTimer <> 0 Then
-                    Dim lTimerId As UInteger = pCursorBlinkTimer
-                    pCursorBlinkTimer = 0  ' Clear BEFORE removing
-                    Try
-                        GLib.Source.Remove(lTimerId)
-                    Catch
-                        ' Timer may have already expired - this is OK
-                    End Try
+                    Console.WriteLine("CustomDrawingEditor disposed")
                 End If
                 
-                ' REMOVED: pParseTimer cleanup - no longer used with centralized parsing
+                ' Mark as disposed before calling base
+                pIsDisposed = True
                 
-                ' Unsubscribe from ProjectManager parse events
-                Try
-                    Dim lMainWindow As MainWindow = TryCast(Me.Toplevel, MainWindow)
-                    If lMainWindow IsNot Nothing Then
-                        Dim lProjectManager As ProjectManager = ProjectManager
-                        If lProjectManager IsNot Nothing Then
-                            RemoveHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
-                        End If
-                    End If
-                Catch
-                    ' Ignore errors during cleanup
-                End Try
-                
-                ' Unhook event handlers using stored delegates
-                If pDrawingArea IsNot Nothing Then
-                    If pDrawnHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.Drawn, pDrawnHandler
-                    End If
-                    If pKeyPressHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.KeyPressEvent, pKeyPressHandler
-                    End If
-                    If pKeyReleaseHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.KeyReleaseEvent, pKeyReleaseHandler
-                    End If
-                    If pButtonPressHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.ButtonPressEvent, pButtonPressHandler
-                    End If
-                    If pButtonReleaseHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.ButtonReleaseEvent, pButtonReleaseHandler
-                    End If
-                    If pMotionNotifyHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.MotionNotifyEvent, pMotionNotifyHandler
-                    End If
-                    If pScrollHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.ScrollEvent, pScrollHandler
-                    End If
-                    If pFocusInHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.FocusInEvent, pFocusInHandler
-                    End If
-                    If pFocusOutHandler IsNot Nothing Then
-                        RemoveHandler pDrawingArea.FocusOutEvent, pFocusOutHandler
-                    End If
-                End If
-                
-                ' Unhook scrollbar handlers
-                If pVScrollbar IsNot Nothing AndAlso pVScrollValueChangedHandler IsNot Nothing Then
-                    RemoveHandler pVScrollbar.ValueChanged, pVScrollValueChangedHandler
-                End If
-                
-                If pHScrollbar IsNot Nothing AndAlso pHScrollValueChangedHandler IsNot Nothing Then
-                    RemoveHandler pHScrollbar.ValueChanged, pHScrollValueChangedHandler
-                End If
-                
-                ' Clear collections
-                pSearchMatches?.Clear()
-                pIdentifierCaseMap?.Clear()
-                
-                ' Clear arrays
-                pLineMetadata = Nothing
-                pCharacterColors = Nothing
+                ' Call base dispose with the correct parameter
+                MyBase.Dispose(vDisposing)
                 
             Catch ex As Exception
-                Console.WriteLine($"CleanupResources error: {ex.Message}")
+                Console.WriteLine($"CustomDrawingEditor.Dispose error: {ex.Message}")
+                ' Still call base even if error occurred
+                MyBase.Dispose(vDisposing)
             End Try
         End Sub
+
+        
+
         
     End Class
     

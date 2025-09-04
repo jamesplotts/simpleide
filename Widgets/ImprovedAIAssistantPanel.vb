@@ -10,6 +10,7 @@ Imports System.Threading.Tasks
 Imports System.Text
 Imports System.Net.Http
 Imports System.Text.Json
+Imports SimpleIDE
 Imports SimpleIDE.AI
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
@@ -48,7 +49,7 @@ Namespace Widgets
         
         ' State
         Private pApiClient As EnhancedClaudeApiClient
-        Private pMainWindow As MainWindow
+        Private pMainWindow As SimpleIDE.MainWindow
         Private pCurrentEditor As IEditor
         Private pProjectRoot As String
         Private pIsProcessing As Boolean = False
@@ -89,7 +90,7 @@ Namespace Widgets
         End Class
         
         ' ===== Constructor =====
-        Public Sub New(vApiKey As String, vMainWindow As MainWindow)
+        Public Sub New(vApiKey As String, vMainWindow As SimpleIDE.MainWindow)
             MyBase.New(Orientation.Vertical, 0)
             
             pApiClient = New EnhancedClaudeApiClient(vApiKey)

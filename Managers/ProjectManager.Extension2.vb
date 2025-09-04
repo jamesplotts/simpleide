@@ -40,7 +40,7 @@ Namespace Managers
         End Function
         
         
-        Public Function GetSourceInfo(vFilePath as String) As SourceFileInfo
+        Public Function GetSourceInfo(vFilePath As String) As SourceFileInfo
             Return pSourceFiles(vFilePath)
         End Function
         
@@ -54,14 +54,18 @@ Namespace Managers
             End Try
         End Function
         
-        ' Fixed CreateEmptyFile method with proper return
+        ''' <summary>
+        ''' Creates an empty SourceFileInfo for a new file
+        ''' </summary>
+        ''' <param name="vFileName">Name or path of the file to create</param>
+        ''' <returns>The created SourceFileInfo or Nothing on error</returns>
         Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo
             Try
                 ' Create path for new file
                 Dim lFilePath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, vFileName)
                 
                 ' Create new SourceFileInfo
-                Dim lFileInfo As New SourceFileInfo(lFilePath, pCurrentProjectInfo.ProjectDirectory)
+                Dim lFileInfo As New SourceFileInfo(lFilePath, "", pCurrentProjectInfo.ProjectDirectory)
                 
                 ' Set default content
                 lFileInfo.Content = $"' {vFileName}" & Environment.NewLine & _
@@ -74,6 +78,13 @@ Namespace Managers
                                    "End Namespace"
                                    
                 lFileInfo.IsLoaded = True
+                
+                ' Set project root namespace
+                lFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                
+                ' CRITICAL FIX: Wire up the ProjectManagerRequested event
+                AddHandler lFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+                Console.WriteLine($"CreateEmptyFile: Wired up ProjectManagerRequested event for {vFileName}")
                 
                 ' Add to source files collection
                 If Not pSourceFiles.ContainsKey(lFilePath) Then
@@ -120,7 +131,7 @@ Namespace Managers
                 ' FIXED: Use CompileItems from the project file instead of scanning all .vb files
                 ' This ensures we only parse files that are actually part of the compilation
                 If lProjectInfo.CompileItems IsNot Nothing Then
-                    For Each lCompileItem In lProjectInfo.CompileItems
+                    for each lCompileItem in lProjectInfo.CompileItems
                         ' Convert relative path to absolute path
                         Dim lFullPath As String = Path.Combine(lProjectInfo.ProjectDirectory, lCompileItem)
                         
@@ -146,7 +157,7 @@ Namespace Managers
                 pFilesLoaded = 0
                 
                 ' Load and create DocumentModels for each file
-                For Each lFilePath In lSourceFiles
+                for each lFilePath in lSourceFiles
                     Dim lModel As DocumentModel = CreateDocumentModel(lFilePath)
                     If lModel IsNot Nothing Then
                         ' Calculate relative path
@@ -204,7 +215,7 @@ Namespace Managers
                 Console.WriteLine($"Merging {vFileInfo.FileName} into project structure")
                 
                 ' Process each root node in the file
-                For Each lNode In vFileInfo.SyntaxTree.Children
+                for each lNode in vFileInfo.SyntaxTree.Children
                     Console.WriteLine($"  Processing node: {lNode.Name} ({lNode.NodeType})")
                     
                     ' Check if this is the implicit root namespace
@@ -213,7 +224,7 @@ Namespace Managers
                        String.Equals(lNode.Name, vRootNamespace.Name, StringComparison.OrdinalIgnoreCase) Then
                         ' This is the implicit root namespace - merge its children directly into our root
                         Console.WriteLine($"    Found implicit root namespace with {lNode.Children.Count} children")
-                        For Each lChild In lNode.Children
+                        for each lChild in lNode.Children
                             Console.WriteLine($"      Merging child: {lChild.Name} ({lChild.NodeType})")
                             ' Use the RelativePath property that we added to SourceFileInfo
                             MergeNodeIntoProjectFixed(lChild, vRootNamespace, vFileInfo.RelativePath)
@@ -286,6 +297,10 @@ Namespace Managers
                     vSourceFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                 End If
                 
+                ' Subscribe to the ProjectManagerRequested event
+                RemoveHandler vSourceFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+                AddHandler vSourceFileInfo.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+                
                 Console.WriteLine($"ProjectManager.RegisterSourceFileInfo: Registered {lNormalizedPath}")
                 
             Catch ex As Exception
@@ -294,40 +309,78 @@ Namespace Managers
         End Sub
         
         ''' <summary>
-        ''' Get a SourceFileInfo by file path
+        ''' Gets the SourceFileInfo for a specific file path
         ''' </summary>
+        ''' <param name="vFilePath">The file path to look up</param>
+        ''' <returns>The SourceFileInfo if found, Nothing otherwise</returns>
+        ''' <remarks>
+        ''' Ensures colors are initialized if the file has metadata
+        ''' </remarks>
         Public Function GetSourceFileInfo(vFilePath As String) As SourceFileInfo
             Try
-                If String.IsNullOrEmpty(vFilePath) Then
-                    Return Nothing
-                End If
+                If String.IsNullOrEmpty(vFilePath) Then Return Nothing
                 
-                ' Normalize the file path
-                Dim lNormalizedPath As String = Path.GetFullPath(vFilePath)
+                ' Normalize the path
+                Dim lNormalizedPath As String = System.IO.Path.GetFullPath(vFilePath)
                 
+                ' Look up in our collection
                 If pSourceFiles.ContainsKey(lNormalizedPath) Then
-                    Return pSourceFiles(lNormalizedPath)
+                    Dim lSourceFile As SourceFileInfo = pSourceFiles(lNormalizedPath)
+                    
+                    ' CRITICAL: If file has metadata but no colors, apply colors now
+                    If lSourceFile IsNot Nothing AndAlso lSourceFile.LineMetadata IsNot Nothing AndAlso lSourceFile.LineMetadata.Length > 0 Then
+                        ' Check if colors need to be initialized
+                        Dim lNeedsColors As Boolean = False
+                        
+                        If lSourceFile.CharacterColors Is Nothing OrElse lSourceFile.CharacterColors.Length = 0 Then
+                            lNeedsColors = True
+                            Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} has metadata but no colors")
+                        ElseIf lSourceFile.CharacterColors.Length <> lSourceFile.TextLines.Count Then
+                            lNeedsColors = True
+                            Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} color array size mismatch")
+                        Else
+                            ' Check individual line arrays
+                            for i As Integer = 0 To Math.Min(lSourceFile.TextLines.Count - 1, lSourceFile.CharacterColors.Length - 1)
+                                If lSourceFile.CharacterColors(i) Is Nothing OrElse 
+                                   lSourceFile.CharacterColors(i).Length <> lSourceFile.TextLines(i).Length Then
+                                    lNeedsColors = True
+                                    Console.WriteLine($"GetSourceFileInfo: {lSourceFile.FileName} line {i} color mismatch")
+                                    Exit for
+                                End If
+                            Next
+                        End If
+                        
+                        If lNeedsColors Then
+                            Console.WriteLine($"GetSourceFileInfo: Applying colors for {lSourceFile.FileName}")
+                            UpdateFileColorsFromTheme(lSourceFile)
+                        End If
+                    End If
+                    
+                    Return lSourceFile
                 End If
                 
+                ' Not found
                 Return Nothing
                 
             Catch ex As Exception
-                Console.WriteLine($"ProjectManager.GetSourceFileInfo error: {ex.Message}")
+                Console.WriteLine($"GetSourceFileInfo error: {ex.Message}")
                 Return Nothing
             End Try
         End Function
         
-        ''' <summary>
-        ''' Save a file through its SourceFileInfo
-        ''' </summary>
-        Public Function SaveFile(vFilePath As String) As Boolean
+        ' In ProjectManager
+        Public Function SaveFile(vSourceFile As SourceFileInfo) As Boolean
             Try
-                Dim lSourceFileInfo As SourceFileInfo = GetSourceFileInfo(vFilePath)
-                If lSourceFileInfo IsNot Nothing Then
-                    Return lSourceFileInfo.SaveContent()
+                If vSourceFile Is Nothing Then Return False
+                
+                ' Save the file
+                If vSourceFile.SaveContent() Then
+                    ' Raise event for UI updates
+                    RaiseEvent FileSaved(vSourceFile.FilePath)
+                    
+                    Return True
                 End If
                 
-                Console.WriteLine($"ProjectManager.SaveFile: No SourceFileInfo found for {vFilePath}")
                 Return False
                 
             Catch ex As Exception
@@ -335,8 +388,8 @@ Namespace Managers
                 Return False
             End Try
         End Function
-
-''' <summary>
+ 
+        ''' <summary>
         ''' Diagnostic method to print the actual structure of a namespace
         ''' </summary>
         Private Sub DiagnoseNamespaceStructure(vNamespace As SyntaxNode, vIndent As Integer)
@@ -347,7 +400,7 @@ Namespace Managers
                 ' Group children by type to see what's actually in there
                 Dim lChildrenByType As New Dictionary(Of CodeNodeType, List(Of String))()
                 
-                For Each lChild In vNamespace.Children
+                for each lChild in vNamespace.Children
                     If Not lChildrenByType.ContainsKey(lChild.NodeType) Then
                         lChildrenByType(lChild.NodeType) = New List(Of String)()
                     End If
@@ -355,17 +408,17 @@ Namespace Managers
                 Next
                 
                 ' Print summary of children by type
-                For Each lKvp In lChildrenByType.OrderBy(Function(k) k.Key.ToString())
+                for each lKvp in lChildrenByType.OrderBy(Function(k) k.Key.ToString())
                     Console.WriteLine($"{lIndentStr}  {lKvp.Key}: {String.Join(", ", lKvp.Value)}")
                 Next
                 
                 ' For classes and modules, show their nested types
-                For Each lChild In vNamespace.Children
+                for each lChild in vNamespace.Children
                     If lChild.NodeType = CodeNodeType.eClass OrElse lChild.NodeType = CodeNodeType.eModule Then
                         Console.WriteLine($"{lIndentStr}  [{lChild.NodeType}] {lChild.Name} contains:")
                         
                         Dim lNestedTypes As New List(Of String)()
-                        For Each lNested In lChild.Children
+                        for each lNested in lChild.Children
                             If lNested.NodeType = CodeNodeType.eStructure OrElse 
                                lNested.NodeType = CodeNodeType.eEnum OrElse
                                lNested.NodeType = CodeNodeType.eClass OrElse
@@ -381,7 +434,7 @@ Namespace Managers
                 Next
                 
                 ' Recursively diagnose sub-namespaces
-                For Each lChild In vNamespace.Children
+                for each lChild in vNamespace.Children
                     If lChild.NodeType = CodeNodeType.eNamespace Then
                         DiagnoseNamespaceStructure(lChild, vIndent + 1)
                     End If
@@ -404,12 +457,12 @@ Namespace Managers
                     Console.WriteLine($"Root has {pProjectSyntaxTree.Children.Count} children")
                     
                     ' Find the root namespace (should be SimpleIDE)
-                    For Each lChild In pProjectSyntaxTree.Children
+                    for each lChild in pProjectSyntaxTree.Children
                         If lChild.NodeType = CodeNodeType.eNamespace AndAlso lChild.Name = "SimpleIDE" Then
                             DiagnoseNamespaceStructure(lChild, 0)
                             
                             ' Special check for Syntax namespace
-                            For Each lSubNamespace In lChild.Children
+                            for each lSubNamespace in lChild.Children
                                 If lSubNamespace.NodeType = CodeNodeType.eNamespace AndAlso lSubNamespace.Name = "Syntax" Then
                                     Console.WriteLine("")
                                     Console.WriteLine("=== DETAILED SYNTAX NAMESPACE ANALYSIS ===")
@@ -417,7 +470,7 @@ Namespace Managers
                                     
                                     ' Look for duplicates
                                     Dim lNameCounts As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
-                                    For Each lSyntaxChild In lSubNamespace.Children
+                                    for each lSyntaxChild in lSubNamespace.Children
                                         Dim lKey As String = $"{lSyntaxChild.NodeType}:{lSyntaxChild.Name}"
                                         If Not lNameCounts.ContainsKey(lKey) Then
                                             lNameCounts(lKey) = 0
@@ -427,13 +480,13 @@ Namespace Managers
                                     
                                     ' Report duplicates
                                     Console.WriteLine("Duplicates found:")
-                                    For Each lKvp In lNameCounts.Where(Function(k) k.Value > 1)
+                                    for each lKvp in lNameCounts.Where(Function(k) k.Value > 1)
                                         Console.WriteLine($"  {lKvp.Key} appears {lKvp.Value} times")
                                     Next
                                     
                                     ' Check if BlockInfo is in namespace children
                                     Dim lBlockInfoCount As Integer = 0
-                                    For Each lSyntaxChild In lSubNamespace.Children
+                                    for each lSyntaxChild in lSubNamespace.Children
                                         If lSyntaxChild.Name = "BlockInfo" Then
                                             lBlockInfoCount += 1
                                             Console.WriteLine($"  Found BlockInfo at namespace level: Parent={If(lSyntaxChild.Parent IsNot Nothing, lSyntaxChild.Parent.Name, "Nothing")}")

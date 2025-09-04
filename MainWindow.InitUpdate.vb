@@ -60,24 +60,24 @@ Partial Public Class MainWindow
     ' ===== Add to InitializeMainWindow =====
     ' Add this to the end of your existing InitializeMainWindow method
     
-    Private Sub InitializeMainWindowAdditions()
-        Try
-            ' Initialize enhanced project integration
-            InitializeProjectIntegration()
-            
-            ' Replace notebook switch handler with enhanced version
-            If pNotebook IsNot Nothing Then
-                RemoveHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
-                AddHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPageWithProjectIntegration
-            End If
-            
-            ' Add refresh project structure menu item or toolbar button
-            ' This would be added to your existing menu/toolbar setup
-            
-        Catch ex As Exception
-            Console.WriteLine($"InitializeMainWindowAdditions error: {ex.Message}")
-        End Try
-    End Sub
+'     Private Sub InitializeMainWindowAdditions()
+'         Try
+'             ' Initialize enhanced project integration
+'             InitializeProjectIntegration()
+'             
+'             ' Replace notebook switch handler with enhanced version
+'             If pNotebook IsNot Nothing Then
+'                 RemoveHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
+'                 AddHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPageWithProjectIntegration
+'             End If
+'             
+'             ' Add refresh project structure menu item or toolbar button
+'             ' This would be added to your existing menu/toolbar setup
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"InitializeMainWindowAdditions error: {ex.Message}")
+'         End Try
+'     End Sub
     
     ' ===== Add Refresh Project Menu Handler =====
     ' Add this as a menu item handler
@@ -121,7 +121,50 @@ Partial Public Class MainWindow
         End Try
     End Function
     
-    ' ===== Status Bar Update Helper =====
-
+    ''' <summary>
+    ''' Handles editor content changes with project structure update
+    ''' </summary>
+    ''' <param name="vSender">The editor that changed</param>
+    ''' <param name="vArgs">Event arguments</param>
+    ''' <remarks>
+    ''' Updates the project structure when editor content changes
+    ''' </remarks>
+    Private Sub OnEditorContentChangedWithProjectUpdate(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Get the editor that changed
+            Dim lEditor As IEditor = TryCast(vSender, IEditor)
+            If lEditor Is Nothing Then Return
+            
+            ' Find the tab for this editor
+            Dim lTab As TabInfo = Nothing
+            for each lT in pOpenTabs
+                If lT.Value.Editor Is lEditor Then
+                    lTab = lT.Value
+                    Exit for
+                End If
+            Next
+            
+            If lTab Is Nothing OrElse String.IsNullOrEmpty(lTab.FilePath) Then Return
+            
+            ' If project is open, update the file in the project manager
+            If pProjectManager.IsProjectOpen Then
+                ' Get or create SourceFileInfo for this file
+                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lTab.FilePath)
+                
+                If lSourceFileInfo IsNot Nothing Then
+                    ' Update the content in SourceFileInfo
+                    lSourceFileInfo.SetAllText(lEditor.Text)
+                    
+                    ' Request async parse which will update the project structure
+                    lSourceFileInfo.RequestAsyncParse()
+                    
+                    'Console.WriteLine($"OnEditorContentChangedWithProjectUpdate: Updated {lTab.FileName}")
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnEditorContentChangedWithProjectUpdate error: {ex.Message}")
+        End Try
+    End Sub
     
 End Class

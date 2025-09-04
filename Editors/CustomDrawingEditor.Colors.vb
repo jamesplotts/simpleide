@@ -27,7 +27,7 @@ Namespace Editors
         Private pHighlightCurrentLine As Boolean = True
         Private pShowWhitespace As Boolean = False
         Private pShowEndOfLine As Boolean = False
-        Private pCurrentLineColor as String = "#D4D4D4"
+        Private pCurrentLineColor As String = "#D4D4D4"
         
         ' ===== Events =====
         
@@ -55,7 +55,7 @@ Namespace Editors
                 ' Get current cursor position
                 If pCursorLine >= pLineCount Then Return
                 
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 If pCursorColumn >= lLine.Length Then Return
                 
                 ' Check character at cursor
@@ -111,7 +111,7 @@ Namespace Editors
                 Dim lColumn As Integer = pCursorColumn + 1
                 
                 While lLine < pLineCount
-                    Dim lLineText As String = pTextLines(lLine)
+                    Dim lLineText As String = TextLines(lLine)
                     
                     While lColumn < lLineText.Length
                         Dim lChar As Char = lLineText(lColumn)
@@ -147,7 +147,7 @@ Namespace Editors
                 Dim lColumn As Integer = pCursorColumn - 1
                 
                 While lLine >= 0
-                    Dim lLineText As String = pTextLines(lLine)
+                    Dim lLineText As String = TextLines(lLine)
                     
                     If lColumn < 0 Then
                         lColumn = lLineText.Length - 1
@@ -173,7 +173,7 @@ Namespace Editors
                     
                     lLine -= 1
                     If lLine >= 0 Then
-                        lColumn = pTextLines(lLine).Length - 1
+                        lColumn = TextLines(lLine).Length - 1
                     End If
                 End While
                 

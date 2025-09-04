@@ -61,6 +61,9 @@ Namespace Editors
         ''' <summary>
         ''' Handles button press events on the drawing area
         ''' </summary>
+        ''' <param name="vSender">The drawing area widget</param>
+        ''' <param name="vArgs">Button press event arguments</param>
+        ''' <returns>True if event was handled, False otherwise</returns>
         Private Function OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs) As Boolean
             Try
                 pDrawingArea.GrabFocus()
@@ -153,155 +156,7 @@ Namespace Editors
                 Return False
             End Try
         End Function
-        
-'        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnMotionNotify
-'        ''' <summary>
-'        ''' Handles mouse motion events - delegates drag operations to DragDrop handlers
-'        ''' </summary>
-'        Private Function OnMotionNotify(vSender As Object, vArgs As MotionNotifyEventArgs) As Boolean
-'            Try
-'                Dim lCurrentX As Double = vArgs.Event.X
-'                Dim lCurrentY As Double = vArgs.Event.Y
-'                
-'                ' Check if left button is pressed
-'                Dim lLeftButtonPressed As Boolean = (vArgs.Event.State and ModifierType.Button1Mask) = ModifierType.Button1Mask
-'                
-'                ' Debug logging
-'                If pPotentialDrag OrElse pIsStartingNewSelection Then
-'                    Console.WriteLine($"OnMotionNotify: potential drag={pPotentialDrag}, starting selection={pIsStartingNewSelection}, LeftButton={lLeftButtonPressed}")
-'                End If
-'                
-'                ' If drag operation already started, let DragDrop handlers manage it
-'                If pDragStarted Then
-'                    ' The HandleDragMotion in DragDrop.vb handles cursor changes
-'                    Return False
-'                End If
-'                
-'                ' Update cursor based on position when not dragging
-'                If Not pIsDragging AndAlso Not pIsStartingNewSelection Then
-'                    Dim lPos As EditorPosition = GetPositionFromCoordinates(lCurrentX, lCurrentY)
-'                    
-'                    ' Check if over a selection - use the correct overload
-'                    If pHasSelection AndAlso IsPositionInSelection(lPos.Line, lPos.Column,
-'                                                                   pSelectionStartLine, pSelectionStartColumn,
-'                                                                   pSelectionEndLine, pSelectionEndColumn) Then
-'                        ' Show drag cursor when hovering over selection
-'                        If pDrawingArea.Window IsNot Nothing Then
-'                            pDrawingArea.Window.Cursor = pDragCursor
-'                        End If
-'                    Else
-'                        ' Show normal text cursor
-'                        If pDrawingArea.Window IsNot Nothing Then
-'                            pDrawingArea.Window.Cursor = pTextCursor
-'                        End If
-'                    End If
-'                End If
-'                
-'                ' Check if we should initiate a drag-drop operation
-'                ' Only if left button is pressed, we have a potential drag, and there's a selection
-'                If lLeftButtonPressed AndAlso pPotentialDrag AndAlso pHasSelection Then
-'                    ' Check if we've moved enough to start drag
-'                    Dim lDeltaX As Double = Math.Abs(lCurrentX - pLastMouseX)
-'                    Dim lDeltaY As Double = Math.Abs(lCurrentY - pLastMouseY)
-'                    
-'                    Console.WriteLine($"Checking drag threshold: deltaX={lDeltaX}, deltaY={lDeltaY}")
-'                    
-'                    If lDeltaX >= 5.0 OrElse lDeltaY >= 5.0 Then
-'                        ' Prepare drag data for HandleDragBegin to use
-'                        pDragData = GetSelectedText()
-'                        
-'                        Console.WriteLine($"Starting drag with {pDragData.Length} characters")
-'                        
-'                        If Not String.IsNullOrEmpty(pDragData) Then
-'                            ' Set up drag state (HandleDragBegin will read these)
-'                            pDragStartLine = pSelectionStartLine
-'                            pDragStartColumn = pSelectionStartColumn
-'                            pDragEndLine = pSelectionEndLine
-'                            pDragEndColumn = pSelectionEndColumn
-'                            
-'                            ' Start GTK drag - HandleDragBegin will take over
-'                            Dim lTargetList As New TargetList(DRAG_TARGETS)
-'                            Dim lContext As DragContext = Gtk.Drag.BeginWithCoordinates(
-'                                pDrawingArea, 
-'                                lTargetList, 
-'                                DragAction.Move Or DragAction.Copy,
-'                                1,                    ' Button 1 (left mouse)
-'                                vArgs.Event,          ' The motion event
-'                                CInt(lCurrentX),      ' X coordinate as integer
-'                                CInt(lCurrentY))      ' Y coordinate as integer
-'                            
-'                            If lContext IsNot Nothing Then
-'                                Console.WriteLine("Drag context created successfully")
-'                            Else
-'                                Console.WriteLine("Failed to create drag context")
-'                            End If
-'                            
-'                            ' Reset local mouse drag state
-'                            pIsDragging = False
-'                            pPotentialDrag = False
-'                            pIsStartingNewSelection = False
-'                            Return True
-'                        End If
-'                    End If
-'                    
-'                    ' Still waiting for drag threshold - don't process as selection
-'                    Return True
-'                End If
-'                
-'                ' Handle text selection dragging
-'                If lLeftButtonPressed AndAlso (pIsStartingNewSelection OrElse (pIsDragging AndAlso Not pPotentialDrag)) Then
-'                    Dim lPos As EditorPosition = GetPositionFromCoordinates(lCurrentX, lCurrentY)
-'                    
-'                    ' CRITICAL FIX: Use text drag anchors for selection
-'                    If pTextDragAnchorLine >= 0 AndAlso pTextDragAnchorColumn >= 0 Then
-'                        ' Check if we've moved enough to start selecting
-'                        Dim lDeltaX As Double = Math.Abs(lCurrentX - pLastMouseX)
-'                        Dim lDeltaY As Double = Math.Abs(lCurrentY - pLastMouseY)
-'                        
-'                        ' Start selection if we've moved at least 2 pixels OR already selecting
-'                        If pHasSelection OrElse lDeltaX >= 2.0 OrElse lDeltaY >= 2.0 Then
-'                            If Not pHasSelection Then
-'                                ' First significant motion after button press - start selection
-'                                pHasSelection = True
-'                                pSelectionActive = True  ' CRITICAL: Set this flag for drawing!
-'                                pIsDragging = True
-'                                pIsStartingNewSelection = False
-'                                Console.WriteLine($"Started text selection from ({pTextDragAnchorLine},{pTextDragAnchorColumn})")
-'                            End If
-'                            
-'                            ' Always use anchor as start, current position as end
-'                            pSelectionStartLine = pTextDragAnchorLine
-'                            pSelectionStartColumn = pTextDragAnchorColumn
-'                            pSelectionEndLine = lPos.Line
-'                            pSelectionEndColumn = lPos.Column
-'                            
-'                            ' CRITICAL FIX: Move cursor to current drag position
-'                            ' This ensures cursor is at the end of selection regardless of direction
-'                            SetCursorPosition(lPos.Line, lPos.Column)
-'                            
-'                            Console.WriteLine($"Selection now from ({pSelectionStartLine},{pSelectionStartColumn}) to ({pSelectionEndLine},{pSelectionEndColumn})")
-'                            Console.WriteLine($"Cursor at ({pCursorLine},{pCursorColumn})")
-'                            
-'                            ' Auto-scroll if near edges
-'                            AutoScrollIfNearEdge(lCurrentX, lCurrentY)
-'                            
-'                            ' Queue redraw for selection
-'                            pDrawingArea.QueueDraw()
-'                        End If
-'                    End If
-'                End If
-'                
-'                ' Update last mouse position for next motion event
-'                pLastMouseX = lCurrentX
-'                pLastMouseY = lCurrentY
-'                
-'                Return False
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"OnMotionNotify error: {ex.Message}")
-'                Return False
-'            End Try
-'        End Function
+
         
         ' ===== Helper Methods =====
         
@@ -343,7 +198,7 @@ Namespace Editors
                 
                 ' Clamp column to line length (allow cursor at end of line)
                 If lLine >= 0 AndAlso lLine < pLineCount Then
-                    lColumn = Math.Max(0, Math.Min(lColumn, pTextLines(lLine).Length))
+                    lColumn = Math.Max(0, Math.Min(lColumn, TextLines(lLine).Length))
                 Else
                     lColumn = 0
                 End If
@@ -399,7 +254,7 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return 0
                 
-                Dim lLineText As String = pTextLines(vLine)
+                Dim lLineText As String = TextLines(vLine)
                 If String.IsNullOrEmpty(lLineText) Then Return 0
                 
                 ' FIXED: X is relative to the drawing area widget, NOT the entire editor
@@ -413,7 +268,7 @@ Namespace Editors
                 Dim lColumn As Integer = CInt(Math.Floor(lTextAreaX / pCharWidth)) + pFirstVisibleColumn
                 
                 ' Clamp to line length
-                lColumn = Math.Max(0, Math.Min(lColumn, pTextLines(vLine).Length))
+                lColumn = Math.Max(0, Math.Min(lColumn, TextLines(vLine).Length))
                 
                 Return lColumn
                 
@@ -518,7 +373,7 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
-                Dim lLineText As String = pTextLines(vLine)
+                Dim lLineText As String = TextLines(vLine)
                 If String.IsNullOrEmpty(lLineText) Then Return
                 
                 ' Find word boundaries
@@ -679,7 +534,7 @@ Namespace Editors
                 
                 ' Get current line
                 If pCursorLine >= pLineCount Then Return
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 
                 ' Find word boundaries
                 Dim lStartColumn As Integer = pCursorColumn
@@ -834,7 +689,7 @@ Namespace Editors
                 
                 ' Clamp to line length
                 If vLine >= 0 AndAlso vLine < pLineCount Then
-                    lColumn = Math.Max(0, Math.Min(lColumn, pTextLines(vLine).Length))
+                    lColumn = Math.Max(0, Math.Min(lColumn, TextLines(vLine).Length))
                 Else
                     lColumn = 0
                 End If
@@ -916,7 +771,6 @@ Namespace Editors
             End Try
         End Sub
         
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnMotionNotify
         ''' <summary>
         ''' Handles mouse motion events with cursor auto-show
         ''' </summary>
@@ -924,16 +778,16 @@ Namespace Editors
             Try
                 ' Show mouse cursor on any mouse movement
                 ShowMouseCursor()
-                
+                Dim pDragText As String
                 Dim lCurrentX As Double = vArgs.Event.X
                 Dim lCurrentY As Double = vArgs.Event.Y
                 
                 ' Check if left button is pressed
-                Dim lLeftButtonPressed As Boolean = (vArgs.Event.State And ModifierType.Button1Mask) = ModifierType.Button1Mask
+                Dim lLeftButtonPressed As Boolean = (vArgs.Event.State and ModifierType.Button1Mask) = ModifierType.Button1Mask
                 
                 ' Debug logging
-                If pPotentialDrag OrElse pIsStartingNewSelection Then
-                    Console.WriteLine($"OnMotionNotify: potential drag={pPotentialDrag}, starting selection={pIsStartingNewSelection}, LeftButton={lLeftButtonPressed}")
+                If pPotentialDrag OrElse pIsStartingNewSelection OrElse pIsDragging Then
+                    Console.WriteLine($"OnMotionNotify: potential drag={pPotentialDrag}, starting selection={pIsStartingNewSelection}, dragging={pIsDragging}, LeftButton={lLeftButtonPressed}")
                 End If
                 
                 ' If drag operation already started, let DragDrop handlers manage it
@@ -942,63 +796,39 @@ Namespace Editors
                     Return False
                 End If
                 
-                ' Update cursor based on position when not dragging (only if not hidden)
-                If Not pMouseHidden AndAlso Not pIsDragging AndAlso Not pIsStartingNewSelection Then
-                    Dim lPos As EditorPosition = GetPositionFromCoordinates(lCurrentX, lCurrentY)
-                    
-                    ' Check if over a selection - use the correct overload
-                    If pHasSelection AndAlso IsPositionInSelection(lPos.Line, lPos.Column,
-                                                                   pSelectionStartLine, pSelectionStartColumn,
-                                                                   pSelectionEndLine, pSelectionEndColumn) Then
-                        ' Show drag cursor when hovering over selection
-                        If pDrawingArea.Window IsNot Nothing Then
-                            pDrawingArea.Window.Cursor = pDragCursor
-                        End If
-                    Else
-                        ' Show normal text cursor
-                        If pDrawingArea.Window IsNot Nothing Then
-                            pDrawingArea.Window.Cursor = pTextCursor
-                        End If
-                    End If
-                End If
-                
-                ' Check for potential drag-and-drop from selection
+                ' Check for potential drag-drop operation (dragging selected text)
                 If pPotentialDrag AndAlso lLeftButtonPressed Then
-                    ' Calculate drag distance
+                    ' Check if we've moved enough to start a drag operation
+                    Dim lDragThreshold As Double = 5.0 ' pixels
                     Dim lDeltaX As Double = Math.Abs(lCurrentX - pLastMouseX)
                     Dim lDeltaY As Double = Math.Abs(lCurrentY - pLastMouseY)
                     
-                    ' Start drag operation if moved enough pixels (drag threshold)
-                    If lDeltaX >= 5.0 OrElse lDeltaY >= 5.0 Then
-                        ' Start drag-and-drop operation
+                    If lDeltaX >= lDragThreshold OrElse lDeltaY >= lDragThreshold Then
+                        ' Start drag-drop operation
                         If pHasSelection Then
-                            ' Get selected text
+                            ' Get the selected text
                             Dim lSelectedText As String = GetSelectedText()
                             If Not String.IsNullOrEmpty(lSelectedText) Then
-                                ' Start drag operation
+                                ' Store drag source coordinates
+                                pDragStartLine = Math.Min(pSelectionStartLine, pSelectionEndLine)
+                                pDragStartColumn = If(pDragStartLine = pSelectionStartLine, pSelectionStartColumn, pSelectionEndColumn)
+                                pDragEndLine = Math.Max(pSelectionStartLine, pSelectionEndLine)
+                                pDragEndColumn = If(pDragEndLine = pSelectionEndLine, pSelectionEndColumn, pSelectionStartColumn)
+                                
+                                Console.WriteLine($"Starting drag-drop from ({pDragStartLine},{pDragStartColumn}) to ({pDragEndLine},{pDragEndColumn})")
+                                
+                                ' Set drag data
+                                pDragText = lSelectedText
                                 pDragStarted = True
                                 
-                                ' Create target entries array for text
-                                Dim lTargetEntries() As TargetEntry = {
-                                    New TargetEntry("text/plain", TargetFlags.App Or TargetFlags.OtherWidget, 0),
-                                    New TargetEntry("STRING", TargetFlags.App Or TargetFlags.OtherWidget, 1),
-                                    New TargetEntry("UTF8_STRING", TargetFlags.App Or TargetFlags.OtherWidget, 2)
-                                }
+                                ' Get the current event for drag begin
+                                Dim lCurrentEvent As Gdk.Event = Gtk.Global.CurrentEvent
                                 
-                                ' Create target list from entries
-                                Dim lTargets As New Gtk.TargetList(lTargetEntries)
+                                ' Create target list for drag
+                                Dim lTargets As New TargetList()
+                                lTargets.AddTextTargets(0)
                                 
-                                ' Begin drag using the non-obsolete overload
-                                ' We need to pass the widget and use SourceSet beforehand
-                                Gtk.Drag.SourceSet(pDrawingArea, 
-                                                  ModifierType.Button1Mask,
-                                                  lTargetEntries,
-                                                  DragAction.Copy Or DragAction.Move)
-                                
-                                ' Get the current event from the motion notify args
-                                Dim lCurrentEvent As Gdk.Event = vArgs.Event
-                                
-                                ' Begin drag with the current event
+                                ' Start the drag operation
                                 Dim lContext As Gdk.DragContext = Gtk.Drag.BeginWithCoordinates(
                                     pDrawingArea,
                                     lTargets,
@@ -1027,8 +857,28 @@ Namespace Editors
                     End If
                 End If
                 
-                ' Handle text selection dragging
-                If lLeftButtonPressed AndAlso (pIsStartingNewSelection OrElse (pIsDragging AndAlso Not pPotentialDrag)) Then
+                ' Update cursor based on position when not dragging (only if not hidden)
+                If Not pMouseHidden AndAlso Not pIsDragging AndAlso Not pIsStartingNewSelection AndAlso Not pPotentialDrag Then
+                    Dim lPos As EditorPosition = GetPositionFromCoordinates(lCurrentX, lCurrentY)
+                    
+                    ' Check if over a selection - use the correct overload
+                    If pHasSelection AndAlso IsPositionInSelection(lPos.Line, lPos.Column,
+                                                                   pSelectionStartLine, pSelectionStartColumn,
+                                                                   pSelectionEndLine, pSelectionEndColumn) Then
+                        ' Show drag cursor when hovering over selection
+                        If pDrawingArea.Window IsNot Nothing Then
+                            pDrawingArea.Window.Cursor = pDragCursor
+                        End If
+                    Else
+                        ' Show normal text cursor
+                        If pDrawingArea.Window IsNot Nothing Then
+                            pDrawingArea.Window.Cursor = pTextCursor
+                        End If
+                    End If
+                End If
+                
+                ' Handle text selection dragging - FIXED: removed the "Not pPotentialDrag" condition
+                If lLeftButtonPressed AndAlso (pIsStartingNewSelection OrElse pIsDragging) AndAlso Not pPotentialDrag Then
                     Dim lPos As EditorPosition = GetPositionFromCoordinates(lCurrentX, lCurrentY)
                     
                     ' CRITICAL FIX: Use text drag anchors for selection
@@ -1038,7 +888,7 @@ Namespace Editors
                         Dim lDeltaY As Double = Math.Abs(lCurrentY - pLastMouseY)
                         
                         ' Start selection if we've moved at least 2 pixels OR already selecting
-                        If pHasSelection OrElse lDeltaX >= 2.0 OrElse lDeltaY >= 2.0 Then
+                        If pHasSelection OrElse pIsDragging OrElse lDeltaX >= 2.0 OrElse lDeltaY >= 2.0 Then
                             If Not pHasSelection Then
                                 ' First significant motion after button press - start selection
                                 pHasSelection = True

@@ -77,6 +77,9 @@ Namespace Editors
         ''' <summary>
         ''' Handles the beginning of a drag operation
         ''' </summary>
+        ''' <remarks>
+        ''' Updated to get selected text from SourceFileInfo if needed
+        ''' </remarks>
         Private Sub HandleDragBegin(vSender As Object, vArgs As DragBeginArgs)
             Try
                 ' Get selected text if available
@@ -93,7 +96,8 @@ Namespace Editors
                     pDragEndColumn = pSelectionEndColumn
                     
                     ' Normalize the selection
-                    NormalizeSelection(New EditorPosition(pDragStartLine, pDragStartColumn), New EditorPosition(pDragEndLine, pDragEndColumn))
+                    NormalizeSelection(New EditorPosition(pDragStartLine, pDragStartColumn), 
+                                     New EditorPosition(pDragEndLine, pDragEndColumn))
                     
                     Console.WriteLine($"Drag started: {pDragData.Length} characters from ({pDragStartLine},{pDragStartColumn}) to ({pDragEndLine},{pDragEndColumn})")
                 Else
@@ -194,10 +198,10 @@ Namespace Editors
                 pShowDropIndicator = True
                 
                 ' Determine if this would be a move or copy
-                Dim lIsMove As Boolean = (vArgs.Context.Actions And DragAction.Move) = DragAction.Move
+                Dim lIsMove As Boolean = (vArgs.Context.Actions and DragAction.Move) = DragAction.Move
                 
                 ' Set the suggested action
-                If lIsMove AndAlso (vArgs.Context.Actions And DragAction.Move) = DragAction.Move Then
+                If lIsMove AndAlso (vArgs.Context.Actions and DragAction.Move) = DragAction.Move Then
                     Gdk.Drag.Status(vArgs.Context, DragAction.Move, vArgs.Time)
                 Else
                     Gdk.Drag.Status(vArgs.Context, DragAction.Copy, vArgs.Time)
@@ -322,12 +326,21 @@ Namespace Editors
         ''' <summary>
         ''' Performs a drag move operation with proper undo recording
         ''' </summary>
+        ''' <remarks>
+        ''' Updated to use SourceFileInfo for text manipulation and request async parsing
+        ''' </remarks>
         Private Sub PerformDragMove(vSourceStartLine As Integer, vSourceStartColumn As Integer,
                                    vSourceEndLine As Integer, vSourceEndColumn As Integer,
                                    vTargetLine As Integer, vTargetColumn As Integer,
                                    vText As String)
             Try
                 Console.WriteLine($"Move from ({vSourceStartLine},{vSourceStartColumn})-({vSourceEndLine},{vSourceEndColumn}) to ({vTargetLine},{vTargetColumn})")
+                 Dim lLines() As String
+                ' Ensure SourceFileInfo is available
+                If pSourceFileInfo Is Nothing Then
+                    Console.WriteLine("PerformDragMove: No SourceFileInfo available")
+                    Return
+                End If
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -348,19 +361,46 @@ Namespace Editors
                     End If
                 End If
                 
-                ' Delete from source
-                SetSelection(New EditorPosition(vSourceStartLine, vSourceStartColumn),
-                            New EditorPosition(vSourceEndLine, vSourceEndColumn))
-                DeleteSelection()
+                ' Delete from source using SourceFileInfo
+                If vSourceStartLine = vSourceEndLine Then
+                    ' Single line deletion
+                    pSourceFileInfo.DeleteTextInLine(vSourceStartLine, vSourceStartColumn, vSourceEndColumn)
+                Else
+                    ' Multi-line deletion
+                    ' Get text to keep from first and last lines
+                    Dim lFirstLine As String = pSourceFileInfo.TextLines(vSourceStartLine)
+                    Dim lLastLine As String = pSourceFileInfo.TextLines(vSourceEndLine)
+                    Dim lKeepFromFirst As String = If(vSourceStartColumn > 0, lFirstLine.Substring(0, vSourceStartColumn), "")
+                    Dim lKeepFromLast As String = If(vSourceEndColumn < lLastLine.Length, lLastLine.Substring(vSourceEndColumn), "")
+                    
+                    ' Update first line with combined text
+                    pSourceFileInfo.UpdateTextLine(vSourceStartLine, lKeepFromFirst & lKeepFromLast)
+                    
+                    ' Delete intermediate lines
+                    for i As Integer = vSourceEndLine To vSourceStartLine + 1 Step -1
+                        pSourceFileInfo.DeleteLine(i)
+                    Next
+                End If
+                
                 
                 ' Move cursor to adjusted target
                 SetCursorPosition(lAdjustedTargetLine, lAdjustedTargetColumn)
                 
-                ' Insert at target
-                InsertText(vText)
+                ' Insert at target using SourceFileInfo
+                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
+                    ' Multi-line insertion
+                    pSourceFileInfo.InsertMultiLineText(lAdjustedTargetLine, lAdjustedTargetColumn, vText)
+                    
+                    ' Mark all affected lines as changed
+                    lLines = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
+                Else
+                    ' Single line insertion
+                    pSourceFileInfo.InsertTextInLine(lAdjustedTargetLine, lAdjustedTargetColumn, vText)
+                End If
+                
                 
                 ' Calculate final cursor position after insertion
-                Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
+                lLines = vText.Split({Environment.NewLine}, StringSplitOptions.None)
                 Dim lNewCursorLine As Integer
                 Dim lNewCursorColumn As Integer
                 
@@ -399,44 +439,108 @@ Namespace Editors
                     pUndoRedoManager.EndUserAction()
                 End If
                 
+                ' Request async parsing
+                pSourceFileInfo.RequestAsyncParse()
+                
+                ' Mark as modified
+                IsModified = True
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
+                
                 Console.WriteLine("Move operation completed")
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformDragMove error: {ex.Message}")
+                
+                ' Try to end undo group on error
+                If pUndoRedoManager IsNot Nothing Then
+                    Try
+                        pUndoRedoManager.EndUserAction()
+                    Catch
+                        ' Ignore
+                    End Try
+                End If
             End Try
         End Sub
         
         ''' <summary>
         ''' Performs a drag copy operation with proper undo recording
         ''' </summary>
+        ''' <remarks>
+        ''' Updated to use SourceFileInfo for text manipulation and request async parsing
+        ''' </remarks>
         Private Sub PerformDragCopy(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
             Try
                 Console.WriteLine($"=== PerformDragCopy: Copying to ({vTargetLine},{vTargetColumn}) ===")
                 
-                ' For copy, we just need to record an insert operation
-                ' The undo manager will handle this normally
+                ' Ensure SourceFileInfo is available
+                If pSourceFileInfo Is Nothing Then
+                    Console.WriteLine("PerformDragCopy: No SourceFileInfo available")
+                    Return
+                End If
+                
+                ' Begin undo group if needed
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.BeginUserAction()
+                End If
                 
                 ' Move cursor to drop position
                 SetCursorPosition(vTargetLine, vTargetColumn)
                 
-                ' Insert the text (this will automatically record undo)
-                InsertText(vText)
-                
-                ' Select the inserted text
-                Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
-                If lLines.Length = 1 Then
-                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn),
-                               New EditorPosition(vTargetLine, vTargetColumn + vText.Length))
-                Else
+                ' Insert the text using SourceFileInfo
+                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
+                    ' Multi-line insertion
+                    pSourceFileInfo.InsertMultiLineText(vTargetLine, vTargetColumn, vText)
+                    
+                    ' Mark all affected lines as changed
+                    Dim lLines() As String = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
+                    
+                    
+                    ' Select the inserted text
                     Dim lEndLine As Integer = vTargetLine + lLines.Length - 1
                     Dim lEndColumn As Integer = lLines(lLines.Length - 1).Length
-                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn), New EditorPosition(lEndLine, lEndColumn))
+                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn), 
+                               New EditorPosition(lEndLine, lEndColumn))
+                Else
+                    ' Single line insertion
+                    pSourceFileInfo.InsertTextInLine(vTargetLine, vTargetColumn, vText)
+                    
+                    ' Select the inserted text
+                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn),
+                               New EditorPosition(vTargetLine, vTargetColumn + vText.Length))
                 End If
+                
+                ' End undo group
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.EndUserAction()
+                End If
+                
+                ' Request async parsing
+                pSourceFileInfo.RequestAsyncParse()
+                
+                ' Mark as modified
+                IsModified = True
+                
+                ' Trigger events
+                RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
                 
                 Console.WriteLine("Copy operation completed")
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformDragCopy error: {ex.Message}")
+                
+                ' Try to end undo group on error
+                If pUndoRedoManager IsNot Nothing Then
+                    Try
+                        pUndoRedoManager.EndUserAction()
+                    Catch
+                        ' Ignore
+                    End Try
+                End If
             End Try
         End Sub
         

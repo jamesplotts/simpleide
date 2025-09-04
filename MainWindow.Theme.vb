@@ -123,7 +123,7 @@ Partial Public Class MainWindow
             pThemeManager.ApplyCurrentTheme()
             
             ' Update all open editors
-            For Each lTabInfo In pOpenTabs.Values
+            for each lTabInfo in pOpenTabs.Values
                 If lTabInfo.Editor IsNot Nothing Then
                     Dim lEditor As CustomDrawingEditor = TryCast(lTabInfo.Editor, CustomDrawingEditor)
                     If lEditor IsNot Nothing Then
@@ -151,6 +151,8 @@ Partial Public Class MainWindow
                 
                 Console.WriteLine("MainWindow.ApplyThemeToAllEditors: Project Explorer theme updated")
             End If
+
+            pProjectManager.ApplyCurrentTheme()
             
             ' Force refresh of all widgets by queuing draw
             QueueDraw()
@@ -254,13 +256,13 @@ Partial Public Class MainWindow
             Dim lCurrentThemeName As String = pThemeManager.GetCurrentTheme()
             
             ' Iterate through theme menu items and check the current one
-            For Each lMenuItem As Widget In pThemeMenu.Children
+            for each lMenuItem As Widget in pThemeMenu.Children
                 Dim lRadioItem As RadioMenuItem = TryCast(lMenuItem, RadioMenuItem)
                 If lRadioItem IsNot Nothing Then
                     Dim lThemeName As String = CStr(lRadioItem.Data("ThemeName"))
                     If lThemeName = lCurrentThemeName Then
                         lRadioItem.Active = True
-                        Exit For
+                        Exit for
                     End If
                 End If
             Next
@@ -348,7 +350,7 @@ Partial Public Class MainWindow
             End If
             
             ' Update status bar
-            UpdateStatusBar($"Theme changed to: {lThemeName}")
+            UpdateStatusBar($"Theme changed To: {lThemeName}")
             
         Catch ex As Exception
             Console.WriteLine($"OnThemeMenuItemActivated error: {ex.Message}")
@@ -360,13 +362,15 @@ Partial Public Class MainWindow
         Try
             ' Apply theme to all open editors
             ApplyThemeToAllEditors()
-            
+
+            pProjectManager.ApplyCurrentTheme()
+
             ' UPDATE: Apply to Object Explorer
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.OnThemeChanged()
             End If
             
-            UpdateStatusBar($"Theme changed to: {vTheme.Name}")
+            UpdateStatusBar($"Theme changed To: {vTheme.Name}")
             
         Catch ex As Exception
             Console.WriteLine($"OnThemeEditorThemeChanged error: {ex.Message}")

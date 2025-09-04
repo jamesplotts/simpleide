@@ -59,8 +59,8 @@ Namespace Editors
                 End If
                 
                 ' Validate column for the target line
-                If lTargetLine < pLineCount AndAlso pTextLines(lTargetLine) IsNot Nothing Then
-                    Dim lLineLength As Integer = pTextLines(lTargetLine).Length
+                If lTargetLine < pLineCount AndAlso TextLines(lTargetLine) IsNot Nothing Then
+                    Dim lLineLength As Integer = TextLines(lTargetLine).Length
                     If lTargetColumn < 0 Then
                         lTargetColumn = 0
                     ElseIf lTargetColumn > lLineLength Then
@@ -87,7 +87,7 @@ Namespace Editors
             End Try
         End Sub
         
-'        ' Move cursor to the beginning of the document
+        ' Move cursor to the beginning of the document
         Public Sub MoveToDocumentStart() Implements IEditor.MoveToDocumentStart
             Try
                 ' Clear any existing selection
@@ -121,8 +121,8 @@ Namespace Editors
                 Dim lLastColumn As Integer = 0
                 
                 ' Get length of last line
-                If lLastLine < pLineCount AndAlso pTextLines(lLastLine) IsNot Nothing Then
-                    lLastColumn = pTextLines(lLastLine).Length
+                If lLastLine < pLineCount AndAlso TextLines(lLastLine) IsNot Nothing Then
+                    lLastColumn = TextLines(lLastLine).Length
                 End If
                 
                 ' Move to end of last line
@@ -173,8 +173,8 @@ Namespace Editors
                 
                 ' Get current line length
                 Dim lLineLength As Integer = 0
-                If pCursorLine < pLineCount AndAlso pTextLines(pCursorLine) IsNot Nothing Then
-                    lLineLength = pTextLines(pCursorLine).Length
+                If pCursorLine < pLineCount AndAlso TextLines(pCursorLine) IsNot Nothing Then
+                    lLineLength = TextLines(pCursorLine).Length
                 End If
                 
                 ' Move to end of current line

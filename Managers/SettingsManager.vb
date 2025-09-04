@@ -26,6 +26,13 @@ Namespace Managers
         Private pIsInitialized As Boolean = False
         Private pRecentFiles As New List(Of String)()
         Private pRecentProjects As New List(Of String)()
+
+        ' ===== Project Version Auto-Increment Settings =====
+        
+        Private pAutoIncrementVersion As Boolean = False
+        Private pIncrementOncePerSession As Boolean = True
+        Private pIncrementOncePerDay As Boolean = False
+        Private pLastVersionIncrement As DateTime = DateTime.MinValue
         
         ' ===== Constructor =====
         Public Sub New()
@@ -64,7 +71,7 @@ Namespace Managers
                 If lSettings.WindowWidth < 400 Then lSettings.WindowWidth = 1200
                 If lSettings.WindowHeight < 300 Then lSettings.WindowHeight = 800
                 If lSettings.LeftPanelWidth < 100 Then lSettings.LeftPanelWidth = 250
-                If lSettings.BottomPanelHeight < 50 Then lSettings.BottomPanelHeight = 200
+                'If lSettings.BottomPanelHeight < 50 Then lSettings.BottomPanelHeight = 200
                 
                 ' Validate tab width
                 If lSettings.TabWidth < 1 OrElse lSettings.TabWidth > 16 Then
@@ -146,6 +153,7 @@ Namespace Managers
                     Case "GitUserName" : Return GitUserName
                     Case "GitEmail" : Return GitEmail
                     Case "GitDefaultBranch" : Return GitDefaultBranch
+                    Case "LastVersionIncrement" : Return LastVersionIncrement.ToString
                     Case Else
                         ' Generic key-value storage
                         Return GetCustomSetting(vKey, vDefaultValue)
@@ -188,6 +196,9 @@ Namespace Managers
                     Case "FindUseRegex" : Return FindUseRegex
                     Case "HighlightCurrentLine" : Return HighlightCurrentLine
                     Case "AutoIndent" : Return AutoIndent
+                    Case "AutoIncrementVersion" : Return AutoIncrementVersion
+                    Case "IncrementOncePerSession" : Return IncrementOncePerSession
+                    Case "IncrementOncePerDay" : Return IncrementOncePerDay
                     Case Else
                         ' Generic boolean setting
                         Dim lStringValue As String = GetCustomSetting(vKey, vDefaultValue.ToString())
@@ -212,7 +223,7 @@ Namespace Managers
                     Case "WindowWidth" : Return WindowWidth
                     Case "WindowHeight" : Return WindowHeight
                     Case "LeftPanelWidth" : Return LeftPanelWidth
-                    Case "BottomPanelHeight" : Return BottomPanelHeight
+                    'Case "BottomPanelHeight" : Return BottomPanelHeight
                     Case "TabWidth" : Return TabWidth
                     Case "CodeSenseDelay" : Return CodeSenseDelay
                     Case Else
@@ -264,6 +275,8 @@ Namespace Managers
                     Case "CurrentTheme" : CurrentTheme = vValue
                     Case "BuildConfiguration" : BuildConfiguration = vValue
                     Case "BuildPlatform" : BuildPlatform = vValue
+                    Case "LastVersionIncrement"
+                        DateTime.TryParse(vValue, LastVersionIncrement)
                     Case Else
                         ' Generic key-value storage
                         SetCustomSetting(vKey, vValue)
@@ -286,7 +299,7 @@ Namespace Managers
                     Case "WindowWidth" : WindowWidth = vValue
                     Case "WindowHeight" : WindowHeight = vValue
                     Case "LeftPanelWidth" : LeftPanelWidth = vValue
-                    Case "BottomPanelHeight" : BottomPanelHeight = vValue
+                    'Case "BottomPanelHeight" : BottomPanelHeight = vValue
                     Case "TabWidth" : TabWidth = vValue
                     Case "CodeSenseDelay" : CodeSenseDelay = vValue
                     Case Else
@@ -344,6 +357,9 @@ Namespace Managers
                     Case "AutoIndent" : AutoIndent = vValue
                     Case "ToolbarShowLabels" : ToolbarShowLabels = vValue
                     Case "ToolbarLargeIcons" : ToolbarLargeIcons = vValue
+                    Case "AutoIncrementVersion" : AutoIncrementVersion = vValue
+                    Case "IncrementOncePerSession" : IncrementOncePerSession = vValue
+                    Case "IncrementOncePerDay" : IncrementOncePerDay = vValue
                     Case Else
                         ' Generic setting - store as string
                         SetCustomSetting(vKey, vValue.ToString())
@@ -363,7 +379,7 @@ Namespace Managers
                 If String.IsNullOrEmpty(lCustomSettings) Then Return vDefaultValue
                 
                 Dim lPairs As String() = lCustomSettings.Split({"|"c}, StringSplitOptions.RemoveEmptyEntries)
-                For Each lPair In lPairs
+                for each lPair in lPairs
                     Dim lKeyValue As String() = lPair.Split({"="c}, 2)
                     If lKeyValue.Length = 2 AndAlso lKeyValue(0).Equals(vKey, StringComparison.OrdinalIgnoreCase) Then
                         Return lKeyValue(1)
@@ -386,7 +402,7 @@ Namespace Managers
                 Dim lCustomSettings As String = ApplicationSettings.Instance.CustomSettings
                 If Not String.IsNullOrEmpty(lCustomSettings) Then
                     Dim lPairs As String() = lCustomSettings.Split({"|"c}, StringSplitOptions.RemoveEmptyEntries)
-                    For Each lPair In lPairs
+                    for each lPair in lPairs
                         Dim lKeyValue As String() = lPair.Split({"="c}, 2)
                         If lKeyValue.Length = 2 Then
                             lSettings(lKeyValue(0)) = lKeyValue(1)
@@ -399,7 +415,7 @@ Namespace Managers
                 
                 ' Save back to ApplicationSettings
                 Dim lPairList As New List(Of String)()
-                For Each lKvp In lSettings
+                for each lKvp in lSettings
                     lPairList.Add($"{lKvp.key}={lKvp.Value}")
                 Next
                 
@@ -455,17 +471,17 @@ Namespace Managers
                 RaiseEvent SettingsChanged("LeftPanelWidth", lOldValue, Value)
             End Set
         End Property
-        
-        Public Property BottomPanelHeight As Integer
-            Get
-                Return ApplicationSettings.Instance.BottomPanelHeight
-            End Get
-            Set(Value As Integer)
-                Dim lOldValue As Integer = ApplicationSettings.Instance.BottomPanelHeight
-                ApplicationSettings.Instance.BottomPanelHeight = Math.Max(50, Value)
-                RaiseEvent SettingsChanged("BottomPanelHeight", lOldValue, Value)
-            End Set
-        End Property
+'         
+'         Public Property BottomPanelHeight As Integer
+'             Get
+'                 Return ApplicationSettings.Instance.BottomPanelHeight
+'             End Get
+'             Set(Value As Integer)
+'                 Dim lOldValue As Integer = ApplicationSettings.Instance.BottomPanelHeight
+'                 ApplicationSettings.Instance.BottomPanelHeight = Math.Max(50, Value)
+'                 RaiseEvent SettingsChanged("BottomPanelHeight", lOldValue, Value)
+'             End Set
+'         End Property
         
         ' ===== Editor Settings =====
         
@@ -935,7 +951,7 @@ Namespace Managers
                 If Not String.IsNullOrEmpty(lRecentFilesString) Then
                     Dim lFiles As String() = lRecentFilesString.Split({SETTINGS_SEPARATOR}, StringSplitOptions.RemoveEmptyEntries)
                     
-                    For Each lFile In lFiles
+                    for each lFile in lFiles
                         If File.Exists(lFile) Then
                             pRecentFiles.Add(lFile)
                         End If
@@ -1007,7 +1023,7 @@ Namespace Managers
                 If Not String.IsNullOrEmpty(lRecentProjectsString) Then
                     Dim lProjects As String() = lRecentProjectsString.Split({SETTINGS_SEPARATOR}, StringSplitOptions.RemoveEmptyEntries)
                     
-                    For Each lProject In lProjects
+                    for each lProject in lProjects
                         If File.Exists(lProject) Then
                             pRecentProjects.Add(lProject)
                         End If
@@ -1067,6 +1083,68 @@ Namespace Managers
                 Dim lOldValue As Integer = ApplicationSettings.Instance.LeftPanelStartupTab
                 ApplicationSettings.Instance.LeftPanelStartupTab = Value
                 RaiseEvent SettingsChanged("LeftPanelStartupTab", lOldValue, Value)
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Gets or sets whether to auto-increment IDE version on builds
+        ''' </summary>
+        Public Property AutoIncrementVersion As Boolean
+            Get
+                Return pAutoIncrementVersion
+            End Get
+            Set(value As Boolean)
+                If pAutoIncrementVersion <> value Then
+                    pAutoIncrementVersion = value
+                    SaveSettings()
+                End If
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Gets or sets whether to increment IDE version only once per session
+        ''' </summary>
+        Public Property IncrementOncePerSession As Boolean
+            Get
+                Return pIncrementOncePerSession
+            End Get
+            Set(value As Boolean)
+                If pIncrementOncePerSession <> value Then
+                    pIncrementOncePerSession = value
+                    ' If enabling this, disable once per day
+                    If value Then pIncrementOncePerDay = False
+                    SaveSettings()
+                End If
+            End Set
+        End Property
+        
+        ''' <summary>
+        ''' Gets or sets whether to increment IDE version only once per day
+        ''' </summary>
+        Public Property IncrementOncePerDay As Boolean
+            Get
+                Return pIncrementOncePerDay
+            End Get
+            Set(value As Boolean)
+                If pIncrementOncePerDay <> value Then
+                    pIncrementOncePerDay = value
+                    ' If enabling this, disable once per session
+                    If value Then pIncrementOncePerSession = False
+                    SaveSettings()
+                End If
+            End Set
+        End Property
+        
+        ''' <summary>
+        ''' Gets or sets the last time the IDE version was incremented
+        ''' </summary>
+        Public Property LastVersionIncrement As DateTime
+            Get
+                Return pLastVersionIncrement
+            End Get
+            Set(value As DateTime)
+                pLastVersionIncrement = value
+                SaveSettings()
             End Set
         End Property
         

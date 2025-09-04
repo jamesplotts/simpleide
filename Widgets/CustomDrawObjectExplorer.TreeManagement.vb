@@ -524,75 +524,138 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         End Function
         
         ''' <summary>
-        ''' Simplified RebuildVisualTree that doesn't swap list instances
+        ''' Rebuilds the visual tree from the syntax nodes with proper position calculation
         ''' </summary>
         Public Sub RebuildVisualTree()
             Try
-                Console.WriteLine($"RebuildVisualTree: Starting rebuild, current count = {pVisibleNodes.Count}")
-                
-                ' Ensure we never have Nothing list
-                If pVisibleNodes Is Nothing Then
-                    pVisibleNodes = New List(Of VisualNode)()
-                End If
-                
-                ' Clear existing nodes
-                pVisibleNodes.Clear()
-                pNodeCache.Clear()
-                
-                If pRootNode Is Nothing Then 
-                    Console.WriteLine("RebuildVisualTree: No root node")
-                    pDrawingArea?.QueueDraw()
+                ' Prevent recursive rebuilds
+                If pIsRebuildingTree Then
+                    'Console.WriteLine("RebuildVisualTree: Already rebuilding, skipping")
                     Return
                 End If
                 
-                Console.WriteLine($"RebuildVisualTree: Root '{pRootNode.Name}' ({pRootNode.NodeType})")
+                ' Check if rebuild is actually needed
+                If Not IsRebuildNeeded() Then
+                    'Console.WriteLine($"RebuildVisualTree: Skipped - no changes detected")
+                    Return
+                End If
                 
-                ' Auto-expand namespace children if root is a document
-                If pRootNode.NodeType = CodeNodeType.eDocument Then
-                    for each lChild in pRootNode.Children
-                        If lChild.NodeType = CodeNodeType.eNamespace Then
-                            If Not pExpandedNodes.Contains(lChild.Name) Then
-                                pExpandedNodes.Add(lChild.Name)
-                                Console.WriteLine($"Auto-expanded namespace: {lChild.Name}")
-                            End If
+                pIsRebuildingTree = True
+                'Console.WriteLine($"RebuildVisualTree: Starting rebuild, current count = {pVisibleNodes.Count}")
+                
+                ' Store the path of the currently selected node before clearing
+                Dim lSelectedPath As String = Nothing
+                If pSelectedNode IsNot Nothing Then
+                    lSelectedPath = pSelectedNode.NodePath
+                End If
+                
+                ' Clear the visual nodes
+                pVisibleNodes.Clear()
+                pNodeCache.Clear()
+                
+                ' Reset selection reference (will be restored later)
+                pSelectedNode = Nothing
+                
+                If pRootNode Is Nothing Then
+                   ' Console.WriteLine("RebuildVisualTree: No root node")
+                    UpdateScrollbars()
+                    pIsRebuildingTree = False
+                    Return
+                End If
+                
+                'Console.WriteLine($"RebuildVisualTree: Root '{pRootNode.Name}' ({pRootNode.NodeType})")
+                
+                ' Build visible nodes recursively with proper parent path (empty string for root)
+                BuildVisualNodes(pRootNode, Nothing, 0, "")
+                
+                ' CRITICAL FIX: Calculate node positions after building the tree structure
+                ' This sets the Y positions for all nodes
+                CalculateNodePositions()
+                
+                ' Content dimensions are now set by CalculateNodePositions
+                ' pContentHeight and pContentWidth are updated there
+                
+                ' Restore selection if we had one
+                If Not String.IsNullOrEmpty(lSelectedPath) Then
+                    for each lNode in pVisibleNodes
+                        If lNode.NodePath = lSelectedPath Then
+                            pSelectedNode = lNode
+                           ' Console.WriteLine($"RebuildVisualTree: Restored selection to {lNode.Node.Name}")
+                            Exit for
                         End If
                     Next
-                ElseIf pRootNode.NodeType = CodeNodeType.eNamespace Then
-                    If Not pExpandedNodes.Contains(pRootNode.Name) Then
-                        pExpandedNodes.Add(pRootNode.Name)
-                        Console.WriteLine($"Auto-expanded root namespace: {pRootNode.Name}")
+                    
+                    If pSelectedNode Is Nothing Then
+                        'Console.WriteLine($"RebuildVisualTree: Could not restore selection for path '{lSelectedPath}'")
                     End If
                 End If
                 
-                ' Build visual nodes directly into pVisibleNodes
-                BuildVisualNodes(pRootNode, Nothing, 0, "")
+                ' Update tracking
+                pLastRebuildRoot = pRootNode
+                pLastRebuildHash = GetTreeHash()
+                pNeedsRebuild = False
                 
-                ' Apply sorting if needed
-                If pSortMode <> ObjectExplorerSortMode.eDefault Then
-                    ApplySorting()
-                End If
-                
-                ' Calculate positions
-                CalculateNodePositions()
-                
-                ' Update scroll ranges
+                ' Update scrollbars to reflect new content dimensions
                 UpdateScrollbars()
                 
-                Console.WriteLine($"RebuildVisualTree: Built {pVisibleNodes.Count} visible nodes")
-                
-                ' Force immediate redraw if we have nodes
-                If pVisibleNodes.Count > 0 Then
-                    pDrawingArea?.QueueDraw()
-                End If
+               ' Console.WriteLine($"RebuildVisualTree: Built {pVisibleNodes.Count} visible nodes, height={pContentHeight}")
                 
             Catch ex As Exception
                 Console.WriteLine($"RebuildVisualTree error: {ex.Message}")
-                ' Ensure pVisibleNodes is never left as Nothing
-                If pVisibleNodes Is Nothing Then
-                    pVisibleNodes = New List(Of VisualNode)()
-                End If
+            Finally
+                pIsRebuildingTree = False
             End Try
         End Sub
+
+        Private Function IsRebuildNeeded() As Boolean
+            Try
+                ' Force rebuild if explicitly marked
+                If pNeedsRebuild Then
+                    Return True
+                End If
+                
+                ' Rebuild if root changed
+                If pRootNode IsNot pLastRebuildRoot Then
+                    Return True
+                End If
+                
+                ' Rebuild if no visible nodes but we have a root
+                If pVisibleNodes.Count = 0 AndAlso pRootNode IsNot Nothing Then
+                    Return True
+                End If
+                
+                ' Check if tree structure changed (using simple hash)
+                Dim lCurrentHash As Integer = GetTreeHash()
+                If lCurrentHash <> pLastRebuildHash Then
+                    Return True
+                End If
+                
+                Return False
+                
+            Catch ex As Exception
+                Console.WriteLine($"IsRebuildNeeded error: {ex.Message}")
+                Return True  ' Rebuild on error to be safe
+            End Try
+        End Function
+        
+        Private Function GetTreeHash() As Integer
+            Try
+                If pRootNode Is Nothing Then Return 0
+                
+                ' Simple hash based on expanded nodes and root structure
+                Dim lHash As Integer = pRootNode.GetHashCode()
+                lHash = lHash Xor (pExpandedNodes.Count << 16)
+                
+                for each lPath in pExpandedNodes
+                    lHash = lHash Xor lPath.GetHashCode()
+                Next
+                
+                Return lHash
+                
+            Catch ex As Exception
+                Return 0
+            End Try
+        End Function
 
         ''' <summary>
         ''' Ensure visible nodes list is never Nothing
@@ -620,7 +683,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
                 ' Special handling for root document nodes
                 If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
-                    Console.WriteLine($"BuildVisualNodes: Root is eDocument with {vNode.Children.Count} children")
+                    'Console.WriteLine($"BuildVisualNodes: Root is eDocument with {vNode.Children.Count} children")
                     
                     ' Sort children alphabetically before processing
                     Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
@@ -635,7 +698,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
                 ' Check if this node should be displayed
                 If Not ShouldDisplayNode(vNode) Then 
-                    Console.WriteLine($"BuildVisualNodes: Skipping {vNode.Name} ({vNode.NodeType}) - filtered out")
+                   ' Console.WriteLine($"BuildVisualNodes: Skipping {vNode.Name} ({vNode.NodeType}) - filtered out")
                     Return
                 End If
                 

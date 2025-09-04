@@ -82,6 +82,22 @@ Namespace Widgets
         Private pEnableTelemetryCheck As CheckButton
         Private pCheckUpdatesCheck As CheckButton
         Private pBetaUpdatesCheck As CheckButton
+
+        ' ===== IDE Version Auto-Increment Settings =====
+        
+        Private pAutoIncrementVersion As Boolean = False
+        Private pIncrementOncePerSession As Boolean = True
+        Private pIncrementOncePerDay As Boolean = False
+        Private pLastVersionIncrement As DateTime = DateTime.MinValue
+
+								Private pAutoIncrementCheck As  CheckButton
+        Private pEveryBuildRadio As RadioButton
+        Private pOncePerSessionRadio As RadioButton
+        Private pOncePerDayRadio As RadioButton
+
+        ' Add these as class-level fields
+        Private pVersionControls As List(Of Widget)
+        Private pAutoIncrementEnableCheck As CheckButton
         
         ' ===== Events (IEditor Implementation) =====
         Public Event Modified As EventHandler  
@@ -231,6 +247,7 @@ Namespace Widgets
                 pNotebook.AppendPage(CreateGitTab(), New Label("Git"))
                 pNotebook.AppendPage(CreateAITab(), New Label("AI"))
                 pNotebook.AppendPage(CreateAdvancedTab(), New Label("Advanced"))
+                pNotebook.AppendPage(CreateVersionTab(), New Label("Project Version"))
                 
                 PackStart(pNotebook, True, True, 0)
                 
@@ -243,6 +260,126 @@ Namespace Widgets
         
         ' ===== Tab Creation Methods =====
         
+        ''' <summary>
+        ''' Create the IDE Version settings tab
+        ''' </summary>
+        Private Function CreateVersionTab() As Widget
+            Dim lBox As New Box(Orientation.Vertical, 10)
+            lBox.MarginStart = 20
+            lBox.MarginEnd = 20
+            lBox.MarginTop = 20
+            lBox.MarginBottom = 20
+            
+            ' Title
+            Dim lTitleLabel As New Label()
+            lTitleLabel.Markup = "<b>Project Version Auto-Increment Settings</b>"
+            lTitleLabel.Xalign = 0
+            lBox.PackStart(lTitleLabel, False, False, 0)
+            
+            ' Current version display
+            Dim lCurrentVersionBox As New Box(Orientation.Horizontal, 10)
+            Dim lCurrentLabel As New Label("Current Project Version:")
+            lCurrentVersionBox.PackStart(lCurrentLabel, False, False, 0)
+            
+            Dim lVersionLabel As New Label(ApplicationVersion.FullVersionString)
+            lVersionLabel.Markup = $"<b>{ApplicationVersion.FullVersionString}</b>"
+            lCurrentVersionBox.PackStart(lVersionLabel, False, False, 0)
+            lBox.PackStart(lCurrentVersionBox, False, False, 0)
+            
+            ' Separator
+            lBox.PackStart(New Separator(Orientation.Horizontal), False, False, 0)
+            
+            ' Auto-increment enable checkbox
+            '("Enable auto-increment Project version on build")
+            pAutoIncrementCheck = New CheckButton("Enable auto-increment IDE version on build")
+            pAutoIncrementCheck.Active = pSettingsManager.AutoIncrementVersion
+            pAutoIncrementCheck.TooltipText = "When enabled, the Project version number will be incremented when you build projects"
+            AddHandler pAutoIncrementCheck.Toggled, Sub()
+                pSettingsManager.AutoIncrementVersion = pAutoIncrementCheck.Active
+                ' Enable/disable other options based on this
+                UpdateVersionOptionsState()
+            End Sub
+            lBox.PackStart(pAutoIncrementCheck, False, False, 0)
+            
+            ' Increment frequency options
+            Dim lFrequencyLabel As New Label("Increment Frequency:")
+            lFrequencyLabel.Xalign = 0
+            lFrequencyLabel.MarginTop = 10
+            lBox.PackStart(lFrequencyLabel, False, False, 0)
+            
+            ' Radio buttons for frequency
+            pEveryBuildRadio = New RadioButton("On every build")
+            pEveryBuildRadio.MarginStart = 20
+            pEveryBuildRadio.Active = Not pSettingsManager.IncrementOncePerSession AndAlso 
+                                      Not pSettingsManager.IncrementOncePerDay
+            
+            pOncePerSessionRadio = New RadioButton(pEveryBuildRadio, "Once per session")
+            pOncePerSessionRadio.MarginStart = 20
+            pOncePerSessionRadio.Active = pSettingsManager.IncrementOncePerSession
+            
+            pOncePerDayRadio = New RadioButton(pEveryBuildRadio, "Once per day")
+            pOncePerDayRadio.MarginStart = 20
+            pOncePerDayRadio.Active = pSettingsManager.IncrementOncePerDay
+            
+            ' Add handlers
+            AddHandler pEveryBuildRadio.Toggled, Sub()
+                If pEveryBuildRadio.Active Then
+                    pSettingsManager.IncrementOncePerSession = False
+                    pSettingsManager.IncrementOncePerDay = False
+                End If
+            End Sub
+            
+            AddHandler pOncePerSessionRadio.Toggled, Sub()
+                If pOncePerSessionRadio.Active Then
+                    pSettingsManager.IncrementOncePerSession = True
+                    pSettingsManager.IncrementOncePerDay = False
+                End If
+            End Sub
+            
+            AddHandler pOncePerDayRadio.Toggled, Sub()
+                If pOncePerDayRadio.Active Then
+                    pSettingsManager.IncrementOncePerSession = False
+                    pSettingsManager.IncrementOncePerDay = True
+                End If
+            End Sub
+            
+            lBox.PackStart(pEveryBuildRadio, False, False, 0)
+            lBox.PackStart(pOncePerSessionRadio, False, False, 0)
+            lBox.PackStart(pOncePerDayRadio, False, False, 0)
+            
+            ' Last increment info
+            If pSettingsManager.LastVersionIncrement > DateTime.MinValue Then
+                Dim lLastIncrementLabel As New Label()
+                lLastIncrementLabel.Markup = $"<small>Last incremented: {pSettingsManager.LastVersionIncrement:yyyy-MM-dd HH:mm:ss}</small>"
+                lLastIncrementLabel.Xalign = 0
+                lLastIncrementLabel.MarginTop = 10
+                lBox.PackStart(lLastIncrementLabel, False, False, 0)
+            End If
+            
+            ' Manual increment button
+            Dim lManualBox As New Box(Orientation.Horizontal, 10)
+            lManualBox.MarginTop = 20
+            
+            Dim lManualButton As New Button("Increment Version Now")
+            lManualButton.TooltipText = "Manually increment the Project version number"
+            AddHandler lManualButton.Clicked, Sub()
+                IncrementVersionManually()
+                ' Update the version label
+                lVersionLabel.Markup = $"<b>{ApplicationVersion.FullVersionString}</b>"
+            End Sub
+            lManualBox.PackStart(lManualButton, False, False, 0)
+            
+            lBox.PackStart(lManualBox, False, False, 0)
+            
+            ' Store controls for enabling/disabling
+            pVersionControls = New List(Of Widget) From {
+                pEveryBuildRadio, pOncePerSessionRadio, pOncePerDayRadio
+            }
+            pAutoIncrementEnableCheck = pAutoIncrementCheck
+            
+            Return lBox
+        End Function
+
         ''' <summary>
         ''' Creates the General settings tab
         ''' </summary>
@@ -588,7 +725,7 @@ Namespace Widgets
                 ' Create temporary manager to get method names
                 Dim lTempManager As New Utilities.CredentialManager()
                 
-                For Each lMethod In lAvailableMethods
+                for each lMethod in lAvailableMethods
                     lTempManager = New Utilities.CredentialManager(lMethod)
                     pGitCredentialStorageCombo.AppendText(lTempManager.GetStorageMethodName())
                 Next
@@ -689,7 +826,7 @@ Namespace Widgets
                 "• Remember your coding patterns with Mem0"
             }
             
-            For Each lFeature In lFeatures
+            for each lFeature in lFeatures
                 Dim lLabel As New Label(lFeature)
                 lLabel.Xalign = 0
                 lInfoBox.PackStart(lLabel, False, False, 0)
@@ -888,6 +1025,14 @@ Namespace Widgets
                 pCheckUpdatesCheck.Active = pSettingsManager.GetBoolean("Advanced.CheckUpdates", True)
                 pBetaUpdatesCheck.Active = pSettingsManager.GetBoolean("Advanced.BetaUpdates", False)
                 pEnableTelemetryCheck.Active = pSettingsManager.GetBoolean("Advanced.EnableTelemetry", False)
+
+                pAutoIncrementCheck.Active = pSettingsManager.GetBoolean("AutoIncrementVersion", False)
+                pOncePerSessionRadio.Active = pSettingsManager.GetBoolean("IncrementOncePerSession", False)
+                pOncePerDayRadio.Active = pSettingsManager.GetBoolean("IncrementOncePerDay", False)
+                DateTime.TryParse(pSettingsManager.GetString("LastVersionIncrement", ""), pLastVersionIncrement)
+                pEveryBuildRadio.Active = Not pSettingsManager.IncrementOncePerSession AndAlso 
+                                          Not pSettingsManager.IncrementOncePerDay
+
                 
                 ' Update UI states
                 OnAutoSaveToggled(Nothing, Nothing)
@@ -911,6 +1056,7 @@ Namespace Widgets
             Try
                 ' General
                 pSettingsManager.SetBoolean("General.ShowSplash", pShowSplashCheck.Active)
+                Console.WriteLine("This Far")
                 pSettingsManager.SetBoolean("General.RestoreLayout", pRestoreLayoutCheck.Active)
                 pSettingsManager.SetBoolean("General.AutoSave", pAutoSaveCheck.Active)
                 pSettingsManager.SetInteger("General.AutoSaveInterval", CInt(pAutoSaveIntervalSpin.Value))
@@ -985,6 +1131,11 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("Advanced.BetaUpdates", pBetaUpdatesCheck.Active)
                 pSettingsManager.SetBoolean("Advanced.EnableTelemetry", pEnableTelemetryCheck.Active)
                 
+                pSettingsManager.SetBoolean("AutoIncrementVersion", pAutoIncrementCheck.Active)
+                pSettingsManager.SetBoolean("IncrementOncePerSession", pOncePerSessionRadio.Active)
+                pSettingsManager.SetBoolean("IncrementOncePerDay", pOncePerDayRadio.Active)
+                pSettingsManager.SetString("LastVersionIncrement", pLastVersionIncrement.ToString("yyyy-MM-dd HH:mm:ss"))
+
                 ' Save to disk
                 pSettingsManager.Save()
                 
@@ -1019,7 +1170,7 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"OnSaveClicked error: {ex.Message}")
                 ' FIX: Use GetParentWindow() instead of Me
-                Dim lDialog As New MessageDialog(GetParentWindow(), DialogFlags.Modal, MessageType.Error, ButtonsType.Ok, "Failed to save settings: " & ex.Message)
+                Dim lDialog As New MessageDialog(GetParentWindow(), DialogFlags.Modal, MessageType.error, ButtonsType.Ok, "Failed to save settings: " & ex.Message)
                 lDialog.Run()
                 lDialog.Destroy()
             End Try
@@ -1036,7 +1187,7 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"OnApplyClicked error: {ex.Message}")
                 ' FIX: Use GetParentWindow() instead of Me
-                Dim lDialog As New MessageDialog(GetParentWindow(), DialogFlags.Modal, MessageType.Error, ButtonsType.Ok, "Failed to apply settings: " & ex.Message)
+                Dim lDialog As New MessageDialog(GetParentWindow(), DialogFlags.Modal, MessageType.error, ButtonsType.Ok, "Failed to apply settings: " & ex.Message)
                 lDialog.Run()
                 lDialog.Destroy()
             End Try
@@ -1177,7 +1328,7 @@ Namespace Widgets
                 If lGitTabWidget IsNot Nothing AndAlso TypeOf lGitTabWidget Is Box Then
                     ' Search through the box hierarchy to find the security label
                     Dim lBox As Box = CType(lGitTabWidget, Box)
-                    For Each lChild In lBox.Children
+                    for each lChild in lBox.Children
                         If TypeOf lChild Is Frame Then
                             Dim lFrame As Frame = CType(lChild, Frame)
                             If lFrame.Label = "Git Credentials" Then
@@ -1185,14 +1336,14 @@ Namespace Widgets
                                 If lCredBox IsNot Nothing AndAlso TypeOf lCredBox Is Box Then
                                     Dim lChildren = CType(lCredBox, Box).Children
                                     ' Get the last label which should be the security label
-                                    For i As Integer = lChildren.Length - 1 To 0 Step -1
+                                    for i As Integer = lChildren.Length - 1 To 0 Step -1
                                         If TypeOf lChildren(i) Is Label Then
                                             lSecurityLabel = CType(lChildren(i), Label)
-                                            Exit For
+                                            Exit for
                                         End If
                                     Next
                                 End If
-                                Exit For
+                                Exit for
                             End If
                         End If
                     Next
@@ -1230,7 +1381,85 @@ Namespace Widgets
                 Console.WriteLine($"OnGitStorageMethodChanged error: {ex.Message}")
             End Try
         End Sub
+
         
+        ''' <summary>
+        ''' Find the .vbproj file
+        ''' </summary>
+        Private Function FindProjectFile() As String
+            Try
+                ' Start from the executable's directory
+                Dim lExePath As String = Reflection.Assembly.GetExecutingAssembly().Location
+                Dim lCurrentDir As New IO.DirectoryInfo(IO.Path.GetDirectoryName(lExePath))
+                
+                ' Search up the directory tree
+                While lCurrentDir IsNot Nothing
+                    ' Check for SimpleIDE.vbproj
+                    Dim lProjectPath As String = IO.Path.Combine(lCurrentDir.FullName, "SimpleIDE.vbproj")
+                    If IO.File.Exists(lProjectPath) Then
+                        Return lProjectPath
+                    End If
+                    
+                    ' Also check for VbIDE.vbproj (alternate name)
+                    lProjectPath = IO.Path.Combine(lCurrentDir.FullName, "VbIDE.vbproj")
+                    If IO.File.Exists(lProjectPath) Then
+                        Return lProjectPath
+                    End If
+                    
+                    ' Check parent directory
+                    lCurrentDir = lCurrentDir.Parent
+                End While
+                
+                Return ""
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindIdeProjectFile error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ' Helper method to manually increment
+        Private Sub IncrementVersionManually()
+            Try
+                Dim lIdeProjectPath As String = FindProjectFile()
+                If String.IsNullOrEmpty(lIdeProjectPath) Then
+                    Console.WriteLine("Project Not Found", "Could Not find *.vbproj")
+                    Return
+                End If
+                
+                Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath)
+                Dim lCurrentVersion As Version = lVersionManager.GetCurrentVersion()
+                
+                Dim lNewVersion As New Version(
+                    lCurrentVersion.Major,
+                    lCurrentVersion.Minor,
+                    lCurrentVersion.Build + 1,
+                    lCurrentVersion.Revision)
+                
+                If lVersionManager.SetVersion(lNewVersion) Then
+                    ' Clear cache and update UI
+                    ApplicationVersion.ClearCache()
+                    
+                    ' Update last increment time
+                    pSettingsManager.LastVersionIncrement = DateTime.Now
+                   
+                Else
+                    Console.WriteLine("Increment Failed", "Failed To increment Project version")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"IncrementVersionManually error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub UpdateVersionOptionsState()
+            If pVersionControls IsNot Nothing Then
+                for each lControl in pVersionControls
+                    lControl.Sensitive = pAutoIncrementEnableCheck.Active
+                Next
+            End If
+        End Sub
+
     End Class
     
 End Namespace

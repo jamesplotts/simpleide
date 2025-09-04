@@ -15,34 +15,14 @@ Namespace Editors
 
 
         ' ===== Updated Text Property to sync with SourceFileInfo =====
+
         Public Property Text As String Implements IEditor.Text
             Get
-                Return GetAllText()
+                Return pSourceFileInfo.GetAllText()
             End Get
             Set(Value As String)
                 Try
-                    ' Update SourceFileInfo
-                    If pSourceFileInfo IsNot Nothing Then
-                        pSourceFileInfo.Content = Value
-                        pSourceFileInfo.TextLines = New List(Of String)(Value.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                        
-                        ' Ensure at least one line
-                        If pSourceFileInfo.TextLines.Count = 0 Then
-                            pSourceFileInfo.TextLines.Add("")
-                        End If
-                    End If
-                    
-                    ' Update editor state
-                    pLineCount = pSourceFileInfo.TextLines.Count
-                    
-                    ' Resize metadata arrays
-                    ReDim pLineMetadata(pLineCount - 1)
-                    ReDim pCharacterColors(pLineCount - 1)
-                    for i As Integer = 0 To pLineCount - 1
-                        pLineMetadata(i) = New LineMetadata()
-                        pCharacterColors(i) = New CharacterColorInfo() {}
-                        ProcessLineFormatting(i)
-                    Next
+                    pSourceFileInfo.SetAllText(Value)
                     
                     ' Reset cursor and selection
                     pCursorLine = 0
@@ -51,10 +31,6 @@ Namespace Editors
                     
                     ' Mark as modified
                     IsModified = True
-                    
-                    ' Schedule syntax highlighting
-                    ScheduleParse()
-                    ScheduleFullDocumentParse()
                     
                     ' Trigger events
                     RaiseEvent TextChanged(Me, New EventArgs)
@@ -156,9 +132,6 @@ Namespace Editors
                 RaiseEvent TextChanged(Me, New EventArgs)
                 
                 ' Schedule parsing if the change spans multiple lines or is significant
-                If Math.Abs(lEndPos.Line - lStartPos.Line) >= 1 Then 
-                    ScheduleFullDocumentParse()
-                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ReplaceText error: {ex.Message}")
@@ -196,8 +169,6 @@ Namespace Editors
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
                 
-                ' Force a full document parse since we replaced everything
-                ScheduleFullDocumentParse()
                 
                 ' Update display
                 UpdateLineNumberWidth()
@@ -220,7 +191,7 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return ""
                 
-                Dim lLine As String = pTextLines(vLine)
+                Dim lLine As String = TextLines(vLine)
                 Dim lIndentation As New System.Text.StringBuilder()
                 
                 ' Extract leading whitespace
@@ -249,15 +220,15 @@ Namespace Editors
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
                 ' Get current line
-                Dim lLine As String = pTextLines(vLine)
+                Dim lLine As String = TextLines(vLine)
                 
                 ' Add indentation (4 spaces or tab based on settings)
                 Dim lIndent As String = If(pUseTabs, vbTab, New String(" "c, pTabWidth))
-                pTextLines(vLine) = lIndent & lLine
+                TextLines(vLine) = lIndent & lLine
                 
                 ' Update character colors array
                 If pCharacterColors IsNot Nothing AndAlso vLine < pCharacterColors.Length Then
-                    Dim lNewColors(pTextLines(vLine).Length - 1) As CharacterColorInfo
+                    Dim lNewColors(TextLines(vLine).Length - 1) As CharacterColorInfo
                     If pCharacterColors(vLine) IsNot Nothing Then
                         ' Shift existing colors by indent length
                         for i As Integer = 0 To pCharacterColors(vLine).Length - 1
@@ -268,9 +239,6 @@ Namespace Editors
                     End If
                     pCharacterColors(vLine) = lNewColors
                 End If
-                
-                ' Process line formatting
-                ProcessLineFormatting(vLine)
                 
                 ' If cursor is on this line, adjust cursor position
                 If pCursorLine = vLine Then
@@ -291,7 +259,7 @@ Namespace Editors
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
                 ' Get current line
-                Dim lLine As String = pTextLines(vLine)
+                Dim lLine As String = TextLines(vLine)
                 If String.IsNullOrEmpty(lLine) Then Return
                 
                 ' Determine how much to remove
@@ -313,11 +281,11 @@ Namespace Editors
                 
                 If lRemoveCount > 0 Then
                     ' Update the line text
-                    pTextLines(vLine) = lLine.Substring(lRemoveCount)
+                    TextLines(vLine) = lLine.Substring(lRemoveCount)
                     
                     ' Update character colors array
                     If pCharacterColors IsNot Nothing AndAlso vLine < pCharacterColors.Length Then
-                        Dim lNewColors(pTextLines(vLine).Length - 1) As CharacterColorInfo
+                        Dim lNewColors(TextLines(vLine).Length - 1) As CharacterColorInfo
                         If pCharacterColors(vLine) IsNot Nothing AndAlso pCharacterColors(vLine).Length > lRemoveCount Then
                             ' Shift colors left
                             for i As Integer = lRemoveCount To pCharacterColors(vLine).Length - 1
@@ -329,8 +297,6 @@ Namespace Editors
                         pCharacterColors(vLine) = lNewColors
                     End If
                     
-                    ' Process line formatting
-                    ProcessLineFormatting(vLine)
                     
                     ' If cursor is on this line, adjust cursor position
                     If pCursorLine = vLine AndAlso pCursorColumn > 0 Then
@@ -460,7 +426,7 @@ Namespace Editors
                     ' Adjust selection to include the indentation
                     ' After indenting, select from start of first line to end of last line
                     SetSelection(New EditorPosition(lStartLine, 0), 
-                                New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                                New EditorPosition(lEndLine, TextLines(lEndLine).Length))
                     
                     ' If cursor was at column 0 of the line after the selection, keep it there
                     If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then
@@ -537,7 +503,7 @@ Namespace Editors
                     
                     ' Adjust selection to full lines after outdenting
                     SetSelection(New EditorPosition(lStartLine, 0), 
-                                New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                                New EditorPosition(lEndLine, TextLines(lEndLine).Length))
                     
                     ' If cursor was at column 0 of the line after the selection, keep it there
                     If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then

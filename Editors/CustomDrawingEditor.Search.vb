@@ -16,7 +16,15 @@ Namespace Editors
         ' Search state
         Private pLastSearchText As String = ""
         Private pLastSearchResults As List(Of EditorPosition)
+
+        Public Sub OnContextMenuFind(o As Object, e As EventArgs)
+            ' TODO: Implement CustomDrawingEditor.OnContextMenuFind in CustomDrawingEditor.Search.vb
+        End Sub
         
+        Public Sub OnContextMenuReplace(o As Object, e As EventArgs)
+            ' TODO: Implement CustomDrawingEditor.OnContextMenuReplace in CustomDrawingEditor.Search.vb
+        End Sub
+
         ' ===== Find Implementation =====
         
         Public Function Find(vSearchText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) As IEnumerable(Of EditorPosition) Implements IEditor.Find
@@ -53,8 +61,8 @@ Namespace Editors
                 Dim lComparison As StringComparison = If(vCaseSensitive, 
                     StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase)
                 
-                For lLineIndex As Integer = 0 To pLineCount - 1
-                    Dim lLine As String = pTextLines(lLineIndex)
+                for lLineIndex As Integer = 0 To pLineCount - 1
+                    Dim lLine As String = TextLines(lLineIndex)
                     Dim lIndex As Integer = 0
                     
                     While lIndex >= 0
@@ -81,10 +89,10 @@ Namespace Editors
                 Dim lOptions As RegexOptions = If(vCaseSensitive, RegexOptions.None, RegexOptions.IgnoreCase)
                 Dim lRegex As New Regex(vPattern, lOptions)
                 
-                For lLineIndex As Integer = 0 To pLineCount - 1
-                    Dim lLine As String = pTextLines(lLineIndex)
+                for lLineIndex As Integer = 0 To pLineCount - 1
+                    Dim lLine As String = TextLines(lLineIndex)
                     
-                    For Each lMatch As Match In lRegex.Matches(lLine)
+                    for each lMatch As Match in lRegex.Matches(lLine)
                         vResults.Add(New EditorPosition(lLineIndex, lMatch.Index))
                     Next
                 Next
@@ -138,11 +146,11 @@ Namespace Editors
                 
                 ' Find next match after cursor
                 Dim lNextIndex As Integer = -1
-                For i As Integer = 0 To pLastSearchResults.Count - 1
+                for i As Integer = 0 To pLastSearchResults.Count - 1
                     Dim lMatch As EditorPosition = pLastSearchResults(i)
                     If ComparePositions(lMatch, lCursorPos) > 0 Then
                         lNextIndex = i
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
@@ -180,11 +188,11 @@ Namespace Editors
                 
                 ' Find previous match before cursor
                 Dim lPrevIndex As Integer = -1
-                For i As Integer = pLastSearchResults.Count - 1 To 0 Step -1
+                for i As Integer = pLastSearchResults.Count - 1 To 0 Step -1
                     Dim lMatch As EditorPosition = pLastSearchResults(i)
                     If ComparePositions(lMatch, lCursorPos) < 0 Then
                         lPrevIndex = i
-                        Exit For
+                        Exit for
                     End If
                 Next
                 
@@ -298,14 +306,14 @@ Namespace Editors
                     End If
                     
                     ' Replace from end to beginning to maintain positions
-                    For i As Integer = lMatches.Count - 1 To 0 Step -1
+                    for i As Integer = lMatches.Count - 1 To 0 Step -1
                         Dim lMatch As EditorPosition = lMatches(i)
                         
                         If vRegex Then
                             ' For regex, we need to get the actual match length
                             Try
                                 Dim lRegex As New Regex(vSearchText, If(vCaseSensitive, RegexOptions.None, RegexOptions.IgnoreCase))
-                                Dim lLine As String = pTextLines(lMatch.Line)
+                                Dim lLine As String = TextLines(lMatch.Line)
                                 Dim lRegexMatch As Match = lRegex.Match(lLine, lMatch.Column)
                                 
                                 If lRegexMatch.Success Then
@@ -416,7 +424,7 @@ Namespace Editors
                 Dim lStartLine As Integer = 0
                 Dim lStartColumn As Integer = 0
                 Dim lEndLine As Integer = pLineCount - 1
-                Dim lEndColumn As Integer = If(pLineCount > 0, pTextLines(pLineCount - 1).Length, 0)
+                Dim lEndColumn As Integer = If(pLineCount > 0, TextLines(pLineCount - 1).Length, 0)
                 
                 If vSearchInSelection AndAlso pHasSelection Then
                     ' Search only in selection
@@ -458,14 +466,14 @@ Namespace Editors
                 Dim lComparison As StringComparison = If(vCaseSensitive, 
                     StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase)
                 
-                For lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
-                    If lLineIndex >= pLineCount Then Exit For
+                for lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
+                    If lLineIndex >= pLineCount Then Exit for
                     
-                    Dim lLine As String = pTextLines(lLineIndex)
+                    Dim lLine As String = TextLines(lLineIndex)
                     Dim lSearchStart As Integer = If(lLineIndex = vStartLine, vStartColumn, 0)
                     Dim lSearchEnd As Integer = If(lLineIndex = vEndLine, Math.Min(vEndColumn, lLine.Length), lLine.Length)
                     
-                    If lSearchStart >= lSearchEnd Then Continue For
+                    If lSearchStart >= lSearchEnd Then Continue for
                     
                     Dim lIndex As Integer = lSearchStart
                     
@@ -507,14 +515,14 @@ Namespace Editors
                     Return
                 End Try
                 
-                For lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
-                    If lLineIndex >= pLineCount Then Exit For
+                for lLineIndex As Integer = vStartLine To Math.Min(vEndLine, pLineCount - 1)
+                    If lLineIndex >= pLineCount Then Exit for
                     
-                    Dim lLine As String = pTextLines(lLineIndex)
+                    Dim lLine As String = TextLines(lLineIndex)
                     Dim lSearchStart As Integer = If(lLineIndex = vStartLine, vStartColumn, 0)
                     Dim lSearchEnd As Integer = If(lLineIndex = vEndLine, Math.Min(vEndColumn, lLine.Length), lLine.Length)
                     
-                    If lSearchStart >= lSearchEnd Then Continue For
+                    If lSearchStart >= lSearchEnd Then Continue for
                     
                     ' Get substring to search if not searching entire line
                     Dim lSearchText As String = lLine
@@ -523,7 +531,7 @@ Namespace Editors
                     End If
                     
                     ' Find all matches in the line
-                    For Each lMatch As Match In lRegex.Matches(lSearchText)
+                    for each lMatch As Match in lRegex.Matches(lSearchText)
                         ' Adjust column position if we're searching a substring
                         Dim lColumn As Integer = lMatch.Index + lSearchStart
                         vResults.Add(New EditorPosition(lLineIndex, lColumn))
@@ -571,7 +579,7 @@ Namespace Editors
                 ' TODO: ClearSearchHighlights()
                 
                 ' Apply highlight color to each match
-                For Each lMatch In vMatches
+                for each lMatch in vMatches
                     If lMatch.Line < pLineCount Then
                         ' TODO: Search Highlighting: Mark the line for special rendering
                         ' You would need to implement a way to store and render these highlights
@@ -611,7 +619,7 @@ Namespace Editors
                 "Dim", True, True, False, True)
             
             ' Process all matches
-            For Each lPosition In lMatches
+            for each lPosition in lMatches
                 Console.WriteLine($"Found at Line {lPosition.Line + 1}, Column {lPosition.Column + 1}")
             Next
         End Sub

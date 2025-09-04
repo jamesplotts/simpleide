@@ -14,11 +14,14 @@ Namespace Utilities
         Private Shared pSyntaxColorSet As SyntaxColorSet
         Private Shared pSettingsManager As SettingsManager
         Private Shared pProjectManager As ProjectManager
+        Private Shared pThemeManager As ThemeManager
         
         ' Initialize the factory with required dependencies
         Public Shared Sub Initialize(vSyntaxColorSet As SyntaxColorSet, 
                                     vSettingsManager As SettingsManager,
+                                    vThemeManager As ThemeManager,
                                     vProjectManager As ProjectManager)
+            pThemeManager = vThemeManager
             pSyntaxColorSet = vSyntaxColorSet
             pSettingsManager = vSettingsManager
             pProjectManager = vProjectManager
@@ -26,7 +29,7 @@ Namespace Utilities
         End Sub
         
         ' Create an editor for a SourceFileInfo
-        Public Shared Function CreateEditor(vSourceFileInfo As SourceFileInfo) As IEditor
+        Public Shared Function CreateEdidtor(vSourceFileInfo As SourceFileInfo) As IEditor
             Try
                 ' Validate dependencies
                 If pSyntaxColorSet Is Nothing OrElse pSettingsManager Is Nothing Then
@@ -48,13 +51,13 @@ Namespace Utilities
                 End If
                 
                 ' Create CustomDrawingEditor with SourceFileInfo
-                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo)
+                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo, pThemeManager)
                 
                 ' Set dependencies
                 lEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 
                 ' Link the editor back to SourceFileInfo
-                vSourceFileInfo.Editor = lEditor
+                'vSourceFileInfo.Editor = lEditor
                 
                 Console.WriteLine($"Successfully created editor for {vSourceFileInfo.FileName}")
                 Return lEditor
@@ -85,7 +88,7 @@ Namespace Utilities
                         lProjectDir = Path.GetDirectoryName(vFilePath)
                     End If
                     
-                    lSourceFileInfo = New SourceFileInfo(vFilePath, lProjectDir)
+                    lSourceFileInfo = New SourceFileInfo(vFilePath, "", lProjectDir)
                     
                     ' Register with ProjectManager if available
                     If pProjectManager IsNot Nothing Then
@@ -94,7 +97,7 @@ Namespace Utilities
                 End If
                 
                 ' Create editor with SourceFileInfo
-                Return CreateEditor(lSourceFileInfo)
+                Return New CustomDrawingEditor(lSourceFileInfo, pThemeManager)
                 
             Catch ex As Exception
                 Console.WriteLine($"EditorFactory.CreateEditor(String) error: {ex.Message}")
@@ -102,37 +105,37 @@ Namespace Utilities
             End Try
         End Function
         
-        ' Create a new empty editor
-        Public Shared Function CreateNewEditor(vFilePath As String) As IEditor
-            Try
-                ' Create new SourceFileInfo for the new file
-                Dim lProjectDir As String = ""
-                If pProjectManager IsNot Nothing AndAlso pProjectManager.CurrentProjectInfo IsNot Nothing Then
-                    lProjectDir = Path.GetDirectoryName(pProjectManager.CurrentProjectInfo.ProjectPath)
-                Else
-                    lProjectDir = Path.GetDirectoryName(vFilePath)
-                End If
-                
-                Dim lSourceFileInfo As New SourceFileInfo(vFilePath, lProjectDir)
-                
-                ' Initialize with empty content
-                lSourceFileInfo.Content = ""
-                lSourceFileInfo.TextLines = New List(Of String) From {""}
-                lSourceFileInfo.IsLoaded = True
-                
-                ' Register with ProjectManager if available
-                If pProjectManager IsNot Nothing Then
-                    pProjectManager.RegisterSourceFileInfo(vFilePath, lSourceFileInfo)
-                End If
-                
-                ' Create editor
-                Return CreateEditor(lSourceFileInfo)
-                
-            Catch ex As Exception
-                Console.WriteLine($"EditorFactory.CreateNewEditor error: {ex.Message}")
-                Throw
-            End Try
-        End Function
+'         ' Create a new empty editor
+'         Public Shared Function CreateNewEditor(vSourceFileInfo As SourceFileInfo) As CustomDrawingEditor
+'             Try
+'                 ' Create new SourceFileInfo for the new file
+'                 Dim lProjectDir As String = ""
+'                 If pProjectManager IsNot Nothing AndAlso pProjectManager.CurrentProjectInfo IsNot Nothing Then
+'                     lProjectDir = Path.GetDirectoryName(pProjectManager.CurrentProjectInfo.ProjectPath)
+'                 Else
+'                     lProjectDir = Path.GetDirectoryName(vFilePath)
+'                 End If
+'                 
+'                 Dim lSourceFileInfo As New SourceFileInfo(vFilePath, lProjectDir)
+'                 
+'                 ' Initialize with empty content
+'                 lSourceFileInfo.Content = ""
+'                 lSourceFileInfo.TextLines = New List(Of String) From {""}
+'                 lSourceFileInfo.IsLoaded = True
+'                 
+'                 ' Register with ProjectManager if available
+'                 If pProjectManager IsNot Nothing Then
+'                     pProjectManager.RegisterSourceFileInfo(vFilePath, lSourceFileInfo)
+'                 End If
+'                 
+'                 ' Create editor
+'                 Return CreateEditor(lSourceFileInfo)
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"EditorFactory.CreateNewEditor error: {ex.Message}")
+'                 Throw
+'             End Try
+'         End Function
         
         ' Check if a file type is supported
         Public Shared Function IsFileTypeSupported(vFilePath As String) As Boolean

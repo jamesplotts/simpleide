@@ -128,7 +128,7 @@ Namespace Widgets
             pExplainCodeButton = CreateActionButton("Explain", "help-about")
             pFixErrorsButton = CreateActionButton("Fix Errors", "dialog-error")
             pRefactorButton = CreateActionButton("Refactor", "view-Refresh")
-            pGenerateTestsButton = CreateActionButton("Gen Tests", "emblem-default")
+            pGenerateTestsButton = CreateActionButton("Gen Tests", "emblem-Default")
             
             lActionsBox.PackStart(pCreateProjectButton, False, False, 0)
             lActionsBox.PackStart(pAddFileButton, False, False, 0)
@@ -257,7 +257,7 @@ Namespace Widgets
             
             ' Action buttons
             AddHandler pCreateProjectButton.Clicked, Sub() SendPredefinedPrompt("Create a New VB.NET project")
-            AddHandler pAddFileButton.Clicked, Sub() SendPredefinedPrompt("Add a New file to the project")
+            AddHandler pAddFileButton.Clicked, Sub() SendPredefinedPrompt("Add a New file To the project")
             AddHandler pModifyCodeButton.Clicked, Sub() SendPredefinedPrompt("Modify the current code")
             AddHandler pExplainCodeButton.Clicked, AddressOf OnExplainCode
             AddHandler pFixErrorsButton.Clicked, AddressOf OnFixErrors
@@ -413,7 +413,7 @@ Namespace Widgets
                     lAction.Executed = True
                     
                 Catch ex As Exception
-                    AddErrorMessage($"Failed to execute action: {ex.Message}")
+                    AddErrorMessage($"Failed To execute action: {ex.Message}")
                 End Try
             Next
         End Function
@@ -496,7 +496,7 @@ Namespace Widgets
         
         Private Sub OnExplainCode(vSender As Object, vE As EventArgs)
             If pCurrentTab Is Nothing Then
-                AddErrorMessage("No file is currently open.")
+                AddErrorMessage("No file Is currently open.")
                 Return
             End If
             
@@ -553,31 +553,60 @@ Namespace Widgets
             ScrollToBottom()
         End Sub
         
+        ''' <summary>
+        ''' Adds a chat message with proper formatting and iterator handling
+        ''' </summary>
+        ''' <param name="vSender">The sender name</param>
+        ''' <param name="vMessage">The message content</param>
+        ''' <param name="vTag">The tag to apply to the sender</param>
         Private Sub AddChatMessage(vSender As String, vMessage As String, vTag As String)
-            ' Add timestamp and sender
-            Dim lEndIter As TextIter = pChatBuffer.EndIter
-            Dim lTimestamp As String = DateTime.Now.ToString("HH:mm")
-            pChatBuffer.InsertAtCursor($"[{lTimestamp}] {vSender}:{Environment.NewLine}")
-            
-            ' Apply tag to sender
-            Dim lSenderStart As TextIter = pChatBuffer.GetIterAtOffset(pChatBuffer.CharCount - vSender.Length - 3)
-            Dim lSenderEnd As TextIter = pChatBuffer.GetIterAtOffset(pChatBuffer.CharCount - 2)
-            pChatBuffer.ApplyTag(vTag, lSenderStart, lSenderEnd)
-            
-            ' Add message
-            lEndIter = pChatBuffer.EndIter
-            pChatBuffer.InsertAtCursor($"[{lTimestamp}] {vSender}:{Environment.NewLine}")
-            
-            ScrollToBottom()
+            Try
+                ' Build the complete message first
+                Dim lTimestamp As String = DateTime.Now.ToString("HH:mm")
+                Dim lFullMessage As String = $"[{lTimestamp}] {vSender}:{Environment.NewLine}{vMessage}{Environment.NewLine}"
+                
+                ' Store the starting offset
+                Dim lStartOffset As Integer = pChatBuffer.CharCount
+                
+                ' Insert the complete message
+                pChatBuffer.PlaceCursor(pChatBuffer.EndIter)
+                pChatBuffer.InsertAtCursor(lFullMessage)
+                
+                ' Calculate tag positions based on the message structure
+                ' Tag format: "[HH:mm] Sender:\n"
+                Dim lSenderStart As Integer = lStartOffset + lTimestamp.Length + 3 ' "[HH:mm] "
+                Dim lSenderEnd As Integer = lSenderStart + vSender.Length
+                
+                ' Apply tag to sender using stable offsets
+                Dim lSenderStartIter As TextIter = pChatBuffer.GetIterAtOffset(lSenderStart)
+                Dim lSenderEndIter As TextIter = pChatBuffer.GetIterAtOffset(lSenderEnd)
+                pChatBuffer.ApplyTag(vTag, lSenderStartIter, lSenderEndIter)
+                
+                ScrollToBottom()
+            Catch ex As Exception
+                Console.WriteLine($"AddChatMessage error: {ex.Message}")
+            End Try
         End Sub
         
+        ''' <summary>
+        ''' Scrolls the chat view to the bottom using marks
+        ''' </summary>
         Private Sub ScrollToBottom()
-            GLib.Idle.Add(Function()
-                Dim lEndMark As TextMark = pChatBuffer.CreateMark(Nothing, pChatBuffer.EndIter, False)
-                pChatView.ScrollToMark(lEndMark, 0.0, False, 0.0, 0.0)
-                pChatBuffer.DeleteMark(lEndMark)
-                Return False
-            End Function)
+            Try
+                GLib.Idle.Add(Function()
+                    Try
+                        ' Create a mark at the end (marks survive buffer changes)
+                        Dim lEndMark As TextMark = pChatBuffer.CreateMark(Nothing, pChatBuffer.EndIter, False)
+                        pChatView.ScrollToMark(lEndMark, 0.0, False, 0.0, 0.0)
+                        pChatBuffer.DeleteMark(lEndMark)
+                    Catch ex As Exception
+                        Console.WriteLine($"ScrollToBottom inner error: {ex.Message}")
+                    End Try
+                    Return False
+                End Function)
+            Catch ex As Exception
+                Console.WriteLine($"ScrollToBottom error: {ex.Message}")
+            End Try
         End Sub
         
         Private Sub UpdateUI()

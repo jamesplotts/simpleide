@@ -14,6 +14,7 @@ Namespace Models
         Public Property IsChanged As Boolean
         Public Property LineHash As Integer  ' To detect Content Changes
         Public Property HasHighlighting As Boolean = True
+        Public Property ParseState As LineParseState
         
         Public Sub New()
             SyntaxTokens = New List(Of SyntaxToken)()
@@ -86,6 +87,24 @@ Namespace Models
         eInfo
         eWarning
         eError
+        eLastValue
+    End Enum
+
+    ''' <summary>
+    ''' Represents the parse state of a line
+    ''' </summary>
+    Public Enum LineParseState
+        ''' <summary>Unknown or unspecified state</summary>
+        eUnspecified
+        ''' <summary>Line has not been parsed yet</summary>
+        eUnparsed
+        ''' <summary>Line is currently being parsed</summary>
+        eParsing
+        ''' <summary>Line has been successfully parsed</summary>
+        eParsed
+        ''' <summary>Line had errors during parsing</summary>
+        eError
+        ''' <summary>Sentinel value for enum bounds checking</summary>
         eLastValue
     End Enum
     

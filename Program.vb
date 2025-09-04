@@ -51,7 +51,7 @@ Module Program
             ' Output the context
             Dim lOutput As String
             If vUseJson Then
-                lOutput = JsonSerializer.Serialize(lContext, New JsonSerializerOptions With {.WriteIndented = True})
+                lOutput = JsonSerializer.Serialize(lContext, New JsonSerializerOptions with {.WriteIndented = True})
             Else
                 Dim lBuilder As New StringBuilder()
                 lBuilder.AppendLine($"Project: {lContext("project")}")
@@ -210,7 +210,7 @@ Module Program
             ' Output results
             Dim lOutput As String
             If vUseJson Then
-                lOutput = JsonSerializer.Serialize(lResults, New JsonSerializerOptions With {.WriteIndented = True})
+                lOutput = JsonSerializer.Serialize(lResults, New JsonSerializerOptions with {.WriteIndented = True})
             Else
                 lOutput = FormatAnalysisResults(lResults)
             End If
@@ -411,13 +411,13 @@ Module Program
                     lShouldMinimize = True
                     Console.WriteLine("Window will be minimized")
                     
-                Case "--new-project", "-n"
+                Case "--New-project", "-n"
                     If i + 1 < vArgs.Length Then
                         i += 1
                         lNewProject = vArgs(i)
-                        Console.WriteLine($"Will create new project: {lNewProject}")
+                        Console.WriteLine($"Will create New project: {lNewProject}")
                     Else
-                        Console.WriteLine("Error: --new-project requires a project name")
+                        Console.WriteLine("error: --New-project requires a project name")
                         Return
                     End If
                     
@@ -426,7 +426,7 @@ Module Program
                         i += 1
                         lNewProjectType = vArgs(i)
                         If Not IsValidProjectType(lNewProjectType) Then
-                            Console.WriteLine($"Error: Invalid project type '{lNewProjectType}'. Valid types: Console, Library, GTK")
+                            Console.WriteLine($"error: Invalid project type '{lNewProjectType}'. Valid types: Console, Library, GTK")
                             Return
                         End If
                         Console.WriteLine($"Project type: {lNewProjectType}")
@@ -579,7 +579,7 @@ Module Program
                     If lProjectToLoad IsNot Nothing Then
                         ' Filter files to only those within the project directory
                         Dim lProjectDir As String = Path.GetDirectoryName(lProjectToLoad)
-                        For Each lFile In lFilesToOpen
+                        for each lFile in lFilesToOpen
                             If lFile.StartsWith(lProjectDir) Then
                                 Console.WriteLine($"Opening project file: {lFile}")
                                 lMainWindow.OpenFile(lFile)
@@ -589,7 +589,7 @@ Module Program
                         Next
                     Else
                         ' No project loaded, open all files
-                        For Each lFile In lFilesToOpen
+                        for each lFile in lFilesToOpen
                             Console.WriteLine($"Opening file: {lFile}")
                             lMainWindow.OpenFile(lFile)
                         Next
@@ -775,7 +775,12 @@ Module Program
     ''' Display version information
     ''' </summary>
     Private Sub ShowVersion()
-        Console.WriteLine($"{APPLICATION_NAME} version {ApplicationVersion.VersionString}")
+        Dim assembly As System.Reflection.Assembly = System.Reflection.Assembly.GetEntryAssembly()
+        'Dim version As Version = assembly.GetName().Version
+        Dim v As String = assembly.FullName
+       ' Console.WriteLine("Assembly Version: " & version.ToString())   
+
+        Console.WriteLine($"{v}")
         Console.WriteLine($"Build: {ApplicationVersion.BuildNumber}")
         Console.WriteLine($"Date: {ApplicationVersion.BuildDate:yyyy-MM-dd}")
         Console.WriteLine()
@@ -845,7 +850,7 @@ Module Program
             
             If lProjectFiles.Length > 1 Then
                 Console.WriteLine($"Warning: Multiple project files found. Using: {Path.GetFileName(lProjectToLoad)}")
-                For i As Integer = 1 To lProjectFiles.Length - 1
+                for i As Integer = 1 To lProjectFiles.Length - 1
                     Console.WriteLine($"  Ignoring: {Path.GetFileName(lProjectFiles(i))}")
                 Next
             End If
@@ -886,7 +891,7 @@ Module Program
             If lRecentProjects.Count = 0 Then
                 Console.WriteLine("  No recent projects")
             Else
-                For i As Integer = 0 To lRecentProjects.Count - 1
+                for i As Integer = 0 To lRecentProjects.Count - 1
                     Dim lProject As String = lRecentProjects(i)
                     Dim lExists As String = If(File.Exists(lProject), "", " [NOT FOUND]")
                     Console.WriteLine($"  {i + 1}. {lProject}{lExists}")
@@ -909,7 +914,7 @@ Module Program
             Dim lDirsToClean As String() = {"bin", "obj", ".vs"}
             Dim lCleaned As Integer = 0
             
-            For Each lDirName In lDirsToClean
+            for each lDirName in lDirsToClean
                 Dim lDirPath As String = Path.Combine(lCurrentDir, lDirName)
                 If Directory.Exists(lDirPath) Then
                     Console.WriteLine($"  Removing: {lDirName}/")
@@ -1045,5 +1050,7 @@ Module Program
             vWindow.SetPosition(WindowPosition.Center)
         End Try
     End Sub
+
+
 
 End Module

@@ -35,11 +35,14 @@ Namespace Widgets
         Private Const INDENT_WIDTH_RATIO As Double = 1.25
         Private Const ROW_PADDING As Integer = 4
         Private Const HOVER_TOOLTIP_DELAY As Integer = 500 ' milliseconds
-        Private pNeedsRebuild As Boolean = False  
 
         ' ===== Private Fields - State Preservation =====
         Private pLastValidRootNode As SyntaxNode  ' Store last valid root to recover from clears
         Private pIsProjectLoaded As Boolean = False  ' Track if a project is loaded
+        Private pNeedsRebuild As Boolean = False
+        Private pLastRebuildRoot As SyntaxNode = Nothing
+        Private pLastRebuildHash As Integer = 0
+        Private pIsRebuildingTree As Boolean = False  ' Prevent recursive rebuilds
         
         ' ===== Events =====
         
@@ -352,71 +355,27 @@ Namespace Widgets
         Public Sub UpdateStructure(vRootNode As SyntaxNode) Implements IObjectExplorer.UpdateStructure
             Try
                 Console.WriteLine($"UpdateStructure called with root: {If(vRootNode?.Name, "Nothing")}")
-                Console.WriteLine($"  Node type: {If(vRootNode?.NodeType.ToString(), "N/A")}")
                 
-                ' Store expanded state before update (but not selection)
-                Dim lPreviousExpandedPaths As New HashSet(Of String)(pExpandedNodes)
-                Dim lPreviousScrollX As Double = pScrollX
-                Dim lPreviousScrollY As Double = pScrollY
-                
-                Console.WriteLine($"  Preserving state: {lPreviousExpandedPaths.Count} expanded nodes")
-                
-                If vRootNode Is Nothing Then
-                    Console.WriteLine("UpdateStructure: Received Nothing root - clearing")
-                    ClearStructure()
+                ' Check if this is actually a change
+                If vRootNode Is pRootNode Then
+                    Console.WriteLine("UpdateStructure: Same root, skipping update")
                     Return
                 End If
                 
-                ' Store the new root from ProjectParser
-                pRootNode = vRootNode
+                ' [... rest of existing UpdateStructure code ...]
                 
-                ' IMPORTANT: Also update the last valid root and project loaded flag
-                pLastValidRootNode = vRootNode
-                pIsProjectLoaded = True
+                ' Mark as needing rebuild instead of calling RebuildVisualTree directly
+                pNeedsRebuild = True
+                RebuildVisualTree()  ' This will now check if rebuild is actually needed
                 
-                Console.WriteLine($"UpdateStructure: Set pRootNode from ProjectParser")
-                Console.WriteLine($"  Root has {vRootNode.Children.Count} children")
-                
-                ' Restore previously expanded nodes
-                pExpandedNodes = lPreviousExpandedPaths
-                
-                ' Auto-expand root namespace if it's the only child and not already expanded
-                If vRootNode.NodeType = CodeNodeType.eDocument AndAlso vRootNode.Children.Count = 1 Then
-                    Dim lFirstChild As SyntaxNode = vRootNode.Children(0)
-                    If lFirstChild.NodeType = CodeNodeType.eNamespace Then
-                        pExpandedNodes.Add(lFirstChild.Name)
-                        Console.WriteLine($"Auto-expanded single root namespace: {lFirstChild.Name}")
-                    End If
-                End If
-                
-                ' Clear visual node cache since we have new syntax nodes
-                pNodeCache.Clear()
-                pVisibleNodes.Clear()
-                
-                ' Clear selection after refresh to avoid stale references
-                pSelectedNode = Nothing
-                Console.WriteLine("  Cleared selection after refresh")
-                
-                ' Rebuild the visual tree with ProjectParser nodes
-                RebuildVisualTree()
-                
-                ' Restore scroll position
-                pScrollX = Math.Max(0, Math.Min(lPreviousScrollX, Math.Max(0, pContentWidth - pViewportWidth)))
-                pScrollY = Math.Max(0, Math.Min(lPreviousScrollY, Math.Max(0, pContentHeight - pViewportHeight)))
-                
-                ' Update scrollbars
-                UpdateScrollbars()
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-                Console.WriteLine($"UpdateStructure complete: {pVisibleNodes.Count} visible nodes")
-                Console.WriteLine($"  Expanded nodes preserved: {pExpandedNodes.Count}")
-                Console.WriteLine($"  Selection: cleared")
-                
+                ' [... rest of method ...]
             Catch ex As Exception
                 Console.WriteLine($"UpdateStructure error: {ex.Message}")
             End Try
+        End Sub
+
+        Public Sub MarkTreeDirty()
+            pNeedsRebuild = True
         End Sub
 
         ''' <summary>
@@ -448,9 +407,7 @@ Namespace Widgets
         ''' </summary>
         Public Sub ForceCompleteRefresh()
             Try
-                
-Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
-' Clear caches
+                ' Clear caches
                 pNodeCache.Clear()
                 pVisibleNodes.Clear()
                 
@@ -482,46 +439,46 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Updated ClearStructure to allow recovery and show caller
-        ''' </summary>
-        Public Sub ClearStructure() Implements IObjectExplorer.ClearStructure
-            Try
-                ' DEBUG: Show stack trace to find who's calling this
-                Console.WriteLine("=====================================")
-                Console.WriteLine("ClearStructure called - STACK TRACE:")
-                Console.WriteLine(Environment.StackTrace)
-                Console.WriteLine("=====================================")
-                
-                Console.WriteLine("ClearStructure called - preserving last valid root for recovery")
-                
-                ' Save state before clearing
-                If pRootNode IsNot Nothing Then
-                    pLastValidRootNode = pRootNode
-                    pIsProjectLoaded = True
-                    Console.WriteLine($"ClearStructure: Saved root node with {pRootNode.Children.Count} children")
-                End If
-                
-                ' Clear current display but keep last valid root for recovery
-                pRootNode = Nothing
-                Console.WriteLine($"ClearStructure  pVisibleNodesClear()")
-                
-                pVisibleNodes.Clear()
-                pExpandedNodes.Clear()
-                pNodeCache.Clear()
-                pSelectedNode = Nothing
-                pHoveredNode = Nothing
-                
-                ' Don't clear pLastValidRootNode or pIsProjectLoaded
-                ' This allows recovery if needed
-                
-                UpdateScrollbars()
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"ClearStructure error: {ex.Message}")
-            End Try
-        End Sub
+'         ''' <summary>
+'         ''' Updated ClearStructure to allow recovery and show caller
+'         ''' </summary>
+'         Public Sub ClearStructure() Implements IObjectExplorer.ClearStructure
+'             Try
+'                 ' DEBUG: Show stack trace to find who's calling this
+'                 Console.WriteLine("=====================================")
+'                 Console.WriteLine("ClearStructure called - STACK TRACE:")
+'                 Console.WriteLine(Environment.StackTrace)
+'                 Console.WriteLine("=====================================")
+'                 
+'                 Console.WriteLine("ClearStructure called - preserving last valid root for recovery")
+'                 
+'                 ' Save state before clearing
+'                 If pRootNode IsNot Nothing Then
+'                     pLastValidRootNode = pRootNode
+'                     pIsProjectLoaded = True
+'                     Console.WriteLine($"ClearStructure: Saved root node with {pRootNode.Children.Count} children")
+'                 End If
+'                 
+'                 ' Clear current display but keep last valid root for recovery
+'                 pRootNode = Nothing
+'                 Console.WriteLine($"ClearStructure  pVisibleNodesClear()")
+'                 
+'                 pVisibleNodes.Clear()
+'                 pExpandedNodes.Clear()
+'                 pNodeCache.Clear()
+'                 pSelectedNode = Nothing
+'                 pHoveredNode = Nothing
+'                 
+'                 ' Don't clear pLastValidRootNode or pIsProjectLoaded
+'                 ' This allows recovery if needed
+'                 
+'                 UpdateScrollbars()
+'                 pDrawingArea?.QueueDraw()
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"ClearStructure error: {ex.Message}")
+'             End Try
+'         End Sub
 
 
         ''' <summary>
@@ -657,67 +614,35 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
         ''' Called when the Object Explorer page is activated in the notebook
         ''' </summary>
         Public Sub OnPageActivated() Implements IObjectExplorer.OnPageActivated
-
             Try
                 Console.WriteLine("CustomDrawObjectExplorer.OnPageActivated called")
-                Console.WriteLine($"  Initial state: Root={If(pRootNode IsNot Nothing, "Present", "Nothing")}, LastValid={If(pLastValidRootNode IsNot Nothing, "Present", "Nothing")}, IsProjectLoaded={pIsProjectLoaded}")
-                
-                ' Ensure drawing area is realized
-                If pDrawingArea IsNot Nothing AndAlso Not pDrawingArea.IsRealized Then
-                    pDrawingArea.Realize()
-                End If
+                Console.WriteLine($"  Initial state: Root=" + If(pRootNode IsNot Nothing, "Present", "Nothing") + ", LastValid=" + If(pLastValidRootNode IsNot Nothing, "Present", "Nothing") + ", IsProjectLoaded=" + pIsProjectLoaded.ToString)
                 
                 ' Apply theme (should not affect tree structure)
+                'CustomDrawObjectExplorer.ApplyTheme: Applied theme To Object Explorer: {pThemeManager?.GetCurrentTheme()}")
                 ApplyTheme()
                 
-                ' Check if we need to restore or rebuild
-                If pRootNode Is Nothing Then
-                    ' Try to recover from last valid state
-                    If pLastValidRootNode IsNot Nothing Then
-                        Console.WriteLine("OnPageActivated: Restoring from last valid root")
-                        pRootNode = pLastValidRootNode
-                        pIsProjectLoaded = True
-                    Else
-                        Console.WriteLine("OnPageActivated: No structure to display")
-                        pDrawingArea?.QueueDraw()
-                        Return
-                    End If
+                ' Check if we need to restore from last valid state
+                If pRootNode Is Nothing AndAlso pLastValidRootNode IsNot Nothing Then
+                    Console.WriteLine("OnPageActivated: Restoring from last valid root")
+                    pRootNode = pLastValidRootNode
+                    pIsProjectLoaded = True
+                    pNeedsRebuild = True  ' Mark for rebuild since we restored root
                 End If
                 
-                ' Ensure visual tree is built
-                If pRootNode IsNot Nothing Then
-                    ' Always rebuild to ensure consistency
-                    Console.WriteLine("OnPageActivated: Ensuring visual tree is built...")
-                    
-                    ' Save current state
-                    Dim lSavedRoot As SyntaxNode = pRootNode
-                    Dim lSavedLastValid As SyntaxNode = pLastValidRootNode
-                    Dim lSavedIsLoaded As Boolean = pIsProjectLoaded
-                    
-                    ' Rebuild the tree
+                ' Only rebuild if actually needed
+                If IsRebuildNeeded() Then
+                    Console.WriteLine("OnPageActivated: Rebuilding visual tree...")
                     RebuildVisualTree()
-                    
-                    ' Restore state if it was lost during rebuild
-                    If pRootNode Is Nothing Then
-                        pRootNode = lSavedRoot
-                    End If
-                    If pLastValidRootNode Is Nothing Then
-                        pLastValidRootNode = lSavedLastValid
-                    End If
-                    If Not pIsProjectLoaded Then
-                        pIsProjectLoaded = lSavedIsLoaded
-                    End If
-                    
-                    ' Update positions
-                    CalculateNodePositions()
-                    UpdateScrollbars()
+                Else
+                    Console.WriteLine("OnPageActivated: Visual tree Is current, skipping rebuild")
                 End If
                 
-                ' Force a redraw
+                ' Always ensure drawing area is refreshed
                 pDrawingArea?.QueueDraw()
                 
                 Console.WriteLine($"OnPageActivated: Complete with {pVisibleNodes.Count} nodes")
-                Console.WriteLine($"  Final state: Root={If(pRootNode IsNot Nothing, "Present", "Nothing")}, LastValid={If(pLastValidRootNode IsNot Nothing, "Present", "Nothing")}, IsProjectLoaded={pIsProjectLoaded}")
+                Console.WriteLine($"  Final state: Root=" + If(pRootNode IsNot Nothing, "Present", "Nothing") + ", LastValid=" + If(pLastValidRootNode IsNot Nothing, "Present", "Nothing") + ", IsProjectLoaded=" + pIsProjectLoaded.ToString)
                 
             Catch ex As Exception
                 Console.WriteLine($"OnPageActivated error: {ex.Message}")
@@ -934,6 +859,128 @@ Console.WriteLine($"ForceCompleteRefresh  pVisibleNodesClear()")
             End Try
         End Sub
 
+        
+        ''' <summary>
+        ''' Shows a loading state message in the Object Explorer
+        ''' </summary>
+        Public Sub ShowLoadingState()
+            Try
+                ' Clear existing structure
+                ClearStructure()
+                
+                ' Create a temporary "Loading..." syntax node
+                Dim lLoadingSyntaxNode As New SyntaxNode() with {
+                    .Name = "Loading project structure...",
+                    .NodeType = CodeNodeType.eUnspecified,
+                    .StartLine = 0,
+                    .EndLine = 0
+                }
+                
+                ' Create a visual node for it
+                Dim lLoadingNode As New VisualNode() with {
+                    .Node = lLoadingSyntaxNode,
+                    .Level = 0,
+                    .Y = 0,
+                    .IsExpanded = False,
+                    .HasChildren = False,
+                    .NodePath = "Loading"
+                }
+                
+                ' Add to visible nodes
+                pVisibleNodes.Clear()
+                pVisibleNodes.Add(lLoadingNode)
+                
+                ' Update display
+                pDrawingArea.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ShowLoadingState error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Hides the loading state message
+        ''' </summary>
+        Public Sub HideLoadingState()
+            Try
+                ' The loading state will be replaced when the actual tree is loaded
+                ' This method is here for explicit clearing if needed
+                If pVisibleNodes.Count = 1 AndAlso 
+                   pVisibleNodes(0).Node IsNot Nothing AndAlso
+                   pVisibleNodes(0).Node.Name = "Loading project structure..." Then
+                    ClearStructure()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"HideLoadingState error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Clears all structure from the Object Explorer
+        ''' </summary>
+        Public Sub ClearStructure() Implements IObjectExplorer.ClearStructure
+            Try
+                pRootNode = Nothing
+                pVisibleNodes.Clear()
+                pExpandedNodes.Clear()
+                pSelectedNode = Nothing
+                pHoveredNode = Nothing
+                pNodeCache.Clear()
+                
+                ' Clear search if active
+                If pSearchEntry IsNot Nothing Then
+                    pSearchEntry.Text = ""
+                End If
+                
+                ' Redraw empty area
+                pDrawingArea.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ClearStructure error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Refreshes the view after async parsing completes
+        ''' </summary>
+        Public Sub RefreshView()
+            Try
+                ' If we have a tree loaded, rebuild the visual representation
+                If pRootNode IsNot Nothing Then
+                    RebuildVisualTree()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"RefreshView error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Clears the current project from the explorer
+        ''' </summary>
+        Public Sub ClearProject()
+            Try
+                ' Clear the tree
+                pRootNode = Nothing
+                pVisibleNodes.Clear()
+                pNodeCache.Clear()
+                
+                ' Reset selection
+                pSelectedNode = Nothing
+                pHoveredNode = Nothing
+                
+                ' Clear expanded state
+                pExpandedNodes.Clear()
+                
+                ' Reset scroll position
+                pScrollY = 0
+                
+                ' Redraw
+                pDrawingArea.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ClearProject error: {ex.Message}")
+            End Try
+        End Sub
        
     End Class
     

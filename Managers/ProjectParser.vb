@@ -1,4 +1,3 @@
- 
 ' ProjectParser.vb - Parses entire project structure into unified SyntaxNode tree
 ' Created: 2025-08-25
 
@@ -26,6 +25,32 @@ Namespace Managers
         Private pCurrentFile As String
         Private pCurrentLineNumber As Integer
         
+        ''' <summary>
+        ''' The unified project syntax tree
+        ''' </summary>
+        Private pProjectSyntaxTree As SyntaxNode
+
+        ' ===== Events =====
+        
+        ''' <summary>
+        ''' Raised when parsing of the project structure is completed
+        ''' </summary>
+        ''' <param name="vRootNode">The root node of the parsed syntax tree</param>
+        Public Event ParseCompleted(vRootNode As SyntaxNode)
+        
+        ''' <summary>
+        ''' Raised when the project structure has been loaded
+        ''' </summary>
+        ''' <param name="vRootNode">The root node of the project structure</param>
+        Public Event ProjectStructureLoaded(vRootNode As SyntaxNode)
+
+        ''' <summary>
+        ''' Gets or sets the line metadata array for syntax highlighting and structure
+        ''' </summary>
+        ''' <value>Array of LineMetadata objects, one per line</value>
+        Public Property LineMetadata As LineMetadata()
+
+
         ' ===== Constructor =====
         
         ''' <summary>
@@ -44,7 +69,6 @@ Namespace Managers
         
         ' ===== Public Methods =====
         
-        ' Replace: SimpleIDE.Managers.ProjectParser.ParseProject
         ''' <summary>
         ''' Parses all source files in the project into a unified syntax tree
         ''' </summary>
@@ -84,12 +108,17 @@ Namespace Managers
                 
                 for each lFileEntry in lSourceFiles.Take(10)
                     Dim lSourceFile As SourceFileInfo = lFileEntry.Value
+
+                    ' Process pending GTK events to keep UI responsive
+                    While Gtk.Application.EventsPending()
+                        Gtk.Application.RunIteration(False)
+                    End While
                     If lSourceFile.IsLoaded AndAlso lSourceFile.TextLines IsNot Nothing AndAlso lSourceFile.TextLines.Count > 0 Then
                         lFilesWithContent += 1
-                        Console.WriteLine($"  ✓ {Path.GetFileName(lFileEntry.Key)}: {lSourceFile.TextLines.Count} lines")
+                        Console.WriteLine($"   {System.IO.Path.GetFileName(lFileEntry.Key)}: {lSourceFile.TextLines.Count} lines")
                     Else
                         lFilesWithoutContent += 1
-                        Console.WriteLine($"  ✗ {Path.GetFileName(lFileEntry.Key)}: Not loaded or no lines")
+                        Console.WriteLine($"   {System.IO.Path.GetFileName(lFileEntry.Key)}: Not loaded or no lines")
                         ' Try to debug this file
                         lSourceFile.DebugContent()
                     End If
@@ -168,7 +197,7 @@ Namespace Managers
         ''' </summary>
         Private Sub MergePartialClasses()
             Try
-                Console.WriteLine($"MergePartialClasses: Processing {pPartialClasses.Count} Partial Class entries")
+                'Console.WriteLine($"MergePartialClasses: Processing {pPartialClasses.Count} Partial Class entries")
                 
                 ' Group partial classes by their key (ParentPath:TypeName)
                 Dim lProcessedKeys As New HashSet(Of String)()
@@ -190,7 +219,7 @@ Namespace Managers
                         If lMainClass.Attributes IsNot Nothing AndAlso lMainClass.Attributes.ContainsKey("FilePaths") Then
                             lFileCount = lMainClass.Attributes("FilePaths").Split(";"c).Length
                         End If
-                        Console.WriteLine($"  Partial Class '{lMainClass.Name}' merged from {lFileCount} files")
+                        'Console.WriteLine($"  Partial Class '{lMainClass.Name}' merged from {lFileCount} files")
                     End If
                 Next
                 
@@ -232,14 +261,18 @@ Namespace Managers
         ''' <param name="vRootNamespace">The root namespace for the project</param>
         ''' <param name="vFilePath">The file path being parsed</param>
         ''' <returns>A ParseResult containing the parsed structure</returns>
-        Public Function ParseContent(vContent As String, vRootNamespace As String, vFilePath As String) As ParseResult
+        Public Function ParseContent(vContent As String, vRootNamespace As String, vFilePath As String) As Syntax.ParseResult
             Try
-                Console.WriteLine($"ProjectParser.ParseContent: Parsing content for {vFilePath}")
+                'Console.WriteLine($"ProjectParser.ParseContent: Parsing content for {vFilePath}")
                 
                 ' Create a temporary SourceFileInfo for parsing
-                Dim lTempFile As New SourceFileInfo(vFilePath, System.IO.Path.GetDirectoryName(vFilePath))
+                Dim lTempFile As New SourceFileInfo(vFilePath, "", System.IO.Path.GetDirectoryName(vFilePath))
                 lTempFile.Content = vContent
                 lTempFile.IsLoaded = True
+                
+                ' CRITICAL FIX: Split content into TextLines for GenerateLineMetadata to work
+                lTempFile.TextLines = New List(Of String)(vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None))
+               ' Console.WriteLine($"ProjectParser.ParseContent: Split content into {lTempFile.TextLines.Count} lines")
                 
                 ' Initialize if needed (for single file parsing)
                 If pRootNode Is Nothing Then
@@ -268,29 +301,27 @@ Namespace Managers
                 ParseSourceFile(lTempFile)
                 
                 ' Create result
-                Dim lResult As New ParseResult()
+                Dim lResult As New Syntax.ParseResult()
                 lResult.RootNode = lTempRoot
+                
+                ' CRITICAL FIX: Generate LineMetadata with syntax tokens for each line
+                GenerateLineMetadata(lTempFile, lResult)
+                'Console.WriteLine($"ProjectParser.ParseContent: Generated LineMetadata with {If(lResult.LineMetadata?.Length, 0)} lines")
                 
                 ' Restore original values
                 pRootNode = lOriginalRoot
                 pRootNamespace = lOriginalNamespace
                 
-                Console.WriteLine($"ProjectParser.ParseContent: Completed parsing {vFilePath}")
+               ' Console.WriteLine($"ProjectParser.ParseContent: Completed parsing {vFilePath}")
                 Return lResult
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.ParseContent error: {ex.Message}")
-                Return New ParseResult() ' Return empty result on error
+                Return New Syntax.ParseResult() ' Return empty result on error
             End Try
         End Function
 
         
-        ''' <summary>
-        ''' Gets the list of parse errors encountered
-        ''' </summary>
-        Public Function GetParseErrors() As List(Of String)
-            Return New List(Of String)(pParseErrors)
-        End Function
         
         ' ===== Private Methods - Initialization =====
         
@@ -515,9 +546,9 @@ Namespace Managers
                 pCurrentFile = vFilePath
                 Dim lLines As List(Of String) = vSourceFile.TextLines
                 
-                Console.WriteLine($"ParseFileContent: {Path.GetFileName(vFilePath)}")
-                Console.WriteLine($"  Lines count: {lLines.Count}")
-                Console.WriteLine($"  Content loaded: {vSourceFile.IsLoaded}")
+                'Console.WriteLine($"ParseFileContent: {Path.GetFileName(vFilePath)}")
+                'Console.WriteLine($"  Lines count: {lLines.Count}")
+                'Console.WriteLine($"  Content loaded: {vSourceFile.IsLoaded}")
                 
                 If lLines.Count = 0 Then
                     Console.WriteLine("  WARNING: File has no lines!")
@@ -535,9 +566,9 @@ Namespace Managers
                 Next
                 
                 If lSampleLines.Count > 0 Then
-                    Console.WriteLine($"  First few lines:")
+                '    Console.WriteLine($"  First few lines:")
                     for each lLine in lSampleLines
-                        Console.WriteLine($"    {lLine.Substring(0, Math.Min(60, lLine.Length))}")
+                '        Console.WriteLine($"    {lLine.Substring(0, Math.Min(60, lLine.Length))}")
                     Next
                 End If
                 
@@ -582,7 +613,7 @@ Namespace Managers
                             ' Find or create namespace
                             lCurrentNamespace = FindOrCreateNamespace(lNamespaceName, pRootNamespace)
                             lNamespaceStack.Push(lCurrentNamespace)
-                            Console.WriteLine($"  Entered Namespace: {lNamespaceName} at line {i}")
+                 '           Console.WriteLine($"  Entered Namespace: {lNamespaceName} at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -593,7 +624,7 @@ Namespace Managers
                         If lNamespaceStack.Count > 0 Then
                             lNamespaceStack.Pop()
                             lCurrentNamespace = If(lNamespaceStack.Count > 0, lNamespaceStack.Peek(), pRootNamespace)
-                            Console.WriteLine($"  Exited Namespace at line {i}")
+                  '          Console.WriteLine($"  Exited Namespace at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -603,7 +634,7 @@ Namespace Managers
                     If lInMethodBody Then
                         If IsEndMethodStatement(lTrimmedLine) Then
                             lInMethodBody = False
-                            Console.WriteLine($"    End Of method at line {i}")
+                   '         Console.WriteLine($"    End Of method at line {i}")
                         End If
                         i += 1
                         Continue While
@@ -617,13 +648,13 @@ Namespace Managers
                        lTrimmedLine.Contains("Module ", StringComparison.OrdinalIgnoreCase) OrElse
                        lTrimmedLine.Contains("Interface ", StringComparison.OrdinalIgnoreCase) OrElse
                        lTrimmedLine.Contains("Structure ", StringComparison.OrdinalIgnoreCase) Then
-                        Console.WriteLine($"  Potential type declaration at line {i}: {lTrimmedLine.Substring(0, Math.Min(60, lTrimmedLine.Length))}")
+                   '     Console.WriteLine($"  Potential type declaration at line {i}: {lTrimmedLine.Substring(0, Math.Min(60, lTrimmedLine.Length))}")
                     End If
                     
                     If ParseTypeDeclaration(lTrimmedLine, lCurrentNamespace, lTypeNode, lLines, i) Then
                         If lTypeNode IsNot Nothing Then
                             lTypesFound += 1
-                            Console.WriteLine($"  ✓ Found type: {lTypeNode.Name} ({lTypeNode.NodeType}) in Namespace {lCurrentNamespace.Name}")
+                    '        Console.WriteLine($"  Found type: {lTypeNode.Name} ({lTypeNode.NodeType}) in Namespace {lCurrentNamespace.Name}")
                             lCurrentType = lTypeNode
                             lTypeStack.Push(lCurrentType)
                             ' Parse to the end of the type
@@ -643,7 +674,7 @@ Namespace Managers
                         If IsMethodDeclaration(lTrimmedLine) Then
                             If ParseMethodOrFunction(lTrimmedLine, lCurrentType, i) Then
                                 lInMethodBody = True
-                                Console.WriteLine($"    Started method at line {i}")
+                    '            Console.WriteLine($"    Started method at line {i}")
                             End If
                         ElseIf IsPropertyDeclaration(lTrimmedLine) Then
                             ParseProperty(lTrimmedLine, lCurrentType, i)
@@ -657,7 +688,7 @@ Namespace Managers
                     i += 1
                 End While
                 
-                Console.WriteLine($"  ParseFileContent complete: Found {lTypesFound} types")
+               ' Console.WriteLine($"  ParseFileContent complete: Found {lTypesFound} types")
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.ParseFileContent error: {ex.Message}")
@@ -723,7 +754,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(vMethodNode)
                 
-                Console.WriteLine($"  Added {lMethodType}: {lName} To {vTypeNode.Name}")
+'                Console.WriteLine($"  Added {lMethodType}: {lName} To {vTypeNode.Name}")
                 
                 Return True
                 
@@ -784,7 +815,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(vPropertyNode)
                 
-                Console.WriteLine($"  Added Property: {lName} To {vTypeNode.Name}")
+'                Console.WriteLine($"  Added Property: {lName} To {vTypeNode.Name}")
                 
                 Return True
                 
@@ -842,7 +873,7 @@ Namespace Managers
                 vStack.Push(vCurrentNamespace)
                 vCurrentNamespace = lTargetNamespace
                 
-                Console.WriteLine($"ProjectParser: Entered Namespace '{lNamespacePath}'")
+'                Console.WriteLine($"ProjectParser: Entered Namespace '{lNamespacePath}'")
                 
                 Return True
                 
@@ -916,7 +947,7 @@ Namespace Managers
                     If pCurrentLineNumber > lPartialNode.EndLine Then
                         lPartialNode.EndLine = pCurrentLineNumber
                     End If
-                    Console.WriteLine($"ProjectParser: Merging Partial type '{vTypeName}' in parent '{vParentNode.Name}'")
+'                    Console.WriteLine($"ProjectParser: Merging Partial type '{vTypeName}' in parent '{vParentNode.Name}'")
                     Return lPartialNode
                 End If
                 
@@ -927,7 +958,7 @@ Namespace Managers
                         ' Found existing node - mark as partial and use it
                         lChild.IsPartial = True
                         pPartialClasses(lKey) = lChild
-                        Console.WriteLine($"ProjectParser: Converting existing type '{vTypeName}' to partial in parent '{vParentNode.Name}'")
+'                        Console.WriteLine($"ProjectParser: Converting existing type '{vTypeName}' to partial in parent '{vParentNode.Name}'")
                         Return lChild
                     End If
                 Next
@@ -944,7 +975,7 @@ Namespace Managers
                 ' Register in partial classes dictionary
                 pPartialClasses(lKey) = lNewNode
                 
-                Console.WriteLine($"ProjectParser: Created New Partial type '{vTypeName}' in parent '{vParentNode.Name}'")
+'                Console.WriteLine($"ProjectParser: Created New Partial type '{vTypeName}' in parent '{vParentNode.Name}'")
                 
                 Return lNewNode
                 
@@ -1125,7 +1156,7 @@ Namespace Managers
                 If lNameMatch.Success Then
                     lTypeName = lNameMatch.Groups(1).Value
                 Else
-                    Console.WriteLine($"  WARNING: Could not extract type name from: {lAfterKeyword}")
+                    'Console.WriteLine($"  WARNING: Could not extract type name from: {lAfterKeyword}")
                     Return False
                 End If
                 
@@ -1163,7 +1194,7 @@ Namespace Managers
                 End If
                 
                 If vTypeNode Is Nothing Then
-                    Console.WriteLine($"  ERROR: Failed to create type node for {lTypeName}")
+                    'Console.WriteLine($"  ERROR: Failed to create type node for {lTypeName}")
                     Return False
                 End If
                 
@@ -1178,7 +1209,7 @@ Namespace Managers
                     ExtractAndApplyXmlDocumentation(vLines, vLineIndex, vTypeNode)
                 End If
                 
-                Console.WriteLine($"  Added {lTypeKeyword}: {lTypeName} To {vParentNode.Name}")
+'                Console.WriteLine($"  Added {lTypeKeyword}: {lTypeName} To {vParentNode.Name}")
                 
                 Return True
                 
@@ -1257,7 +1288,7 @@ Namespace Managers
                 ' Check for duplicate members in partial classes
                 If Not IsDuplicateMember(vTypeNode, lMemberNode) Then
                     vTypeNode.AddChild(lMemberNode)
-                    Console.WriteLine($"  Added {lMethodType}: {lName} To {vTypeNode.Name}")
+'                    Console.WriteLine($"  Added {lMethodType}: {lName} To {vTypeNode.Name}")
                 End If
                 
                 Return True
@@ -1355,9 +1386,9 @@ Namespace Managers
                         lPropertyNode.Attributes = New Dictionary(Of String, String)()
                     End If
                     lPropertyNode.Attributes("IsSingleLine") = "True"
-                    Console.WriteLine($"  Added Single-line Property: {lName} To {vTypeNode.Name}")
+'                    Console.WriteLine($"  Added Single-line Property: {lName} To {vTypeNode.Name}")
                 Else
-                    Console.WriteLine($"  Added Property: {lName} To {vTypeNode.Name}")
+'                    Console.WriteLine($"  Added Property: {lName} To {vTypeNode.Name}")
                 End If
                 
                 ' Check for duplicate
@@ -1436,7 +1467,7 @@ Namespace Managers
                 
                 ' Add to enum type
                 vTypeNode.AddChild(lEnumMemberNode)
-                Console.WriteLine($"  Added Enum Member: {lName} To {vTypeNode.Name}")
+'                Console.WriteLine($"  Added Enum Member: {lName} To {vTypeNode.Name}")
                 
                 Return True
                 
@@ -1551,7 +1582,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(lFieldNode)
                 
-                Console.WriteLine($"  Added Field: {lName} To {vTypeNode.Name}")
+               ' Console.WriteLine($"  Added Field: {lName} To {vTypeNode.Name}")
                 Return True
                 
             Catch ex As Exception
@@ -1606,7 +1637,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(lEventNode)
                 
-                Console.WriteLine($"  Added Event: {lName} To {vTypeNode.Name}")
+               ' Console.WriteLine($"  Added Event: {lName} To {vTypeNode.Name}")
                 Return True
                 
             Catch ex As Exception
@@ -1683,7 +1714,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(lDelegateNode)
                 
-                Console.WriteLine($"  Added Delegate: {lName} To {vTypeNode.Name}")
+              '  Console.WriteLine($"  Added Delegate: {lName} To {vTypeNode.Name}")
                 Return True
                 
             Catch ex As Exception
@@ -1995,7 +2026,7 @@ Namespace Managers
                     Dim lNode As SyntaxNode = lKvp.Value
                     If lNode.Attributes.ContainsKey("FilePaths") Then
                         Dim lFileCount As Integer = lNode.Attributes("FilePaths").Split(";"c).Length
-                        Console.WriteLine($"Partial Class '{lNode.Name}' merged from {lFileCount} files")
+                        'Console.WriteLine($"Partial Class '{lNode.Name}' merged from {lFileCount} files")
                     End If
                 Next
                 
@@ -2096,118 +2127,6 @@ Namespace Managers
             pParseErrors.Add(lErrorMessage)
             Console.WriteLine($"ProjectParser error: {lErrorMessage}")
         End Sub
-
-'         ''' <summary>
-'         ''' Enhanced version of ParseFileInNamespace that properly handles partial classes in explicit namespaces
-'         ''' </summary>
-'         ''' <param name="vFilePath">Path to the file being parsed</param>
-'         ''' <param name="vFileContent">Content of the file</param>
-'         ''' <returns>True if successfully parsed</returns>
-'         Private Function ParseFileInNamespace(vFilePath As String, vFileContent As String) As Boolean
-'             Try
-'                 pCurrentFile = vFilePath
-'                 Dim lLines As String() = vFileContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-'                 
-'                 ' Track the current namespace context
-'                 Dim lCurrentNamespace As SyntaxNode = pRootNamespace
-'                 Dim lExplicitNamespaceStack As New Stack(Of SyntaxNode)()
-'                 
-'                 Dim i As Integer = 0
-'                 While i < lLines.Length
-'                     Dim lLine As String = lLines(i).Trim()
-'                     pCurrentLineNumber = i
-'                     
-'                     ' Skip empty lines and comments
-'                     If String.IsNullOrWhiteSpace(lLine) OrElse lLine.StartsWith("'") Then
-'                         i += 1
-'                         Continue While
-'                     End If
-'                     
-'                     ' Check for explicit namespace declaration
-'                     If lLine.StartsWith("Namespace ", StringComparison.OrdinalIgnoreCase) Then
-'                         ' Extract namespace name
-'                         Dim lNamespaceName As String = lLine.Substring(10).Trim()
-'                         
-'                         ' Special handling for Managers namespace
-'                         If lNamespaceName = "Managers" Then
-'                             ' Find or create Managers namespace under root
-'                             Dim lManagersNS As SyntaxNode = Nothing
-'                             for each lChild in pRootNamespace.Children
-'                                 If lChild.NodeType = CodeNodeType.eNamespace AndAlso 
-'                                    String.Equals(lChild.Name, "Managers", StringComparison.OrdinalIgnoreCase) Then
-'                                     lManagersNS = lChild
-'                                     Exit for
-'                                 End If
-'                             Next
-'                             
-'                             If lManagersNS Is Nothing Then
-'                                 lManagersNS = New SyntaxNode(CodeNodeType.eNamespace, "Managers")
-'                                 lManagersNS.FilePath = vFilePath
-'                                 lManagersNS.StartLine = i
-'                                 pRootNamespace.AddChild(lManagersNS)
-'                                 Console.WriteLine($"Created Managers Namespace at line {i}")
-'                             End If
-'                             
-'                             lCurrentNamespace = lManagersNS
-'                             lExplicitNamespaceStack.Push(lManagersNS)
-'                         Else
-'                             ' Handle other namespaces normally
-'                             Dim lNSNode As SyntaxNode = FindOrCreateNamespace(lNamespaceName, lCurrentNamespace)
-'                             lNSNode.FilePath = vFilePath
-'                             lNSNode.StartLine = i
-'                             lCurrentNamespace = lNSNode
-'                             lExplicitNamespaceStack.Push(lNSNode)
-'                         End If
-'                         
-'                         Console.WriteLine($"Entered Namespace: {lNamespaceName} at line {i}")
-'                         i += 1
-'                         Continue While
-'                     End If
-'                     
-'                     ' Check for End Namespace
-'                     If lLine.StartsWith("End Namespace", StringComparison.OrdinalIgnoreCase) Then
-'                         If lExplicitNamespaceStack.Count > 0 Then
-'                             Dim lNS As SyntaxNode = lExplicitNamespaceStack.Pop()
-'                             lNS.EndLine = i
-'                             Console.WriteLine($"Exited Namespace: {lNS.Name} at line {i}")
-'                             
-'                             ' Reset to parent namespace or root
-'                             If lExplicitNamespaceStack.Count > 0 Then
-'                                 lCurrentNamespace = lExplicitNamespaceStack.Peek()
-'                             Else
-'                                 lCurrentNamespace = pRootNamespace
-'                             End If
-'                         End If
-'                         i += 1
-'                         Continue While
-'                     End If
-'                     
-'                     ' Parse type declarations (Class, Module, etc.)
-'                     Dim lTypeNode As SyntaxNode = Nothing
-'                     If ParseTypeDeclaration(lLine, lCurrentNamespace, lTypeNode, lLines, i) Then
-'                         If lTypeNode IsNot Nothing Then
-'                             ' Special handling for ProjectInfo class
-'                             If lTypeNode.Name = "ProjectInfo" AndAlso lCurrentNamespace.Name = "Managers" Then
-'                                 Console.WriteLine($"Found ProjectInfo in Managers Namespace at line {i}")
-'                                 ' It's already been added to Managers namespace by ParseTypeDeclaration
-'                             End If
-'                             
-'                             ' Parse the type body
-'                             i = ParseTypeBody(lLines, i + 1, lTypeNode)
-'                         End If
-'                     End If
-'                     
-'                     i += 1
-'                 End While
-'                 
-'                 Return True
-'                 
-'             Catch ex As Exception
-'                 Console.WriteLine($"ParseFileInNamespaceEnhanced error in {vFilePath}: {ex.Message}")
-'                 pParseErrors.Add($"error parsing {vFilePath}: {ex.Message}")
-'                 Return False
-'             End Try
-'         End Function
 
         ''' <summary>
         ''' Tokenizes a line of VB.NET code into individual tokens, filtering out invalid entries
@@ -2572,7 +2491,7 @@ Namespace Managers
                 ' Add to parent
                 vTypeNode.AddChild(lConstNode)
                 
-                Console.WriteLine($"  Added Const: {lName} To {vTypeNode.Name}")
+             '   Console.WriteLine($"  Added Const: {lName} To {vTypeNode.Name}")
                 Return True
                 
             Catch ex As Exception
@@ -2714,7 +2633,7 @@ Namespace Managers
             Try
                 If vExistingClass Is Nothing OrElse vNewClass Is Nothing Then Return
                 
-                Console.WriteLine($"Merging Partial Class {vNewClass.Name} into existing Class")
+                'Console.WriteLine($"Merging Partial Class {vNewClass.Name} into existing Class")
                 
                 ' Mark both as partial
                 vExistingClass.IsPartial = True
@@ -2738,9 +2657,9 @@ Namespace Managers
                 for each lNewMember in vNewClass.Children
                     If Not IsDuplicateMember(vExistingClass, lNewMember) Then
                         vExistingClass.AddChild(lNewMember)
-                        Console.WriteLine($"  Merged member: {lNewMember.Name} ({lNewMember.NodeType})")
+                       ' Console.WriteLine($"  Merged member: {lNewMember.Name} ({lNewMember.NodeType})")
                     Else
-                        Console.WriteLine($"  Skipped duplicate member: {lNewMember.Name}")
+                    '    Console.WriteLine($"  Skipped duplicate member: {lNewMember.Name}")
                     End If
                 Next
                 
@@ -2932,7 +2851,7 @@ Namespace Managers
                         lManagersNamespace = New SyntaxNode(CodeNodeType.eNamespace, "Managers")
                         lManagersNamespace.IsImplicit = False
                         vRootNamespace.AddChild(lManagersNamespace)
-                        Console.WriteLine("Created Managers Namespace under root")
+                      '  Console.WriteLine("Created Managers Namespace under root")
                     End If
                     
                     ' Move or merge the class into Managers namespace
@@ -2948,11 +2867,11 @@ Namespace Managers
                     If lExistingClass IsNot Nothing Then
                         ' Merge with existing partial class
                         MergePartialClass(lExistingClass, vClassNode)
-                        Console.WriteLine($"Merged ProjectInfo into existing Class in Managers Namespace")
+                        'Console.WriteLine($"Merged ProjectInfo into existing Class in Managers Namespace")
                     Else
                         ' Add new class to Managers namespace
                         lManagersNamespace.AddChild(vClassNode)
-                        Console.WriteLine($"Added ProjectInfo To Managers Namespace")
+                       ' Console.WriteLine($"Added ProjectInfo To Managers Namespace")
                     End If
                     
                     ' Remove from root if it was incorrectly placed there
@@ -2965,7 +2884,241 @@ Namespace Managers
                 Console.WriteLine($"ProcessPartialClassInNamespace error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Generates line metadata with syntax tokens for a source file
+        ''' </summary>
+        ''' <param name="vSourceFile">The source file to parse</param>
+        ''' <param name="vParseResult">The parse result to populate with metadata</param>
+        Private Sub GenerateLineMetadata(vSourceFile As SourceFileInfo, vParseResult As Syntax.ParseResult)
+            Try
+                If vSourceFile Is Nothing OrElse vSourceFile.TextLines Is Nothing Then Return
+                
+                ' Initialize line metadata array
+                Dim lLineCount As Integer = vSourceFile.TextLines.Count
+                ReDim vParseResult.LineMetadata(Math.Max(0, lLineCount - 1))
+                
+                ' Create metadata for each line
+                for i As Integer = 0 To lLineCount - 1
+                    vParseResult.LineMetadata(i) = New LineMetadata()
+                Next
+                
+                ' Parse each line for syntax tokens
+                for lLineIndex As Integer = 0 To lLineCount - 1
+                    Dim lLine As String = vSourceFile.TextLines(lLineIndex)
+                    Dim lMetadata As LineMetadata = vParseResult.LineMetadata(lLineIndex)
+                    
+                    ' Generate syntax tokens for this line
+                    GenerateSyntaxTokensForLine(lLine, lLineIndex, lMetadata)
+                    
+                    ' Update line hash for change detection
+                    lMetadata.UpdateHash(lLine)
+                Next
+                
+               ' Console.WriteLine($"Generated LineMetadata for {lLineCount} lines")
+                
+            Catch ex As Exception
+                Console.WriteLine($"GenerateLineMetadata error: {ex.Message}")
+            End Try
+        End Sub        
+
+        ''' <summary>
+        ''' Generates syntax tokens for a single line
+        ''' </summary>
+        ''' <param name="vLineText">The text of the line</param>
+        ''' <param name="vLineIndex">The line index</param>
+        ''' <param name="vMetadata">The metadata to populate</param>
+        Private Sub GenerateSyntaxTokensForLine(vLineText As String, vLineIndex As Integer, vMetadata As LineMetadata)
+            Try
+                vMetadata.SyntaxTokens.Clear()
+                
+                If String.IsNullOrEmpty(vLineText) Then Return
+                
+                Dim lPosition As Integer = 0
+                Dim lInString As Boolean = False
+                Dim lInComment As Boolean = False
+                Dim lStringStart As Integer = 0
+                Dim lTokenStart As Integer = 0
+                Dim lCurrentToken As New System.Text.StringBuilder
+                
+                ' Check for line comment
+                Dim lCommentIndex As Integer = vLineText.IndexOf("'"c)
+                If lCommentIndex >= 0 Then
+                    ' Check if it's not inside a string
+                    Dim lQuoteCount As Integer = 0
+                    For i As Integer = 0 To lCommentIndex - 1
+                        If vLineText(i) = """"c Then lQuoteCount += 1
+                    Next
+                    
+                    If lQuoteCount Mod 2 = 0 Then
+                        ' Not in a string, this is a comment
+                        If lCommentIndex > 0 Then
+                            ' Parse the part before the comment
+                            ParseLineSegment(vLineText.Substring(0, lCommentIndex), 0, vMetadata)
+                        End If
+                        
+                        ' Add the comment token
+                        vMetadata.SyntaxTokens.Add(New SyntaxToken(
+                            SyntaxTokenType.eComment,
+                            lCommentIndex,
+                            vLineText.Length,
+                            vLineText.Substring(lCommentIndex)
+                        ))
+                        Return
+                    End If
+                End If
+                
+                ' Parse the entire line if no comment
+                ParseLineSegment(vLineText, 0, vMetadata)
+                
+            Catch ex As Exception
+                Console.WriteLine($"GenerateSyntaxTokensForLine error: {ex.Message}")
+            End Try
+        End Sub
         
+        ''' <summary>
+        ''' Parses a segment of a line for syntax tokens
+        ''' </summary>
+        ''' <param name="vSegment">The text segment to parse</param>
+        ''' <param name="vStartOffset">Starting offset in the line</param>
+        ''' <param name="vMetadata">The metadata to populate</param>
+        Private Sub ParseLineSegment(vSegment As String, vStartOffset As Integer, vMetadata As LineMetadata)
+            Try
+                Dim lTokenizer As New VBTokenizer()
+                Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(vSegment)
+                
+                For Each lToken In lTokens
+                    ' Map Token type to SyntaxTokenType
+                    Dim lSyntaxType As SyntaxTokenType = MapTokenTypeToSyntaxType(lToken.Type)
+                    
+                    ' Calculate the token length
+                    Dim lTokenLength As Integer = lToken.EndColumn - lToken.StartColumn + 1
+                    
+                    ' Get the appropriate color for this token type
+                    Dim lColor As String = GetColorForTokenType(lSyntaxType)
+                    
+                    ' Create syntax token with proper constructor parameters
+                    ' Constructor expects: (StartColumn, Length, TokenType, Color)
+                    Dim lSyntaxToken As New SyntaxToken(
+                        vStartOffset + lToken.StartColumn,
+                        lTokenLength,
+                        lSyntaxType,
+                        lColor
+                    )
+                    
+                    vMetadata.SyntaxTokens.Add(lSyntaxToken)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"ParseLineSegment error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets the color for a token type
+        ''' </summary>
+        ''' <param name="vTokenType">The syntax token type</param>
+        ''' <returns>The color as a hex string</returns>
+        Private Function GetColorForTokenType(vTokenType As SyntaxTokenType) As String
+            ' These are default colors - they should match your theme
+            Select Case vTokenType
+                Case SyntaxTokenType.eKeyword
+                    Return "#569CD6"  ' Blue for keywords
+                Case SyntaxTokenType.eString
+                    Return "#CE9178"  ' Orange for strings  
+                Case SyntaxTokenType.eComment
+                    Return "#6A9955"  ' Green for comments
+                Case SyntaxTokenType.eNumber
+                    Return "#B5CEA8"  ' Light green for numbers
+                Case SyntaxTokenType.eType
+                    Return "#4EC9B0"  ' Teal for types
+                Case SyntaxTokenType.eIdentifier
+                    Return "#D4D4D4"  ' Light gray for identifiers
+                Case SyntaxTokenType.eOperator
+                    Return "#D4D4D4"  ' Light gray for operators
+                Case Else
+                    Return "#D4D4D4"  ' Default light gray
+            End Select
+        End Function
+        
+        ''' <summary>
+        ''' Maps a TokenType to a SyntaxTokenType
+        ''' </summary>
+        ''' <param name="vTokenType">The token type to map</param>
+        ''' <returns>The corresponding syntax token type</returns>
+        Private Function MapTokenTypeToSyntaxType(vTokenType As TokenType) As SyntaxTokenType
+            Select Case vTokenType
+                Case TokenType.eKeyword
+                    Return SyntaxTokenType.eKeyword
+                Case TokenType.eIdentifier
+                    Return SyntaxTokenType.eIdentifier
+                Case TokenType.eStringLiteral
+                    Return SyntaxTokenType.eString
+                Case TokenType.eNumber
+                    Return SyntaxTokenType.eNumber
+                Case TokenType.eComment
+                    Return SyntaxTokenType.eComment
+                Case TokenType.eOperator
+                    Return SyntaxTokenType.eOperator
+                Case TokenType.eType
+                    Return SyntaxTokenType.eType
+                Case Else
+                    Return SyntaxTokenType.eNormal
+            End Select
+        End Function
+        
+'         ''' <summary>
+'         ''' Parses a source file asynchronously
+'         ''' </summary>
+'         ''' <param name="vSourceFile">The source file to parse</param>
+'         Public Async Function ParseSourceFileAsync(vSourceFile As SourceFileInfo) As Task
+'             Try
+'                 If vSourceFile Is Nothing Then Return
+'                 
+'                 Console.WriteLine($"ParsingEngine.ParseSourceFileAsync: {vSourceFile.FilePath}")
+'                 
+'                 ' Create parse result
+'                 Dim lParseResult As New ParseResult()
+'                 
+'                 ' Use ProjectParser to parse the structure
+'                 pProjectSyntaxTree = ParseContent(
+'                     vSourceFile.Content,
+'                     "SimpleIDE",  ' Root namespace
+'                     vSourceFile.FilePath
+'                 )
+'                 
+'                 ' Copy structure results
+'                 If lTempResult IsNot Nothing Then
+'                     lParseResult.RootNode = lTempResult.RootNode
+'                     lParseResult.DocumentNodes = lTempResult.DocumentNodes
+'                     lParseResult.RootNodes = lTempResult.RootNodes
+'                     lParseResult.Errors = lTempResult.Errors
+'                     lParseResult.Warnings = lTempResult.Warnings
+'                 End If
+'                 
+'                 ' Generate line metadata with syntax tokens
+'                 GenerateLineMetadata(vSourceFile, lParseResult)
+'                 
+'                 ' Update the source file with parse results
+'                 vSourceFile.ParseResult = lParseResult.RootNode
+'                 vSourceFile.UpdateLineMetadata(lParseResult)
+'                 
+'                 ' Raise completion event
+'                 RaiseEvent ParseCompleted(vSourceFile, lParseResult)
+'                 
+'             Catch ex As Exception
+'                 Console.WriteLine($"ParseSourceFileAsync error: {ex.Message}")
+'             End Try
+'         End Function
+
+        ''' <summary>
+        ''' Gets the list of parse errors from the last parse operation
+        ''' </summary>
+        ''' <returns>List of error messages</returns>
+        Public Function GetParseErrors() As List(Of String)
+            Return If(pParseErrors, New List(Of String)())
+        End Function
+    
     End Class
     
 End Namespace

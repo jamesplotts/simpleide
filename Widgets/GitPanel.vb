@@ -204,16 +204,16 @@ Namespace Widgets
             pStatusTreeView.AppendColumn(lStagedColumn)
             
             ' Status column
-            Dim lStatusColumn As New TreeViewColumn("Status", New CellRendererText(), "Text", 1)
+            Dim lStatusColumn As New TreeViewColumn("Status", New CellRendererText(), "text", 1)
             pStatusTreeView.AppendColumn(lStatusColumn)
             
             ' File column
-            Dim lFileColumn As New TreeViewColumn("File", New CellRendererText(), "Text", 2)
+            Dim lFileColumn As New TreeViewColumn("File", New CellRendererText(), "text", 2)
             lFileColumn.Resizable = True
             pStatusTreeView.AppendColumn(lFileColumn)
             
             ' Hidden full path column
-            Dim lPathColumn As New TreeViewColumn("Path", New CellRendererText(), "Text", 3)
+            Dim lPathColumn As New TreeViewColumn("Path", New CellRendererText(), "text", 3)
             lPathColumn.Visible = False
             pStatusTreeView.AppendColumn(lPathColumn)
             
@@ -265,19 +265,19 @@ Namespace Widgets
             pHistoryStore = New ListStore(GetType(String), GetType(String), GetType(String), GetType(String))
             pHistoryTreeView = New TreeView(pHistoryStore)
             
-            Dim lHashColumn As New TreeViewColumn("Commit", New CellRendererText(), "Text", 0)
+            Dim lHashColumn As New TreeViewColumn("Commit", New CellRendererText(), "text", 0)
             lHashColumn.Resizable = True
             pHistoryTreeView.AppendColumn(lHashColumn)
             
-            Dim lAuthorColumn As New TreeViewColumn("Author", New CellRendererText(), "Text", 1)
+            Dim lAuthorColumn As New TreeViewColumn("Author", New CellRendererText(), "text", 1)
             lAuthorColumn.Resizable = True
             pHistoryTreeView.AppendColumn(lAuthorColumn)
             
-            Dim lDateColumn As New TreeViewColumn("Date", New CellRendererText(), "Text", 2)
+            Dim lDateColumn As New TreeViewColumn("Date", New CellRendererText(), "text", 2)
             lDateColumn.Resizable = True
             pHistoryTreeView.AppendColumn(lDateColumn)
             
-            Dim lMessageColumn As New TreeViewColumn("Message", New CellRendererText(), "Text", 3)
+            Dim lMessageColumn As New TreeViewColumn("Message", New CellRendererText(), "text", 3)
             lMessageColumn.Resizable = True
             pHistoryTreeView.AppendColumn(lMessageColumn)
             
@@ -626,34 +626,57 @@ Namespace Widgets
             End Sub)
         End Sub
         
+        ''' <summary>
+        ''' Displays diff text with proper syntax highlighting using stable offsets
+        ''' </summary>
+        ''' <param name="vDiffText">The diff text to display</param>
         Private Sub DisplayDiff(vDiffText As String)
-            pDiffBuffer.Text = ""
-            
-            If String.IsNullOrEmpty(vDiffText) Then
-                pDiffBuffer.Text = "No Changes to display"
-                Return
-            End If
-            
-            Dim lLines() As String = vDiffText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
-            
-            for each lLine in lLines
-                Dim lStartIter As TextIter = pDiffBuffer.EndIter
-pDiffBuffer.PlaceCursor(lStartIter)
-pDiffBuffer.InsertAtCursor(lLine & Environment.NewLine)
-                Dim lEndIter As TextIter = pDiffBuffer.EndIter
+            Try
+                pDiffBuffer.Text = ""
                 
-                ' Apply appropriate tag based on line content
-                If lLine.StartsWith("+") AndAlso Not lLine.StartsWith("+++") Then
-                    pDiffBuffer.ApplyTag("diff_add", lStartIter, lEndIter)
-                ElseIf lLine.StartsWith("-") AndAlso Not lLine.StartsWith("---") Then
-                    pDiffBuffer.ApplyTag("diff_remove", lStartIter, lEndIter)
-                ElseIf lLine.StartsWith("@@") Then
-                    pDiffBuffer.ApplyTag("diff_linenum", lStartIter, lEndIter)
-                ElseIf lLine.StartsWith("diff ") OrElse lLine.StartsWith("index ") OrElse 
-                       lLine.StartsWith("---") OrElse lLine.StartsWith("+++") Then
-                    pDiffBuffer.ApplyTag("diff_header", lStartIter, lEndIter)
+                If String.IsNullOrEmpty(vDiffText) Then
+                    pDiffBuffer.Text = "No Changes to display"
+                    Return
                 End If
-            Next
+                
+                Dim lLines() As String = vDiffText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
+                
+                for each lLine in lLines
+                    ' Store the offset before inserting the line
+                    Dim lStartOffset As Integer = pDiffBuffer.CharCount
+                    
+                    ' Insert the line
+                    pDiffBuffer.PlaceCursor(pDiffBuffer.EndIter)
+                    pDiffBuffer.InsertAtCursor(lLine & Environment.NewLine)
+                    
+                    ' Get the end offset after insertion
+                    Dim lEndOffset As Integer = pDiffBuffer.CharCount
+                    
+                    ' Determine which tag to apply based on line content
+                    Dim lTagName As String = Nothing
+                    If lLine.StartsWith("+") AndAlso Not lLine.StartsWith("+++") Then
+                        lTagName = "diff_add"
+                    ElseIf lLine.StartsWith("-") AndAlso Not lLine.StartsWith("---") Then
+                        lTagName = "diff_remove"
+                    ElseIf lLine.StartsWith("@@") Then
+                        lTagName = "diff_linenum"
+                    ElseIf lLine.StartsWith("diff ") OrElse lLine.StartsWith("index ") OrElse _
+                           lLine.StartsWith("commit ") OrElse lLine.StartsWith("Author:") OrElse _
+                           lLine.StartsWith("Date:") Then
+                        lTagName = "diff_header"
+                    End If
+                    
+                    ' Apply the tag using stable offsets
+                    If Not String.IsNullOrEmpty(lTagName) Then
+                        Dim lStartIter As TextIter = pDiffBuffer.GetIterAtOffset(lStartOffset)
+                        Dim lEndIter As TextIter = pDiffBuffer.GetIterAtOffset(lEndOffset)
+                        pDiffBuffer.ApplyTag(lTagName, lStartIter, lEndIter)
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"DisplayDiff error: {ex.Message}")
+            End Try
         End Sub
         
         Private Sub StageFile(vFilePath As String)

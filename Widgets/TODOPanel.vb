@@ -217,7 +217,7 @@ Namespace Widgets
             lTitleColumn.Title = "Title"
             Dim lTitleRenderer As New CellRendererText()
             lTitleColumn.PackStart(lTitleRenderer, True)
-            lTitleColumn.AddAttribute(lTitleRenderer, "Text", 2)
+            lTitleColumn.AddAttribute(lTitleRenderer, "text", 2)
             lTitleColumn.SortColumnId = 2
             lTitleColumn.Resizable = True
             lTitleColumn.Expand = True
@@ -228,7 +228,7 @@ Namespace Widgets
             lStatusColumn.Title = "Status"
             Dim lStatusRenderer As New CellRendererText()
             lStatusColumn.PackStart(lStatusRenderer, False)
-            lStatusColumn.AddAttribute(lStatusRenderer, "Text", 5)
+            lStatusColumn.AddAttribute(lStatusRenderer, "text", 5)
             lStatusColumn.SortColumnId = 5
             lStatusColumn.Resizable = True
             lStatusColumn.MinWidth = 80
@@ -239,7 +239,7 @@ Namespace Widgets
             lDueDateColumn.Title = "Due Date"
             Dim lDueDateRenderer As New CellRendererText()
             lDueDateColumn.PackStart(lDueDateRenderer, False)
-            lDueDateColumn.AddAttribute(lDueDateRenderer, "Text", 6)
+            lDueDateColumn.AddAttribute(lDueDateRenderer, "text", 6)
             lDueDateColumn.SortColumnId = 6
             lDueDateColumn.Resizable = True
             lDueDateColumn.MinWidth = 100
@@ -649,7 +649,7 @@ Namespace Widgets
             Try
                 Console.WriteLine($"RefreshTODOs Started")
                 If pTODOManager Is Nothing Then
-                    Console.WriteLine("TODO Manager not initialized")
+                    Console.WriteLine("TODO Manager Not initialized")
                     Return
                 End If
                 
@@ -896,7 +896,7 @@ Namespace Widgets
                     Dim lFilteredCount = pFilteredTODOs.Count
                     Dim lTotalCount = lStats("Total")
                     
-                    Dim lStatusText As String = $"Showing {lFilteredCount} of {lTotalCount} TODOs"
+                    Dim lStatusText As String = $"Showing {lFilteredCount} Of {lTotalCount} TODOs"
                     
                     If lStats("Overdue") > 0 Then
                         lStatusText &= $" | {lStats("Overdue")} Overdue"
@@ -924,8 +924,8 @@ Namespace Widgets
                 
                 ' Add a helpful message row
                 Dim lMessage As String = If(pTODOManager Is Nothing, 
-                    "No project loaded - Open a project to view TODOs",
-                    "No TODOs found - Click Add to create a New TODO")
+                    "No project loaded - Open a project To view TODOs",
+                    "No TODOs found - Click Add To create a New TODO")
                 
                 ' Use empty pixbufs for icons
                 pListStore.AppendValues(
@@ -1229,7 +1229,7 @@ Namespace Widgets
                 ' Due Date
                 Dim lDueDateFrame As New Frame("Due Date")
                 Dim lDueDateBox As New Box(Orientation.Vertical, 5)
-                pDueDateCheckButton = New CheckButton("Set due date")
+                pDueDateCheckButton = New CheckButton("Set due Date")
                 AddHandler pDueDateCheckButton.Toggled, AddressOf OnDueDateToggled
                 lDueDateBox.PackStart(pDueDateCheckButton, False, False, 0)
                 

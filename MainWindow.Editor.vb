@@ -24,6 +24,9 @@ Partial Public Class MainWindow
     
     ' ===== Public Methods =====
     
+    ''' <summary>
+    ''' Opens a file with full project and Object Explorer integration
+    ''' </summary>
     Public Sub OpenFile(vFilePath As String)
         Try
             ' Check if file is already open
@@ -31,26 +34,58 @@ Partial Public Class MainWindow
                 SwitchToTab(vFilePath)
                 Return
             End If
+    
+            Console.WriteLine($"OpenFile: Opening {vFilePath}")
             
-            ' Read file content
-            Dim lContent As String = File.ReadAllText(vFilePath)
+            ' Get or create SourceFileInfo through ProjectManager
+            Dim lSourceFileInfo As SourceFileInfo = Nothing
+            Dim lIsNewFile As Boolean = False
             
-            ' Create SourceFileInfo with proper initialization
-            Dim lSourceFileInfo As New SourceFileInfo(vFilePath, "")
-            
-            ' CRITICAL FIX: Properly initialize the content and TextLines
-            lSourceFileInfo.Content = lContent
-            lSourceFileInfo.TextLines = New List(Of String)(lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-            If lSourceFileInfo.TextLines.Count = 0 Then
-                lSourceFileInfo.TextLines.Add("")
+            If pProjectManager IsNot Nothing Then
+                lSourceFileInfo = pProjectManager.GetSourceInfo(vFilePath)
+                If lSourceFileInfo Is Nothing Then
+                    Console.WriteLine($"OpenFile: Creating new SourceFileInfo for {vFilePath}")
+                    lSourceFileInfo = pProjectManager.CreateEmptyFile(vFilePath)
+                    lIsNewFile = True
+                Else
+                    Console.WriteLine($"OpenFile: Found existing SourceFileInfo for {vFilePath}")
+                End If
+            Else
+                Console.WriteLine($"OpenFile: WARNING - No ProjectManager, creating standalone SourceFileInfo")
+                lSourceFileInfo = New SourceFileInfo(vFilePath, "", "")
+                lIsNewFile = True
             End If
+            
+            ' Ensure content is loaded
+            If Not lSourceFileInfo.IsLoaded Then
+                Console.WriteLine($"OpenFile: Loading content for {vFilePath}")
+                lSourceFileInfo.LoadContent()
+            End If
+            
             lSourceFileInfo.IsLoaded = True
             
-            ' Create new tab
-            CreateNewTab(vFilePath, lSourceFileInfo, True)
+            ' Update status
+            UpdateStatusBar($"Loading: {System.IO.Path.GetFileName(vFilePath)}")
+            
+            ' Create new tab - this will handle all integrations
+            CreateNewTab(vFilePath, lSourceFileInfo, Not lIsNewFile)
+            
+            ' Update Object Explorer if project is open
+            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
+                ' Get the entire project syntax tree
+                Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                If lProjectTree IsNot Nothing Then
+                    ' Update with project-aware structure
+                    Console.WriteLine($"OpenFile: Updating Object Explorer with project structure")
+                    UpdateObjectExplorerForActiveTab()
+                End If
+            End If            
+
+            Console.WriteLine($"OpenFile: Completed for {vFilePath}")
             
         Catch ex As Exception
             Console.WriteLine($"OpenFile error: {ex.Message}")
+            Console.WriteLine($"Stack: {ex.StackTrace}")
             ShowError("Open File Error", ex.Message)
         End Try
     End Sub
@@ -58,7 +93,7 @@ Partial Public Class MainWindow
     Public Sub OnNewFile(vSender As Object, vArgs As EventArgs)
         Try
             Dim lFileName As String = GetNextUntitledFileName()
-            Dim lSourceFileInfo As New SourceFileInfo(lFileName, "")
+            Dim lSourceFileInfo As New SourceFileInfo(lFileName, "", "")
             CreateNewTab(lFileName, lSourceFileInfo, False)
             
         Catch ex As Exception
@@ -158,17 +193,45 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Get current tab info
-    Public Function GetCurrentTabInfo() As TabInfo
+    ''' <summary>
+    ''' Gets the TabInfo for the currently active tab (including help tabs)
+    ''' </summary>
+    ''' <returns>TabInfo for current tab or Nothing</returns>
+    Private Function GetCurrentTabInfo() As TabInfo
         Try
-            If pNotebook.CurrentPage >= 0 Then
+            If pNotebook IsNot Nothing AndAlso pNotebook.CurrentPage >= 0 Then
                 Dim lCurrentPage As Widget = pNotebook.GetNthPage(pNotebook.CurrentPage)
                 
+                ' Check regular editor tabs
                 for each lTabEntry in pOpenTabs
                     If lTabEntry.Value.EditorContainer Is lCurrentPage Then
                         Return lTabEntry.Value
                     End If
                 Next
+                
+                ' Check help tabs
+                for each lHelpEntry in pHelpTabs
+                    If lHelpEntry.Value.EditorContainer Is lCurrentPage Then
+                        Return lHelpEntry.Value
+                    End If
+                Next
+                
+                ' Check other special tabs (AI artifacts, comparisons, etc.)
+                If pAIArtifactTabs IsNot Nothing Then
+                    for each lArtifactEntry in pAIArtifactTabs
+                        If lArtifactEntry.Value.EditorContainer Is lCurrentPage Then
+                            Return lArtifactEntry.Value
+                        End If
+                    Next
+                End If
+                
+                If pComparisonTabs IsNot Nothing Then
+                    for each lCompEntry in pComparisonTabs
+                        If lCompEntry.Value.EditorContainer Is lCurrentPage Then
+                            Return lCompEntry.Value
+                        End If
+                    Next
+                End If
             End If
             
             Return Nothing
@@ -223,6 +286,9 @@ Partial Public Class MainWindow
     
     ' ===== Tab Management Methods =====
     
+    ''' <summary>
+    ''' Creates a new editor tab with full Object Explorer integration
+    ''' </summary>
     Private Sub CreateNewTab(vFilePath As String, vSourceFileInfo As SourceFileInfo, vIsExistingFile As Boolean)
         Try
             ' Close welcome tab if it exists
@@ -243,32 +309,37 @@ Partial Public Class MainWindow
             
             ' Create editor based on file type
             If lTabInfo.IsPngFile Then
-                ' Create simple label for PNG files - PngEditor is too complex for now
+                ' Create simple label for PNG files
                 Dim lImageLabel As New Label($"PNG Image: {System.IO.Path.GetFileName(vFilePath)}")
                 lImageLabel.Halign = Align.Center
                 lImageLabel.Valign = Align.Center
                 lTabInfo.Editor = Nothing ' No IEditor for images
                 lTabInfo.EditorContainer = lImageLabel
             Else
-                ' Create code editor - CustomDrawingEditor requires SourceFileInfo parameter
-                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo)
-
-                ' CRITICAL: Set the theme manager to avoid null reference errors
+                ' Create code editor
+                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo, pThemeManager)
+            
+                ' Set the theme manager
                 If pThemeManager IsNot Nothing Then
                     lEditor.SetThemeManager(pThemeManager)
                 End If
-
-                ' CRITICAL FIX: Call RefreshFromSourceFileInfo to ensure editor displays content
-                lEditor.RefreshFromSourceFileInfo()
-
-                ' CRITICAL: Show the editor widget to ensure it's visible
+                
+                ' Set the ProjectManager BEFORE any other initialization
+                If pProjectManager IsNot Nothing Then
+                    Console.WriteLine($"CreateNewTab: Setting ProjectManager on editor for {vFilePath}")
+                    lEditor.ProjectManager = pProjectManager
+                Else
+                    Console.WriteLine($"CreateNewTab: WARNING - No ProjectManager available for {vFilePath}")
+                End If
+            
+                ' Show the editor widget
                 lEditor.ShowAll()
                 
-                ' Connect editor events
-                AddHandler lEditor.TextChanged, AddressOf OnEditorTextChanged
-
-                AddHandler lEditor.CursorPositionChanged, AddressOf OnEditorCursorPositionChanged
-                AddHandler lEditor.SelectionChanged, AddressOf OnEditorSelectionChanged
+                ' Hook up ALL editor events (standard + Object Explorer)
+                HookupAllEditorEvents(lEditor)
+                
+                ' Set up Object Explorer integration
+                SetupObjectExplorerForEditor(lEditor)
                 
                 lTabInfo.Editor = lEditor
                 lTabInfo.EditorContainer = lEditor
@@ -297,14 +368,85 @@ Partial Public Class MainWindow
             UpdateStatusBar("")
             UpdateToolbarButtons()
             
+            ' Update Object Explorer for the new tab
+            UpdateObjectExplorerForActiveTab()
+            
         Catch ex As Exception
             Console.WriteLine($"CreateNewTab error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Hooks up all editor events including Object Explorer integration
+    ''' </summary>
+    Private Sub HookupAllEditorEvents(vEditor As IEditor)
+        Try
+            If vEditor Is Nothing Then Return
+            
+            ' Standard editor events
+            AddHandler vEditor.TextChanged, AddressOf OnEditorTextChanged
+            AddHandler vEditor.CursorPositionChanged, AddressOf OnEditorCursorPositionChanged
+            AddHandler vEditor.SelectionChanged, AddressOf OnEditorSelectionChanged
+            AddHandler vEditor.Modified, AddressOf OnEditorModified
+            AddHandler vEditor.UndoRedoStateChanged, AddressOf OnEditorUndoRedoStateChanged
+            
+            ' Object Explorer specific events
+            AddHandler vEditor.DocumentParsed, AddressOf OnEditorDocumentParsed
+            
+            ' ProjectManager request event
+            AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            
+            Console.WriteLine($"Hooked up all events for editor")
+            
+        Catch ex As Exception
+            Console.WriteLine($"HookupAllEditorEvents error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Unhooks all editor events including Object Explorer integration
+    ''' </summary>
+    ''' <param name="vEditor">The editor to unhook events from</param>
+    ''' <remarks>
+    ''' This method combines the functionality of UnhookEditorEventsForObjectExplorer
+    ''' and ensures all event handlers are properly removed to prevent memory leaks.
+    ''' </remarks>
+    Private Sub UnhookAllEditorEvents(vEditor As IEditor)
+        Try
+            If vEditor Is Nothing Then Return
+            
+            ' Unhook standard editor events
+            RemoveHandler vEditor.Modified, AddressOf OnEditorModified
+            RemoveHandler vEditor.CursorPositionChanged, AddressOf OnEditorCursorPositionChanged
+            RemoveHandler vEditor.SelectionChanged, AddressOf OnEditorSelectionChanged
+            RemoveHandler vEditor.TextChanged, AddressOf OnEditorTextChanged
+            RemoveHandler vEditor.UndoRedoStateChanged, AddressOf OnEditorUndoRedoStateChanged
+            
+            ' Unhook Object Explorer specific events
+            RemoveHandler vEditor.DocumentParsed, AddressOf OnEditorDocumentParsed
+            
+            ' Unhook ProjectManager request event (if applicable)
+            RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            
+            ' If this is a CustomDrawingEditor, unhook any specific events
+            If TypeOf vEditor Is CustomDrawingEditor Then
+                Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
+                ' Add any CustomDrawingEditor-specific event unhooking here if needed
+            End If
+            
+            Console.WriteLine($"Unhooked all events for editor: {vEditor.DisplayName}")
+            
+        Catch ex As Exception
+            Console.WriteLine($"UnhookAllEditorEvents error: {ex.Message}")
+        End Try
+    End Sub
     
     ''' <summary>
-    ''' Close a specific tab with proper cleanup and SourceFileInfo reload
+    ''' Close a specific tab with proper cleanup, SourceFileInfo reload, and Object Explorer integration
     ''' </summary>
+    ''' <remarks>
+    ''' This unified method handles unsaved changes, reloading files when discarded, and updating the Object Explorer.
+    ''' </remarks>
     Private Sub CloseTab(vTabInfo As TabInfo)
         Try
             If vTabInfo Is Nothing Then Return
@@ -334,21 +476,23 @@ Partial Public Class MainWindow
                         End If
                         
                     Case CInt(ResponseType.No)
-                        ' CRITICAL FIX: Reload SourceFileInfo from disk when discarding changes
+                        ' CRITICAL: Reload SourceFileInfo from disk when discarding changes
                         ' This prevents the in-memory SourceFileInfo from retaining modified content
                         If pProjectManager IsNot Nothing AndAlso Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
                             Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
                             If lSourceFileInfo IsNot Nothing Then
                                 Console.WriteLine($"Discarding changes - reloading {vTabInfo.FilePath} from disk")
                                 
-                                ' Reload content from disk to discard all in-memory changes
-                                If System.IO.File.Exists(vTabInfo.FilePath) Then
-                                    lSourceFileInfo.LoadContent()
-                                    ' Mark as needing re-parsing since we reloaded
-                                    lSourceFileInfo.NeedsParsing = True
-                                    lSourceFileInfo.IsParsed = False
+                                ' Use the new ReloadFile method to properly reset all state
+                                If Not lSourceFileInfo.ReloadFile() Then
+                                    Console.WriteLine($"Warning: Failed to reload file from disk: {vTabInfo.FilePath}")
+                                    ' Even if reload fails (file deleted), continue closing the tab
+                                    ' The ReloadFile method will have cleared the content appropriately
                                 End If
                             End If
+                        ElseIf Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
+                            ' No ProjectManager but we have a file path - log warning
+                            Console.WriteLine($"Warning: No ProjectManager available to reload {vTabInfo.FilePath}")
                         End If
                         
                     Case CInt(ResponseType.Cancel)
@@ -356,11 +500,15 @@ Partial Public Class MainWindow
                 End Select
             End If
     
-            ' When closing a tab
-            UnhookEditorEventsForObjectExplorer(vTabInfo.Editor)
+            ' Unhook all editor events (including Object Explorer events)
+            If vTabInfo.Editor IsNot Nothing Then
+                UnhookAllEditorEvents(vTabInfo.Editor)
+            End If
+            
+            ' Update Object Explorer for the new active tab (or clear if no tabs left)
             UpdateObjectExplorerForActiveTab()
             
-            ' Find and remove the page
+            ' Find and remove the page from notebook
             for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
@@ -369,25 +517,31 @@ Partial Public Class MainWindow
                 End If
             Next
             
-            ' Remove from dictionary
+            ' Remove from open tabs dictionary
             pOpenTabs.Remove(vTabInfo.FilePath)
             
-            ' Dispose tab
+            ' Dispose the tab info
             vTabInfo.Dispose()
     
-            ' Update UI
+            ' Update UI elements
             UpdateWindowTitle()
             UpdateStatusBar("")
+            UpdateToolbarButtons()
             
             ' Show welcome screen if no tabs left
             If pNotebook.NPages = 0 Then
                 ShowWelcomeTab()
+                ' Clear Object Explorer when no tabs are open
+                If pObjectExplorer IsNot Nothing Then
+                    pObjectExplorer.ClearStructure()
+                End If
             End If
             
         Catch ex As Exception
             Console.WriteLine($"CloseTab error: {ex.Message}")
         End Try
     End Sub
+
 
     
     Private Sub CloseAllTabs()
@@ -406,48 +560,7 @@ Partial Public Class MainWindow
 
     
     ' ===== File Operations =====
-    
-'    Private Function SaveFile(vTabInfo As TabInfo) As Boolean
-'        Try
-'            ' Check if we need to save as
-'            If String.IsNullOrEmpty(vTabInfo.FilePath) OrElse vTabInfo.FilePath.StartsWith("Untitled") Then
-'                Return SaveFileAs(vTabInfo)
-'            End If
-'            
-'            ' Save to file
-'            If vTabInfo.Editor IsNot Nothing Then
-'                ' Get the current text content
-'                Dim lContent As String = vTabInfo.Editor.Text
-'                
-'                ' Save to file
-'                File.WriteAllText(vTabInfo.FilePath, lContent)
-'                
-'                ' Update state
-'                vTabInfo.Modified = False
-'                vTabInfo.LastSaved = DateTime.Now
-'                UpdateTabLabel(vTabInfo)
-'                
-'                ' Update UI
-'                UpdateStatusBar("")
-'                UpdateWindowTitle()
-'                
-'                ' Add to recent files
-'                If pSettingsManager IsNot Nothing Then
-'                    pSettingsManager.AddRecentFile(vTabInfo.FilePath)
-'                End If
-'                
-'                Console.WriteLine($"Saved file: {vTabInfo.FilePath}")
-'                Return True
-'            End If
-'            
-'            Return False
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"SaveFile error: {ex.Message}")
-'            ShowError("Save error", ex.Message)
-'            Return False
-'        End Try
-'    End Function
+
     
     Private Function SaveFileAs(vTabInfo As TabInfo) As Boolean
         Try
@@ -517,26 +630,26 @@ Partial Public Class MainWindow
             Return False
         End Try
     End Function
-    
-    Public Async Sub ReLoadFile(vFilePath As String)
-        Try
-            If Not pOpenTabs.ContainsKey(vFilePath) Then Return
-            
-            Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
-            If lTabInfo?.Editor Is Nothing Then Return
-            
-            ' Read file content
-            Dim lContent As String = Await Task.Run(Function() File.ReadAllText(vFilePath))
-            
-            ' Update editor
-            lTabInfo.Editor.Text = lContent
-            lTabInfo.Modified = False
-            UpdateTabLabel(lTabInfo)
-            
-        Catch ex As Exception
-            Console.WriteLine($"ReLoadFile error: {ex.Message}")
-        End Try
-    End Sub
+'     
+'     Public Async Sub ReLoadFile(vFilePath As String)
+'         Try
+'             If Not pOpenTabs.ContainsKey(vFilePath) Then Return
+'             
+'             Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
+'             If lTabInfo?.Editor Is Nothing Then Return
+'             
+'             ' Read file content
+'             Dim lContent As String = Await Task.Run(Function() File.ReadAllText(vFilePath))
+'             
+'             ' Update editor
+'             lTabInfo.Editor.Text = lContent
+'             lTabInfo.Modified = False
+'             UpdateTabLabel(lTabInfo)
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"ReLoadFile error: {ex.Message}")
+'         End Try
+'     End Sub
     
     ' ===== Helper Methods =====
     
@@ -726,7 +839,7 @@ Partial Public Class MainWindow
             RemoveHandler vEditor.Modified, AddressOf OnEditorModified
             RemoveHandler vEditor.CursorPositionChanged, AddressOf OnEditorCursorPositionChanged
             RemoveHandler vEditor.SelectionChanged, AddressOf OnEditorSelectionChanged
-            RemoveHandler vEditor.TextChanged, AddressOf OnEditorTextChangedEnhanced
+            RemoveHandler vEditor.TextChanged, AddressOf OnEditorTextChanged
             RemoveHandler vEditor.UndoRedoStateChanged, AddressOf OnEditorUndoRedoStateChanged
             
             ' Unhook Object Explorer events
@@ -739,18 +852,35 @@ Partial Public Class MainWindow
     
     ' ===== Editor Event Handlers =====
     
+    ''' <summary>
+    ''' Unified text changed handler with all functionality
+    ''' </summary>
     Private Sub OnEditorTextChanged(vSender As Object, vArgs As EventArgs)
         Try
             Dim lEditor As IEditor = TryCast(vSender, IEditor)
-            If lEditor IsNot Nothing Then
-                MarkTabModified(lEditor)
-                OnEditorTextChangedEnhanced(vSender, vArgs)
+            If lEditor Is Nothing Then Return
+            
+            ' Mark tab as modified
+            MarkTabModified(lEditor)
+            
+            ' Update modified state in UI
+            UpdateTabModifiedState(lEditor)
+            
+            ' Update status bar if this is the current editor
+            If lEditor Is GetCurrentEditor() Then
+                UpdateStatusBar()
             End If
+            
+            ' Mark project as dirty if needed
+            If pProjectManager IsNot Nothing Then
+                pProjectManager.MarkDirty()
+            End If
+            
         Catch ex As Exception
             Console.WriteLine($"OnEditorTextChanged error: {ex.Message}")
         End Try
     End Sub
-
+    
     Private Sub OnEditorUndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean)
         Try
             ' Update toolbar buttons
@@ -760,7 +890,6 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnEditorUndoRedoStateChanged error: {ex.Message}")
         End Try
     End Sub
-
     
     Private Sub OnEditorCursorPositionChanged(vLine As Integer, vColumn As Integer)
         Try
@@ -779,19 +908,86 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Integrated notebook page switching handler that combines all functionality
+    ''' </summary>
+    ''' <remarks>
+    ''' This method integrates:
+    ''' 1. Basic UI updates (from MainWindow.Editor.vb)
+    ''' 2. Object Explorer integration (from MainWindow.ObjectExplorerIntegration.vb)
+    ''' 3. Project structure updates (from MainWindow.ProjectManager.vb)
+    ''' 4. Syntax colorization refresh (new fix)
+    ''' </remarks>
     Private Sub OnNotebookSwitchPage(vSender As Object, vArgs As SwitchPageArgs)
         Try
-            ' Update UI for the newly selected tab
+            ' ===== 1. Basic UI Updates (from MainWindow.Editor.vb) =====
             UpdateWindowTitle()
             UpdateStatusBar("")
             UpdateToolbarButtons()
             
+            ' ===== 2. Get Current Tab Info =====
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                Return
+            End If
+            
+            ' ===== 3. Object Explorer Integration (from MainWindow.ObjectExplorerIntegration.vb) =====
+            ' Update Object Explorer for new active editor
+            UpdateObjectExplorerForActiveTab()
+            
+            ' Update Object Explorer toolbar state
+            UpdateObjectExplorerToolbarState()
+            
+            ' Update current editor in Object Explorer
+            If pObjectExplorer IsNot Nothing Then
+                pObjectExplorer.SetCurrentEditor(lCurrentTab.Editor)
+            End If
+            
+            ' ===== 4. Project Integration (from MainWindow.ProjectManager.vb) =====
+            ' If project is open, check if we have structure for this file
+            If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen AndAlso 
+               Not String.IsNullOrEmpty(lCurrentTab.FilePath) Then
+                
+                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lCurrentTab.FilePath)
+                
+                If lSourceFileInfo IsNot Nothing AndAlso lSourceFileInfo.SyntaxTree IsNot Nothing Then
+                    ' Update Object Explorer with project structure for this file
+                    ' This ensures consistency even if the editor hasn't parsed yet
+                    If pObjectExplorer IsNot Nothing Then
+                        ' Show the whole project structure
+                        Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                        If lProjectTree IsNot Nothing Then
+                            pObjectExplorer.UpdateStructure(lProjectTree)
+                        End If
+                    End If
+                End If
+            End If
+            
+            ' ===== 5. CRITICAL FIX: Force Syntax Colorization =====
+            ' This ensures syntax highlighting is visible when switching between tabs
+            Dim lCustomEditor As CustomDrawingEditor = TryCast(lCurrentTab.Editor, CustomDrawingEditor)
+            If lCustomEditor IsNot Nothing Then
+                Console.WriteLine($"OnNotebookSwitchPage: Forcing recolorization for {lCurrentTab.FilePath}")
+                
+                ' Force recolorization to ensure syntax highlighting is visible
+                lCustomEditor.ForceRecolorization()
+            End If
+            
+            ' ===== 6. Ensure Editor Focus =====
+            ' Give focus to the editor widget for keyboard input
+            lCurrentTab.Editor.Widget.GrabFocus()
+            
+            ' ===== 7. Update Status Bar with File Info =====
+            Dim lFileName As String = System.IO.Path.GetFileName(lCurrentTab.FilePath)
+            UpdateStatusBar($"Ready - {lFileName}")
+            
         Catch ex As Exception
             Console.WriteLine($"OnNotebookSwitchPage error: {ex.Message}")
+            Console.WriteLine($"  Stack: {ex.StackTrace}")
         End Try
     End Sub
 
-    ' Missing event handlers that may be referenced
+
     Private Sub OnEditorModified(vIsModified As Boolean)
         Try
             ' Find the editor that sent this event and mark tab as modified
@@ -799,31 +995,6 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorModified error: {ex.Message}")
-        End Try
-    End Sub
-
-    ' Enhanced text changed handler with Object Explorer considerations
-    Public Sub OnEditorTextChangedEnhanced(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Get the editor that changed
-            Dim lEditor As IEditor = TryCast(vSender, IEditor)
-            If lEditor Is Nothing Then Return
-            
-            ' Update modified state in UI
-            UpdateTabModifiedState(lEditor)
-            
-            ' Update status bar if this is the current editor
-            If lEditor Is GetCurrentEditor() Then
-                UpdateStatusBar()
-            End If
-            
-            ' Mark project as dirty if needed
-            If pProjectManager IsNot Nothing Then
-                pProjectManager.MarkDirty()
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnEditorTextChanged error: {ex.Message}")
         End Try
     End Sub
     

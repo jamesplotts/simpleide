@@ -126,6 +126,16 @@ Namespace Managers
         ' Apply current theme
         Public Sub ApplyCurrentTheme()
             Try
+                ' CRITICAL: Ensure we're on the UI thread
+                ' GTK CSS operations MUST happen on the main thread
+                If Not IsOnMainThread() Then
+                    ' Schedule on UI thread and return
+                    Gtk.Application.Invoke(Sub()
+                        ApplyCurrentTheme()
+                    End Sub)
+                    Return
+                End If
+                
                 If pCurrentTheme Is Nothing Then Return
                 
                 ' Generate CSS from theme
@@ -155,6 +165,19 @@ Namespace Managers
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Checks if we're currently on the main GTK thread
+        ''' </summary>
+        Private Function IsOnMainThread() As Boolean
+            Try
+                ' In GTK#, we can check if we're on the main thread by trying to access
+                ' a thread-local property. This is a simple heuristic.
+                Return System.Threading.Thread.CurrentThread.ManagedThreadId = 1
+            Catch
+                ' If we can't determine, assume we're not on main thread for safety
+                Return False
+            End Try
+        End Function
         
         ' Generate CSS from theme
         Private Function GenerateThemeCss(vTheme As EditorTheme) As String

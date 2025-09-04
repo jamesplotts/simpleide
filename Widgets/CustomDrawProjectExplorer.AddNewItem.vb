@@ -432,6 +432,7 @@ Namespace Widgets
                 Dim lListStore As New ListStore(GetType(String), GetType(String))
                 
                 ' Add all available item types
+                lListStore.AppendValues("Empty VB File", "Creates an empty .vb file with minimal header")
                 lListStore.AppendValues("Class", "Creates a New VB.NET Class")
                 lListStore.AppendValues("Module", "Creates a New VB.NET Module")
                 lListStore.AppendValues("Interface", "Creates a New VB.NET Interface")
@@ -498,6 +499,14 @@ Namespace Widgets
                         
                         ' Show specific dialog based on selection
                         Select Case lItemType
+                            Case "Empty VB File"
+                                ' Get the selected folder path
+                                Dim lSelectedPath As String = GetSelectedFolderPath()
+                                ' Close this dialog first
+                                lDialog.Destroy()
+                                ShowAddEmptyVBFileDialog(lSelectedPath)
+                                Return ' Exit to avoid destroying dialog twice
+                                
                             Case "Class"
                                 ShowAddNewItemDialog("Class", ".vb", AddressOf GenerateClassCode)
                                 
@@ -1516,6 +1525,303 @@ Namespace Widgets
             lBuilder.AppendLine("</root>")
             
             Return lBuilder.ToString()
+        End Function
+
+        ''' <summary>
+        ''' Handles the context menu Add Empty VB File option
+        ''' </summary>
+        ''' <param name="vSender">Event sender</param>
+        ''' <param name="vArgs">Event arguments</param>
+        Private Sub OnContextMenuAddEmptyVBFile(vSender As Object, vArgs As EventArgs)
+            Try
+                ' Get the selected folder path for context
+                Dim lSelectedPath As String = GetSelectedFolderPath()
+                ShowAddEmptyVBFileDialog(lSelectedPath)
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuAddEmptyVBFile error: {ex.Message}")
+            End Try
+        End Sub
+        
+       
+        ''' <summary>
+        ''' Shows dialog for adding a new empty VB file
+        ''' </summary>
+        ''' <param name="vRelativePath">The relative path from project root where file will be created</param>
+        Private Sub ShowAddEmptyVBFileDialog(vRelativePath As String)
+            Try
+                ' Check if we have a project open
+                If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                    ShowErrorDialog("No project Is currently open")
+                    Return
+                End If
+                
+                ' Create dialog
+                Dim lDialog As New Dialog("Add New VB File",
+                                        GetTopLevelWindow(),
+                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+                
+                lDialog.SetDefaultSize(450, 200)
+                
+                ' Create content area
+                Dim lVBox As New Box(Orientation.Vertical, 8)
+                lVBox.MarginStart = 12
+                lVBox.MarginEnd = 12
+                lVBox.MarginTop = 12
+                lVBox.MarginBottom = 12
+                
+                ' Show where file will be created
+                Dim lLocationLabel As New Label($"Location: {vRelativePath}")
+                lLocationLabel.Halign = Align.Start
+                lLocationLabel.StyleContext.AddClass("Dim-label")
+                lVBox.PackStart(lLocationLabel, False, False, 0)
+                
+                ' Add separator
+                lVBox.PackStart(New Separator(Orientation.Horizontal), False, False, 0)
+                
+                ' Filename entry
+                Dim lNameLabel As New Label("Filename:")
+                lNameLabel.Halign = Align.Start
+                lVBox.PackStart(lNameLabel, False, False, 0)
+                
+                Dim lFilenameEntry As New Entry()
+                lFilenameEntry.PlaceholderText = "MyFile.vb"
+                lFilenameEntry.ActivatesDefault = True
+                lVBox.PackStart(lFilenameEntry, False, False, 0)
+                
+                ' Add note about partial classes
+                Dim lNoteLabel As New Label("Note: for Partial classes, use dots in the filename (e.g., MainWindow.Events.vb)")
+                lNoteLabel.Halign = Align.Start
+                lNoteLabel.LineWrap = True
+                lNoteLabel.StyleContext.AddClass("Dim-label")
+                Dim lNoteAttrs As New Pango.AttrList()
+                lNoteAttrs.Insert(New Pango.AttrScale(Pango.Scale.Small))
+                lNoteLabel.Attributes = lNoteAttrs
+                lVBox.PackStart(lNoteLabel, False, False, 0)
+                
+                lDialog.ContentArea.Add(lVBox)
+                
+                ' Add buttons
+                lDialog.AddButton("Cancel", ResponseType.Cancel)
+                Dim lOkButton As Widget = lDialog.AddButton("Create", ResponseType.Ok)
+                lDialog.DefaultResponse = ResponseType.Ok
+                
+                ' Focus entry
+                lFilenameEntry.GrabFocus()
+                
+                ' Enable/disable OK button based on entry
+                ' Direct implementation - no lambda needed
+                AddHandler lFilenameEntry.Changed, Sub(sender As Object, e As EventArgs)
+                    Dim lText As String = lFilenameEntry.Text.Trim()
+                    lOkButton.Sensitive = Not String.IsNullOrEmpty(lText)
+                End Sub
+                
+                ' Initial state - set directly
+                lOkButton.Sensitive = Not String.IsNullOrEmpty(lFilenameEntry.Text.Trim())
+
+                
+                lDialog.ShowAll()
+                
+                ' Handle dialog response
+                Dim lDone As Boolean = False
+                While Not lDone
+                    Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
+                    
+                    If lResponse = ResponseType.Ok Then
+                        Dim lFilename As String = lFilenameEntry.Text.Trim()
+                        
+                        ' Validate filename
+                        If String.IsNullOrEmpty(lFilename) Then
+                            ShowErrorDialog("Please enter a filename")
+                            lFilenameEntry.GrabFocus()
+                            Continue While
+                        End If
+                        
+                        ' Ensure .vb extension
+                        If Not lFilename.ToLower().EndsWith(".vb") Then
+                            lFilename &= ".vb"
+                        End If
+                        
+                        ' Validate filename characters (allow dots for partial classes)
+                        If Not IsValidFilename(lFilename) Then
+                            ShowErrorDialog("Invalid filename. Use only letters, numbers, underscores, dots, and hyphens.")
+                            lFilenameEntry.GrabFocus()
+                            Continue While
+                        End If
+                        
+                        ' Create the file
+                        CreateEmptyVBFile(lFilename, vRelativePath)
+                        lDone = True
+                    Else
+                        lDone = True
+                    End If
+                End While
+                
+                lDialog.Destroy()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ShowAddEmptyVBFileDialog error: {ex.Message}")
+                ShowErrorDialog($"Failed To show add file dialog: {ex.Message}")
+            End Try
+        End Sub
+                
+        
+        ''' <summary>
+        ''' Creates a new empty VB file in the project
+        ''' </summary>
+        ''' <param name="vFilename">The name of the file to create</param>
+        ''' <param name="vRelativePath">Relative path from project root</param>
+        Private Sub CreateEmptyVBFile(vFilename As String, vRelativePath As String)
+            Try
+                ' Check project
+                If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                    ShowErrorDialog("No project Is currently open")
+                    Return
+                End If
+                
+                ' Build full path
+                Dim lFullPath As String = System.IO.Path.Combine(
+                    pProjectManager.CurrentProjectDirectory,
+                    vRelativePath,
+                    vFilename)
+                
+                ' Create directory if needed
+                Dim lDirectory As String = System.IO.Path.GetDirectoryName(lFullPath)
+                If Not System.IO.Directory.Exists(lDirectory) Then
+                    System.IO.Directory.CreateDirectory(lDirectory)
+                End If
+                
+                ' Generate minimal content
+                Dim lContent As String = GenerateEmptyVBFileContent(vFilename, vRelativePath)
+                
+                ' Write file
+                System.IO.File.WriteAllText(lFullPath, lContent)
+                
+                ' Add to project using ProjectManager - returns DocumentModel
+                Dim lDocModel As DocumentModel = pProjectManager.AddFileToProject(lFullPath)
+                
+                If lDocModel IsNot Nothing Then
+                    ' Refresh tree by reloading from ProjectManager
+                    LoadProjectFromManager()
+                    
+                    ' Raise event to open the file
+                    RaiseEvent FileSelected(lFullPath)
+                    
+                    Console.WriteLine($"Created empty VB file: {lFullPath}")
+                Else
+                    Console.WriteLine($"Failed to add file to project: {lFullPath}")
+                    ShowErrorDialog("Failed To add file To project")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"CreateEmptyVBFile error: {ex.Message}")
+                ShowErrorDialog($"Failed to create file: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Generates minimal content for an empty VB file
+        ''' </summary>
+        ''' <param name="vFilename">The filename</param>
+        ''' <param name="vRelativePath">Relative path from project root</param>
+        ''' <returns>Minimal VB file content with header comment</returns>
+        Private Function GenerateEmptyVBFileContent(vFilename As String, vRelativePath As String) As String
+            Try
+                Dim lBuilder As New System.Text.StringBuilder()
+                
+                ' Add header comment
+                lBuilder.AppendLine($"' {vFilename}")
+                lBuilder.AppendLine($"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                lBuilder.AppendLine()
+                
+                ' For partial class files, try to infer the structure
+                If vFilename.Contains(".") AndAlso vFilename.ToLower().EndsWith(".vb") Then
+                    Dim lNameWithoutExt As String = vFilename.Substring(0, vFilename.Length - 3)
+                    Dim lParts() As String = lNameWithoutExt.Split("."c)
+                    
+                    If lParts.Length >= 2 Then
+                        ' This looks like a partial class (e.g., MainWindow.HelpTab.vb)
+                        Dim lClassName As String = lParts(0)
+                        
+                        ' Add imports that are commonly needed
+                        lBuilder.AppendLine("Imports System")
+                        lBuilder.AppendLine()
+                        
+                        ' Check if we need namespace based on path
+                        Dim lNamespace As String = GetNamespaceForPath(vRelativePath)
+                        If Not String.IsNullOrEmpty(lNamespace) Then
+                            lBuilder.AppendLine($"Namespace {lNamespace}")
+                            lBuilder.AppendLine()
+                        End If
+                        
+                        ' Add the partial class declaration
+                        Dim lIndent As String = If(String.IsNullOrEmpty(lNamespace), "", "    ")
+                        lBuilder.AppendLine($"{lIndent}Partial Public Class {lClassName}")
+                        lBuilder.AppendLine($"{lIndent}    ")
+                        lBuilder.AppendLine($"{lIndent}    ' TODO: Add implementation")
+                        lBuilder.AppendLine($"{lIndent}    ")
+                        lBuilder.AppendLine($"{lIndent}End Class")
+                        
+                        If Not String.IsNullOrEmpty(lNamespace) Then
+                            lBuilder.AppendLine()
+                            lBuilder.AppendLine("End Namespace")
+                        End If
+                    End If
+                End If
+                
+                Return lBuilder.ToString()
+                
+            Catch ex As Exception
+                Console.WriteLine($"GenerateEmptyVBFileContent error: {ex.Message}")
+                ' Return minimal content on error
+                Return $"' {vFilename}" & vbCrLf & $"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}" & vbCrLf
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Validates a filename for VB files
+        ''' </summary>
+        ''' <param name="vFilename">Filename to validate</param>
+        ''' <returns>True if valid, False otherwise</returns>
+        Private Function IsValidFilename(vFilename As String) As Boolean
+            Try
+                ' Check for invalid characters (allow dots for partial classes)
+                Dim lInvalidChars As Char() = System.IO.Path.GetInvalidFileNameChars()
+                
+                for each lChar As Char in vFilename
+                    ' Allow dots, letters, numbers, underscores, and hyphens
+                    If Not (Char.IsLetterOrDigit(lChar) OrElse 
+                            lChar = "."c OrElse 
+                            lChar = "_"c OrElse 
+                            lChar = "-"c) Then
+                        
+                        ' Check if it's an invalid file character
+                        If lInvalidChars.Contains(lChar) Then
+                            Return False
+                        End If
+                    End If
+                Next
+                
+                ' Don't allow filenames that start or end with a dot (except for extension)
+                Dim lNameWithoutExt As String = vFilename
+                If vFilename.ToLower().EndsWith(".vb") Then
+                    lNameWithoutExt = vFilename.Substring(0, vFilename.Length - 3)
+                End If
+                
+                If lNameWithoutExt.StartsWith(".") OrElse lNameWithoutExt.EndsWith(".") Then
+                    Return False
+                End If
+                
+                ' Don't allow consecutive dots
+                If lNameWithoutExt.Contains("..") Then
+                    Return False
+                End If
+                
+                Return True
+                
+            Catch ex As Exception
+                Console.WriteLine($"IsValidFilename error: {ex.Message}")
+                Return False
+            End Try
         End Function
         
     End Class

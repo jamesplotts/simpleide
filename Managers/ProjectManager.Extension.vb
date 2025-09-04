@@ -439,39 +439,7 @@ Namespace Managers
             End Select
         End Function
 
-        
-        ''' <summary>
-        ''' Dictionary of all source files in the project, keyed by full path
-        ''' </summary>
-        Private pSourceFiles As New Dictionary(Of String, SourceFileInfo)()
-        
-        ''' <summary>
-        ''' The complete project syntax tree combining all files
-        ''' </summary>
-        Private pProjectSyntaxTree As SyntaxNode
-        
-        ''' <summary>
-        ''' Indicates if project structure is currently being loaded
-        ''' </summary>
-        Private pIsLoadingStructure As Boolean = False
-        
-        ' ===== Events for Enhanced Features =====
-        
-        ''' <summary>
-        ''' Raised when project structure has been fully parsed
-        ''' </summary>
-        Public Event ProjectStructureLoaded(vRootNode As SyntaxNode)
-        
-        ''' <summary>
-        ''' Raised when a file in the project is parsed
-        ''' </summary>
-        Public Event FileParsed(vFileInfo As SourceFileInfo)
-        
-        ''' <summary>
-        ''' Raised when parsing progress updates
-        ''' </summary>
-        Public Event ParsingProgress(vCurrent As Integer, vTotal As Integer, vFileName As String)
-        
+
         ' ===== Enhanced Public Methods =====
         
         ''' <summary>
@@ -491,69 +459,7 @@ Namespace Managers
             End Try
         End Function
         
-        
-        ''' <summary>
-        ''' All DocumentModels keyed by relative file path from project root
-        ''' </summary>
-        Private pDocumentModels As New Dictionary(Of String, DocumentModel)()
-        
-        ''' <summary>
-        ''' Unified namespace tree combining all DocumentModels
-        ''' </summary>
-        Private pUnifiedNamespaceTree As DocumentNode
-        
-        ''' <summary>
-        ''' Maps fully qualified names to DocumentNodes for fast lookup
-        ''' </summary>
-        Private pSymbolTable As New Dictionary(Of String, DocumentNode)(StringComparer.OrdinalIgnoreCase)
-        
-        ''' <summary>
-        ''' Tracks which DocumentModels have active editors
-        ''' </summary>
-        Private pActiveEditors As New Dictionary(Of String, List(Of IEditor))()
-        
-       
-        ''' <summary>
-        ''' Total files to load for progress reporting
-        ''' </summary>
-        Private pTotalFilesToLoad As Integer = 0
-        
-        ''' <summary>
-        ''' Files loaded so far
-        ''' </summary>
-        Private pFilesLoaded As Integer = 0
-        
-        ''' <summary>
-        ''' Lock for thread-safe operations
-        ''' </summary>
-        Private pLoadLock As New Object()
-        
-        ' ===== DocumentModel Events =====
-        
-        ''' <summary>
-        ''' Raised as files are loaded during project open
-        ''' </summary>
-        Public Event ProjectLoadProgress(vFilesLoaded As Integer, vTotalFiles As Integer, vCurrentFile As String)
-        
-        ''' <summary>
-        ''' Raised when project structure changes (namespace tree updated)
-        ''' </summary>
-        Public Event ProjectStructureChanged(vRootNode As DocumentNode)
-        
-        ''' <summary>
-        ''' Raised when a DocumentModel is created
-        ''' </summary>
-        Public Event DocumentModelCreated(vFilePath As String, vModel As DocumentModel)
-        
-        ''' <summary>
-        ''' Raised when a DocumentModel is removed
-        ''' </summary>
-        Public Event DocumentModelRemoved(vFilePath As String)
-        
-        ''' <summary>
-        ''' Raised when all documents have been loaded and parsed
-        ''' </summary>
-        Public Event AllDocumentsLoaded(vDocumentCount As Integer)
+
         
         ' ===== Public Methods - DocumentModel Access =====
 
@@ -1027,16 +933,11 @@ Namespace Managers
             Try
                 If Not pSourceFiles.ContainsKey(vFilePath) Then
                     ' Create new SourceFileInfo if not exists
-                    Dim lFileInfo As New SourceFileInfo(vFilePath, pCurrentProjectInfo.ProjectDirectory)
+                    Dim lFileInfo As New SourceFileInfo(vFilePath, "", pCurrentProjectInfo.ProjectDirectory)
                     pSourceFiles(vFilePath) = lFileInfo
                 End If
                 
                 Dim lSourceFile As SourceFileInfo = pSourceFiles(vFilePath)
-                
-                ' Update from editor
-                lSourceFile.IsLoaded = True
-                lSourceFile.Editor = vEditor
-                'lSourceFile.UpdateFromEditor()
                 
                 ' Use the centralized ParseFile method instead of ParseContent
                 Dim lParseSuccess As Boolean = ParseFile(lSourceFile)

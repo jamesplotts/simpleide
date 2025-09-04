@@ -9,7 +9,7 @@ Namespace Models
         Public Property StartColumn As Integer = 0
         Public Property Length As Integer = 0
         Public Property TokenType As SyntaxTokenType = SyntaxTokenType.eNormal
-        Public Property Color As String = "#000000"
+        'Public Property Color As String = "#000000"
         Public Property IsBold As Boolean = False
         Public Property IsItalic As Boolean = False
         Public Property IsUnderline As Boolean = False
@@ -27,7 +27,6 @@ Namespace Models
             StartColumn = vStartColumn
             Length = vLength
             TokenType = vTokenType
-            Color = vColor
         End Sub
         
         Public ReadOnly Property EndColumn As Integer
@@ -47,6 +46,7 @@ Namespace Models
         eNumber
         eOperator
         eIdentifier
+        ePreprocessor
         eType
     End Enum
 

@@ -22,7 +22,7 @@ Namespace Widgets
         
         ' ===== Main Drawing Method =====
         
-        Private pThemeManager as ThemeManager
+        Private pThemeManager As ThemeManager
         
         ''' <summary>
         ''' Converts a pixbuf to grayscale for private members
@@ -145,7 +145,7 @@ Namespace Widgets
                 ' Track which levels need lines
                 Dim lLevelLines As New Dictionary(Of Integer, List(Of Integer))
                 
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     If lNode.Level > 0 Then
                         If Not lLevelLines.ContainsKey(lNode.Level - 1) Then
                             lLevelLines(lNode.Level - 1) = New List(Of Integer)
@@ -155,7 +155,7 @@ Namespace Widgets
                 Next
                 
                 ' Draw the lines
-                For Each lLevel In lLevelLines
+                for each lLevel in lLevelLines
                     If lLevel.Value.Count > 0 Then
                         Dim lX As Double = lLevel.Key * pIndentWidth + pPlusMinusSize / 2
                         Dim lMinY As Integer = lLevel.Value.Min()
@@ -192,7 +192,7 @@ Namespace Widgets
                 lContext.SetSourceRGB(0.6, 0.6, 0.6)
                 lContext.LineWidth = 1
                 
-                For i As Integer = 4 To 12 Step 3
+                for i As Integer = 4 To 12 Step 3
                     lContext.MoveTo(i, pCornerBox.AllocatedHeight - 4)
                     lContext.LineTo(pCornerBox.AllocatedWidth - 4, i)
                     lContext.Stroke()
@@ -436,13 +436,13 @@ Namespace Widgets
                 Dim lViewportBottom As Integer = pScrollY + pViewportHeight
                 
                 ' Draw each visible node
-                For Each lNode In pVisibleNodes
+                for each lNode in pVisibleNodes
                     ' Skip nodes outside viewport (viewport culling)
                     If lNode.Y + lNode.Height < lViewportTop Then
-                        Continue For
+                        Continue for
                     End If
                     If lNode.Y > lViewportBottom Then
-                        Exit For ' Nodes are in order, so we can stop here
+                        Exit for ' Nodes are in order, so we can stop here
                     End If
                     
                     ' Draw the node components
@@ -546,45 +546,22 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Draws the icon for a node based on its type
+        ''' Draws the icon for a node based on its type with colorful icons
         ''' </summary>
         ''' <param name="vContext">Cairo context to draw with</param>
         ''' <param name="vX">X position to draw at</param>
         ''' <param name="vY">Y position to draw at</param>
         ''' <param name="vNode">The syntax node to get the icon for</param>
         ''' <remarks>
-        ''' Attempts to load an icon from the theme, falls back to drawing a simple shape
+        ''' Always uses colorful fallback icons instead of monochrome symbolic icons
         ''' </remarks>
         Private Sub DrawIcon(vContext As Cairo.Context, vX As Integer, vY As Integer, vNode As SyntaxNode)
             Try
                 ' Calculate center position
                 Dim lCenterY As Integer = vY + pRowHeight \ 2
                 
-                ' Try to get icon from theme
-                Dim lIconName As String = GetIconNameForNode(vNode)
-                Dim lIconTheme As IconTheme = IconTheme.Default
-                
-                If lIconTheme.HasIcon(lIconName) Then
-                    Try
-                        Dim lPixbuf As Pixbuf = lIconTheme.LoadIcon(lIconName, pIconSize, IconLookupFlags.ForceSvg)
-                        
-                        ' Apply grayscale for private members
-                        If Not vNode.IsPublic AndAlso Not vNode.IsProtected Then
-                            lPixbuf = ConvertToGrayscale(lPixbuf)
-                        End If
-                        
-                        ' Draw the pixbuf
-                        Gdk.CairoHelper.SetSourcePixbuf(vContext, lPixbuf, vX, lCenterY - pIconSize \ 2)
-                        vContext.Paint()
-                        
-                        lPixbuf.Dispose()
-                        Return
-                    Catch
-                        ' Fall through to draw fallback icon
-                    End Try
-                End If
-                
-                ' Draw fallback icon
+                ' For now, always use the colorful fallback icons
+                ' The theme icons are often monochrome/symbolic which look drab
                 DrawFallbackIcon(vContext, vX, lCenterY - pIconSize \ 2, vNode.NodeType)
                 
             Catch ex As Exception
@@ -635,77 +612,158 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Draws a simple fallback icon when theme icon is not available
+        ''' Draws a colorful fallback icon for different node types
         ''' </summary>
         ''' <param name="vContext">Cairo context to draw with</param>
         ''' <param name="vX">X position to draw at</param>
         ''' <param name="vY">Y position to draw at</param>
         ''' <param name="vNodeType">Type of node to draw icon for</param>
         ''' <remarks>
-        ''' Draws simple geometric shapes to represent different node types with theme-aware colors
+        ''' Uses vibrant colors matching VS Code's icon theme for better visual distinction
         ''' </remarks>
         Private Sub DrawFallbackIcon(vContext As Cairo.Context, vX As Integer, vY As Integer, vNodeType As CodeNodeType)
             Try
                 ' Get theme information
-                Dim lThemeName As String = pSettingsManager.GetString("CurrentTheme", "Default Dark")
+                Dim lThemeName As String = If(pSettingsManager IsNot Nothing, 
+                                              pSettingsManager.GetString("CurrentTheme", "Default Dark"), 
+                                              "Default Dark")
                 Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
                 
-                ' Set color based on node type and theme
+                ' Set vibrant colors based on node type and theme
                 Dim lColor As Cairo.Color
                 Select Case vNodeType
+                    Case CodeNodeType.eNamespace
+                        lColor = If(lIsDark, HexToCairoColor("#C77DFF"), HexToCairoColor("#9D4EDD"))  ' Purple for namespaces
+                        
                     Case CodeNodeType.eClass
-                        lColor = If(lIsDark, HexToCairoColor("#4EC9B0"), HexToCairoColor("#2B91AF"))  ' Teal/Blue
+                        lColor = If(lIsDark, HexToCairoColor("#4EC9B0"), HexToCairoColor("#2B91AF"))  ' Teal/Blue for classes
+                        
                     Case CodeNodeType.eInterface
                         lColor = If(lIsDark, HexToCairoColor("#B8D7A3"), HexToCairoColor("#6B8E23"))  ' Light/Dark green
+                        
+                    Case CodeNodeType.eModule
+                        lColor = If(lIsDark, HexToCairoColor("#4CC9F0"), HexToCairoColor("#4361EE"))  ' Cyan/Blue for modules
+                        
+                    Case CodeNodeType.eStructure
+                        lColor = If(lIsDark, HexToCairoColor("#7209B7"), HexToCairoColor("#560BAD"))  ' Deep purple for structures
+                        
+                    Case CodeNodeType.eEnum
+                        lColor = If(lIsDark, HexToCairoColor("#F72585"), HexToCairoColor("#B5179E"))  ' Magenta for enums
+                        
                     Case CodeNodeType.eMethod, CodeNodeType.eFunction
-                        lColor = If(lIsDark, HexToCairoColor("#DCDCAA"), HexToCairoColor("#795E26"))  ' Yellow/Brown
+                        lColor = If(lIsDark, HexToCairoColor("#DCDCAA"), HexToCairoColor("#795E26"))  ' Yellow/Brown for methods
+                        
                     Case CodeNodeType.eProperty
                         lColor = If(lIsDark, HexToCairoColor("#9CDCFE"), HexToCairoColor("#0070C0"))  ' Light/Dark blue
+                        
                     Case CodeNodeType.eField
-                        lColor = If(lIsDark, HexToCairoColor("#C586C0"), HexToCairoColor("#9B4F96"))  ' Magenta
+                        lColor = If(lIsDark, HexToCairoColor("#51CF66"), HexToCairoColor("#2B8A3E"))  ' Green for fields
+                        
+                    Case CodeNodeType.eConstant
+                        lColor = If(lIsDark, HexToCairoColor("#FFB700"), HexToCairoColor("#FF8500"))  ' Orange for constants
+                        
                     Case CodeNodeType.eEvent
-                        lColor = If(lIsDark, HexToCairoColor("#CE9178"), HexToCairoColor("#A31515"))  ' Orange/Red
+                        lColor = If(lIsDark, HexToCairoColor("#CE9178"), HexToCairoColor("#A31515"))  ' Orange/Red for events
+                        
+                    Case CodeNodeType.eDelegate
+                        lColor = If(lIsDark, HexToCairoColor("#C586C0"), HexToCairoColor("#9B4F96"))  ' Light magenta
+                        
+                    Case CodeNodeType.eConstructor
+                        lColor = If(lIsDark, HexToCairoColor("#4CC9F0"), HexToCairoColor("#4361EE"))  ' Cyan like methods
+                        
+                    Case CodeNodeType.eOperator
+                        lColor = If(lIsDark, HexToCairoColor("#D4D4D4"), HexToCairoColor("#000000"))  ' Gray/Black
+                        
+                    Case CodeNodeType.eRegion
+                        lColor = If(lIsDark, HexToCairoColor("#808080"), HexToCairoColor("#606060"))  ' Gray for regions
+                        
                     Case Else
-                        lColor = If(lIsDark, HexToCairoColor("#808080"), HexToCairoColor("#606060"))  ' Gray
+                        lColor = If(lIsDark, HexToCairoColor("#808080"), HexToCairoColor("#606060"))  ' Default gray
                 End Select
                 
                 vContext.SetSourceRGB(lColor.R, lColor.G, lColor.B)
                 
-                ' Draw shape based on node type
+                ' Draw shapes based on node type for better visual distinction
                 Dim lCenterX As Integer = vX + pIconSize \ 2
                 Dim lCenterY As Integer = vY + pIconSize \ 2
                 Dim lRadius As Integer = pIconSize \ 3
                 
                 Select Case vNodeType
-                    Case CodeNodeType.eClass, CodeNodeType.eInterface
-                        ' Rectangle
-                        vContext.Rectangle(vX + 2, vY + 2, pIconSize - 4, pIconSize - 4)
+                    Case CodeNodeType.eNamespace
+                        ' Folder shape for namespaces
+                        vContext.Rectangle(vX + 2, lCenterY - lRadius + 2, pIconSize - 4, lRadius * 2 - 4)
+                        vContext.Fill()
+                        ' Add a tab on top
+                        vContext.Rectangle(vX + 2, lCenterY - lRadius - 2, (pIconSize - 4) \ 2, 4)
+                        vContext.Fill()
                         
-                    Case CodeNodeType.eMethod, CodeNodeType.eFunction
-                        ' Circle
-                        vContext.Arc(lCenterX, lCenterY, lRadius, 0, 2 * Math.PI)
+                    Case CodeNodeType.eClass, CodeNodeType.eModule
+                        ' Square with rounded corners for classes/modules
+                        Dim lSize As Integer = lRadius * 2 - 2
+                        vContext.Rectangle(lCenterX - lRadius + 1, lCenterY - lRadius + 1, lSize, lSize)
+                        vContext.Fill()
                         
-                    Case CodeNodeType.eProperty, CodeNodeType.eField
-                        ' Diamond
+                    Case CodeNodeType.eInterface
+                        ' Diamond shape for interfaces
                         vContext.MoveTo(lCenterX, lCenterY - lRadius)
                         vContext.LineTo(lCenterX + lRadius, lCenterY)
                         vContext.LineTo(lCenterX, lCenterY + lRadius)
                         vContext.LineTo(lCenterX - lRadius, lCenterY)
                         vContext.ClosePath()
+                        vContext.Fill()
+                        
+                    Case CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eConstructor
+                        ' Circle with small square inside for methods
+                        vContext.Arc(lCenterX, lCenterY, lRadius, 0, Math.PI * 2)
+                        vContext.Fill()
+                        ' Add inner detail
+                        vContext.SetSourceRGB(1, 1, 1)  ' White inner detail
+                        vContext.Rectangle(lCenterX - 2, lCenterY - 2, 4, 4)
+                        vContext.Fill()
+                        vContext.SetSourceRGB(lColor.R, lColor.G, lColor.B)  ' Reset color
+                        
+                    Case CodeNodeType.eProperty, CodeNodeType.eField
+                        ' Small square for properties/fields
+                        Dim lSmallSize As Integer = lRadius * 3 \ 2
+                        vContext.Rectangle(lCenterX - lSmallSize \ 2, lCenterY - lSmallSize \ 2, lSmallSize, lSmallSize)
+                        vContext.Fill()
+                        
+                    Case CodeNodeType.eEnum
+                        ' Three horizontal lines for enums
+                        Dim lLineHeight As Integer = 2
+                        Dim lLineSpacing As Integer = 3
+                        for i As Integer = -1 To 1
+                            vContext.Rectangle(vX + 3, lCenterY + i * (lLineHeight + lLineSpacing) - 1, 
+                                             pIconSize - 6, lLineHeight)
+                        Next
+                        vContext.Fill()
                         
                     Case CodeNodeType.eEvent
-                        ' Star (simplified - just a triangle)
+                        ' Lightning bolt shape for events
+                        vContext.MoveTo(lCenterX + 2, lCenterY - lRadius)
+                        vContext.LineTo(lCenterX - 2, lCenterY)
+                        vContext.LineTo(lCenterX, lCenterY)
+                        vContext.LineTo(lCenterX - 2, lCenterY + lRadius)
+                        vContext.Stroke()
+                        
+                    Case CodeNodeType.eStructure
+                        ' Grid pattern for structures
+                        vContext.Rectangle(lCenterX - lRadius, lCenterY - lRadius, lRadius * 2, lRadius * 2)
+                        vContext.Fill()
+                        ' Add grid lines
+                        vContext.SetSourceRGB(1, 1, 1)  ' White lines
+                        vContext.LineWidth = 1
                         vContext.MoveTo(lCenterX, lCenterY - lRadius)
-                        vContext.LineTo(lCenterX + lRadius, lCenterY + lRadius)
-                        vContext.LineTo(lCenterX - lRadius, lCenterY + lRadius)
-                        vContext.ClosePath()
+                        vContext.LineTo(lCenterX, lCenterY + lRadius)
+                        vContext.MoveTo(lCenterX - lRadius, lCenterY)
+                        vContext.LineTo(lCenterX + lRadius, lCenterY)
+                        vContext.Stroke()
                         
                     Case Else
-                        ' Simple filled circle
-                        vContext.Arc(lCenterX, lCenterY, lRadius \ 2, 0, 2 * Math.PI)
+                        ' Default circle for other types
+                        vContext.Arc(lCenterX, lCenterY, lRadius, 0, Math.PI * 2)
+                        vContext.Fill()
                 End Select
-                
-                vContext.Fill()
                 
             Catch ex As Exception
                 Console.WriteLine($"DrawFallbackIcon error: {ex.Message}")
@@ -841,7 +899,7 @@ Namespace Widgets
         Private Sub EnsureThemeManager()
             Try
                 If pThemeManager Is Nothing Then
-                    Dim lGTMEA as New GetThemeManagerEventArgs
+                    Dim lGTMEA As New GetThemeManagerEventArgs
                     RaiseEvent GetThemeManager(lGTMEA)
                     pThemeManager = lGTMEA.ThemeManager
                 End If
@@ -850,7 +908,7 @@ Namespace Widgets
             End Try
         End Sub        
 
-        Public Event GetThemeManager(vGetThemeManagerEventArgs as GetThemeManagerEventArgs)
+        Public Event GetThemeManager(vGetThemeManagerEventArgs As GetThemeManagerEventArgs)
 
         Public Class GetThemeManagerEventArgs
             Public ThemeManager As ThemeManager
@@ -1020,6 +1078,12 @@ Namespace Widgets
         ''' <summary>
         ''' Draws selection highlight for selected node
         ''' </summary>
+        ''' <param name="vContext">Cairo context for drawing</param>
+        ''' <param name="vNode">The visual node to highlight</param>
+        ''' <remarks>
+        ''' Fixed to draw selection rectangle that properly encloses the node content
+        ''' instead of spanning the full width
+        ''' </remarks>
         Private Sub DrawNodeSelection(vContext As Cairo.Context, vNode As VisualNode)
             Try
                 ' Get theme colors
@@ -1032,19 +1096,21 @@ Namespace Widgets
                 Else
                     vContext.SetSourceRGBA(0.0, 0.478, 1.0, 0.2)
                 End If
+                Dim lSelectionWidth As Integer = If(pViewportWidth > 0, pViewportWidth, pContentWidth)
                 
-                ' Draw selection rectangle
-                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
+                ' Draw selection rectangle that encloses the node content
+                vContext.Rectangle(0, vNode.Y - 2, lSelectionWidth, pRowHeight + 2)
                 vContext.Fill()
                 
-                ' Draw selection border
+                ' Draw selection border for better visibility
                 If lIsDark Then
-                    vContext.SetSourceRGB(0.094, 0.447, 0.729)
+                    vContext.SetSourceRGBA(0.094, 0.447, 0.729, 0.6) ' Darker blue for border
                 Else
-                    vContext.SetSourceRGB(0.0, 0.478, 1.0)
+                    vContext.SetSourceRGBA(0.0, 0.478, 1.0, 0.4)
                 End If
+               
+                vContext.Rectangle(0, vNode.Y - 2, lSelectionWidth, pRowHeight + 2)
                 vContext.LineWidth = 1
-                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
                 vContext.Stroke()
                 
             Catch ex As Exception
@@ -1069,9 +1135,9 @@ Namespace Widgets
                 Else
                     vContext.SetSourceRGBA(0.0, 0.0, 0.0, 0.05)
                 End If
-                
+                Dim lSelectionWidth As Integer = If(pViewportWidth > 0, pViewportWidth, pContentWidth)
                 ' Draw hover rectangle
-                vContext.Rectangle(0, vNode.Y, pContentWidth, pRowHeight)
+                vContext.Rectangle(0, vNode.Y, lSelectionWidth, pRowHeight)
                 vContext.Fill()
                 
             Catch ex As Exception

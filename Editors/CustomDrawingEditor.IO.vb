@@ -1,9 +1,10 @@
-' Editors/CustomDrawingEditor.IO.vb - Fixed stream-based I/O operations for CustomDrawingEditor
+' File: CustomDrawingEditor.IO.vb
+' This file should be DELETED or contain only helper methods for text manipulation
+' NO FILE I/O METHODS should exist in CustomDrawingEditor
+
 Imports Gtk
 Imports System
-Imports System.IO
 Imports System.Text
-Imports System.Threading.Tasks
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 
@@ -13,72 +14,58 @@ Namespace Editors
         Inherits Box
         Implements IEditor
         
-
-
+        ' ===== Helper Methods for Text Operations (NOT File I/O) =====
         
-        ' ===== Helper Methods for File Operations =====
-        
-        
-        ' Set text content directly (helper method for backward compatibility)
+        ''' <summary>
+        ''' Sets text content directly into SourceFileInfo
+        ''' </summary>
+        ''' <param name="vText">The text to set</param>
+        ''' <remarks>
+        ''' Helper method for setting content programmatically (e.g., from paste operations)
+        ''' This does NOT involve file I/O
+        ''' </remarks>
         Public Sub SetText(vText As String)
             Try
-                ' Clear undo/redo stacks when setting new content
+                If pSourceFileInfo Is Nothing Then Return
                 
-                ' Split into lines
-                Dim lLines As String() = If(String.IsNullOrEmpty(vText), {""}, vText.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
+                ' Update SourceFileInfo's TextLines
+                pSourceFileInfo.SetText(vText)
                 
-                ' Update text lines
-                pTextLines.Clear()
-                pTextLines.AddRange(lLines)
-                
-                ' Ensure at least one line
-                If pTextLines.Count = 0 Then
-                    pTextLines.Add("")
-                End If
-                
-                ' Update line count and metadata
-                pLineCount = pTextLines.Count
-                ReDim pLineMetadata(pLineCount - 1)
-                For i As Integer = 0 To pLineCount - 1
-                    pLineMetadata(i) = New LineMetadata()
-                Next
                 
                 ' Reset cursor and selection
                 pCursorLine = 0
                 pCursorColumn = 0
                 pSelectionActive = False
-                               
-                ' Mark as unmodified
-                IsModified = False
-
-
-                For i As Integer = 0 To pLineCount -1
-                    ProcessLineFormatting(i)
-                Next
-
-                ' Schedule syntax highlighting
-                ScheduleParse()
-
-                ScheduleFullDocumentParse()
+                
+                ' Mark as modified (in-memory change, not file I/O)
+                IsModified = True
                 
                 ' Trigger events
                 RaiseEvent TextChanged(Me, New EventArgs)
                 RaiseEvent CursorPositionChanged(pCursorLine, pCursorColumn)
-                RaiseEvent UndoRedoStateChanged(False, False)
+                RaiseEvent UndoRedoStateChanged(pUndoRedoManager?.CanUndo, pUndoRedoManager?.CanRedo)
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
                 UpdateScrollbars()
-               
+                
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawingEditor.SetText error: {ex.Message}")
             End Try
         End Sub
         
-        ' Get text content directly (helper method for backward compatibility)
+        ''' <summary>
+        ''' Gets text content from SourceFileInfo
+        ''' </summary>
+        ''' <returns>The complete text content</returns>
+        ''' <remarks>
+        ''' Helper method for getting content programmatically (e.g., for copy operations)
+        ''' This does NOT involve file I/O
+        ''' </remarks>
         Private Function GetText() As String
             Try
-                Return String.Join(Environment.NewLine, pTextLines)
+                If pSourceFileInfo Is Nothing Then Return ""
+                Return String.Join(Environment.NewLine, pSourceFileInfo.TextLines)
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawingEditor.GetText error: {ex.Message}")
@@ -86,9 +73,23 @@ Namespace Editors
             End Try
         End Function
         
-
-
-
+        ''' <summary>
+        ''' Gets all text as a single string
+        ''' </summary>
+        ''' <returns>Complete document text</returns>
+        ''' <remarks>
+        ''' Used for clipboard operations, NOT file I/O
+        ''' </remarks>
+        Public Function GetAllText() As String
+            Return GetText()
+        End Function
+        
+        ' NO LoadFile method
+        ' NO Save method  
+        ' NO SaveAs method
+        ' NO LoadStream method
+        ' NO SaveStream method
+        ' These should all be removed from IEditor interface as well
         
     End Class
     

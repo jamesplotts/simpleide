@@ -372,13 +372,28 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Appends text to the output tab
+        ''' Appends text to the output tab with thread-safe buffer handling
         ''' </summary>
+        ''' <param name="vText">Text to append</param>
         Public Sub AppendOutput(vText As String)
             Try
-                pOutputBuffer.PlaceCursor(pOutputBuffer.EndIter)
+                ' Ensure we're on the UI thread
+                If Not Application.EventsPending() Then
+                    Application.Invoke(Sub() AppendOutput(vText))
+                    Return
+                End If
+                
+                ' Use marks instead of iterators for position tracking
+                Dim lEndMark As TextMark = pOutputBuffer.CreateMark(Nothing, pOutputBuffer.EndIter, False)
+                pOutputBuffer.PlaceCursor(pOutputBuffer.GetIterAtMark(lEndMark))
                 pOutputBuffer.InsertAtCursor(vText)
+                
+                ' Scroll using the mark (which survives buffer changes)
                 ScrollOutputToBottom()
+                
+                ' Clean up the mark
+                pOutputBuffer.DeleteMark(lEndMark)
+                
             Catch ex As Exception
                 Console.WriteLine($"AppendOutput error: {ex.Message}")
             End Try
@@ -387,18 +402,28 @@ Namespace Widgets
         ''' <summary>
         ''' Appends text with a specific tag to the output tab
         ''' </summary>
+        ''' <param name="vText">Text to append</param>
+        ''' <param name="vTag">Tag name to apply</param>
         Public Sub AppendOutput(vText As String, vTag As String)
             Try
-                Dim lIter As TextIter = pOutputBuffer.EndIter
+                ' Ensure we're on the UI thread
+                If Not Application.EventsPending() Then
+                    Application.Invoke(Sub() AppendOutput(vText, vTag))
+                    Return
+                End If
+                
                 Dim lTag As TextTag = pOutputBuffer.TagTable.Lookup(vTag)
                 
+                ' Store the offset before inserting
+                Dim lStartOffset As Integer = pOutputBuffer.CharCount
+                
                 ' Insert the text
-                pOutputBuffer.PlaceCursor(lIter)
+                pOutputBuffer.PlaceCursor(pOutputBuffer.EndIter)
                 pOutputBuffer.InsertAtCursor(vText)
                 
-                ' Apply the tag if found
+                ' Apply the tag if found using offsets (which are stable)
                 If lTag IsNot Nothing Then
-                    Dim lStartIter As TextIter = pOutputBuffer.GetIterAtOffset(lIter.Offset)
+                    Dim lStartIter As TextIter = pOutputBuffer.GetIterAtOffset(lStartOffset)
                     Dim lEndIter As TextIter = pOutputBuffer.EndIter
                     pOutputBuffer.ApplyTag(lTag, lStartIter, lEndIter)
                 End If
@@ -585,16 +610,14 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Scrolls the output text view to the bottom
+        ''' Scrolls the output view to the bottom using marks
         ''' </summary>
         Private Sub ScrollOutputToBottom()
             Try
-                GLib.Timeout.Add(50, Function()
-                    Dim lMark As TextMark = pOutputBuffer.CreateMark(Nothing, pOutputBuffer.EndIter, False)
-                    pOutputTextView.ScrollToMark(lMark, 0, False, 0, 0)
-                    pOutputBuffer.DeleteMark(lMark)
-                    Return False
-                End Function)
+                ' Use a mark to track the end position
+                Dim lEndMark As TextMark = pOutputBuffer.CreateMark(Nothing, pOutputBuffer.EndIter, False)
+                pOutputTextView.ScrollToMark(lEndMark, 0.0, False, 0.0, 0.0)
+                pOutputBuffer.DeleteMark(lEndMark)
             Catch ex As Exception
                 Console.WriteLine($"ScrollOutputToBottom error: {ex.Message}")
             End Try

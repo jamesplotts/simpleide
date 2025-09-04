@@ -4,6 +4,7 @@ Imports System
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Widgets
+Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
     
@@ -402,6 +403,9 @@ End Sub
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Creates the Build menu with proper F5/F6 accelerator labels
+    ''' </summary>
     Private Sub CreateBuildMenu()
         Try
             Dim lBuildMenu As New Menu()
@@ -409,32 +413,47 @@ End Sub
             lBuildMenuItem.Submenu = lBuildMenu
             pMenuBar.Append(lBuildMenuItem)
             
-            ' Build Project
-            Dim lBuild As MenuItem = CreateMenuItemWithIcon("_Build project", "system-run")
+            ' Build Project (F6)
+            Dim lBuild As MenuItem = CreateMenuItemWithIcon("_Build Project", "system-run")
+            lBuild.UseUnderline = True
+            ' Add F6 label to show the shortcut
+            lBuild.Label = "_Build Project" & vbTab & "F6"
             AddHandler lBuild.Activated, AddressOf OnBuildProject
             lBuildMenu.Append(lBuild)
             
+            ' Build and Run (F5)
+            Dim lBuildRun As MenuItem = CreateMenuItemWithIcon("Build and _Run", "media-playback-start")
+            lBuildRun.UseUnderline = True
+            ' Add F5 label to show the shortcut
+            lBuildRun.Label = "Build and _Run" & vbTab & "F5"
+            AddHandler lBuildRun.Activated, AddressOf OnBuildAndRun
+            lBuildMenu.Append(lBuildRun)
+            
             ' Rebuild Project
-            Dim lRebuild As New MenuItem("_Rebuild project")
+            Dim lRebuild As New MenuItem("_Rebuild Project")
             AddHandler lRebuild.Activated, AddressOf OnRebuildProject
             lBuildMenu.Append(lRebuild)
             
             ' Clean Project
-            Dim lClean As New MenuItem("_Clean project")
+            Dim lClean As New MenuItem("_Clean Project")
             AddHandler lClean.Activated, AddressOf OnCleanProject
             lBuildMenu.Append(lClean)
             
             lBuildMenu.Append(New SeparatorMenuItem())
             
-            ' Run
-            Dim lRun As MenuItem = CreateMenuItemWithIcon("_Run", "media-playback-start")
-            ' TOTO: AddHandler lRun.Activated, AddressOf OnRun
+            ' Run Without Building (Ctrl+F5)
+            Dim lRun As MenuItem = CreateMenuItemWithIcon("R_un Without Building", "media-playback-start")
+            lRun.UseUnderline = True
+            lRun.Label = "R_un Without Building" & vbTab & "Ctrl+F5"
+            AddHandler lRun.Activated, AddressOf OnRunWithoutBuilding
             lBuildMenu.Append(lRun)
             
-            ' Debug
-            Dim lDebug As New MenuItem("_Debug")
-            ' TODO: AddHandler lDebug.Activated, AddressOf OnDebug
-            lBuildMenu.Append(lDebug)
+            ' Stop (Shift+F5)
+            Dim lStop As MenuItem = CreateMenuItemWithIcon("_Stop", "process-stop")
+            lStop.UseUnderline = True
+            lStop.Label = "_Stop" & vbTab & "Shift+F5"
+            AddHandler lStop.Activated, AddressOf OnStopDebugging
+            lBuildMenu.Append(lStop)
             
             lBuildMenu.Append(New SeparatorMenuItem())
             
@@ -445,17 +464,66 @@ End Sub
             
             Dim lDebugConfig As New RadioMenuItem("_Debug")
             lDebugConfig.Active = True
-            ' TODO: AddHandler lDebugConfig.Toggled, Sub() If lDebugConfig.Active Then OnConfigurationChanged("Debug")
+            AddHandler lDebugConfig.Toggled, Sub() 
+                If lDebugConfig.Active Then 
+                    OnConfigurationChanged("Debug")
+                End If
+            End Sub
             lConfigMenu.Append(lDebugConfig)
             
             Dim lReleaseConfig As New RadioMenuItem(lDebugConfig.Group, "_Release")
-            ' TODO: AddHandler lReleaseConfig.Toggled, Sub() If lReleaseConfig.Active Then OnConfigurationChanged("Release")
+            AddHandler lReleaseConfig.Toggled, Sub() 
+                If lReleaseConfig.Active Then 
+                    OnConfigurationChanged("Release")
+                End If
+            End Sub
             lConfigMenu.Append(lReleaseConfig)
             
             lBuildMenu.Append(lConfig)
             
+            ' Build Configuration Dialog
+            lBuildMenu.Append(New SeparatorMenuItem())
+            Dim lBuildConfig As New MenuItem("Build _Settings...")
+            AddHandler lBuildConfig.Activated, AddressOf OnBuildConfiguration
+            lBuildMenu.Append(lBuildConfig)
+            
         Catch ex As Exception
             Console.WriteLine($"CreateBuildMenu error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ' Add: SimpleIDE.MainWindow.OnBuildConfiguration
+    ''' <summary>
+    ''' Shows the build configuration dialog
+    ''' </summary>
+    Private Sub OnBuildConfiguration(vSender As Object, vArgs As EventArgs)
+        ConfigureBuild()
+    End Sub
+    
+    ' Add: SimpleIDE.MainWindow.OnRunWithoutBuilding  
+    ''' <summary>
+    ''' Runs the project without building (Ctrl+F5)
+    ''' </summary>
+    Private Sub OnRunWithoutBuilding(vSender As Object, vArgs As EventArgs)
+        Task.Run(Async Function()
+            Await RunProject()
+            Return Nothing
+        End Function)
+    End Sub
+    
+    
+    ''' <summary>
+    ''' Handles build configuration change (Debug/Release)
+    ''' </summary>
+    Private Sub OnConfigurationChanged(vConfiguration As String)
+        Try
+            If pBuildConfiguration IsNot Nothing Then
+                pBuildConfiguration.Configuration = vConfiguration
+                SaveBuildConfiguration()
+                UpdateStatusBar($"Build configuration: {vConfiguration}")
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnConfigurationChanged error: {ex.Message}")
         End Try
     End Sub
     
@@ -763,6 +831,7 @@ End Sub
     ' Apply theme by name (overload for menu usage)
     Private Sub ApplyTheme(vThemeName As String)
         Try
+            UpdateStatusBar("Applying Theme " + vThemeName)
             pThemeManager.SetTheme(vThemeName)
             
             ' Update all open editors
@@ -899,6 +968,123 @@ End Sub
                 
             Catch ex As Exception
                 Console.WriteLine($"AddObjectExplorerDebugMenuItem error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles the Revert to Saved menu action
+        ''' </summary>
+        Private Sub OnRevertToSaved(vSender As Object, vArgs As EventArgs)
+            Try
+                ' Get current tab
+                Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+                If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                    ShowInfo("Revert to Saved", "No file is currently open.")
+                    Return
+                End If
+                
+                ' Check if file has a saved version
+                If String.IsNullOrEmpty(lCurrentTab.FilePath) OrElse lCurrentTab.FilePath.StartsWith("Untitled") Then
+                    ShowInfo("Revert to Saved", "This file has never been saved.")
+                    Return
+                End If
+                
+                ' Check if file exists on disk
+                If Not System.IO.File.Exists(lCurrentTab.FilePath) Then
+                    ShowError("Revert to Saved", "The file no longer exists on disk.")
+                    Return
+                End If
+                
+                ' Check if there are actually changes to revert
+                If Not lCurrentTab.Modified Then
+                    ShowInfo("Revert to Saved", "No changes to revert.")
+                    Return
+                End If
+                
+                ' Confirm with user
+                Dim lDialog As New MessageDialog(
+                    Me,
+                    DialogFlags.Modal,
+                    MessageType.Warning,
+                    ButtonsType.None,
+                    $"Are you sure you want to revert '{System.IO.Path.GetFileName(lCurrentTab.FilePath)}' to the last saved version?{Environment.NewLine}{Environment.NewLine}All unsaved changes will be lost."
+                )
+                
+                lDialog.AddButton("Cancel", ResponseType.Cancel)
+                lDialog.AddButton("Revert", ResponseType.Yes)
+                
+                Dim lResponse As Integer = lDialog.Run()
+                lDialog.Destroy()
+                
+                If lResponse <> CInt(ResponseType.Yes) Then
+                    Return
+                End If
+                
+                ' Get SourceFileInfo and reload it
+                If pProjectManager IsNot Nothing Then
+                    Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lCurrentTab.FilePath)
+                    If lSourceFileInfo IsNot Nothing Then
+                        Console.WriteLine($"Reverting {lCurrentTab.FilePath} To saved version")
+                        
+                        ' Use ReloadFile to reload from disk
+                        If lSourceFileInfo.ReloadFile() Then
+                            ' Update editor with reloaded content
+                            If TypeOf lCurrentTab.Editor Is CustomDrawingEditor Then
+                                Dim lEditor As CustomDrawingEditor = DirectCast(lCurrentTab.Editor, CustomDrawingEditor)
+                                
+                                ' Set the reloaded content in the editor
+                                lEditor.SetText(lSourceFileInfo.GetAllText())
+                                
+                                ' Clear modified flag
+                                lCurrentTab.Modified = False
+                                lEditor.IsModified = False
+                                
+                                ' Update tab label to remove the asterisk
+                                UpdateTabLabel(lCurrentTab)
+                                
+                                ' Update status bar
+                                UpdateStatusBar($"Reverted: {System.IO.Path.GetFileName(lCurrentTab.FilePath)}")
+                                
+                                ' Request re-parsing if needed
+                                If lSourceFileInfo.NeedsParsing Then
+                                    pProjectManager.ParseFile(lSourceFileInfo)
+                                End If
+                            End If
+                        Else
+                            ShowError("Revert Failed", "Failed To reload the file from disk.")
+                        End If
+                    Else
+                        ShowError("Revert Failed", "Could Not find the file information.")
+                    End If
+                Else
+                    ShowError("Revert Failed", "Project manager Is Not available.")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnRevertToSaved error: {ex.Message}")
+                ShowError("Revert error", $"An error occurred While reverting: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Adds the Revert to Saved menu item to the File menu
+        ''' </summary>
+        ''' <param name="vFileMenu">The File menu to add the item to</param>
+        ''' <remarks>
+        ''' Call this in CreateFileMenu after the Save All menu item
+        ''' </remarks>
+        Private Sub AddRevertToSavedMenuItem(vFileMenu As Menu)
+            Try
+                ' Add separator if needed
+                vFileMenu.Append(New SeparatorMenuItem())
+                
+                ' Create Revert to Saved menu item
+                Dim lRevertToSaved As MenuItem = CreateMenuItemWithIcon("_Revert To Saved", "document-revert")
+                AddHandler lRevertToSaved.Activated, AddressOf OnRevertToSaved
+                vFileMenu.Append(lRevertToSaved)
+                
+            Catch ex As Exception
+                Console.WriteLine($"AddRevertToSavedMenuItem error: {ex.Message}")
             End Try
         End Sub
     

@@ -155,6 +155,8 @@ Namespace Models
         Public Property CleanFirst As Boolean = False
         Public Property CleanBeforeBuild As Boolean = False
         Public Property ProjectPath As String = ""
+        Public Property VersionNumber As String = ""   ' e.g. 1.0.0.0 
+
         
         Public Sub New()
         End Sub
@@ -180,7 +182,10 @@ Namespace Models
             If Not String.IsNullOrEmpty(OutputPath) Then
                 lArgs.Add($"-o:""{OutputPath}""")
             End If
-            
+ 
+            If Not String.IsNullOrEmpty(VersionNumber) Then
+                largs.Add("/p:Version=" + VersionNumber.Trim)
+            End If
             ' Verbosity
             lArgs.Add($"-v:{GetVerbosityString()}")
             

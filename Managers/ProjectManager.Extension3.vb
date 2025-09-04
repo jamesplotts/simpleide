@@ -83,59 +83,6 @@ Namespace Managers
             End Try
         End Function
         
-'         ''' <summary>
-'         ''' Rebuilds the project tree from parsed files
-'         ''' </summary>
-'         Public Sub RebuildProjectTree()
-'             Try
-'                 Console.WriteLine("Rebuilding project tree...")
-'                 
-'                 ' Get root namespace name
-'                 Dim lRootNamespaceName As String = pCurrentProjectInfo?.RootNamespace
-'                 If String.IsNullOrEmpty(lRootNamespaceName) Then
-'                     lRootNamespaceName = Path.GetFileNameWithoutExtension(pCurrentProjectInfo?.ProjectPath)
-'                 End If
-'                 
-'                 ' Create fresh project tree structure
-'                 pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, pCurrentProjectInfo.ProjectName)
-'                 Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
-'                 lRootNamespace.IsImplicit = True
-'                 pProjectSyntaxTree.AddChild(lRootNamespace)
-'                 
-'                 ' Dictionary to track namespace nodes - CRITICAL: Clear this to prevent stale references
-'                 Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
-'                 lNamespaceNodes(lRootNamespaceName) = lRootNamespace
-'                 
-'                 ' Rebuild from all parsed source files
-'                 for each lFileEntry in pSourceFiles
-'                     Dim lFileInfo As SourceFileInfo = lFileEntry.Value
-'                     
-'                     If lFileInfo.SyntaxTree IsNot Nothing Then
-'                         ProcessFileStructure(lFileInfo, lRootNamespace, lNamespaceNodes, lRootNamespaceName)
-'                     End If
-'                 Next
-'                 
-'                 ' Sort the entire tree structure
-'                 Console.WriteLine("Sorting project structure...")
-'                 SortNodeChildrenRecursively(pProjectSyntaxTree)
-'                 
-'                 ' Rebuild indexes
-'                 BuildNamespaceIndex()
-'                 BuildTypeIndex()
-'                 
-'                 ' Log final structure
-'                 Console.WriteLine($"Project tree rebuilt with {pSourceFiles.Count} files")
-'                 LogNamespaceStructure(lRootNamespace, 0)
-'                 
-'                 ' Raise events
-'                 RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
-'                 RaiseEvent ProjectStructureChanged(ConvertSyntaxNodeToDocumentNode(pProjectSyntaxTree))
-'                 
-'             Catch ex As Exception
-'                 Console.WriteLine($"RebuildProjectTree error: {ex.Message}")
-'             End Try
-'         End Sub
-        
         ''' <summary>
         ''' Helper method to log namespace structure for debugging
         ''' </summary>
@@ -561,7 +508,7 @@ Namespace Managers
                         
                         ' Load the file
                         Console.WriteLine($"  Loading: {lRelativePath}")
-                        Dim lNewSourceFile As New SourceFileInfo(lFullPath, pCurrentProjectInfo.ProjectDirectory)
+                        Dim lNewSourceFile As New SourceFileInfo(lFullPath, "", pCurrentProjectInfo.ProjectDirectory)
                         
                         ' Read file content
                         Dim lContent As String = System.IO.File.ReadAllText(lFullPath)
@@ -978,168 +925,7 @@ Namespace Managers
             End Try
         End Sub
 
-'         ''' <summary>
-'         ''' Parse a single file using the centralized ProjectParser
-'         ''' </summary>
-'         ''' <param name="vFile">The SourceFileInfo to parse</param>
-'         ''' <returns>The root SyntaxNode of the parsed file or Nothing on failure</returns>
-'         Public Function ParseFile(vFile As SourceFileInfo) As SyntaxNode
-'             Try
-'                 If vFile Is Nothing Then
-'                     Console.WriteLine("ProjectManager.ParseFile: vFile is Nothing")
-'                     Return Nothing
-'                 End If
-'                 
-'                 ' Initialize Parser if needed
-'                 If pParser Is Nothing Then
-'                     pParser = New ProjectParser(Me)
-'                 End If
-'                 
-'                 ' Ensure content is loaded
-'                 If Not vFile.IsLoaded AndAlso Not vFile.IsDemoMode Then
-'                     If Not vFile.LoadContent() Then
-'                         Console.WriteLine($"ProjectManager.ParseFile: Failed to load content for {vFile.FileName}")
-'                         Return Nothing
-'                     End If
-'                 End If
-'                 
-'                 ' Parse the content using a simplified parsing approach for single files
-'                 Dim lResult As SyntaxNode = ParseSingleFile(vFile)
-'                 
-'                 If lResult IsNot Nothing Then
-'                     ' Update the SourceFileInfo with parse results
-'                     vFile.SyntaxTree = lResult
-'                     vFile.LastParsed = DateTime.Now
-'                     vFile.NeedsParsing = False
-'                     
-'                     ' Clear any previous parse errors
-'                     If vFile.ParseErrors Is Nothing Then
-'                         vFile.ParseErrors = New List(Of ParseError)()
-'                     Else
-'                         vFile.ParseErrors.Clear()
-'                     End If
-'                     
-'                     ' Raise the ParseCompleted event
-'                     RaiseEvent ParseCompleted(vFile, lResult)
-'                     
-'                     Console.WriteLine($"ProjectManager.ParseFile: Successfully parsed {vFile.FileName}")
-'                 Else
-'                     Console.WriteLine($"ProjectManager.ParseFile: Failed to parse {vFile.FileName}")
-'                 End If
-'                 
-'                 Return lResult
-'                 
-'             Catch ex As Exception
-'                 Console.WriteLine($"ProjectManager.ParseFile error: {ex.Message}")
-'                 
-'                 ' Add error to file's parse errors
-'                 If vFile.ParseErrors Is Nothing Then
-'                     vFile.ParseErrors = New List(Of ParseError)()
-'                 End If
-'                 
-'                 vFile.ParseErrors.Add(New ParseError with {
-'                     .Message = $"Parse error: {ex.Message}",
-'                     .Line = 0,
-'                     .Column = 0,
-'                     .Severity = ParseErrorSeverity.eError
-'                 })
-'                 
-'                 Return Nothing
-'             End Try
-'         End Function
-        
-'        ''' <summary>
-'        ''' Helper method to parse a single file's content
-'        ''' </summary>
-'        ''' <param name="vFile">The SourceFileInfo to parse</param>
-'        ''' <returns>The root SyntaxNode of the parsed content</returns>
-'        Private Function ParseSingleFile(vFile As SourceFileInfo) As SyntaxNode
-'            Try
-'                ' Create a temporary parser for single file parsing
-'                Dim lTempParser As New ProjectParser(Me)
-'                
-'                ' Parse the file content directly
-'                ' Note: This is a simplified version - the ProjectParser.ParseSourceFile method
-'                ' would need to be made public or we need to create a simpler parse method
-'                
-'                ' For now, create a basic parse result structure
-'                Dim lRootNode As New SyntaxNode(CodeNodeType.eFile, vFile.FileName)
-'                lRootNode.FilePath = vFile.FilePath
-'                
-'                ' Split content into lines
-'                Dim lLines As String() = vFile.Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
-'                
-'                ' Basic parsing - just identify major structures
-'                Dim lCurrentNamespace As SyntaxNode = Nothing
-'                Dim lCurrentType As SyntaxNode = Nothing
-'                Dim lLineNumber As Integer = 0
-'                
-'                for each lLine As String in lLines
-'                    Dim lTrimmedLine As String = lLine.Trim()
-'                    
-'                    ' Skip empty lines and comments
-'                    If String.IsNullOrEmpty(lTrimmedLine) OrElse lTrimmedLine.StartsWith("'") Then
-'                        lLineNumber += 1
-'                        Continue For
-'                    End If
-'                    
-'                    ' Check for namespace
-'                    If lTrimmedLine.StartsWith("Namespace ", StringComparison.OrdinalIgnoreCase) Then
-'                        Dim lNamespaceName As String = lTrimmedLine.Substring(10).Trim()
-'                        lCurrentNamespace = New SyntaxNode(CodeNodeType.eNamespace, lNamespaceName)
-'                        lCurrentNamespace.StartLine = lLineNumber
-'                        lCurrentNamespace.FilePath = vFile.FilePath
-'                        lRootNode.AddChild(lCurrentNamespace)
-'                        
-'                    ' Check for type declarations
-'                    ElseIf Regex.IsMatch(lTrimmedLine, "^\s*(Public|Private|Friend|Protected)?\s*(Class|Module|Interface|Structure)\s+", RegexOptions.IgnoreCase) Then
-'                        Dim lMatch As Match = Regex.Match(lTrimmedLine, "\b(Class|Module|Interface|Structure)\s+(\w+)", RegexOptions.IgnoreCase)
-'                        If lMatch.Success Then
-'                            Dim lTypeName As String = lMatch.Groups(2).Value
-'                            Dim lNodeType As CodeNodeType = CodeNodeType.eClass
-'                            
-'                            Select Case lMatch.Groups(1).Value.ToLower()
-'                                Case "Module" : lNodeType = CodeNodeType.eModule
-'                                Case "Interface" : lNodeType = CodeNodeType.eInterface  
-'                                Case "Structure" : lNodeType = CodeNodeType.eStructure
-'                            End Select
-'                            
-'                            lCurrentType = New SyntaxNode(lNodeType, lTypeName)
-'                            lCurrentType.StartLine = lLineNumber
-'                            lCurrentType.FilePath = vFile.FilePath
-'                            
-'                            If lCurrentNamespace IsNot Nothing Then
-'                                lCurrentNamespace.AddChild(lCurrentType)
-'                            Else
-'                                lRootNode.AddChild(lCurrentType)
-'                            End If
-'                        End If
-'                        
-'                    ' Check for End statements
-'                    ElseIf lTrimmedLine.StartsWith("End ", StringComparison.OrdinalIgnoreCase) Then
-'                        If lTrimmedLine.Equals("End Namespace", StringComparison.OrdinalIgnoreCase) Then
-'                            If lCurrentNamespace IsNot Nothing Then
-'                                lCurrentNamespace.EndLine = lLineNumber
-'                                lCurrentNamespace = Nothing
-'                            End If
-'                        ElseIf Regex.IsMatch(lTrimmedLine, "^End\s+(Class|Module|Interface|Structure)", RegexOptions.IgnoreCase) Then
-'                            If lCurrentType IsNot Nothing Then
-'                                lCurrentType.EndLine = lLineNumber
-'                                lCurrentType = Nothing
-'                            End If
-'                        End If
-'                    End If
-'                    
-'                    lLineNumber += 1
-'                Next
-'                
-'                Return lRootNode
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"ProjectManager.ParseSingleFile error: {ex.Message}")
-'                Return Nothing
-'            End Try
-'        End Function
+
 
         ''' <summary>
         ''' Parse a single file using the centralized ProjectParser
@@ -1152,43 +938,84 @@ Namespace Managers
                 
                 Console.WriteLine($"ProjectManager.ParseFile: {vFile.FileName}")
                 
-                
                 ' Parse the file content
                 Dim lParseResult As Object = Parser.ParseContent(vFile.Content, RootNamespace, vFile.FilePath)
                 
                 ' Update the SourceFileInfo with parse results
                 If lParseResult IsNot Nothing Then
-                    ' Extract SyntaxNode tree from parse result
-                    Dim lResultType = lParseResult.GetType()
-                    Dim lRootNodeProperty = lResultType.GetProperty("RootNode")
-                    
-                    If lRootNodeProperty IsNot Nothing Then
-                        vFile.SyntaxTree = TryCast(lRootNodeProperty.GetValue(lParseResult), SyntaxNode)
-                    End If
-                    
-                    ' Extract any errors
-                    Dim lErrorsProperty = lResultType.GetProperty("Errors")
-                    If lErrorsProperty IsNot Nothing Then
-                        Dim lErrors = TryCast(lErrorsProperty.GetValue(lParseResult), List(Of ParseError))
-                        If lErrors IsNot Nothing Then
-                            vFile.ParseErrors = lErrors
+                    ' Check if it's a ParseResult type
+                    If TypeOf lParseResult Is ParseResult Then
+                        Dim lResult As ParseResult = DirectCast(lParseResult, ParseResult)
+                        
+                        ' Extract the SyntaxNode tree from ParseResult
+                        If lResult.RootNode IsNot Nothing Then
+                            vFile.SyntaxTree = lResult.RootNode
                         End If
+                        
+                        ' CRITICAL FIX: Update LineMetadata with syntax tokens
+                        ' This was missing - causing empty token lists
+                        If lResult.LineMetadata IsNot Nothing Then
+                            vFile.UpdateLineMetadata(lResult)
+                            Console.WriteLine($"Updated LineMetadata for {vFile.FileName} with {lResult.LineMetadata.Length} lines")
+                        End If
+                        
+                        ' Extract any errors
+                        If lResult.Errors IsNot Nothing Then
+                            vFile.ParseErrors = lResult.Errors
+                        End If
+                        
+                        vFile.IsParsed = True
+                        vFile.LastParsed = DateTime.Now
+                        
+                        ' Raise parse completed event with the SyntaxNode
+                        RaiseEvent ParseCompleted(vFile, vFile.SyntaxTree)
+                        
+                        Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
+                        Return vFile.SyntaxTree IsNot Nothing
+                        
+                    ElseIf TypeOf lParseResult Is SyntaxNode Then
+                        ' Handle case where parser returns SyntaxNode directly (legacy)
+                        Dim lNode As SyntaxNode = DirectCast(lParseResult, SyntaxNode)
+                        vFile.SyntaxTree = lNode
+                        vFile.IsParsed = True
+                        vFile.LastParsed = DateTime.Now
+                        
+                        ' Clear any previous parse errors
+                        If vFile.ParseErrors Is Nothing Then
+                            vFile.ParseErrors = New List(Of ParseError)()
+                        Else
+                            vFile.ParseErrors.Clear()
+                        End If
+                        
+                        ' Raise parse completed event
+                        RaiseEvent ParseCompleted(vFile, lNode)
+                        
+                        Console.WriteLine($"Parse complete: {vFile.FileName} - Success (legacy)")
+                        Return True
+                    Else
+                        ' Unknown result type
+                        Console.WriteLine($"ProjectManager.ParseFile error: Unknown parse result type: {lParseResult.GetType().Name}")
+                        Return False
                     End If
-                    
-                    vFile.IsParsed = True
-                    vFile.LastParsed = DateTime.Now
-                    
-                    ' Raise parse completed event
-                    RaiseEvent ParseCompleted(vFile, lParseResult)
-                    
-                    Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
-                    Return vFile.SyntaxTree IsNot Nothing
                 End If
                 
                 Return False
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.ParseFile error: {ex.Message}")
+                
+                ' Add error to file's parse errors
+                If vFile.ParseErrors Is Nothing Then
+                    vFile.ParseErrors = New List(Of ParseError)()
+                End If
+                
+                vFile.ParseErrors.Add(New ParseError with {
+                    .Message = $"Parse error: {ex.Message}",
+                    .Line = 0,
+                    .Column = 0,
+                    .Severity = ParseErrorSeverity.eError
+                })
+                
                 Return False
             End Try
         End Function
@@ -1226,6 +1053,268 @@ Namespace Managers
                 
             Catch ex As Exception
                 Console.WriteLine($"OnDocumentModelRequestProjectManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Load a source file into memory
+        ''' </summary>
+        ''' <param name="vRelativePath">Relative path from project directory</param>
+        ''' <returns>The loaded SourceFileInfo or Nothing on failure</returns>
+        Private Function LoadSourceFile(vRelativePath As String) As SourceFileInfo
+            Try
+                If String.IsNullOrEmpty(vRelativePath) Then Return Nothing
+                
+                ' Get full path
+                Dim lFullPath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, vRelativePath)
+                lFullPath = Path.GetFullPath(lFullPath)
+                
+                ' Check if already loaded
+                If pSourceFiles.ContainsKey(lFullPath) Then
+                    Return pSourceFiles(lFullPath)
+                End If
+                
+                ' Create new SourceFileInfo
+                Dim lSourceFile As New SourceFileInfo(lFullPath, "", pCurrentProjectInfo.ProjectDirectory)
+                
+                ' Set project root namespace
+                lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                
+                ' Wire up the ProjectManagerRequested event
+                AddHandler lSourceFile.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+                
+                ' Load content
+                If lSourceFile.LoadContent() Then
+                    pSourceFiles(lFullPath) = lSourceFile
+                    Console.WriteLine($"Loaded source file: {lSourceFile.FileName}")
+                    Return lSourceFile
+                Else
+                    Console.WriteLine($"Failed to load source file: {lFullPath}")
+                    Return Nothing
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"LoadSourceFile error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Handles SourceFileInfo request for ProjectManager reference
+        ''' </summary>
+        ''' <param name="sender">The SourceFileInfo requesting the reference</param>
+        ''' <param name="e">Event arguments to receive the ProjectManager reference</param>
+        Private Sub OnSourceFileInfoRequestProjectManager(sender As Object, e As ProjectManagerRequestEventArgs)
+            Try
+                ' Provide this ProjectManager instance to the requesting SourceFileInfo
+                e.ProjectManager = Me
+                
+                Dim lSourceFile As SourceFileInfo = TryCast(sender, SourceFileInfo)
+                If lSourceFile IsNot Nothing Then
+                    'Console.WriteLine($"ProjectManager provided to SourceFileInfo: {lSourceFile.FileName}")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnSourceFileInfoRequestProjectManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' Replace: SimpleIDE.Managers.ProjectManager.ApplyCurrentTheme
+        ''' <summary>
+        ''' Applies the current theme to all open files without re-parsing
+        ''' </summary>
+        ''' <remarks>
+        ''' This method updates CharacterColors arrays based on existing LineMetadata tokens.
+        ''' It does NOT trigger re-parsing - it only updates colors based on already-parsed token types.
+        ''' This provides immediate theme updates without the overhead of re-parsing.
+        ''' </remarks>
+        Public Sub ApplyCurrentTheme()
+            Try
+                'Console.WriteLine("ProjectManager.ApplyCurrentTheme: Starting theme application")
+                
+                ' DIAGNOSTIC: Check if method is being called
+                'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Method called at {DateTime.Now:HH:mm:ss.fff}")
+                
+                ' Verify we have a theme manager
+                If pThemeManager Is Nothing Then
+                    Console.WriteLine("ProjectManager.ApplyCurrentTheme: ERROR - No ThemeManager available")
+                    Return
+                End If
+                
+                'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: ThemeManager found")
+                
+                ' Get the current theme
+                Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lCurrentTheme Is Nothing Then
+                '    Console.WriteLine("ProjectManager.ApplyCurrentTheme: ERROR - No current theme available")
+                    Return
+                End If
+                
+                'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Applying theme '{lCurrentTheme.Name}'")
+                'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Theme foreground color: {lCurrentTheme.ForegroundColor}")
+                
+                ' Get default color from theme
+                Dim lDefaultColor As String = lCurrentTheme.ForegroundColor
+                If String.IsNullOrEmpty(lDefaultColor) Then
+                    lDefaultColor = "#D4D4D4"  ' Fallback default
+                    'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Using fallback Default color: {lDefaultColor}")
+                Else
+                '    Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Using theme Default color: {lDefaultColor}")
+                End If
+                
+                ' Create color map from current theme
+                Dim lColorMap As Dictionary(Of SyntaxTokenType, String) = CreateThemeColorMap(lCurrentTheme)
+                'Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Color map created with {lColorMap.Count} entries")
+                
+                ' Report progress for theme application
+                Dim lTotalFiles As Integer = pSourceFiles.Count
+                Dim lProcessedFiles As Integer = 0
+                
+                ' Apply colors to each file's CharacterColors array
+                For Each lKvp As KeyValuePair(Of String, SourceFileInfo) In pSourceFiles
+                    Dim lSourceFile As SourceFileInfo = lKvp.Value
+                    
+                    ' Update status periodically
+                    lProcessedFiles += 1
+                    If lProcessedFiles Mod Math.Max(1, lTotalFiles \ 10) = 0 OrElse lProcessedFiles = lTotalFiles Then
+                        ' Report progress (95-99% range for theme application)
+                        Dim lProgress As Double = 95 + (lProcessedFiles / CDbl(lTotalFiles)) * 4
+                        
+                        ' This is already on UI thread if called from fixed ParseAllFilesAsync
+                        RaiseEvent ParsingProgress(lProcessedFiles, lTotalFiles, $"Applying colors To {lSourceFile.FileName}")
+                    End If
+                    
+                    ' Skip if not parsed
+                    If Not lSourceFile.IsParsed OrElse lSourceFile.LineMetadata Is Nothing Then
+                '       Console.WriteLine($"  Skipping {lSourceFile.FileName} - Not parsed")
+                        Continue For
+                    End If
+                    
+                    ' Check if file has syntax tokens
+                    Dim lHasTokens As Boolean = False
+                    For Each lMetadata In lSourceFile.LineMetadata
+                        If lMetadata?.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
+                            lHasTokens = True
+                            Exit For
+                        End If
+                    Next
+                    
+                    If Not lHasTokens Then
+                 '      Console.WriteLine($"  Skipping {lSourceFile.FileName} - no syntax tokens")
+                        Continue For
+                    End If
+                    
+                    'Console.WriteLine($"  Applying theme To {lSourceFile.FileName}")
+                    
+                    ' Apply the color map to generate CharacterColors
+                    UpdateFileColorsFromTheme(lSourceFile)
+                    
+                    ' Notify that rendering has changed
+                    lSourceFile.NotifyRenderingChanged(0, lSourceFile.TextLines.Count - 1)
+                Next
+                
+        '       Console.WriteLine($"ProjectManager.ApplyCurrentTheme: Completed applying theme To {lProcessedFiles} files")
+                
+                ' Final progress update
+                RaiseEvent ParsingProgress(lTotalFiles, lTotalFiles, "Theme application complete")
+                
+            Catch ex As Exception
+                Console.WriteLine($"ProjectManager.ApplyCurrentTheme error: {ex.Message}")
+                Console.WriteLine($"  Stack: {ex.StackTrace}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Creates a color map from theme for syntax token types
+        ''' </summary>
+        ''' <param name="vTheme">The theme to extract colors from</param>
+        ''' <returns>Dictionary mapping SyntaxTokenType to color strings</returns>
+        Private Function CreateThemeColorMap(vTheme As EditorTheme) As Dictionary(Of SyntaxTokenType, String)
+            Try
+                Dim lColorMap As New Dictionary(Of SyntaxTokenType, String)
+                
+                ' Use theme's SyntaxColors if available
+                If vTheme.SyntaxColors IsNot Nothing Then
+                    ' Map SyntaxColorSet.Tags to SyntaxTokenType with colors
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eKeyword) Then
+                        lColorMap(SyntaxTokenType.eKeyword) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eKeyword)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eString) Then
+                        lColorMap(SyntaxTokenType.eString) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eString)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eComment) Then
+                        lColorMap(SyntaxTokenType.eComment) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eComment)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eNumber) Then
+                        lColorMap(SyntaxTokenType.eNumber) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eNumber)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eType) Then
+                        lColorMap(SyntaxTokenType.eType) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eType)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eIdentifier) Then
+                        lColorMap(SyntaxTokenType.eIdentifier) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier)
+                    End If
+                    
+                    If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eOperator) Then
+                        lColorMap(SyntaxTokenType.eOperator) = vTheme.SyntaxColors(SyntaxColorSet.Tags.eOperator)
+                    End If
+                End If
+                
+                ' Add fallback colors for any missing mappings
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eKeyword) Then lColorMap(SyntaxTokenType.eKeyword) = "#569CD6"
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eString) Then lColorMap(SyntaxTokenType.eString) = "#CE9178"
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eComment) Then lColorMap(SyntaxTokenType.eComment) = "#6A9955"
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eNumber) Then lColorMap(SyntaxTokenType.eNumber) = "#B5CEA8"
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eType) Then lColorMap(SyntaxTokenType.eType) = "#4EC9B0"
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eIdentifier) Then lColorMap(SyntaxTokenType.eIdentifier) = vTheme.ForegroundColor
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eOperator) Then lColorMap(SyntaxTokenType.eOperator) = vTheme.ForegroundColor
+                If Not lColorMap.ContainsKey(SyntaxTokenType.eNormal) Then lColorMap(SyntaxTokenType.eNormal) = vTheme.ForegroundColor
+                
+                Return lColorMap
+                
+            Catch ex As Exception
+                Console.WriteLine($"CreateThemeColorMap error: {ex.Message}")
+                ' Return a basic color map on error
+                Return New Dictionary(Of SyntaxTokenType, String)
+            End Try
+        End Function
+        
+
+
+
+
+        ''' <summary>
+        ''' Updates the CharacterColors array for a specific file based on current theme
+        ''' </summary>
+        ''' <param name="vFile">The source file to update colors for</param>
+        ''' <remarks>
+        ''' Public method to allow editors to request color updates without re-parsing.
+        ''' This is useful when an editor is first shown or needs to refresh colors.
+        ''' </remarks>
+        Public Sub UpdateFileColors(vFile As SourceFileInfo)
+            Try
+                If vFile Is Nothing Then
+                    Console.WriteLine($"UpdateFileColors: File is Nothing")
+                    Return
+                End If
+                
+                Console.WriteLine($"UpdateFileColors: Updating colors for {vFile.FileName}")
+                
+                ' Use the existing private method to do the actual work
+                UpdateFileColorsFromTheme(vFile)
+                
+                ' Notify the file that rendering has changed
+                vFile.NotifyRenderingChanged(0, vFile.TextLines.Count - 1)
+                
+                Console.WriteLine($"UpdateFileColors: Completed and notified rendering change")
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateFileColors error: {ex.Message}")
             End Try
         End Sub
         

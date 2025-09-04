@@ -25,6 +25,74 @@ Partial Public Class MainWindow
     Private pLoadCancellationToken As CancellationTokenSource
     
     ' ===== Enhanced Project Loading Methods =====
+
+    ''' <summary>
+    ''' Loads a project with progress bar updates in the status bar
+    ''' </summary>
+    ''' <param name="vProjectPath">Path to the project file</param>
+    Private Sub LoadProjectWithProgressBar(vProjectPath As String)
+        Try
+            Console.WriteLine($"LoadProjectWithProgressBar: Loading {vProjectPath}")
+            
+            ' Show initial status
+            UpdateStatusBar("Loading project structure...")
+            ShowProgressBar(True)
+            UpdateProgressBar(0)
+            
+            ' Hook up parsing progress events
+            RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar
+            AddHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar
+            
+            ' Store total files for progress calculation
+            pTotalFilesToParse = 0
+            pCurrentFileParsed = 0
+            
+            ' Load the project
+            If pProjectManager.LoadProjectWithParsing(vProjectPath) Then
+                ' Success - update UI
+                pCurrentProject = vProjectPath
+                SetProjectRoot(vProjectPath)
+                
+                ' Update Project Explorer
+                pProjectExplorer?.LoadProjectFromManager()
+                
+                ' Update UI elements
+                UpdateWindowTitle()
+                UpdateToolbarButtons()
+                UpdateProjectRelatedUIState(True)
+                
+                ' Add to recent projects
+                pSettingsManager?.AddRecentProject(vProjectPath)
+                
+                ' Final status
+                UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
+                
+                
+                Console.WriteLine($"Project loaded successfully: {vProjectPath}")
+            Else
+                ' Failed
+                pCurrentProject = ""
+                UpdateStatusBar("Failed to load project")
+                ShowError("Project Load Failed", $"Failed to load project: {vProjectPath}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"LoadProjectWithProgressBar error: {ex.Message}")
+            pCurrentProject = ""
+            UpdateStatusBar("Project load error")
+            ShowError("Project Load Error", ex.Message)
+        Finally
+            ' Hide progress bar after a short delay
+            GLib.Timeout.Add(500, Function()
+                ShowProgressBar(False)
+                Return False
+            End Function)
+            
+            ' Unhook event
+            RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar
+        End Try
+    End Sub
+
     
     ''' <summary>
     ''' Load project with progress dialog and DocumentModel management
@@ -284,7 +352,7 @@ Partial Public Class MainWindow
             End If
             
             ' Check if already open in a tab
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If TypeOf lPage Is ScrolledWindow Then
                     Dim lScrolled As ScrolledWindow = CType(lPage, ScrolledWindow)
@@ -344,7 +412,7 @@ Partial Public Class MainWindow
         
         Dim lCount As Integer = 1
         
-        For Each lChild In vNode.Children
+        for each lChild in vNode.Children
             lCount += CountNodesRecursive(lChild)
         Next
         
@@ -372,7 +440,7 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub ShowErrorDialog(vTitle As String, vMessage As String)
         Try
-            Dim lDialog As New MessageDialog(Me, DialogFlags.Modal, MessageType.Error, ButtonsType.Ok, vMessage)
+            Dim lDialog As New MessageDialog(Me, DialogFlags.Modal, MessageType.error, ButtonsType.Ok, vMessage)
             lDialog.Title = vTitle
             lDialog.Run()
             lDialog.Destroy()
@@ -395,14 +463,14 @@ Partial Public Class MainWindow
             lSyntaxNode.EndColumn = vDocNode.EndColumn
             
             ' Copy attributes
-            For Each lAttr In vDocNode.Attributes
+            for each lAttr in vDocNode.Attributes
                 If Not lSyntaxNode.Attributes.ContainsKey(lAttr.key) Then
                     lSyntaxNode.Attributes(lAttr.key) = lAttr.Value.ToString()
                 End If
             Next
             
             ' Recursively convert children
-            For Each lChildNode In vDocNode.Children
+            for each lChildNode in vDocNode.Children
                 Dim lChildSyntaxNode As SyntaxNode = ConvertDocumentNodeToSyntaxNode(lChildNode)
                 If lChildSyntaxNode IsNot Nothing Then
                     lSyntaxNode.AddChild(lChildSyntaxNode)
@@ -455,5 +523,67 @@ Partial Public Class MainWindow
             Console.WriteLine($"RefreshObjectExplorer error: {ex.Message}")
         End Try
     End Sub  
+
+    ''' <summary>
+    ''' Handles parsing progress updates with progress bar
+    ''' </summary>
+    ''' <param name="vCurrent">Current file number being parsed</param>
+    ''' <param name="vTotal">Total number of files to parse</param>
+    ''' <param name="vFileName">Name of the file being parsed</param>
+    Private Sub OnProjectParsingProgressWithBar(vCurrent As Integer, vTotal As Integer, vFileName As String)
+        Try
+            ' Store totals
+            pTotalFilesToParse = vTotal
+            pCurrentFileParsed = vCurrent
+            
+            ' Calculate percentage based on phase
+            Dim lPercentage As Double = 0
+            Dim lStatusMessage As String = ""
+            
+            If vTotal > 0 Then
+                ' Check what phase we're in based on the filename/message
+                If vFileName.Contains("Starting parse") OrElse vFileName.Contains("Initializing") Then
+                    ' Initial phase
+                    lPercentage = 0
+                    lStatusMessage = "Initializing parser..."
+                ElseIf vFileName.Contains("Theme application complete") Then
+                    ' Final completion - ensure we're at 100%
+                    lPercentage = 100
+                    lStatusMessage = "Complete!"
+                ElseIf vFileName.Contains("Applying theme") OrElse vFileName.Contains("Applying colors") Then
+                    ' Theme application phase (95-99%)
+                    lPercentage = 95
+                    lStatusMessage = "Applying syntax colors..."
+                Else
+                    ' Main parsing phase (5-95%)
+                    ' Scale the file progress to fit in 5-95% range
+                    lPercentage = 5 + (vCurrent / CDbl(vTotal)) * 90
+                    
+                    ' Create status message
+                    Dim lShortName As String = System.IO.Path.GetFileName(vFileName)
+                    lStatusMessage = $"Parsing files ({vCurrent}/{vTotal}): {lShortName}"
+                End If
+            Else
+                ' No files, just show 100%
+                lPercentage = 100
+                lStatusMessage = "No files to parse"
+            End If
+            
+            ' Update status and progress bar
+            UpdateStatusBar(lStatusMessage)
+            UpdateProgressBar(lPercentage)
+            
+            ' Process GTK events periodically to keep UI responsive
+            ' But not on every update to avoid slowing down
+            If vCurrent Mod 5 = 0 OrElse vCurrent = vTotal OrElse vFileName.Contains("complete") Then
+                While Application.EventsPending()
+                    Application.RunIteration(False)
+                End While
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectParsingProgressWithBar error: {ex.Message}")
+        End Try
+    End Sub
 
 End Class

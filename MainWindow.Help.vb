@@ -9,6 +9,65 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Managers
 
 Partial Public Class MainWindow
+
+    ' Help system integration
+'     Private Sub InitializeHelpSystem()
+'         Try
+'             ' Add help menu items
+'             If pHelpMenu IsNot Nothing Then
+'                 ' Separator
+'                 pHelpMenu.Add(New SeparatorMenuItem())
+'                 
+'                 ' Online Help
+'                 Dim lOnlineHelpItem As New MenuItem("Online Help")
+'                 AddHandler lOnlineHelpItem.Activated, AddressOf OnShowOnlineHelp
+'                 pHelpMenu.Add(lOnlineHelpItem)
+'                 
+'                 ' Context Help
+'                 Dim lContextHelpItem As New MenuItem("Context Help")
+'                 AddHandler lContextHelpItem.Activated, AddressOf OnShowContextHelp
+'                 pHelpMenu.Add(lContextHelpItem)
+'                 
+'                 ' GTK# Documentation
+'                 Dim lGtkHelpItem As New MenuItem("GTK# Documentation")
+'                 AddHandler lGtkHelpItem.Activated, AddressOf OnShowGtkHelp
+'                 pHelpMenu.Add(lGtkHelpItem)
+'                 
+'                 ' .NET Documentation
+'                 Dim lDotNetHelpItem As New MenuItem(".NET Documentation")
+'                 AddHandler lDotNetHelpItem.Activated, AddressOf OnShowDotNetHelp
+'                 pHelpMenu.Add(lDotNetHelpItem)
+'             End If
+'             
+'             ' Add help toolbar button
+'             If pToolbar IsNot Nothing Then
+'                 pToolbar.Insert(New SeparatorToolItem(), -1)
+'                 
+'                 Dim lHelpButton As New ToolButton(Nothing, "Help")
+'                 lHelpButton.IconWidget = Image.NewFromIconName("help-browser", IconSize.SmallToolbar)
+'                 lHelpButton.TooltipText = "Show online help resources"
+'                 AddHandler lHelpButton.Clicked, AddressOf OnShowOnlineHelp
+'                 pToolbar.Insert(lHelpButton, -1)
+'             End If
+'             
+'             ' Add F1 key binding for context help
+'             Dim lAccelGroup As New AccelGroup()
+'             AddAccelGroup(lAccelGroup)
+'             
+'             ' F1 for context help
+'             lAccelGroup.Connect(
+'                 Gdk.Key.F1,
+'                 Gdk.ModifierType.None,
+'                 AccelFlags.Visible,
+'                 AddressOf OnF1Help
+'             )
+'             
+'             Console.WriteLine("Help system initialized successfully")
+'             
+'         Catch ex As Exception
+'             Console.WriteLine($"Error initializing help system: {ex.Message}")
+'         End Try
+'     End Sub
     
     ' ===== Help Menu Handlers =====
     
@@ -55,22 +114,27 @@ Partial Public Class MainWindow
     End Sub
     
     ' Context-sensitive help (F1)
+
+    ''' <summary>
+    ''' Shows context-sensitive help based on current editor context
+    ''' </summary>
     Public Sub OnContextHelp(vSender As Object, vArgs As EventArgs)
         Try
             ' Get current context
             Dim lContext As String = GetCurrentHelpContext()
             
             If Not String.IsNullOrEmpty(lContext) Then
-                ShowContextHelp(lContext)
+                ShowContextHelpInTab(lContext)
             Else
-                ShowHelpPanel()
+                ' No specific context, show general help
+                OpenHelpTab()
             End If
             
         Catch ex As Exception
             Console.WriteLine($"OnContextHelp error: {ex.Message}")
         End Try
-    End Sub
-    
+    End Sub 
+   
     ' Show keyboard shortcuts
     Public Sub OnKeyboardShortcuts(vSender As Object, vArgs As EventArgs)
         Try
@@ -84,28 +148,18 @@ Partial Public Class MainWindow
     
     ' ===== Help System Implementation =====
     
-    ' Show the help panel in bottom panel
+    ''' <summary>
+    ''' Shows the help browser in a center tab (replaced bottom panel approach)
+    ''' </summary>
     Private Sub ShowHelpPanel()
         Try
-            ' Check if help panel exists
-            If pHelpViewerPanel Is Nothing Then
-                
-                ' Add event handlers
-                AddHandler pHelpViewerPanel.TitleChanged, AddressOf OnHelpTitleChanged
-                
-                ' Add to bottom panel
-                'p'BottomNotebook.AppendPage(pHelpViewerPanel, New Label("Help"))
-            End If
-            
-            ' Show bottom panel
-'            pBottomPanel.Position = pBottomPanel.Allocation.Height - 300
-            pBottomPanelManager.ShowTabByType(BottomPanelManager.BottomPanelTab.eHelpViewer)
-            
+            ' Open help in a new tab instead of bottom panel
+            OpenHelpTab()
         Catch ex As Exception
             Console.WriteLine($"ShowHelpPanel error: {ex.Message}")
         End Try
-    End Sub
-    
+    End Sub    
+
     ' Get current help context based on active editor
     Private Function GetCurrentHelpContext() As String
         Try
@@ -254,10 +308,11 @@ Partial Public Class MainWindow
             lText.AppendLine("  Ctrl+X          Cut selection")
             lText.AppendLine("  Ctrl+C          Copy")
             lText.AppendLine("  Ctrl+V          Paste")
+            lText.AppendLine("  Ctrl+Shift+V    Smart Paste (strips comments, fixes indentation)")
             lText.AppendLine("  Ctrl+A          Select All")
             lText.AppendLine("  Ctrl+/          Toggle Comment")
-            lText.AppendLine()
-            
+            lText.AppendLine()      
+      
             lText.AppendLine("Navigation:")
             lText.AppendLine("  Ctrl+F          Find")
             lText.AppendLine("  Ctrl+H          Replace")
@@ -302,13 +357,13 @@ Partial Public Class MainWindow
             lText.AppendLine()
             
             lText.AppendLine("Note: Ctrl+Y is the traditional VB 'Cut Line' command,")
-            lText.AppendLine("      not Redo. Use Ctrl+R or Ctrl+Shift+Z for Redo.")
+            lText.AppendLine("      Not Redo. Use Ctrl+R Or Ctrl+Shift+Z for Redo.")
             
             Return lText.ToString()
             
         Catch ex As Exception
             Console.WriteLine($"BuildKeyboardShortcutsText error: {ex.Message}")
-            Return "Error building keyboard shortcuts text"
+            Return "error building keyboard shortcuts text"
         End Try
     End Function
     

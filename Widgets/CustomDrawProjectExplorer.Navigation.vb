@@ -27,7 +27,7 @@ Namespace Widgets
                 Dim lSelectedPath As String = Nothing
                 If pSelectedNode IsNot Nothing Then
                     lSelectedPath = GetNodePath(pSelectedNode.Node)
-                    Console.WriteLine($"RebuildVisualTree: Preserving selection for path '{lSelectedPath}'")
+                    'Console.WriteLine($"RebuildVisualTree: Preserving selection for path '{lSelectedPath}'")
                 End If
                 
                 ' Clear the visual nodes
@@ -59,13 +59,13 @@ Namespace Widgets
                     For Each lNode In pVisibleNodes
                         If GetNodePath(lNode.Node) = lSelectedPath Then
                             pSelectedNode = lNode
-                            Console.WriteLine($"RebuildVisualTree: Restored selection for '{lNode.Node.Name}'")
+                            'Console.WriteLine($"RebuildVisualTree: Restored selection for '{lNode.Node.Name}'")
                             Exit for
                         End If
                     Next
                     
                     If pSelectedNode Is Nothing Then
-                        Console.WriteLine($"RebuildVisualTree: Could not restore selection for path '{lSelectedPath}'")
+                        'Console.WriteLine($"RebuildVisualTree: Could not restore selection for path '{lSelectedPath}'")
                     End If
                 End If
                 
@@ -86,11 +86,11 @@ Namespace Widgets
         Private Sub BuildVisualNodes(vNode As ProjectNode, vDepth As Integer, ByRef vY As Integer)
             Try
                 If vNode Is Nothing Then 
-                    Console.WriteLine("BuildVisualNodes: Node Is Nothing")
+'                    Console.WriteLine("BuildVisualNodes: Node Is Nothing")
                     Return
                 End If
                 
-                Console.WriteLine($"BuildVisualNodes: {vNode.Name} (Depth={vDepth}, Y={vY})")
+                'Console.WriteLine($"BuildVisualNodes: {vNode.Name} (Depth={vDepth}, Y={vY})") 
                 
                 ' Calculate the actual depth for rendering
                 ' Special nodes at root level should be indented the same as regular folders
@@ -116,7 +116,7 @@ Namespace Widgets
                 Dim lNodePath As String = GetNodePath(vNode)
                 lVisualNode.IsExpanded = pExpandedNodes.Contains(lNodePath)
                 
-                Console.WriteLine($"  Path: {lNodePath}, IsExpanded: {lVisualNode.IsExpanded}, HasChildren: {lHasChildren}")
+                'Console.WriteLine($"  Path: {lNodePath}, IsExpanded: {lVisualNode.IsExpanded}, HasChildren: {lHasChildren}")
                 
                 ' Calculate component rectangles with proper alignment
                 ' The rectangles are relative to the node's X position
@@ -142,7 +142,7 @@ Namespace Widgets
                 
                 ' Add to visible nodes
                 pVisibleNodes.Add(lVisualNode)
-                Console.WriteLine($"  Added To visible nodes (count={pVisibleNodes.Count})")
+                'Console.WriteLine($"  Added To visible nodes (count={pVisibleNodes.Count})")
                 
                 ' Cache node
                 pNodeCache(lNodePath) = lVisualNode
@@ -433,6 +433,36 @@ Namespace Widgets
         End Sub
         
         ' ===== Scrolling Methods =====
+
+        ''' <summary>
+        ''' Updates scrollbars based on content size
+        ''' </summary>
+        Private Sub UpdateScrollbars()
+            Try
+                If pHScrollBar Is Nothing OrElse pVScrollBar Is Nothing Then Return
+                
+                ' Update horizontal scrollbar
+                pHScrollBar.Adjustment.Lower = 0
+                pHScrollBar.Adjustment.Upper = Math.Max(pContentWidth, pViewportWidth)
+                pHScrollBar.Adjustment.PageSize = pViewportWidth
+                pHScrollBar.Adjustment.StepIncrement = 20
+                pHScrollBar.Adjustment.PageIncrement = pViewportWidth
+                
+                ' Update vertical scrollbar
+                pVScrollBar.Adjustment.Lower = 0
+                pVScrollBar.Adjustment.Upper = Math.Max(pContentHeight, pViewportHeight)
+                pVScrollBar.Adjustment.PageSize = pViewportHeight
+                pVScrollBar.Adjustment.StepIncrement = pRowHeight
+                pVScrollBar.Adjustment.PageIncrement = pViewportHeight
+                
+                ' Ensure scroll positions are valid
+                pScrollX = Math.Min(pScrollX, CInt(pHScrollBar.Adjustment.Upper - pHScrollBar.Adjustment.PageSize))
+                pScrollY = Math.Min(pScrollY, CInt(pVScrollBar.Adjustment.Upper - pVScrollBar.Adjustment.PageSize))
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateScrollbars error: {ex.Message}")
+            End Try
+        End Sub
         
         ''' <summary>
         ''' Scrolls to ensure a node is visible (both horizontal and vertical)
@@ -493,36 +523,6 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"ScrollToNodeVerticalOnly error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Updates scrollbars based on content size
-        ''' </summary>
-        Private Sub UpdateScrollbars()
-            Try
-                If pHScrollBar Is Nothing OrElse pVScrollBar Is Nothing Then Return
-                
-                ' Update horizontal scrollbar
-                pHScrollBar.Adjustment.Lower = 0
-                pHScrollBar.Adjustment.Upper = Math.Max(pContentWidth, pViewportWidth)
-                pHScrollBar.Adjustment.PageSize = pViewportWidth
-                pHScrollBar.Adjustment.StepIncrement = 20
-                pHScrollBar.Adjustment.PageIncrement = pViewportWidth
-                
-                ' Update vertical scrollbar
-                pVScrollBar.Adjustment.Lower = 0
-                pVScrollBar.Adjustment.Upper = Math.Max(pContentHeight, pViewportHeight)
-                pVScrollBar.Adjustment.PageSize = pViewportHeight
-                pVScrollBar.Adjustment.StepIncrement = pRowHeight
-                pVScrollBar.Adjustment.PageIncrement = pViewportHeight
-                
-                ' Ensure scroll positions are valid
-                pScrollX = Math.Min(pScrollX, CInt(pHScrollBar.Adjustment.Upper - pHScrollBar.Adjustment.PageSize))
-                pScrollY = Math.Min(pScrollY, CInt(pVScrollBar.Adjustment.Upper - pVScrollBar.Adjustment.PageSize))
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateScrollbars error: {ex.Message}")
             End Try
         End Sub
 

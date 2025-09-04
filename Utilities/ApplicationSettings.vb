@@ -169,15 +169,15 @@ Namespace Utilities
                 SetValue("LeftPanelWidth", Value)
             End Set
         End Property
-        
-        Public Property BottomPanelHeight As Integer
-            Get
-                Return GetValue("BottomPanelHeight", 200)
-            End Get
-            Set(Value As Integer)
-                SetValue("BottomPanelHeight", Value)
-            End Set
-        End Property
+'         
+'         Public Property BottomPanelHeight As Integer
+'             Get
+'                 Return GetValue("BottomPanelHeight", 200)
+'             End Get
+'             Set(Value As Integer)
+'                 SetValue("BottomPanelHeight", Value)
+'             End Set
+'         End Property
         
         Public Property ShowProjectExplorer As Boolean
             Get
@@ -431,29 +431,29 @@ Namespace Utilities
             End Set
         End Property
 
-        Public Property EnableLogging As String
+        Public Property EnableLogging As Boolean
             Get
-                Return GetValue("EnableLogging", "")
+                Return GetValue("EnableLogging", False)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("EnableLogging", Value)
             End Set
         End Property
 
-        Public Property SaveWindowLayout As String
+        Public Property SaveWindowLayout As Boolean
             Get
-                Return GetValue("SaveWindowLayout", "")
+                Return GetValue("SaveWindowLayout", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("SaveWindowLayout", Value)
             End Set
         End Property
 
-        Public Property AutoSave As String
+        Public Property AutoSave As Boolean
             Get
-                Return GetValue("AutoSave", "")
+                Return GetValue("AutoSave", False)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("AutoSave", Value)
             End Set
         End Property
@@ -494,65 +494,65 @@ Namespace Utilities
             End Set
         End Property
 
-         Public Property ClearOutputOnBuild As String
+         Public Property ClearOutputOnBuild As Boolean
             Get
-                Return GetValue("ClearOutputOnBuild", "")
+                Return GetValue("ClearOutputOnBuild", False)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("ClearOutputOnBuild", Value)
             End Set
         End Property
 
-        Public Property BuildBeforeRun As String
+        Public Property BuildBeforeRun As Boolean
             Get
-                Return GetValue("BuildBeforeRun", "")
+                Return GetValue("BuildBeforeRun", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("BuildBeforeRun", Value)
             End Set
         End Property
 
-        Public Property ShowStatusBar As String
+        Public Property ShowStatusBar As Boolean
             Get
-                Return GetValue("ShowStatusBar", "")
+                Return GetValue("ShowStatusBar", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("ShowStatusBar", Value)
             End Set
         End Property
 
-        Public Property AutoIndent As String
+        Public Property AutoIndent As Boolean
             Get
-                Return GetValue("AutoIndent", "")
+                Return GetValue("AutoIndent", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("AutoIndent", Value)
             End Set
         End Property
 
-        Public Property HighlightCurrentLine As String
+        Public Property HighlightCurrentLine As Boolean
             Get
-                Return GetValue("HighlightCurrentLine", "")
+                Return GetValue("HighlightCurrentLine", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("HighlightCurrentLine", Value)
             End Set
         End Property
 
-        Public Property BraceMatching As String
+        Public Property BraceMatching As Boolean
             Get
-                Return GetValue("BraceMatching", "")
+                Return GetValue("BraceMatching", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("BraceMatching", Value)
             End Set
         End Property
 
-        Public Property ShowWhitespace As String
+        Public Property ShowWhitespace As Boolean
             Get
-                Return GetValue("ShowWhitespace", "")
+                Return GetValue("ShowWhitespace", True)
             End Get
-            Set(Value As String)
+            Set(Value As Boolean)
                 SetValue("ShowWhitespace", Value)
             End Set
         End Property

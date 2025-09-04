@@ -54,7 +54,7 @@ Namespace Editors
                 vLine = Math.Max(0, Math.Min(vLine, pLineCount - 1))
                 vColumn = Math.Max(0, vColumn)
                 If vLine < pLineCount Then
-                    vColumn = Math.Min(vColumn, pTextLines(vLine).Length)
+                    vColumn = Math.Min(vColumn, TextLines(vLine).Length)
                 End If
                 
                 pSelectionStartLine = vLine
@@ -75,7 +75,7 @@ Namespace Editors
                 vEndLine = Math.Max(0, Math.Min(vEndLine, pLineCount - 1))
                 vEndColumn = Math.Max(0, vEndColumn)
                 If vEndLine < pLineCount Then
-                    vEndColumn = Math.Min(vEndColumn, pTextLines(vEndLine).Length)
+                    vEndColumn = Math.Min(vEndColumn, TextLines(vEndLine).Length)
                 End If
                 
                 pSelectionEndLine = vEndLine
@@ -133,7 +133,7 @@ Namespace Editors
                     SetCursorPosition(pCursorLine, pCursorColumn - 1)
                 ElseIf pCursorLine > 0 Then
                     ' Move to end of previous line
-                    SetCursorPosition(pCursorLine - 1, pTextLines(pCursorLine - 1).Length)
+                    SetCursorPosition(pCursorLine - 1, TextLines(pCursorLine - 1).Length)
                 End If
                 
                 If vExtendSelection Then
@@ -156,7 +156,7 @@ Namespace Editors
                     End If
                 End If
                 
-                If pCursorLine < pLineCount AndAlso pCursorColumn < pTextLines(pCursorLine).Length Then
+                If pCursorLine < pLineCount AndAlso pCursorColumn < TextLines(pCursorLine).Length Then
                     SetCursorPosition(pCursorLine, pCursorColumn + 1)
                 ElseIf pCursorLine < pLineCount - 1 Then
                     ' Move to start of next line
@@ -254,7 +254,7 @@ Namespace Editors
                 End If
                 
                 If pCursorLine < pLineCount Then
-                    SetCursorPosition(pCursorLine, pTextLines(pCursorLine).Length)
+                    SetCursorPosition(pCursorLine, TextLines(pCursorLine).Length)
                 End If
                 
                 If vExtendSelection Then
@@ -320,7 +320,7 @@ Namespace Editors
             Try
                 If pCursorLine >= pLineCount Then Return ""
                 
-                Dim lLine As String = pTextLines(pCursorLine)
+                Dim lLine As String = TextLines(pCursorLine)
                 If String.IsNullOrEmpty(lLine) OrElse pCursorColumn > lLine.Length Then
                     Return ""
                 End If
@@ -388,7 +388,7 @@ Namespace Editors
                     pSelectionStartLine = 0
                     pSelectionStartColumn = 0
                     pSelectionEndLine = pLineCount - 1
-                    pSelectionEndColumn = pTextLines(pLineCount - 1).Length
+                    pSelectionEndColumn = TextLines(pLineCount - 1).Length
                     pSelectionActive = True
                     pHasSelection = True
                     
@@ -411,11 +411,11 @@ Namespace Editors
                 Dim vStartColumn As Integer = vStartPosition.Column
                 Dim vEndColumn As Integer = vEndPosition.Column
                 If vStartLine < pLineCount Then
-                    vStartColumn = Math.Max(0, Math.Min(vStartColumn, pTextLines(vStartLine).Length))
+                    vStartColumn = Math.Max(0, Math.Min(vStartColumn, TextLines(vStartLine).Length))
                 End If
                 
                 If vEndLine < pLineCount Then
-                    vEndColumn = Math.Max(0, Math.Min(vEndColumn, pTextLines(vEndLine).Length))
+                    vEndColumn = Math.Max(0, Math.Min(vEndColumn, TextLines(vEndLine).Length))
                 End If
                 
                 ' Set selection
@@ -441,7 +441,7 @@ Namespace Editors
         ''' <summary>
         ''' Selects an entire line including the newline character
         ''' </summary>
-'         ''' <param name="vLine">Line number to select (0-based)</param>
+        ''' <param name="vLine">Line number to select (0-based)</param>
         Public Sub SelectLine(vLine As Integer) Implements IEditor.SelectLine
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
@@ -464,9 +464,9 @@ Namespace Editors
                 Else
                     ' Last line - select to end
                     pSelectionEndLine = vLine
-                    pSelectionEndColumn = pTextLines(vLine).Length
+                    pSelectionEndColumn = TextLines(vLine).Length
                     ' Move cursor to end of line
-                    SetCursorPosition(vLine, pTextLines(vLine).Length)
+                    SetCursorPosition(vLine, TextLines(vLine).Length)
                 End If
                 
                 ' Mark as having selection
@@ -512,7 +512,7 @@ Namespace Editors
                 
                 ' For the end column, include the entire last line
                 If lEndLine < pLineCount Then
-                    pSelectionEndColumn = pTextLines(lEndLine).Length
+                    pSelectionEndColumn = TextLines(lEndLine).Length
                 Else
                     pSelectionEndColumn = 0
                 End If
@@ -537,9 +537,17 @@ Namespace Editors
         
         ' ===== GetSelectedText Implementation =====
         
+        ''' <summary>
+        ''' Gets the currently selected text
+        ''' </summary>
+        ''' <returns>The selected text or empty string if no selection</returns>
+        ''' <remarks>
+        ''' Updated to get text from SourceFileInfo
+        ''' </remarks>
         Public Function GetSelectedText() As String Implements IEditor.GetSelectedText
             Try
                 If Not pHasSelection Then Return ""
+                If pSourceFileInfo Is Nothing Then Return ""
                 
                 ' Normalize selection
                 Dim lStartLine As Integer = pSelectionStartLine
@@ -559,9 +567,9 @@ Namespace Editors
                 If lStartLine = lEndLine Then
                     ' Single line selection
                     If lStartLine < pLineCount Then
-                        Dim lLine As String = pTextLines(lStartLine)
+                        Dim lLine As String = pSourceFileInfo.TextLines(lStartLine)
                         Dim lLength As Integer = Math.Min(lEndColumn - lStartColumn, lLine.Length - lStartColumn)
-                        If lLength > 0 Then
+                        If lLength > 0 AndAlso lStartColumn < lLine.Length Then
                             lText.Append(lLine.Substring(lStartColumn, lLength))
                         End If
                     End If
@@ -569,7 +577,7 @@ Namespace Editors
                     ' Multi-line selection
                     ' First line
                     If lStartLine < pLineCount Then
-                        Dim lLine As String = pTextLines(lStartLine)
+                        Dim lLine As String = pSourceFileInfo.TextLines(lStartLine)
                         If lStartColumn < lLine.Length Then
                             lText.AppendLine(lLine.Substring(lStartColumn))
                         Else
@@ -580,15 +588,15 @@ Namespace Editors
                     ' Middle lines
                     for i As Integer = lStartLine + 1 To lEndLine - 1
                         If i < pLineCount Then
-                            lText.AppendLine(pTextLines(i))
+                            lText.AppendLine(pSourceFileInfo.TextLines(i))
                         End If
                     Next
                     
                     ' Last line
                     If lEndLine < pLineCount Then
-                        Dim lLine As String = pTextLines(lEndLine)
-                        If lEndColumn > 0 Then
-                            lText.Append(lLine.Substring(0, Math.Min(lEndColumn, lLine.Length)))
+                        Dim lLine As String = pSourceFileInfo.TextLines(lEndLine)
+                        If lEndColumn > 0 AndAlso lEndColumn <= lLine.Length Then
+                            lText.Append(lLine.Substring(0, lEndColumn))
                         End If
                     End If
                 End If

@@ -49,17 +49,6 @@ Namespace Editors
         End Sub
 
         
-        ' ===== Helper to update the parsing completion =====
-        ' Call this method at the end of UpdateMetadataFromParse in CustomDrawingEditor.Parsing.vb
-        Private Sub NotifyParsingComplete()
-            Try
-                ' Notify listeners that parsing is complete
-                RaiseDocumentParsedEvent()
-                
-            Catch ex As Exception
-                Console.WriteLine($"NotifyParsingComplete error: {ex.Message}")
-            End Try
-        End Sub
         
     End Class
     

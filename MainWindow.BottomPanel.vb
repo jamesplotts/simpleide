@@ -32,12 +32,12 @@ Partial Public Class MainWindow
             
             ' Adjust paned position if needed
             If pCenterVPaned IsNot Nothing Then
-                Dim lHeight As Integer = pSettingsManager.BottomPanelHeight
-                If lHeight < 50 Then lHeight = BOTTOM_PANEL_HEIGHT
-                
                 If pCenterVPaned.AllocatedHeight > 0 Then
+                    ' Always use default height of 200 pixels
+                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
                     Dim lMaxPosition As Integer = pCenterVPaned.AllocatedHeight - 50
-                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, CInt(pCenterVPaned.AllocatedHeight / 4)))
+                    Dim lTargetPosition As Integer = pCenterVPaned.AllocatedHeight - lDefaultHeight
+                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
                 End If
             End If
             
@@ -570,7 +570,7 @@ Partial Public Class MainWindow
             pCenterVPaned.Data("MinPosition") = lMinEditorHeight
             pCenterVPaned.Data("MaxPosition") = lMaxEditorHeight
             
-            Console.WriteLine($"Paned constraints set: Height={lTotalHeight}, MinPos={lMinEditorHeight}, MaxPos={lMaxEditorHeight}")
+            'Console.WriteLine($"Paned constraints set: Height={lTotalHeight}, MinPos={lMinEditorHeight}, MaxPos={lMaxEditorHeight}")
             
         Catch ex As Exception
             Console.WriteLine($"UpdatePanedConstraints error: {ex.Message}")
@@ -608,12 +608,6 @@ Partial Public Class MainWindow
             pIsDraggingPaned = False
             Console.WriteLine("Stopped dragging paned separator")
             
-            ' Save the position
-            If pCenterVPaned IsNot Nothing AndAlso pCenterVPaned.AllocatedHeight > 0 Then
-                Dim lBottomHeight As Integer = pCenterVPaned.AllocatedHeight - pCenterVPaned.Position
-                pSettingsManager.BottomPanelHeight = lBottomHeight
-                Console.WriteLine($"Saved bottom panel height: {lBottomHeight}")
-            End If
             
             Return False
         Catch ex As Exception
@@ -656,7 +650,7 @@ Partial Public Class MainWindow
             ' Apply constraints
             If lCurrentPos < lMinPos Then
                 pCenterVPaned.Position = lMinPos
-                Console.WriteLine($"Enforced min position: {lMinPos}")
+                'Console.WriteLine($"Enforced min position: {lMinPos}")
             ElseIf lCurrentPos > lMaxPos Then
                 pCenterVPaned.Position = lMaxPos
                 Console.WriteLine($"Enforced max position: {lMaxPos}")

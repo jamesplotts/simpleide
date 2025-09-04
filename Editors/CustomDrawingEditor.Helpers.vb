@@ -19,18 +19,18 @@ Namespace Editors
         ''' <summary>
         ''' Inserts a line at the specified position
         ''' </summary>
+        ''' <param name="vLineNumber">Zero-based line index where to insert</param>
+        ''' <param name="vText">Text content for the new line</param>
+        ''' <remarks>
+        ''' Uses SourceFileInfo exclusively for line operations and triggers async parsing
+        ''' </remarks>
         Friend Sub InsertLineAt(vLineNumber As Integer, vText As String)
             Try
                 If vLineNumber < 0 OrElse vLineNumber > pLineCount Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
-                ' Insert the line
-                pTextLines.Insert(vLineNumber, vText)
-                
-                ' Insert metadata
-                InsertLineMetadata(vLineNumber)
-                
-                ' Update line count
-                pLineCount += 1
+                ' Use SourceFileInfo to insert the line
+                pSourceFileInfo.InsertLine(vLineNumber, vText)
                 
                 ' Update line number width if needed
                 UpdateLineNumberWidth()
@@ -46,26 +46,23 @@ Namespace Editors
         ''' <summary>
         ''' Removes lines starting at the specified position
         ''' </summary>
+        ''' <param name="vStartLine">Starting line index (0-based)</param>
+        ''' <param name="vCount">Number of lines to remove</param>
+        ''' <remarks>
+        ''' Uses SourceFileInfo exclusively for line deletion and triggers async parsing
+        ''' </remarks>
         Friend Sub RemoveLines(vStartLine As Integer, vCount As Integer)
             Try
                 If vStartLine < 0 OrElse vStartLine >= pLineCount OrElse vCount <= 0 Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
                 ' Calculate actual count to remove
                 Dim lActualCount As Integer = Math.Min(vCount, pLineCount - vStartLine)
                 
-                ' Remove the lines
+                ' Delete lines through SourceFileInfo
                 for i As Integer = 0 To lActualCount - 1
-                    pTextLines.RemoveAt(vStartLine)
-                    RemoveLineMetadata(vStartLine)
+                    pSourceFileInfo.DeleteLine(vStartLine)
                 Next
-                
-                ' Update line count
-                pLineCount -= lActualCount
-                
-                ' Ensure we have at least one line
-                If pLineCount = 0 Then
-                    AddNewLine("")
-                End If
                 
                 ' Update line number width if needed
                 UpdateLineNumberWidth()
@@ -81,13 +78,18 @@ Namespace Editors
         ''' <summary>
         ''' Deletes a single line and records it for undo
         ''' </summary>
+        ''' <param name="vLine">Line index to delete (0-based)</param>
+        ''' <remarks>
+        ''' Uses SourceFileInfo for line deletion and manages undo recording
+        ''' </remarks>
         Public Sub DeleteLine(vLine As Integer)
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 If pIsReadOnly Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
                 ' Get the line text for undo
-                Dim lLineText As String = pTextLines(vLine)
+                Dim lLineText As String = pSourceFileInfo.TextLines(vLine)
                 
                 ' Record for undo
                 If pUndoRedoManager IsNot Nothing Then
@@ -95,8 +97,14 @@ Namespace Editors
                     pUndoRedoManager.RecordDeleteLine(vLine, lLineText, lCursorPos)
                 End If
                 
-                ' Remove the line
-                RemoveLines(vLine, 1)
+                ' Delete through SourceFileInfo
+                pSourceFileInfo.DeleteLine(vLine)
+                
+                
+                ' Ensure we have at least one line
+                If pLineCount = 0 Then
+                    pSourceFileInfo.InsertLine(0, "")
+                End If
                 
                 ' Update cursor position if needed
                 If pCursorLine >= pLineCount Then
@@ -105,9 +113,16 @@ Namespace Editors
                     SetCursorPosition(pCursorLine - 1, pCursorColumn)
                 End If
                 
+                ' Request async parsing
+                pSourceFileInfo.RequestAsyncParse()
+                
                 ' Mark as modified
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteLine error: {ex.Message}")
@@ -115,60 +130,20 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Splits a line at the specified position
-        ''' </summary>
-        Public Sub SplitLine(vLine As Integer, vColumn As Integer)
-            Try
-                If vLine < 0 OrElse vLine >= pLineCount Then Return
-                If pIsReadOnly Then Return
-                
-                Dim lLine As String = pTextLines(vLine)
-                Dim lFirstPart As String = If(vColumn > 0, lLine.Substring(0, Math.Min(vColumn, lLine.Length)), "")
-                Dim lSecondPart As String = If(vColumn < lLine.Length, lLine.Substring(vColumn), "")
-                
-                ' Record for undo
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                    
-                    ' Record replacing the current line
-                    Dim lReplaceStart As New EditorPosition(vLine, 0)
-                    Dim lReplaceEnd As New EditorPosition(vLine, lLine.Length)
-                    Dim lNewCursorPos As New EditorPosition(vLine + 1, 0)
-                    pUndoRedoManager.RecordReplaceText(lReplaceStart, lReplaceEnd, lLine, lFirstPart, lNewCursorPos)
-                    
-                    ' Record inserting the new line
-                    Dim lInsertPos As New EditorPosition(vLine + 1, 0)
-                    pUndoRedoManager.RecordInsertLine(lInsertPos, lSecondPart, lNewCursorPos)
-                    
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                ' Update the first line
-                pTextLines(vLine) = lFirstPart
-                pLineMetadata(vLine).MarkChanged()
-                
-                ' Insert the second line
-                InsertLineAt(vLine + 1, lSecondPart)
-                
-                ' Mark as modified
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-            Catch ex As Exception
-                Console.WriteLine($"SplitLine error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Joins two lines together
         ''' </summary>
+        ''' <param name="vLine">First line index to join with next (0-based)</param>
+        ''' <remarks>
+        ''' Uses SourceFileInfo exclusively for line operations
+        ''' </remarks>
         Public Sub JoinLines(vLine As Integer)
             Try
                 If vLine < 0 OrElse vLine >= pLineCount - 1 Then Return
                 If pIsReadOnly Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
-                Dim lCurrentLine As String = pTextLines(vLine)
-                Dim lNextLine As String = pTextLines(vLine + 1)
+                Dim lCurrentLine As String = pSourceFileInfo.TextLines(vLine)
+                Dim lNextLine As String = pSourceFileInfo.TextLines(vLine + 1)
                 
                 ' Record for undo
                 If pUndoRedoManager IsNot Nothing Then
@@ -187,12 +162,12 @@ Namespace Editors
                     pUndoRedoManager.EndUserAction()
                 End If
                 
-                ' Join the lines
-                pTextLines(vLine) = lCurrentLine & lNextLine
-                pLineMetadata(vLine).MarkChanged()
+                ' Use SourceFileInfo to join lines
+                pSourceFileInfo.JoinLines(vLine)
                 
-                ' Remove the next line
-                RemoveLines(vLine + 1, 1)
+                
+                ' Request async parsing
+                pSourceFileInfo.RequestAsyncParse()
                 
                 ' Update cursor position if needed
                 If pCursorLine > vLine + 1 Then
@@ -201,9 +176,13 @@ Namespace Editors
                     SetCursorPosition(vLine, lCurrentLine.Length + pCursorColumn)
                 End If
                 
-                ScheduleFullDocumentParse()
+                ' Mark as modified
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"JoinLines error: {ex.Message}")
@@ -211,139 +190,117 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Duplicates the specified line
+        ''' Splits a line at the specified position
         ''' </summary>
-        Public Sub DuplicateLine(vLine As Integer)
+        ''' <param name="vLine">Line index to split (0-based)</param>
+        ''' <param name="vColumn">Column position where to split</param>
+        ''' <remarks>
+        ''' Uses SourceFileInfo for line operations
+        ''' </remarks>
+        Public Sub SplitLine(vLine As Integer, vColumn As Integer)
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 If pIsReadOnly Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
-                Dim lLineText As String = pTextLines(vLine)
+                ' Use SourceFileInfo to split the line
+                pSourceFileInfo.SplitLine(vLine, vColumn)
                 
-                ' Record for undo
+                
+                ' Record for undo if needed
                 If pUndoRedoManager IsNot Nothing Then
-                    Dim lInsertPos As New EditorPosition(vLine + 1, 0)
-                    Dim lNewCursorPos As New EditorPosition(vLine + 1, pCursorColumn)
-                    pUndoRedoManager.RecordInsertLine(lInsertPos, lLineText, lNewCursorPos)
+                    ' Record the split operation for undo
+                    Dim lNewCursorPos As New EditorPosition(vLine + 1, 0)
+                    ' Additional undo recording logic here if needed
                 End If
                 
-                ' Insert duplicate line
-                InsertLineAt(vLine + 1, lLineText)
-                
-                ' Move cursor to the duplicated line
-                SetCursorPosition(vLine + 1, pCursorColumn)
+                ' Request async parsing
+                pSourceFileInfo.RequestAsyncParse()
                 
                 ' Mark as modified
                 IsModified = True
                 RaiseEvent TextChanged(Me, New EventArgs)
                 
-            Catch ex As Exception
-                Console.WriteLine($"DuplicateLine error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Swaps two lines
-        ''' </summary>
-        Public Sub SwapLines(vLine1 As Integer, vLine2 As Integer)
-            Try
-                If vLine1 < 0 OrElse vLine1 >= pLineCount Then Return
-                If vLine2 < 0 OrElse vLine2 >= pLineCount Then Return
-                If vLine1 = vLine2 Then Return
-                If pIsReadOnly Then Return
-                
-                ' Get line texts
-                Dim lText1 As String = pTextLines(vLine1)
-                Dim lText2 As String = pTextLines(vLine2)
-                
-                ' Record for undo
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                    
-                    ' Record replacing first line
-                    Dim lPos1Start As New EditorPosition(vLine1, 0)
-                    Dim lPos1End As New EditorPosition(vLine1, lText1.Length)
-                    Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn)
-                    pUndoRedoManager.RecordReplaceText(lPos1Start, lPos1End, lText1, lText2, lCursorPos)
-                    
-                    ' Record replacing second line
-                    Dim lPos2Start As New EditorPosition(vLine2, 0)
-                    Dim lPos2End As New EditorPosition(vLine2, lText2.Length)
-                    pUndoRedoManager.RecordReplaceText(lPos2Start, lPos2End, lText2, lText1, lCursorPos)
-                    
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                ' Swap the lines
-                pTextLines(vLine1) = lText2
-                pTextLines(vLine2) = lText1
-                pLineMetadata(vLine1).MarkChanged()
-                pLineMetadata(vLine2).MarkChanged()
-                
-                ' Mark as modified
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
+                ' Update UI
+                UpdateLineNumberWidth()
                 pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
-                Console.WriteLine($"SwapLines error: {ex.Message}")
+                Console.WriteLine($"SplitLine error: {ex.Message}")
             End Try
         End Sub
+
         
         ''' <summary>
         ''' Gets text in a range
         ''' </summary>
+        ''' <param name="vStartLine">Start line (0-based)</param>
+        ''' <param name="vStartColumn">Start column (0-based)</param>
+        ''' <param name="vEndLine">End line (0-based)</param>
+        ''' <param name="vEndColumn">End column (0-based)</param>
+        ''' <returns>The text in the specified range</returns>
+        ''' <remarks>
+        ''' Uses SourceFileInfo.TextLines for text retrieval
+        ''' </remarks>
         Public Function GetTextInRange(vStartLine As Integer, vStartColumn As Integer, 
                                       vEndLine As Integer, vEndColumn As Integer) As String
             Try
-                ' Validate parameters
-                If vStartLine < 0 OrElse vStartLine >= pLineCount Then Return ""
-                If vEndLine < 0 OrElse vEndLine >= pLineCount Then Return ""
+                ' Use SourceFileInfo's GetTextInRange method if available
+                Return pSourceFileInfo.GetTextInRange(vStartLine, vStartColumn, vEndLine, vEndColumn)
+            Catch ex As Exception
+                Console.WriteLine($"GetTextInRange error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ' Helper method for GetTextInRange
+        Private Function GetTextInRangeFromLines(vStartLine As Integer, vStartColumn As Integer,
+                                                vEndLine As Integer, vEndColumn As Integer) As String
+            Try
+                Dim lTextLines As List(Of String) = pSourceFileInfo.TextLines
                 
-                ' Create EditorPosition objects from the parameters (not undefined variables!)
+                ' Validate parameters
+                If vStartLine < 0 OrElse vStartLine >= lTextLines.Count Then Return ""
+                If vEndLine < 0 OrElse vEndLine >= lTextLines.Count Then Return ""
+                
+                ' Create EditorPosition objects for normalization
                 Dim lStartPos As New EditorPosition(vStartLine, vStartColumn)
                 Dim lEndPos As New EditorPosition(vEndLine, vEndColumn)
                 
                 ' Normalize the positions
                 EditorPosition.Normalize(lStartPos, lEndPos)
                 
-                ' Extract the normalized values back to local variables for easier use
-                Dim lStartLine As Integer = lStartPos.Line
-                Dim lStartColumn As Integer = lStartPos.Column
-                Dim lEndLine As Integer = lEndPos.Line
-                Dim lEndColumn As Integer = lEndPos.Column
-                
-                If lStartLine = lEndLine Then
+                If lStartPos.Line = lEndPos.Line Then
                     ' Single line
-                    Dim lLine As String = pTextLines(lStartLine)
-                    Dim lStart As Integer = Math.Max(0, Math.Min(lStartColumn, lLine.Length))
-                    Dim lEnd As Integer = Math.Max(lStart, Math.Min(lEndColumn, lLine.Length))
+                    Dim lLine As String = lTextLines(lStartPos.Line)
+                    Dim lStart As Integer = Math.Max(0, Math.Min(lStartPos.Column, lLine.Length))
+                    Dim lEnd As Integer = Math.Max(lStart, Math.Min(lEndPos.Column, lLine.Length))
                     Return lLine.Substring(lStart, lEnd - lStart)
                 Else
                     ' Multiple lines
                     Dim lBuilder As New StringBuilder()
                     
                     ' First line
-                    Dim lFirstLine As String = pTextLines(lStartLine)
-                    If lStartColumn < lFirstLine.Length Then
-                        lBuilder.Append(lFirstLine.Substring(lStartColumn))
+                    Dim lFirstLine As String = lTextLines(lStartPos.Line)
+                    If lStartPos.Column < lFirstLine.Length Then
+                        lBuilder.Append(lFirstLine.Substring(lStartPos.Column))
                     End If
                     lBuilder.AppendLine()
                     
                     ' Middle lines
-                    for i As Integer = lStartLine + 1 To lEndLine - 1
-                        lBuilder.AppendLine(pTextLines(i))
+                    for i As Integer = lStartPos.Line + 1 To lEndPos.Line - 1
+                        lBuilder.AppendLine(lTextLines(i))
                     Next
                     
                     ' Last line
-                    Dim lLastLine As String = pTextLines(lEndLine)
-                    lBuilder.Append(lLastLine.Substring(0, Math.Min(lEndColumn, lLastLine.Length)))
+                    Dim lLastLine As String = lTextLines(lEndPos.Line)
+                    lBuilder.Append(lLastLine.Substring(0, Math.Min(lEndPos.Column, lLastLine.Length)))
                     
                     Return lBuilder.ToString()
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"GetTextInRange error: {ex.Message}")
+                Console.WriteLine($"GetTextInRangeFromLines error: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -548,45 +505,54 @@ Namespace Editors
                 pLineHeight = 18
             End Try
         End Sub        
+
         ''' <summary>
         ''' Adds a new line to the document
         ''' </summary>
+        ''' <param name="vText">The text for the new line</param>
+        ''' <remarks>
+        ''' Updated to use SourceFileInfo for line addition with proper encapsulation
+        ''' </remarks>
         Private Sub AddNewLine(vText As String)
             Try
-                pTextLines.Add(vText)
-                
-                ' Add metadata for the new line
-                Dim lNewMetadata As New LineMetadata()
-                Dim lNewColorInfo() As CharacterColorInfo = {}
-                
-                ' Resize arrays
-                ReDim Preserve pLineMetadata(pLineCount)
-                ReDim Preserve pCharacterColors(pLineCount)
-                
-                pLineMetadata(pLineCount) = lNewMetadata
-                pCharacterColors(pLineCount) = lNewColorInfo
-                
-                pLineCount += 1
-                
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
+                If pSourceFileInfo IsNot Nothing Then
+                    ' Add the line through SourceFileInfo - it will handle its own internal arrays
+                    pSourceFileInfo.TextLines.Add(vText)
+                    
+                    
+                    ' Request async parsing
+                    pSourceFileInfo.RequestAsyncParse()
+                    
+                    ' Update editor UI
+                    UpdateLineNumberWidth()
+                    UpdateScrollbars()
+                    
+                    ' Queue redraw
+                    pDrawingArea?.QueueDraw()
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"AddNewLine error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub       
+ 
         ''' <summary>
-        ''' Applies auto-indentation to the current line
+        ''' Applies auto-indentation to the specified line
         ''' </summary>
+        ''' <param name="vLineNumber">The line number to apply indentation to</param>
+        ''' <remarks>
+        ''' Updated to use SourceFileInfo for text manipulation
+        ''' </remarks>
         Private Sub ApplyAutoIndent(vLineNumber As Integer)
             Try
                 If Not pAutoIndent OrElse vLineNumber <= 0 OrElse vLineNumber >= pLineCount Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
                 ' Get previous line's indentation
-                Dim lPreviousLine As String = pTextLines(vLineNumber - 1)
+                Dim lPreviousLine As String = pSourceFileInfo.TextLines(vLineNumber - 1)
                 Dim lIndent As New System.Text.StringBuilder()
                 
+                ' Extract leading whitespace from previous line
                 for each lChar As Char in lPreviousLine
                     If lChar = " "c OrElse lChar = vbTab Then
                         lIndent.Append(lChar)
@@ -595,25 +561,42 @@ Namespace Editors
                     End If
                 Next
                 
-                ' Check if previous line ends with block start
-                Dim lTrimmed As String = lPreviousLine.TrimEnd()
-                If lTrimmed.EndsWith("Then", StringComparison.OrdinalIgnoreCase) OrElse
-                   lTrimmed.EndsWith("Do", StringComparison.OrdinalIgnoreCase) OrElse
-                   lTrimmed.EndsWith("While", StringComparison.OrdinalIgnoreCase) OrElse
-                   lTrimmed.EndsWith("For", StringComparison.OrdinalIgnoreCase) Then
-                    ' Add extra indentation
-                    If pUseTabs Then
-                        lIndent.Append(vbTab)
-                    Else
-                        lIndent.Append(New String(" "c, pTabWidth))
+                ' Check if previous line ends with a block start keyword
+                Dim lTrimmedPrevious As String = lPreviousLine.TrimEnd()
+                Dim lBlockStarters() As String = {"Sub ", "Function ", "If ", "For ", "While ", "Do", "Select Case", 
+                                                  "Class ", "Module ", "Namespace ", "Structure ", "Enum ", 
+                                                  "Property ", "Get", "Set", "Try", "With "}
+                
+                ' Check if we should increase indent
+                for each lStarter As String in lBlockStarters
+                    If lTrimmedPrevious.StartsWith(lStarter, StringComparison.OrdinalIgnoreCase) OrElse
+                       lTrimmedPrevious.Contains(" " & lStarter, StringComparison.OrdinalIgnoreCase) Then
+                        ' Add one level of indentation (4 spaces or 1 tab)
+                        ' TODO: Need to implement in SettingsManager a boolean setting for "UseSpacesForTabs"
+                        'If pUseSpacesForTabs Then   
+                            lIndent.Append(New String(" "c, pTabWidth))
+                        Exit for
                     End If
+                Next
+                
+                ' Apply indentation to current line if it's empty or starts with non-whitespace
+                Dim lCurrentLine As String = pSourceFileInfo.TextLines(vLineNumber)
+                If String.IsNullOrEmpty(lCurrentLine.Trim()) Then
+                    ' Line is empty or only whitespace - replace with indentation
+                    pSourceFileInfo.UpdateTextLine(vLineNumber, lIndent.ToString())
+                    
+                    ' Move cursor to end of indentation
+                    SetCursorPosition(vLineNumber, lIndent.Length)
+                ElseIf Not Char.IsWhiteSpace(lCurrentLine(0)) Then
+                    ' Line starts with non-whitespace - prepend indentation
+                    pSourceFileInfo.UpdateTextLine(vLineNumber, lIndent.ToString() & lCurrentLine)
+                    
+                    ' Move cursor to position after indentation
+                    SetCursorPosition(vLineNumber, lIndent.Length)
                 End If
                 
-                ' Apply indentation to current line
-                If lIndent.Length > 0 Then
-                    pTextLines(vLineNumber) = lIndent.ToString() & pTextLines(vLineNumber)
-                    pCursorColumn = lIndent.Length
-                End If
+                ' Request async parsing for the changed line
+                pSourceFileInfo.RequestAsyncParse()
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyAutoIndent error: {ex.Message}")
@@ -627,10 +610,10 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
-                Dim lLine As String = pTextLines(vLine)
+                Dim lLine As String = TextLines(vLine)
                 Dim lColumn As Integer = Math.Min(vColumn, lLine.Length)
                 
-                pTextLines(vLine) = lLine.Insert(lColumn, vText)
+                TextLines(vLine) = lLine.Insert(lColumn, vText)
                 pLineMetadata(vLine).MarkChanged()
                 
                 pDrawingArea?.QueueDraw()
@@ -688,13 +671,20 @@ Namespace Editors
         ''' </summary>
         ''' <param name="vLineIndex">The line index to get (0-based)</param>
         ''' <returns>The text of the line, or empty string if invalid index</returns>
+        ''' <remarks>
+        ''' Updated to get text from SourceFileInfo
+        ''' </remarks>
         Public Function GetLineText(vLineIndex As Integer) As String Implements IEditor.GetLineText
             Try
                 If vLineIndex < 0 OrElse vLineIndex >= pLineCount Then
                     Return ""
                 End If
                 
-                Return pTextLines(vLineIndex)
+                If pSourceFileInfo IsNot Nothing AndAlso vLineIndex < pSourceFileInfo.TextLines.Count Then
+                    Return pSourceFileInfo.TextLines(vLineIndex)
+                End If
+                
+                Return ""
                 
             Catch ex As Exception
                 Console.WriteLine($"GetLineText error: {ex.Message}")

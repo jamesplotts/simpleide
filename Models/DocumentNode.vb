@@ -19,7 +19,7 @@ Namespace Models
         Public Property Parent As DocumentNode = Nothing
         Public Property Children As New List(Of DocumentNode)()
         Public Property Attributes As New Dictionary(Of String, String)()
-        Public Property FilePath as String = ""
+        Public Property FilePath As String = ""
         Public Property IsPartial As Boolean = False
         Public Property IsPublic As Boolean = True
         Public Property IsPrivate As Boolean = False
@@ -30,8 +30,8 @@ Namespace Models
         Public Property IsOverrides As Boolean = False
         Public Property IsMustOverride As Boolean = False
         Public Property IsNotOverridable As Boolean = False
-        Public Property IsMustInherit as Boolean = false
-        Public Property IsNotInheritable as Boolean = false
+        Public Property IsMustInherit As Boolean = False
+        Public Property IsNotInheritable As Boolean = False
         Public Property IsReadOnly As Boolean = False
         Public Property IsWriteOnly As Boolean = False
         Public Property IsConst As Boolean = False
@@ -94,11 +94,11 @@ Namespace Models
     End Class
     
     ' Result of parsing a document
-    Public Class ParseResult
+    Public Class DocumentParseResult
         Public Property RootNode As SyntaxNode
        
         Public Property Objects As New List(Of CodeObject)()
-        Public Property members As New List(Of CodeMember)()
+        Public Property Members As New List(Of CodeMember)()
         Public Property DocumentNodes As New Dictionary(Of String, DocumentNode)()
         Public Property RootNodes As New List(Of DocumentNode)()
         Public LineMetadata() As Models.LineMetadata = {}
@@ -123,7 +123,6 @@ Namespace Models
         End Sub
         
     End Class
-    
 
     
 End Namespace

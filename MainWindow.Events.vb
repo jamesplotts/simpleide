@@ -243,33 +243,112 @@ Partial Public Class MainWindow
     
     
     
+    
+    ''' <summary>
+    ''' Handles Run button click - NO build checking for F5 
+    ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Event arguments</param>
+    ''' <remarks>
+    ''' This should ONLY trigger build when called from Run button, not F5
+    ''' To prevent double builds, we check if we're already in a build/run cycle
+    ''' </remarks>
     Public Sub OnRunProject(vSender As Object, vArgs As EventArgs)
         Try
-            ' Implemented in MainWindow.Build.vb
-            Task.Run(Async Function()
-                Await RunProject()
-                Return Nothing
-            End Function)
+            Console.WriteLine($"OnRunProject called - Sender type: {vSender?.GetType()?.Name}")
+            
+            ' CRITICAL: Check if we're already building/running to prevent cascade
+            If pIsBuildingNow OrElse pRunAfterBuild Then
+                Console.WriteLine("OnRunProject: Skipping - already in build/run cycle")
+                Return
+            End If
+            
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("OnRunProject: Skipping - build in progress")
+                Return
+            End If
+            
+            ' Check if this is from the Run button (not F5)
+            ' F5 calls OnBuildAndRun directly, so OnRunProject should only handle button clicks
+            Dim lIsFromButton As Boolean = TypeOf vSender Is ToolButton OrElse _
+                                           TypeOf vSender Is MenuItem
+            
+            If Not lIsFromButton Then
+                Console.WriteLine("OnRunProject: Not from button/menu - skipping To prevent duplicate")
+                Return
+            End If
+            
+            ' Now proceed with normal run logic
+            Console.WriteLine("OnRunProject: Proceeding with run logic")
+            
+            ' Check if we should build before run based on settings
+            If pSettingsManager IsNot Nothing AndAlso pSettingsManager.BuildBeforeRun Then
+                Console.WriteLine("BuildBeforeRun Is enabled - checking If build Is needed")
+                
+                ' Check if project needs building
+                Dim lNeedsBuild As Boolean = False
+                
+                ' Check if any files have been modified since last build
+                If HasModifiedFiles() Then
+                    lNeedsBuild = True
+                    Console.WriteLine("Project has modified files - build needed")
+                End If
+                
+                ' Check if no build output exists
+                If Not lNeedsBuild AndAlso Not HasBuildOutput() Then
+                    lNeedsBuild = True
+                    Console.WriteLine("No build output found - build needed")
+                End If
+                
+                If lNeedsBuild Then
+                    ' Call BuildAndRun instead of just RunProject
+                    Console.WriteLine("Calling BuildAndRun from OnRunProject")
+                    BuildAndRun()
+                Else
+                    ' Project is up to date, just run it
+                    Console.WriteLine("Project Is up To Date - running without build")
+                    Task.Run(Async Function()
+                        Await RunProject()
+                        Return Nothing
+                    End Function)
+                End If
+            Else
+                ' BuildBeforeRun is disabled or not set, just run
+                Console.WriteLine("BuildBeforeRun Is disabled - running without build check")
+                Task.Run(Async Function()
+                    Await RunProject()
+                    Return Nothing
+                End Function)
+            End If
+            
         Catch ex As Exception
             Console.WriteLine($"OnRunProject error: {ex.Message}")
+            ShowError("Run error", ex.Message)
         End Try
     End Sub
     
     ''' <summary>
-    ''' Handles Build and Run command (F5)
+    ''' Handles Build and Run command (F5) - prevents multiple builds
     ''' </summary>
+    ''' <param name="vSender">Event sender</param>
+    ''' <param name="vArgs">Event arguments</param>
     Public Sub OnBuildAndRun(vSender As Object, vArgs As EventArgs)
         Try
             Console.WriteLine("OnBuildAndRun called")
             
-            ' Check if already building using BuildManager
+            ' Check if already building using both flags
+            If pIsBuildingNow Then
+                Console.WriteLine("OnBuildAndRun: Already building (pIsBuildingNow check)")
+                Return
+            End If
+            
             If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
-                Console.WriteLine("OnBuildAndRun: Build already in progress")
+                Console.WriteLine("OnBuildAndRun: Build already in progress (BuildManager check)")
                 ShowInfo("Build in Progress", "A build Is already in progress.")
                 Return
             End If
             
-            ' Call the BuildAndRun method
+            ' Call BuildAndRun which handles everything
             BuildAndRun()
             
         Catch ex As Exception
@@ -352,18 +431,25 @@ Partial Public Class MainWindow
     End Sub
     
     ' ===== Help Menu Events =====
+
+    ''' <summary>
+    ''' Handles View Help menu item - opens help in a center tab
+    ''' </summary>
     Public Sub OnViewHelp(vSender As Object, vArgs As EventArgs)
         Try
-            ' Implemented in MainWindow.Help.vb
-            ShowHelpPanel()  ' Changed from ShowHelpBrowser()
+            ' Open help in a new tab instead of bottom panel
+            OpenHelpTab()
         Catch ex As Exception
             Console.WriteLine($"OnViewHelp error: {ex.Message}")
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Shows API documentation in a help tab
+    ''' </summary>
     Public Sub OnApiDocumentation(vSender As Object, vArgs As EventArgs)
         Try
-            HelpSystem.ShowHelp("vb-Reference")
+            ShowDotNetApiHelp()
         Catch ex As Exception
             Console.WriteLine($"OnApiDocumentation error: {ex.Message}")
         End Try
@@ -528,22 +614,100 @@ Partial Public Class MainWindow
             
             ' Set search scope to Entire Project for better results
             Console.WriteLine("OnQuickFindFromClipboard: Setting search scope To Entire Project")
-                pFindPanel.SetSearchScope(FindReplacePanel.SearchScope.eProject)
-                
-                ' Focus the find panel (without selecting text since we want to keep what we just set)
-                pFindPanel.FocusSearchEntryNoSelect()
-                
-                ' Execute Find All operation
-                Console.WriteLine("OnQuickFindFromClipboard: Executing Find All")
-                pFindPanel.OnFind(Nothing, Nothing)
-                
-                Console.WriteLine("OnQuickFindFromClipboard: Quick find from clipboard completed successfully")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnQuickFindFromClipboard error: {ex.Message}")
-                ShowError("Quick Find error", $"Failed To perform quick find from clipboard: {ex.Message}")
-            End Try
-        End Sub
+            pFindPanel.SetSearchScope(FindReplacePanel.SearchScope.eProject)
+            
+            ' Focus the find panel (without selecting text since we want to keep what we just set)
+            pFindPanel.FocusSearchEntryNoSelect()
+            
+            ' Execute Find All operation
+            Console.WriteLine("OnQuickFindFromClipboard: Executing Find All")
+            pFindPanel.OnFind(Nothing, Nothing)
+            
+            Console.WriteLine("OnQuickFindFromClipboard: Quick find from clipboard completed successfully")
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnQuickFindFromClipboard error: {ex.Message}")
+            ShowError("Quick Find error", $"Failed To perform quick find from clipboard: {ex.Message}")
+        End Try
+    End Sub
 
+    ''' <summary>
+    ''' Handles the Shown event when no project is specified
+    ''' </summary>
+    ''' <param name="sender">Event sender</param>
+    ''' <param name="e">Event arguments</param>
+    Private Sub OnWindowShownNoProject(sender As Object, e As EventArgs)
+        Try
+            ' Unhook the event so it doesn't fire again
+            RemoveHandler Me.Shown, AddressOf OnWindowShownNoProject
+            
+            ' Check for auto-detect project in current directory
+            Dim lCurrentDir As String = Directory.GetCurrentDirectory()
+            Dim lProjectFiles() As String = Directory.GetFiles(lCurrentDir, "*.vbproj")
+            
+            If lProjectFiles.Length = 1 Then
+                ' Single project found - auto-load it
+                Console.WriteLine($"Auto-detected project: {lProjectFiles(0)}")
+                
+                ' Use idle handler to let UI settle first
+                GLib.Idle.Add(Function()
+                    LoadProjectEnhanced(lProjectFiles(0))
+                    Return False
+                End Function)
+                
+            ElseIf lProjectFiles.Length > 1 Then
+                ' Multiple projects - let user choose
+                Console.WriteLine($"Multiple projects found in {lCurrentDir}")
+                ' Could show a selection dialog here
+                
+            Else
+                ' No projects found - check for recent projects
+                If pSettingsManager IsNot Nothing AndAlso pSettingsManager.RecentProjects.Count > 0 Then
+                    Dim lMostRecent As String = pSettingsManager.RecentProjects(0)
+                    If File.Exists(lMostRecent) Then
+                        ' Optionally auto-load most recent project
+                        ' For now, just log it
+                        Console.WriteLine($"Most recent project: {lMostRecent}")
+                    End If
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowShownNoProject error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Shows online help resources in a help tab
+    ''' </summary>
+    Public Sub OnShowOnlineHelp(vSender As Object, vArgs As EventArgs)
+        Try
+            OpenHelpTab()
+        Catch ex As Exception
+            Console.WriteLine($"OnShowOnlineHelp error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Shows GTK# documentation in a help tab
+    ''' </summary>
+    Public Sub OnShowGtkHelp(vSender As Object, vArgs As EventArgs)
+        Try
+            ShowGtkSharpHelp()
+        Catch ex As Exception
+            Console.WriteLine($"OnShowGtkHelp error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Shows .NET documentation in a help tab
+    ''' </summary>
+    Public Sub OnShowDotNetHelp(vSender As Object, vArgs As EventArgs)
+        Try
+            ShowVBNetHelp()
+        Catch ex As Exception
+            Console.WriteLine($"OnShowDotNetHelp error: {ex.Message}")
+        End Try
+    End Sub
     
 End Class

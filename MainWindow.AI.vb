@@ -542,15 +542,15 @@ Partial Public Class MainWindow
             End If
             
             ' Close welcome tab if present
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     pNotebook.RemovePage(i)
-                    Exit For
+                    Exit for
                 End If
             Next
             
             ' Create AI artifact editor
-            Dim lArtifactEditor As New AIArtifactEditor(pSyntaxColorSet, pSettingsManager,pProjectManager)
+            Dim lArtifactEditor As New AIArtifactEditor(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
             lArtifactEditor.LoadArtifact(vArtifactId, vArtifactType, vArtifactName, vContent, vTargetPath)
             
             ' Wire up events
@@ -601,15 +601,15 @@ Partial Public Class MainWindow
             End If
             
             ' Close welcome tab if present
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     pNotebook.RemovePage(i)
-                    Exit For
+                    Exit for
                 End If
             Next
             
             ' Create comparison panel
-            Dim lComparisonPanel As New FileComparisonPanel(pSyntaxColorSet, pSettingsManager,pProjectManager)
+            Dim lComparisonPanel As New FileComparisonPanel(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
             lComparisonPanel.LoadFiles(vLeftPath, vRightPath)
             
             ' Wire up events
@@ -663,7 +663,7 @@ Partial Public Class MainWindow
             End If
             
             ' Create comparison panel
-            Dim lComparisonPanel As New FileComparisonPanel(pSyntaxColorSet, pSettingsManager, pProjectManager)
+            Dim lComparisonPanel As New FileComparisonPanel(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
             lComparisonPanel.LoadContent(vLeftContent, vLeftName, vRightContent, vRightName)
             
             ' Allow editing in the comparison view for AI artifacts
@@ -764,11 +764,11 @@ Partial Public Class MainWindow
     
     Private Sub SwitchToTabInfo(vTabInfo As TabInfo)
         Try
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
                     pNotebook.CurrentPage = i
-                    Exit For
+                    Exit for
                 End If
             Next
         Catch ex As Exception
@@ -783,11 +783,11 @@ Partial Public Class MainWindow
             Dim lTabInfo As TabInfo = pAIArtifactTabs(vArtifactId)
             
             ' Find and remove the page
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is lTabInfo.EditorContainer Then
                     pNotebook.RemovePage(i)
-                    Exit For
+                    Exit for
                 End If
             Next
             
@@ -881,14 +881,14 @@ Partial Public Class MainWindow
             Dim lTabLabel As Widget = lButton.Parent
             
             ' Find and close the tab
-            For i As Integer = 0 To pNotebook.NPages - 1
+            for i As Integer = 0 To pNotebook.NPages - 1
                 If pNotebook.GetTabLabel(pNotebook.GetNthPage(i)) Is lTabLabel Then
                     ' Find in comparison tabs dictionary
                     Dim lTabToRemove As String = ""
-                    For Each lEntry In pComparisonTabs
+                    for each lEntry in pComparisonTabs
                         If lEntry.Value.TabLabel Is lTabLabel Then
                             lTabToRemove = lEntry.key
-                            Exit For
+                            Exit for
                         End If
                     Next
                     
@@ -898,7 +898,7 @@ Partial Public Class MainWindow
                         pComparisonTabs.Remove(lTabToRemove)
                     End If
                     
-                    Exit For
+                    Exit for
                 End If
             Next
             

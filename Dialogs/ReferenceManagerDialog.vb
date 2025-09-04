@@ -162,18 +162,18 @@ Namespace Dialogs
             pAssemblyTreeView.AppendColumn(lSelectedCol)
             
             ' Name
-            pAssemblyTreeView.AppendColumn("Name", New CellRendererText(), "Text", 1)
+            pAssemblyTreeView.AppendColumn("Name", New CellRendererText(), "text", 1)
             
             ' Version
-            pAssemblyTreeView.AppendColumn("Version", New CellRendererText(), "Text", 2)
+            pAssemblyTreeView.AppendColumn("Version", New CellRendererText(), "text", 2)
             
             ' Runtime
-            pAssemblyTreeView.AppendColumn("Runtime", New CellRendererText(), "Text", 3)
+            pAssemblyTreeView.AppendColumn("Runtime", New CellRendererText(), "text", 3)
             
             ' Path
             Dim lPathRenderer As New CellRendererText()
             lPathRenderer.Ellipsize = Pango.EllipsizeMode.Middle
-            pAssemblyTreeView.AppendColumn("Path", lPathRenderer, "Text", 4)
+            pAssemblyTreeView.AppendColumn("Path", lPathRenderer, "text", 4)
             
             lScrolled.Add(pAssemblyTreeView)
             lVBox.PackStart(lScrolled, True, True, 0)
@@ -236,16 +236,16 @@ Namespace Dialogs
             pNuGetTreeView.HeadersVisible = True
             
             ' Columns
-            pNuGetTreeView.AppendColumn("Package", New CellRendererText(), "Text", 0)
-            pNuGetTreeView.AppendColumn("Version", New CellRendererText(), "Text", 1)
+            pNuGetTreeView.AppendColumn("Package", New CellRendererText(), "text", 0)
+            pNuGetTreeView.AppendColumn("Version", New CellRendererText(), "text", 1)
             
             ' Description with wrapping
             Dim lDescRenderer As New CellRendererText()
             lDescRenderer.WrapMode = Pango.WrapMode.Word
             lDescRenderer.WrapWidth = 300
-            pNuGetTreeView.AppendColumn("Description", lDescRenderer, "Text", 2)
+            pNuGetTreeView.AppendColumn("Description", lDescRenderer, "text", 2)
             
-            pNuGetTreeView.AppendColumn("Downloads", New CellRendererText(), "Text", 3)
+            pNuGetTreeView.AppendColumn("Downloads", New CellRendererText(), "text", 3)
             
             ' Installed indicator
             Dim lInstalledRenderer As New CellRendererText()
@@ -328,8 +328,8 @@ Namespace Dialogs
             pProjectTreeView.HeadersVisible = True
             
             ' Columns
-            pProjectTreeView.AppendColumn("Project", New CellRendererText(), "Text", 0)
-            pProjectTreeView.AppendColumn("Path", New CellRendererText(), "Text", 1)
+            pProjectTreeView.AppendColumn("Project", New CellRendererText(), "text", 0)
+            pProjectTreeView.AppendColumn("Path", New CellRendererText(), "text", 1)
             
             ' Selection handler
             AddHandler pProjectTreeView.Selection.Changed, AddressOf OnProjectSelectionChanged

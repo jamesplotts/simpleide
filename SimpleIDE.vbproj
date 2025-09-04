@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,10 +10,12 @@
     <PlatformTarget></PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
+    <AssemblyVersion>1.1.11.0</AssemblyVersion>
+    <FileVersion>1.1.11.0</FileVersion>
     <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-  </PropertyGroup>
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+  <Version>1.1.11</Version></PropertyGroup>
   <PropertyGroup>
     <NoWarn>$(NoWarn);NU1605</NoWarn>
   </PropertyGroup>
@@ -34,7 +36,6 @@
     <Compile Include="MainWindow.AssemblySettings.vb" />
     <Compile Include="MainWindow.BottomPanel.vb" />
     <Compile Include="MainWindow.Build.vb" />
-    <Compile Include="MainWindow.Capitalization.vb" />
     <Compile Include="MainWindow.CodeSense.vb" />
     <Compile Include="MainWindow.Comment.vb" />
     <Compile Include="MainWindow.Console.vb" />
@@ -45,6 +46,7 @@
     <Compile Include="MainWindow.Find.vb" />
     <Compile Include="MainWindow.Git.vb" />
     <Compile Include="MainWindow.Help.vb" />
+    <Compile Include="MainWindow.HelpTab.vb" />
     <Compile Include="MainWindow.IdentifierSync.vb" />
     <Compile Include="MainWindow.Indent.vb" />
     <Compile Include="MainWindow.InitializationEnhanced.vb" />
@@ -58,7 +60,6 @@
     <Compile Include="MainWindow.ObjectExplorerIntegration.vb" />
     <Compile Include="MainWindow.Preferences.vb" />
     <Compile Include="MainWindow.Project.vb" />
-    <Compile Include="MainWindow.ProjectExplorerIntegration.vb" />
     <Compile Include="MainWindow.ProjectLoading.vb" />
     <Compile Include="MainWindow.ProjectManager.vb" />
     <Compile Include="MainWindow.References.vb" />
@@ -73,7 +74,6 @@
     <Compile Include="Editors/AIArtifactEditor.vb" />
     <Compile Include="Editors/AssemblySettingsEditor.vb" />
     <Compile Include="Editors/CustomDrawingEditor.vb" />
-    <Compile Include="Editors/CustomDrawingEditor.Capitalization.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Clipboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Codesense.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Colors.vb" />
@@ -86,7 +86,6 @@
     <Compile Include="Editors/CustomDrawingEditor.Drawing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />
-    <Compile Include="Editors/CustomDrawingEditor.IdentifierCaseSync.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.LineExitedEventArgs.vb" />
@@ -94,7 +93,6 @@
     <Compile Include="Editors/CustomDrawingEditor.Mouse.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Navigation.vb" />
     <Compile Include="Editors/CustomDrawingEditor.NodeAccess.vb" />
-    <Compile Include="Editors/CustomDrawingEditor.Parsing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ProjectManager.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ScheduleParse.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ScrollManual.vb" />
@@ -144,10 +142,6 @@
     <Compile Include="Managers/BuildManager.vb" />
     <Compile Include="Managers/CredentialManager.vb" />
     <Compile Include="Managers/GitManager.vb" />
-    <Compile Include="Managers/IdentifierCapitalizationManager.vb" />
-    <Compile Include="Managers/IdentifierRegistry.vb" />
-    <Compile Include="Managers/IdentifierRegistry.Helpers.vb" />
-    <Compile Include="Managers/IdentifierRegistry.IndexFile.vb" />
     <Compile Include="Managers/ProjectInfo.vb" />
     <Compile Include="Managers/ProjectManager.vb" />
     <Compile Include="Managers/ProjectManager.Extension.vb" />
@@ -251,25 +245,45 @@
     <Compile Include="AI/Mem0Client.vb" />
     <Compile Include="AI/MemoryManifest.vb" />
     <!-- My Project Files -->
-    <Compile Include="My Project/AssemblyInfo.vb" />
+    <Compile Include="Models/ParseCompletedEventArgs.vb" />
+    <Compile Include="Syntax/VBTokenizer.vb" />
+    <Compile Include="Syntax/Token.vb" />
+    <Compile Include="Syntax/ParseResults.vb" />
+    <Compile Include="Managers/AIManager.vb" />
   </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->
     <EmbeddedResource Include="Resources/icon.png" />
     <EmbeddedResource Include="Resources/build_start.png" />
+    <EmbeddedResource Include="Resources/build_startdark.png" />
     <EmbeddedResource Include="Resources/build_stop.png" />
+    <EmbeddedResource Include="Resources/build_stopdark.png" />
     <EmbeddedResource Include="Resources/paste.png" />
+    <EmbeddedResource Include="Resources/pastedark.png" />
+    <EmbeddedResource Include="Resources/magnifier.png" />
+    <EmbeddedResource Include="Resources/magnifierdark.png" />
+    <EmbeddedResource Include="Resources/comment.png" />
+    <EmbeddedResource Include="Resources/commentdark.png" />
     <EmbeddedResource Include="Resources/copy.png" />
+    <EmbeddedResource Include="Resources/copydark.png" />
     <EmbeddedResource Include="Resources/undo.png" />
+    <EmbeddedResource Include="Resources/undodark.png" />
     <EmbeddedResource Include="Resources/new.png" />
     <EmbeddedResource Include="Resources/redo.png" />
+    <EmbeddedResource Include="Resources/redodark.png" />
     <EmbeddedResource Include="Resources/cut.png" />
+    <EmbeddedResource Include="Resources/run.png" />
+    <EmbeddedResource Include="Resources/rundark.png" />
+    <EmbeddedResource Include="Resources/cutdark.png" />
     <EmbeddedResource Include="Resources/bottom.png" />
     <EmbeddedResource Include="Resources/find.png" />
+    <EmbeddedResource Include="Resources/finddark.png" />
     <EmbeddedResource Include="Resources/disc.png" />
     <EmbeddedResource Include="Resources/indent.png" />
+    <EmbeddedResource Include="Resources/indentdark.png" />
     <EmbeddedResource Include="Resources/todo.png" />
     <EmbeddedResource Include="Resources/outdent.png" />
+    <EmbeddedResource Include="Resources/outdentdark.png" />
     <EmbeddedResource Include="Resources/saveall.png" />
     <EmbeddedResource Include="Resources/pencil.png" />
     <EmbeddedResource Include="Resources/Strings.xml" />

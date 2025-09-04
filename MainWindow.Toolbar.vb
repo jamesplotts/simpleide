@@ -31,6 +31,7 @@ Partial Public Class MainWindow
     Private pIndentToolButton As ToolButton
     Private pToggleCommentButton As ToolButton
     Private pOutputPanelToggleButton As ToolButton
+    Private pQuickFindClipboardButton As  ToolButton
 
     
     ' ===== Toolbar Creation =====
@@ -38,6 +39,9 @@ Partial Public Class MainWindow
     Private Sub CreateToolbar()
         Try
             pToolbar = New Toolbar()
+            Dim lDark As String = ""
+            If pThemeManager.GetCurrentThemeObject.IsDarkTheme Then lDark = "dark"
+
     
             ' Set initial values from settings
             If pSettingsManager.ToolbarShowLabels Then
@@ -113,7 +117,7 @@ Partial Public Class MainWindow
             ' Edit operations
             pUndoButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.undo.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.undo" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pUndoButton.IconWidget = lImg
             Catch ex As Exception
@@ -126,7 +130,7 @@ Partial Public Class MainWindow
             
             pRedoButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.redo.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.redo" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pRedoButton.IconWidget = lImg
             Catch ex As Exception
@@ -141,7 +145,7 @@ Partial Public Class MainWindow
             
             pCutButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.cut.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.cut" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pCutButton.IconWidget = lImg
             Catch ex As Exception
@@ -154,7 +158,7 @@ Partial Public Class MainWindow
             
             pCopyButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.copy.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.copy" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pCopyButton.IconWidget = lImg
             Catch ex As Exception
@@ -167,7 +171,7 @@ Partial Public Class MainWindow
             
             pPasteButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.paste.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.paste" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pPasteButton.IconWidget = lImg
             Catch ex As Exception
@@ -183,7 +187,7 @@ Partial Public Class MainWindow
             ' Find
             pFindButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.find.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.find" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pFindButton.IconWidget = lImg
             Catch ex As Exception
@@ -202,7 +206,7 @@ Partial Public Class MainWindow
             ' outdent button
             pOutdentToolButton = New ToolButton(Nothing, "Outdent")
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pOutdentToolButton.IconWidget = lImg
             Catch ex As Exception
@@ -216,7 +220,7 @@ Partial Public Class MainWindow
             ' Indent button
             pIndentToolButton = New ToolButton(Nothing, "Indent")
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pIndentToolButton.IconWidget = lImg
             Catch ex As Exception
@@ -230,7 +234,7 @@ Partial Public Class MainWindow
             ' Toggle Comment button
             pToggleCommentButton = New ToolButton(Nothing, "Toggle Comment")
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pToggleCommentButton.IconWidget = lImg
             Catch ex As Exception
@@ -245,7 +249,7 @@ Partial Public Class MainWindow
             ' Build operations
             pBuildButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_start.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_start" + lDark + ".png", lIconSize)
                 lImg.Show()
                 pBuildButton.IconWidget = lImg
             Catch ex As Exception
@@ -258,16 +262,17 @@ Partial Public Class MainWindow
             
             pRunButton = New ToolButton(Nothing, Nothing)
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-run.png", lIconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.run.png", lIconSize)
                 lImg.Show()
                 pRunButton.IconWidget = lImg
             Catch ex As Exception
                 pRunButton.IconWidget = Image.NewFromIconName("media-playback-start", lIconSize)
             End Try            
             pRunButton.Label = "Run"
-            pRunButton.TooltipText = "Run project (F5)"
+            ' Updated tooltip to reflect build-before-run behavior
+            pRunButton.TooltipText = "Run project (builds If needed) (Shift+F5)"
             AddHandler pRunButton.Clicked, AddressOf OnRunProject
-            pToolbar.Insert(pRunButton, -1)
+            pToolbar.Insert(pRunButton, -1)            
             
             pStopButton = New ToolButton(Nothing, Nothing)
             Try
@@ -344,6 +349,7 @@ Partial Public Class MainWindow
             Next
     
             pToolbar.ShowAll()
+            UpdateToolbarIcons(lIconSize)
             
         Catch ex As Exception
             Console.WriteLine($"CreateToolbar error: {ex.Message}")
@@ -427,15 +433,14 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handles help toolbar button click - opens help in a center tab
+    ''' </summary>
     Private Sub OnShowHelpPanel(vSender As Object, vArgs As EventArgs)
         Try
-            ' Show bottom panel with Help tab
-            If pBottomPanelManager IsNot Nothing Then
-                pBottomPanelManager.ShowTabByType(BottomPanelManager.BottomPanelTab.eHelpViewer)
-            Else
-                ' Fallback to old method
-                ShowBottomPanel(4) ' Help tab
-            End If
+            ' Open help in a new tab instead of bottom panel
+            Console.WriteLine($"OnShowHelpPanel Called")
+            OpenHelpTab()
             
         Catch ex As Exception
             Console.WriteLine($"OnShowHelpPanel error: {ex.Message}")
@@ -560,6 +565,8 @@ Partial Public Class MainWindow
     
     Private Sub UpdateToolbarIcons(vIconSize As IconSize)
         Try
+            Dim lDark as String = ""
+            if pThemeManager.GetCurrentThemeObject.IsDarkTheme then lDark = "dark"
             ' Update each button's icon with the new size
             If pNewButton IsNot Nothing AndAlso pNewButton.IconWidget IsNot Nothing Then
                 Try
@@ -587,7 +594,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pSaveButton.IconWidget = lImg
                 Catch ex As Exception
-                    pSaveButton.IconWidget = Image.NewFromIconName("document-Save", vIconSize)
+                    pSaveButton.IconWidget = Image.NewFromIconName("document-save", vIconSize)
                 End Try
             End If
             
@@ -603,7 +610,7 @@ Partial Public Class MainWindow
             
             If pUndoButton IsNot Nothing AndAlso pUndoButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Undo.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.undo" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pUndoButton.IconWidget = lImg
                 Catch ex As Exception
@@ -613,7 +620,7 @@ Partial Public Class MainWindow
             
             If pRedoButton IsNot Nothing AndAlso pRedoButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Redo.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.redo" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pRedoButton.IconWidget = lImg
                 Catch ex As Exception
@@ -623,7 +630,7 @@ Partial Public Class MainWindow
             
             If pCutButton IsNot Nothing AndAlso pCutButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Cut.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.cut" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pCutButton.IconWidget = lImg
                 Catch ex As Exception
@@ -633,7 +640,7 @@ Partial Public Class MainWindow
             
             If pCopyButton IsNot Nothing AndAlso pCopyButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Copy.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.copy" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pCopyButton.IconWidget = lImg
                 Catch ex As Exception
@@ -643,7 +650,7 @@ Partial Public Class MainWindow
             
             If pPasteButton IsNot Nothing AndAlso pPasteButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Paste.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.paste" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pPasteButton.IconWidget = lImg
                 Catch ex As Exception
@@ -653,7 +660,7 @@ Partial Public Class MainWindow
 
             If pToggleCommentButton IsNot Nothing AndAlso pToggleCommentButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pToggleCommentButton.IconWidget = lImg
                 Catch ex As Exception
@@ -663,7 +670,7 @@ Partial Public Class MainWindow
 
             If pOutdentToolButton IsNot Nothing AndAlso pOutdentToolButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pOutdentToolButton.IconWidget = lImg
                 Catch ex As Exception
@@ -673,7 +680,7 @@ Partial Public Class MainWindow
 
             If pIndentToolButton IsNot Nothing AndAlso pIndentToolButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pIndentToolButton.IconWidget = lImg
                 Catch ex As Exception
@@ -683,7 +690,7 @@ Partial Public Class MainWindow
 
             If pToggleCommentButton IsNot Nothing AndAlso pToggleCommentButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pToggleCommentButton.IconWidget = lImg
                 Catch ex As Exception
@@ -693,17 +700,17 @@ Partial Public Class MainWindow
 
             If pFindButton IsNot Nothing AndAlso pFindButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.Find.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.find" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pFindButton.IconWidget = lImg
                 Catch ex As Exception
-                    pFindButton.IconWidget = Image.NewFromIconName("edit-Find", vIconSize)
+                    pFindButton.IconWidget = Image.NewFromIconName("edit-find", vIconSize)
                 End Try
             End If
             
             If pBuildButton IsNot Nothing AndAlso pBuildButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_start" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pBuildButton.IconWidget = lImg
                 Catch ex As Exception
@@ -713,7 +720,7 @@ Partial Public Class MainWindow
             
             If pRunButton IsNot Nothing AndAlso pRunButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-run.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.run.png", vIconSize)
                     lImg.Show()
                     pRunButton.IconWidget = lImg
                 Catch ex As Exception
@@ -723,11 +730,21 @@ Partial Public Class MainWindow
             
             If pStopButton IsNot Nothing AndAlso pStopButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-Stop.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_stop" + lDark + ".png", vIconSize)
                     lImg.Show()
                     pStopButton.IconWidget = lImg
                 Catch ex As Exception
                     pStopButton.IconWidget = Image.NewFromIconName("media-playback-Stop", vIconSize)
+                End Try            
+            End If
+
+            If pQuickFindClipboardButton IsNot Nothing AndAlso pQuickFindClipboardButton.IconWidget IsNot Nothing Then
+                Try
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.magnifier" + lDark + ".png", vIconSize)
+                    lImg.Show()
+                    pQuickFindClipboardButton.IconWidget = lImg
+                Catch ex As Exception
+                    pQuickFindClipboardButton.IconWidget = Image.NewFromIconName("edit-find-replace", vIconSize)
                 End Try            
             End If
 
@@ -850,20 +867,24 @@ Partial Public Class MainWindow
     
  
 
+    ' Replace: SimpleIDE.MainWindow.CreateQuickFindFromClipboardButton
     ''' <summary>
-    ''' Creates a toolbar button for quick find using clipboard content
+    ''' Creates a toolbar button for quick find using clipboard content with F2 shortcut
     ''' </summary>
     Private Sub CreateQuickFindFromClipboardButton()
         Try
             ' Add separator before quick find button
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            Dim lDark As String = ""
+            If pThemeManager IsNot Nothing AndAlso pThemeManager.GetCurrentThemeObject.IsDarkTheme Then 
+                lDark = "dark"
+            End If
+    
             ' Create quick find button with appropriate icon
-            Dim pQuickFindClipboardButton As New ToolButton(Nothing, Nothing)
-            
+            pQuickFindClipboardButton = New ToolButton(Nothing, Nothing)
             ' Try to use embedded icon first
             Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.find-clipboard.png", pToolbar.IconSize)
+                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.magnifier" + lDark + ".png", pToolbar.IconSize)
                 lImg.Show()
                 pQuickFindClipboardButton.IconWidget = lImg
             Catch ex As Exception
@@ -874,8 +895,8 @@ Partial Public Class MainWindow
                 pQuickFindClipboardButton.IconWidget = lIcon
             End Try
             
-            pQuickFindClipboardButton.Label = "Find Clipboard"
-            pQuickFindClipboardButton.TooltipText = "Find text from clipboard (Opens Find panel, pastes clipboard text, executes Find All)"
+            pQuickFindClipboardButton.Label = "Quick Find"
+            pQuickFindClipboardButton.TooltipText = "Quick Find from Clipboard (F2) - Searches for clipboard text in entire project"
             AddHandler pQuickFindClipboardButton.Clicked, AddressOf OnQuickFindFromClipboard
             pToolbar.Insert(pQuickFindClipboardButton, -1)
             

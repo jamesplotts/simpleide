@@ -17,8 +17,13 @@ Namespace Editors
         Private pLastRightClickX As Double
         Private pLastRightClickY As Double
         Private pLastRightClickInLineNumbers As Boolean
+
+        ' ===== Event Declaration =====
+        Public Event GoToLineRequested()
+
         
         ' ===== Context Menu Initialization =====
+
         Private Sub InitializeContextMenus()
             Try
                 CreateTextAreaContextMenu()
@@ -30,6 +35,7 @@ Namespace Editors
         End Sub
         
         ' ===== Text Area Context Menu =====
+
         Private Sub CreateTextAreaContextMenu()
             Try
                 pContextMenu = New Menu()
@@ -52,6 +58,13 @@ Namespace Editors
                 AddHandler lPasteItem.Activated, AddressOf OnContextMenuPaste
                 pContextMenu.Append(lPasteItem)
                 
+                ' Smart Paste menu item (NEW)
+                Dim lSmartPasteItem As New MenuItem("Smart Paste")
+                lSmartPasteItem.Name = "SmartPasteMenuItem"
+                lSmartPasteItem.TooltipText = "Paste with artifact comment stripping and auto-indentation (Ctrl+Shift+V)"
+                AddHandler lSmartPasteItem.Activated, AddressOf OnContextMenuSmartPaste
+                pContextMenu.Append(lSmartPasteItem)
+                
                 ' Separator
                 pContextMenu.Append(New SeparatorMenuItem())
                 
@@ -61,16 +74,43 @@ Namespace Editors
                 AddHandler lSelectAllItem.Activated, AddressOf OnContextMenuSelectAll
                 pContextMenu.Append(lSelectAllItem)
                 
-                ' Separator (for conditional items)
+                ' Separator
+                pContextMenu.Append(New SeparatorMenuItem())
+                
+                ' Find menu item
+                Dim lFindItem As New MenuItem("_Find...")
+                lFindItem.Name = "FindMenuItem"
+                AddHandler lFindItem.Activated, AddressOf OnContextMenuFind
+                pContextMenu.Append(lFindItem)
+                
+                ' Replace menu item
+                Dim lReplaceItem As New MenuItem("_Replace...")
+                lReplaceItem.Name = "ReplaceMenuItem"
+                AddHandler lReplaceItem.Activated, AddressOf OnContextMenuReplace
+                pContextMenu.Append(lReplaceItem)
+                
+                ' Separator
+                pContextMenu.Append(New SeparatorMenuItem())
+                
+                ' Go to Line menu item
+                Dim lGoToLineItem As New MenuItem("_Go to Line...")
+                lGoToLineItem.Name = "GoToLineMenuItem"
+                AddHandler lGoToLineItem.Activated, AddressOf OnContextMenuGoToLine
+                pContextMenu.Append(lGoToLineItem)
+                
+                ' Conditional separator (shown only when needed)
                 Dim lConditionalSeparator As New SeparatorMenuItem()
                 lConditionalSeparator.Name = "ConditionalSeparator"
                 pContextMenu.Append(lConditionalSeparator)
                 
-                ' Go To Definition menu item (conditional)
-                Dim lGoToDefinitionItem As New MenuItem("Go To _Definition")
+                ' Go to Definition menu item (conditional)
+                Dim lGoToDefinitionItem As New MenuItem("Go to _Definition")
                 lGoToDefinitionItem.Name = "GoToDefinitionMenuItem"
                 AddHandler lGoToDefinitionItem.Activated, AddressOf OnContextMenuGoToDefinition
                 pContextMenu.Append(lGoToDefinitionItem)
+                
+                ' Show all items
+                pContextMenu.ShowAll()
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateTextAreaContextMenu error: {ex.Message}")
@@ -170,11 +210,12 @@ Namespace Editors
                 End If
                 
                 ' Update Cut/Copy availability
-                For Each lChild As Widget In pContextMenu.Children
+                for each lChild As Widget in pContextMenu.Children
                     If TypeOf lChild Is MenuItem Then
                         Dim lMenuItem As MenuItem = CType(lChild, MenuItem)
                         
                         Select Case lMenuItem.Name
+
                             Case "CutMenuItem", "CopyMenuItem"
                                 lMenuItem.Sensitive = lHasSelection
                                 
@@ -190,6 +231,10 @@ Namespace Editors
                                 ' Show separator only if we have conditional items visible
                                 Dim lHasConditionalItems As Boolean = lHasSelection AndAlso IsValidIdentifier(lSelectedWord.Trim())
                                 lMenuItem.Visible = lHasConditionalItems
+
+                            Case "SmartPasteMenuItem"
+                                lMenuItem.Sensitive = lHasClipboard AndAlso Not pIsReadOnly
+
                         End Select
                     End If
                 Next
@@ -203,7 +248,7 @@ Namespace Editors
             Try
                 ' All line number context menu items are generally always available
                 ' but we could disable some based on context if needed
-                For Each lChild As Widget In pLineNumberContextMenu.Children
+                for each lChild As Widget in pLineNumberContextMenu.Children
                     If TypeOf lChild Is MenuItem Then
                         Dim lMenuItem As MenuItem = CType(lChild, MenuItem)
                         
@@ -238,7 +283,7 @@ Namespace Editors
                 ' Basic identifier check - starts with letter or underscore, contains only letters, digits, underscores
                 If Not Char.IsLetter(vText(0)) AndAlso vText(0) <> "_"c Then Return False
                 
-                For Each lChar As Char In vText
+                for each lChar As Char in vText
                     If Not (Char.IsLetterOrDigit(lChar) OrElse lChar = "_"c) Then
                         Return False
                     End If
@@ -372,7 +417,7 @@ Namespace Editors
                         DialogFlags.Modal,
                         MessageType.Info,
                         ButtonsType.Ok,
-                        $"Breakpoint functionality is not yet implemented.{Environment.NewLine}Line: {lLine + 1}")
+                        $"Breakpoint functionality Is Not yet implemented.{Environment.NewLine}Line: {lLine + 1}")
                     lDialog.Run()
                     lDialog.Destroy()
                 End If
@@ -406,7 +451,7 @@ Namespace Editors
                 Dim lLine As Integer = GetLineFromY(pLastRightClickY)
                 If lLine >= 0 AndAlso lLine < pLineCount Then
                     ' Insert a new line below the clicked line
-                    Dim lLineLength As Integer = pTextLines(lLine).Length
+                    Dim lLineLength As Integer = TextLines(lLine).Length
                     InsertTextAtPosition(New EditorPosition(lLine, lLineLength), Environment.NewLine)
                     ' Position cursor at the new line
                     SetCursorPosition(lLine + 1, 0)
@@ -428,7 +473,7 @@ Namespace Editors
                 
                 ' Look backwards for a line with less indentation or block start keywords
                 For i As Integer = vLine - 1 To 0 Step -1
-                    Dim lLineText As String = pTextLines(i).Trim().ToLower()
+                    Dim lLineText As String = TextLines(i).Trim().ToLower()
                     Dim lIndent As Integer = GetLineIndentationLevel(i)
                     
                     ' If this line has less indentation, it might be the block start
@@ -438,9 +483,9 @@ Namespace Editors
                     End If
                     
                     ' Check for block keywords
-                    If lLineText.StartsWith("sub ") OrElse lLineText.StartsWith("function ") OrElse 
-                       lLineText.StartsWith("if ") OrElse lLineText.StartsWith("class ") OrElse
-                       lLineText.StartsWith("module ") OrElse lLineText.StartsWith("namespace ") Then
+                    If lLineText.StartsWith("Sub ") OrElse lLineText.StartsWith("Function ") OrElse 
+                       lLineText.StartsWith("If ") OrElse lLineText.StartsWith("Class ") OrElse
+                       lLineText.StartsWith("Module ") OrElse lLineText.StartsWith("Namespace ") Then
                         lStartLine = i
                         Exit For
                     End If
@@ -464,13 +509,13 @@ Namespace Editors
                 
                 ' Look forwards for a line with less or equal indentation or block end keywords
                 For i As Integer = vLine + 1 To pLineCount - 1
-                    Dim lLineText As String = pTextLines(i).Trim().ToLower()
+                    Dim lLineText As String = TextLines(i).Trim().ToLower()
                     Dim lIndent As Integer = GetLineIndentationLevel(i)
                     
                     ' Check for explicit end keywords first (these ARE part of the block)
-                    If lLineText.StartsWith("end ") OrElse lLineText = "end" OrElse
-                       lLineText.StartsWith("next") OrElse lLineText.StartsWith("loop") OrElse
-                       lLineText.StartsWith("wend") OrElse lLineText.StartsWith("until") Then
+                    If lLineText.StartsWith("End ") OrElse lLineText = "End" OrElse
+                       lLineText.StartsWith("Next") OrElse lLineText.StartsWith("Loop") OrElse
+                       lLineText.StartsWith("Wend") OrElse lLineText.StartsWith("until") Then
                         lEndLine = i  ' Include the end statement
                         Exit For
                     End If
@@ -505,7 +550,7 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return 0
                 
-                Dim lLine As String = pTextLines(vLine)
+                Dim lLine As String = TextLines(vLine)
                 Dim lIndent As Integer = 0
                 
                 For Each lChar As Char In lLine
@@ -535,14 +580,14 @@ Namespace Editors
                 
                 ' VB.NET statement starters
                 Dim lStatementStarters As String() = {
-                    "dim ", "private ", "public ", "protected ", "friend ", "shared ",
-                    "const ", "static ",
-                    "if ", "for ", "while ", "do ", "select ", "try ", "with ", "using ",
-                    "sub ", "function ", "property ", "class ", "module ", "interface ",
-                    "namespace ", "imports ", "option ",
-                    "return", "exit ", "continue ", "throw ", "goto ",
-                    "call ", "set ", "get ",
-                    "else", "elseif ", "case ", "catch ", "finally "
+                    "Dim ", "Private ", "Public ", "Protected ", "Friend ", "Shared ",
+                    "Const ", "Static ",
+                    "If ", "for ", "While ", "Do ", "Select ", "Try ", "with ", "Using ",
+                    "Sub ", "Function ", "Property ", "Class ", "Module ", "Interface ",
+                    "Namespace ", "Imports ", "Option ",
+                    "Return", "Exit ", "Continue ", "Throw ", "GoTo ",
+                    "Call ", "Set ", "Get ",
+                    "Else", "ElseIf ", "Case ", "Catch ", "Finally "
                 }
                 
                 Dim lLowerLine As String = vLineText.ToLower()
@@ -562,9 +607,18 @@ Namespace Editors
                 Return False
             End Try
         End Function
+
+        ''' <summary>
+        ''' Handles Smart Paste context menu item click
+        ''' </summary>
+        Private Sub OnContextMenuSmartPaste(vSender As Object, vArgs As EventArgs)
+            Try
+                SmartPaste()
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuSmartPaste error: {ex.Message}")
+            End Try
+        End Sub
         
-        ' ===== Event Declaration =====
-        Public Event GoToLineRequested()
         
     End Class
     

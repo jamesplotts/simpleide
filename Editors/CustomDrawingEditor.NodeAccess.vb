@@ -46,7 +46,7 @@ Namespace Editors
             Try
                 If pDocumentNodes Is Nothing Then Return Nothing
                 
-                For Each lKvp As KeyValuePair(Of String, DocumentNode) In pDocumentNodes
+                for each lKvp As KeyValuePair(Of String, DocumentNode) in pDocumentNodes
                     Dim lDocumentNode As DocumentNode = CType(lKvp.Value, DocumentNode)
                     If lDocumentNode.StartLine <= vLine AndAlso lDocumentNode.EndLine >= vLine Then 
                         Return lDocumentNode
@@ -59,27 +59,7 @@ Namespace Editors
                 Return Nothing
             End Try
         End Function
-        
-        ' Update line metadata from parse result
-        Private Sub UpdateLineMetadataFromParseResult(vParseResult As ParseResult)
-            Try
-                ' Update document nodes
-                pDocumentNodes = vParseResult.DocumentNodes
-                
-                ' Store root nodes list (not pRootNode which is SyntaxNode)
-                pRootNodes = vParseResult.RootNodes
-                
-                ' Update line metadata
-                If vParseResult.LineMetadata IsNot Nothing Then
-                    pLineMetadata = vParseResult.LineMetadata
-                End If
-                
-                Console.WriteLine($"updated document graph with {pDocumentNodes.Count} Nodes and Metadata with Node References for {pLineMetadata.Length} lines")
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateLineMetadataFromParseResult error: {ex.Message}")
-            End Try
-        End Sub
+
         
         ' NOTE: RebuildNodeGraph is implemented in the main file
         
@@ -130,7 +110,7 @@ Namespace Editors
                 
                 ' Add all children recursively
                 If vNode.Children IsNot Nothing Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         AddNodeAndChildrenToList(vList, lChild)
                     Next
                 End If

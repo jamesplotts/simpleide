@@ -265,16 +265,22 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Replace: SimpleIDE.MainWindow.BuildAndRun
     ''' <summary>
-    ''' Build and run the current project
+    ''' Build and run the current project - single entry point
     ''' </summary>
     ''' <remarks>
-    ''' Simplified to rely on BuildProject's own checking
+    ''' This is the single coordinated entry point for build+run operations
+    ''' Called by both F5 and Run button (when build is needed)
     ''' </remarks>
     Public Sub BuildAndRun()
         Try
             Console.WriteLine("BuildAndRun called")
+            
+            ' Final safety check - prevent multiple simultaneous builds
+            If pIsBuildingNow Then
+                Console.WriteLine("BuildAndRun: Already building - exiting")
+                Return
+            End If
             
             If String.IsNullOrEmpty(pCurrentProject) Then
                 ShowError("No Project", "Please open a project before building.")
@@ -285,6 +291,12 @@ Partial Public Class MainWindow
             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
                 Console.WriteLine("BuildAndRun: Initializing build system")
                 InitializeBuildSystem()
+            End If
+            
+            ' Final check after initialization
+            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                Console.WriteLine("BuildAndRun: BuildManager reports build in progress")
+                Return
             End If
             
             ' Store flag to run after build

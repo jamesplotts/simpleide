@@ -27,8 +27,6 @@ Partial Public Class MainWindow
                 End If
             End If
 
-
-            
         Catch ex As Exception
             Console.WriteLine($"OnToggleComment error: {ex.Message}")
         End Try
@@ -76,42 +74,6 @@ Partial Public Class MainWindow
             Return -1
         End Try
     End Function
-    
-'    ' Block comment selected text
-'    Public Sub OnBlockComment(vSender As Object, vArgs As EventArgs)
-'        Try
-'            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
-'            If lCurrentTab?.Editor Is Nothing Then Return
-'            
-'            If TypeOf lCurrentTab.Editor Is IEditor Then
-'                Dim lEditor As IEditor = DirectCast(lCurrentTab.Editor, IEditor)
-'                
-'                ' Get selection
-'                Dim lSelectionStart As Integer = 0
-'                Dim lSelectionEnd As Integer = 0
-'                Dim lHasSelection As Boolean = lEditor.GetSelection(lSelectionStart, lSelectionEnd)
-'                
-'                If lHasSelection AndAlso lSelectionEnd > lSelectionStart Then
-'                    ' Get selected text
-'                    Dim lText As String = lEditor.GetSelectedText()
-'                    Dim lSelectedText As String = lText.Substring(lSelectionStart, lSelectionEnd - lSelectionStart)
-'                    
-'                    ' Wrap in block comment
-'                    Dim lCommentedText As String = "' <BlockComment>" & Environment.NewLine & _
-'                                                   lSelectedText & Environment.NewLine & _
-'                                                   "' </BlockComment>"
-'                    
-'                    ' Replace selection
-'                    lEditor.ReplaceSelection(lCommentedText)
-'                    
-'                    ' Mark as modified
-'                    MarkTabModified(lEditor)
-'                End If
-'            End If
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"OnBlockComment error: {ex.Message}")
-'        End Try
-'    End Sub
+
     
 End Class

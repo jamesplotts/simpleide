@@ -20,11 +20,17 @@ Partial Public Class MainWindow
     ' Initialize CodeSense system
     Private Sub InitializeCodeSense()
         Try
+            Static bolAlreadyRun As Boolean
+            If Not bolAlreadyRun Then
+                bolAlreadyRun = True
+            Else
+																RemoveHandler pProjectManager.ProjectChanged, AddressOf OnProjectChangedForCodeSense
+            End If
             ' Create CodeSense engine
             pCodeSenseEngine = New CodeSenseEngine()
             
             ' Update references when project changes
-            AddHandler Me.ProjectChanged, AddressOf OnProjectChangedForCodeSense
+            AddHandler pProjectManager.ProjectChanged, AddressOf OnProjectChangedForCodeSense
             
         Catch ex As Exception
             Console.WriteLine($"InitializeCodeSense error: {ex.Message}")

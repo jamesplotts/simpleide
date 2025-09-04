@@ -37,18 +37,11 @@ Namespace Editors
         Private pTotalVisibleColumns As Integer = 0
         Private pMaxLineWidth As Integer = 0
         
-        
         ' ===== Document Data =====
-        
-        Private pLineCount As Integer = 1
-        Private pLineMetadata() As LineMetadata
         Private pFilePath As String = ""
         Private pEncoding As Encoding = Encoding.UTF8
         Private pIsModified As Boolean = False
         Private pIsReadOnly As Boolean = False
-        
-        ' ===== Character-based rendering data =====
-        Private pCharacterColors()() As CharacterColorInfo  ' Array of arrays for each Line's character colors
         
         ' ===== Cursor State =====
         Private pCursorLine As Integer = 0
@@ -66,9 +59,7 @@ Namespace Editors
         Private pSelectionEndColumn As Integer = 0
         
         ' ===== Syntax Highlighting =====
-        Private pSyntaxHighlighter As VBSyntaxHighlighter
         Private pHighlightingEnabled As Boolean = True
-        'Private pDocumentParser As VBCodeParser
         Private pSyntaxColorSet As SyntaxColorSet
         Private pSettingsManager As SettingsManager
         Private pBracketHighlightingEnabled As Boolean = False
@@ -103,6 +94,7 @@ Namespace Editors
         Private pMatchingBracketLine As Integer = -1
         Private pMatchingBracketColumn As Integer = -1
         Private pPreservingDesiredColumn As Boolean = False
+        Private pInitialFormattingPending As Boolean = False
         
         ' ===== Search State =====
         Private pSearchPattern As String = ""
@@ -119,6 +111,7 @@ Namespace Editors
         ' ===== Node Graph =====
         Private pRootNode As SyntaxNode
         Private pRootNodes As List(Of DocumentNode)    ' for document Node representation
+        Private pDocumentNodes As Dictionary(Of String, DocumentNode)
         
         ' ===== Font Metrics =====
         Private pFontMetrics As Utilities.FontMetrics
@@ -134,41 +127,152 @@ Namespace Editors
         ' ===== Has Selection Helper =====
         Private pHasSelection As Boolean = False
 
-        ' Theme to use when in demo mode (for preview)
+        ' ===== Theme Related =====
         Private pDemoTheme As EditorTheme  
+        Private pThemeApplied As Boolean = False
 
-        ' Line number widget (NEW - replaces pLineNumberArea)
+        ' ===== Line number widget =====
         Private pLineNumberWidget As Widgets.LineNumberWidget
-        'Private pLineNumberArea As DrawingArea
         
-        ' Line number dragging state (if not already present)
+        ' ===== Line number dragging state =====
         Private pLineNumberDragging As Boolean = False
         Private pLineNumberDragAnchor As Integer = -1
 
-        ' Document structure fields
-        Private pDocumentNodes As Dictionary(Of String, DocumentNode)
+        ' ===== Properties =====
+
+        ''' <summary>
+        ''' Reference to the centralized ProjectManager for parsing operations
+        ''' </summary>
+        Private pProjectManager As ProjectManager
+
+        Private ReadOnly Property pLineCount() As Integer
+            Get
+                Return pSourceFileInfo.TextLines.Count
+            End Get
+        End Property
+
+        Public ReadOnly Property SourceFileInfo As SourceFileInfo Implements IEditor.SourceFileInfo
+            Get
+                Return pSourceFileInfo
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Gets or sets the ProjectManager for parse notifications
+        ''' </summary>
+        ''' <value>The ProjectManager instance</value>
+        ''' <remarks>
+        ''' The editor only subscribes to parse notifications.
+        ''' It doesn't trigger parsing - that's handled by SourceFileInfo.
+        ''' </remarks>
+        Public Property ProjectManager As ProjectManager
+            Get
+                Return pProjectManager
+            End Get
+            Set(value As ProjectManager)
+                Try
+                    ' Unsubscribe from old manager if exists
+                    If pProjectManager IsNot Nothing Then
+                        RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted
+                        RemoveHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
+                        RemoveHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
+                        Console.WriteLine($"CustomDrawingEditor: Unsubscribed from old ProjectManager")
+                    End If
+                    
+                    ' Set new manager
+                    pProjectManager = value
+                    
+                    ' Subscribe to new manager if not null
+                    If pProjectManager IsNot Nothing Then
+                        ' Only subscribe to parse notifications
+                        ' We don't trigger parsing - SourceFileInfo does that
+                        AddHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted
+                        AddHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
+                        AddHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
+                        Console.WriteLine($"CustomDrawingEditor: Subscribed to ProjectManager for notifications")
+                        
+                        ' If we have a SourceFileInfo that needs colors, it will request parsing itself
+                        ' We just wait for the notification when parsing completes
+                    End If
+                    
+                Catch ex As Exception
+                    Console.WriteLine($"CustomDrawingEditor.ProjectManager setter error: {ex.Message}")
+                End Try
+            End Set
+        End Property
+
+        Public ReadOnly Property RootNode() As SyntaxNode Implements IEditor.RootNode
+            Get
+                Return pRootNode
+            End Get
+        End Property
+        
+        Public ReadOnly Property TextLines As List(Of String) Implements IEditor.TextLines
+           Get
+               Return pSourceFileInfo.TextLines
+           End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets the character colors array from SourceFileInfo
+        ''' </summary>
+        ''' <value>Reference to the CharacterColors array in SourceFileInfo</value>
+        Private ReadOnly Property pCharacterColors As CharacterColorInfo()()
+            Get
+                If pSourceFileInfo IsNot Nothing Then
+                    Return pSourceFileInfo.CharacterColors
+                End If
+                Return Nothing
+            End Get
+        End Property
+        
+        ''' <summary>
+        ''' Gets the line metadata array from SourceFileInfo
+        ''' </summary>
+        ''' <value>Reference to the LineMetadata array in SourceFileInfo</value>
+        Private ReadOnly Property pLineMetadata As LineMetadata()
+            Get
+                If pSourceFileInfo IsNot Nothing Then
+                    Return pSourceFileInfo.LineMetadata
+                End If
+                Return Nothing
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Flag indicating if a parse has been requested
+        ''' </summary>
+        Private pParseRequested As Boolean = False
+        
+        ''' <summary>
+        ''' Timer ID for debounced parse scheduling
+        ''' </summary>
+        Private pParseTimerId As UInteger = 0
         
         ' Event handler fields for proper disposal
         Private pFocusInHandler As FocusInEventHandler
         Private pFocusOutHandler As FocusOutEventHandler
         Private pVScrollValueChangedHandler As EventHandler
         Private pHScrollValueChangedHandler As EventHandler
-
         
         ' ===== Events =====
+
         Public Event Modified(vIsModified As Boolean) Implements IEditor.Modified
         Public Event CursorPositionChanged(vLine As Integer, vColumn As Integer) Implements IEditor.CursorPositionChanged
         Public Event SelectionChanged(vHasSelection As Boolean) Implements IEditor.SelectionChanged
         Public Event TextChanged(o As Object, e As EventArgs) Implements IEditor.TextChanged
         Public Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean) Implements IEditor.UndoRedoStateChanged
         Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
-'        Public Event DocumentParsed(vRootNode As SyntaxNode) Implements IEditor.DocumentParsed
+        Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
+
+        ' ===== Event Args =====
 
         Public Class SourceFileRequestor
             Public SourceFileInfo As SourceFileInfo
         End Class
 
         ' ===== Enums =====
+
         Private Enum EditAction
             eNone
             eTyping
@@ -185,116 +289,87 @@ Namespace Editors
         ''' <remarks>
         ''' Updated to work with centralized ProjectParser instead of local VBParser
         ''' </remarks>
-        Public Sub New(vSourceFileInfo As SourceFileInfo)
+        Public Sub New(vSourceFileInfo As SourceFileInfo, vThemeManager As ThemeManager)
             MyBase.New(Orientation.Vertical, 0)
-            
+            If vThemeManager Is Nothing Then Throw New Exception("CustomDrawingEditor.New: Null Object Reference - Parameter vThemeManager Is Nothing")
             Try
                 ' Store the source file info
                 pSourceFileInfo = vSourceFileInfo
                 pFilePath = If(vSourceFileInfo?.FilePath, "")
                 
-                ' Ensure TextLines exists
-                If pSourceFileInfo.TextLines Is Nothing Then
-                    pSourceFileInfo.TextLines = New List(Of String)()
-                End If
+                ' Store the theme manager
+                pThemeManager = vThemeManager                
+
+                ' Now initialize components and editor with error handling
+                Try
+                    InitializeComponents()
+                Catch ex As Exception
+                    Console.WriteLine($"Error in InitializeComponents: {ex.Message}")
+                    ' Continue with minimal setup
+                End Try
                 
-                ' Ensure there's at least one line
-                If pSourceFileInfo.TextLines.Count = 0 Then
-                    pSourceFileInfo.TextLines.Add("")
-                End If
+                Try
+                    InitializeEditor()
+                Catch ex As Exception
+                    Console.WriteLine($"Error in InitializeEditor: {ex.Message}")
+                    ' Continue with what we have
+                End Try
                 
-                ' Initialize line count from SourceFileInfo
-                pLineCount = pSourceFileInfo.TextLines.Count
-                
-                ' CRITICAL: Initialize metadata arrays BEFORE calling InitializeComponents/InitializeEditor
-                ' This ensures they're properly sized for any operations that may reference them
-                ReDim pLineMetadata(pLineCount - 1)
-                ReDim pCharacterColors(pLineCount - 1)
-                for i As Integer = 0 To pLineCount - 1
-                    pLineMetadata(i) = New LineMetadata()
-                    pCharacterColors(i) = New CharacterColorInfo() {}
-                Next
-                
-                ' Now initialize components and editor
-                InitializeComponents()
-                InitializeEditor()
-                
-                ' Subscribe to ProjectManager parse events
-                SubscribeToProjectParser()
-                
+                ' REMOVED: Don't try to get ProjectManager here - it will be set by CreateNewTab
+                Console.WriteLine($"CustomDrawingEditor created for {vSourceFileInfo.FileName}, awaiting ProjectManager")
+               
                 ' FIXED: Check if SourceFileInfo already has a parsed SyntaxTree
                 If vSourceFileInfo.SyntaxTree IsNot Nothing AndAlso vSourceFileInfo.IsParsed Then
                     ' Use the existing parsed structure
                     pRootNode = vSourceFileInfo.SyntaxTree
                     Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
-                    
-                    ' Update metadata from existing parse
-                    UpdateLineMetadataFromParseResult()
-                    UpdateIdentifierCaseMap()
-                    
-                    ' Apply syntax highlighting
-                    for i As Integer = 0 To pLineCount - 1
-                        ApplySyntaxHighlightingToLine(i)
-                    Next
-                    
-                    ' Raise document parsed event with existing structure
-                    RaiseEvent DocumentParsed(pRootNode)
                 Else
-                    ' Request parse through ProjectManager
-                    Console.WriteLine($"Requesting initial parse for {vSourceFileInfo.FileName}")
-                    RequestParseFromProjectManager()
+                    ' REMOVED: Don't request parse here - wait for ProjectManager to be set
+                    Console.WriteLine($"No existing parse tree for {vSourceFileInfo.FileName}, will parse when ProjectManager is available")
                 End If
                 
+                ' Mark as not modified for existing files
+                If vSourceFileInfo.IsLoaded Then
+                    pIsModified = False
+                End If
+                
+                Console.WriteLine($"Editor initialized for: {pFilePath}")
+                Console.WriteLine($"  Lines: {pLineCount}, Loaded: {vSourceFileInfo.IsLoaded}")
+                
+                SetCursorPosition(0,0)
+                EnsureCursorVisible
+                GrabFocus
+
             Catch ex As Exception
-                Console.WriteLine($"CustomDrawingEditor.New error: {ex.Message}")
-                Throw
+                Console.WriteLine($"CustomDrawingEditor constructor error: {ex.Message}")
+                Console.WriteLine($"Stack: {ex.StackTrace}")
             End Try
         End Sub
-
-        Public ReadOnly Property RootNode() As SyntaxNode Implements IEditor.RootNode
-            Get
-                Return pRootNode
-            End Get
-        End Property
-
-
         
-        ' Factory method for creating empty editor with new SourceFileInfo
-        Public Shared Function CreateEmpty(vFilePath As String) As CustomDrawingEditor
-            Try
-                ' Create a new SourceFileInfo for the file
-                Dim lProjectDir As String = If(String.IsNullOrEmpty(vFilePath), "", System.IO.Path.GetDirectoryName(vFilePath))
-                Dim lSourceFileInfo As New SourceFileInfo(vFilePath, lProjectDir)
-                
-                ' Ensure it has at least one empty line
-                If lSourceFileInfo.TextLines.Count = 0 Then
-                    lSourceFileInfo.TextLines.Add("")
-                End If
-                
-                Return New CustomDrawingEditor(lSourceFileInfo)
-                
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawingEditor.CreateEmpty error: {ex.Message}")
-                Throw
-            End Try
-        End Function
-        
-        Private ReadOnly Property pTextLines As List(Of String)
-           Get
-               Return pSourceFileInfo.TextLines
-           End Get
-        End Property
         
         ' ===== Initialization =====
+
         Private Sub InitializeComponents()
             Try
+                ' Initialize critical objects first to prevent null references
+                If pSourceFileInfo Is Nothing Then
+                    Console.WriteLine("InitializeComponents: WARNING - pSourceFileInfo is Nothing, creating minimal instance")
+                    pSourceFileInfo = New SourceFileInfo("", "", "")
+                    pSourceFileInfo.TextLines.Add("")
+                End If
+                
                 ' Create main grid for layout
                 pMainGrid = New Grid()
                 pMainGrid.RowHomogeneous = False
                 pMainGrid.ColumnHomogeneous = False
                 
-                ' Create line number widget (NEW: Using dedicated widget)
-                pLineNumberWidget = New Widgets.LineNumberWidget(Me)
+                ' Create line number widget with error handling
+                Try
+                    pLineNumberWidget = New Widgets.LineNumberWidget(Me)
+                Catch ex As Exception
+                    Console.WriteLine($"InitializeComponents: Failed to create LineNumberWidget: {ex.Message}")
+                    pLineNumberWidget = Nothing
+                End Try
                 
                 ' Create main drawing area
                 pDrawingArea = New DrawingArea()
@@ -305,9 +380,8 @@ Namespace Editors
                                            EventMask.KeyReleaseMask Or EventMask.ScrollMask Or
                                            EventMask.FocusChangeMask))
                 
-                ' Create scrollbars
-                pVScrollbar = New Scrollbar(Gtk.Orientation.Vertical, New Adjustment(0, 0, 100, 1, 10, 10))
-                pHScrollbar = New Scrollbar(Gtk.Orientation.Horizontal, New Adjustment(0, 0, 100, 1, 10, 10))
+                pVScrollbar = New Scrollbar(Gtk.Orientation.Vertical, New Adjustment(0, 0, 1, 1, 1, 1))
+                pHScrollbar = New Scrollbar(Gtk.Orientation.Horizontal, New Adjustment(0, 0, 1, 1, 1, 1))
                 
                 ' Create corner box
                 pCornerBox = New DrawingArea()
@@ -317,7 +391,9 @@ Namespace Editors
                 ' Layout in grid:
                 ' [LineNumbers] [DrawingArea] [VScrollbar]
                 ' [Empty]       [HScrollbar]  [Corner]
-                pMainGrid.Attach(pLineNumberWidget, 0, 0, 1, 1)
+                If pLineNumberWidget IsNot Nothing Then
+                    pMainGrid.Attach(pLineNumberWidget, 0, 0, 1, 1)
+                End If
                 pMainGrid.Attach(pDrawingArea, 1, 0, 1, 1)
                 pMainGrid.Attach(pVScrollbar, 2, 0, 1, 1)
                 pMainGrid.Attach(pHScrollbar, 1, 1, 1, 1)
@@ -354,11 +430,26 @@ Namespace Editors
                     pLineNumberWidget.Visible = True
                 End If
         
-                InitializeDragDrop()
-                EnsureCursorsCreated()
-        
+                ' Initialize drag and drop
+                Try
+                    InitializeDragDrop()
+                Catch ex As Exception
+                    Console.WriteLine($"InitializeComponents: Failed to initialize drag/drop: {ex.Message}")
+                End Try
+                
+                ' Create cursors
+                Try
+                    EnsureCursorsCreated()
+                Catch ex As Exception
+                    Console.WriteLine($"InitializeComponents: Failed to create cursors: {ex.Message}")
+                End Try
+                pDrawingArea.GrabFocus()
+                OnVScrollbarValueChanged(Nothing, Nothing) 
+                UpdateScrollbars()
+                
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
+                ' Don't re-throw - let the editor continue with minimal UI
             End Try
         End Sub
         
@@ -367,31 +458,29 @@ Namespace Editors
         ''' </summary>
         Private Sub InitializeEditor()
             Try
-                ' Initialize document - ensure pTextLines has at least one line
-                If pTextLines.Count = 0 Then
-                    pTextLines.Add("")
-                End If
-                
-                ' Set line count from actual text lines
-                pLineCount = pTextLines.Count
-                
-                ' FIXED: Initialize metadata arrays to match actual line count, not hardcoded to 2
-                ReDim pLineMetadata(pLineCount - 1)
-                ReDim pCharacterColors(pLineCount - 1)
-                
-                ' Initialize each metadata element
-                for i As Integer = 0 To pLineCount - 1
-                    pLineMetadata(i) = New LineMetadata()
-                    pCharacterColors(i) = New CharacterColorInfo() {}
-                Next
-                
                 ' Initialize font
                 pFontDescription = FontDescription.FromString("Monospace 11")
                 UpdateFontMetrics()
-        
-                ' Initialize syntax highlighting
-                pSyntaxColorSet = New SyntaxColorSet()
-                pSyntaxHighlighter = New VBSyntaxHighlighter(pSyntaxColorSet)
+
+                ' Initialize syntax highlighting with theme colors if available        
+                If pThemeManager IsNot Nothing Then
+                    ' Get the current theme
+                    Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                    
+                    If lCurrentTheme IsNot Nothing AndAlso lCurrentTheme.SyntaxColors IsNot Nothing Then
+                        ' Create SyntaxColorSet from theme
+                        pSyntaxColorSet = New SyntaxColorSet()
+                        pSyntaxColorSet.UpdateFromTheme(lCurrentTheme)
+                        Console.WriteLine("InitializeEditor: SyntaxColorSet initialized from current theme")
+                    Else
+                        ' Fall back to creating default SyntaxColorSet
+                        pSyntaxColorSet = New SyntaxColorSet()
+                    End If
+                Else
+                    ' No theme manager available, use defaults
+                    pSyntaxColorSet = New SyntaxColorSet()
+                End If
+
                 
                 ' Initialize clipboard
                 pClipboard = Clipboard.GetDefault(Display.Default)
@@ -401,10 +490,9 @@ Namespace Editors
         
                 ' Initialize context menus
                 InitializeContextMenus()
-        
+
                 ' Update scrollbars
                 UpdateScrollbars()
-        
             Catch ex As Exception
                 Console.WriteLine($"InitializeEditor error: {ex.Message}")
             End Try
@@ -413,6 +501,7 @@ Namespace Editors
         Public Sub SetThemeManager(vThemeManager As ThemeManager) Implements IEditor.SetThemeManager
             pThemeManager = vThemeManager
         End Sub
+
         
         ''' <summary>
         ''' Updates the line number widget with current editor state
@@ -440,17 +529,40 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Updates the line number widget width based on the number of lines
+        ''' </summary>
+        ''' <remarks>
+        ''' Calculates the required width to display the maximum line number
+        ''' </remarks>
         Private Sub UpdateLineNumberWidth()
             Try
-                If pLineNumberWidget IsNot Nothing Then
-                    pLineNumberWidget.UpdateWidth()
+                If pLineNumberWidget Is Nothing Then Return
+                
+                ' Calculate number of digits needed for line count
+                Dim lDigits As Integer = Math.Max(3, pLineCount.ToString().Length)
+                
+                ' Calculate width needed (digits * char width + padding)
+                Dim lNewWidth As Integer = (lDigits * pCharWidth) + 16  ' 16 pixels padding
+                
+                ' Only update if width changed to avoid unnecessary redraws
+                If pLineNumberWidth <> lNewWidth Then
+                    pLineNumberWidth = lNewWidth
+                    
+                    ' Request size for line number widget
+                    pLineNumberWidget.SetSizeRequest(pLineNumberWidth, -1)
+                    
+                    ' Queue redraw of line numbers
+                    pLineNumberWidget?.QueueDraw()
+                    
+                    Console.WriteLine($"UpdateLineNumberWidth: Set to {pLineNumberWidth}px for {pLineCount} lines")
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateLineNumberWidth error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Gets the first visible line in the viewport
         ''' </summary>
@@ -518,7 +630,7 @@ Namespace Editors
                 If lEndLine < pLineCount - 1 Then
                     SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine + 1, 0))
                 Else
-                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, pTextLines(lEndLine).Length))
+                    SetSelection(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, TextLines(lEndLine).Length))
                 End If
                 
             Catch ex As Exception
@@ -682,7 +794,7 @@ Namespace Editors
             Get
                 Dim lCount As Integer = 0
                 for i As Integer = 0 To pLineCount - 1
-                    lCount += pTextLines(i).Length
+                    lCount += TextLines(i).Length
                     If i < pLineCount - 1 Then
                         lCount += Environment.NewLine.Length
                     End If
@@ -827,48 +939,6 @@ Namespace Editors
             End Get
         End Property
 
-        ''' <summary>
-        ''' Refresh editor content from SourceFileInfo
-        ''' </summary>
-        Public Sub RefreshFromSourceFileInfo()
-            Try
-                If pSourceFileInfo Is Nothing Then Return
-                
-                ' Update line count directly from SourceFileInfo
-                ' (pTextLines is a ReadOnly property that returns pSourceFileInfo.TextLines)
-                pLineCount = pSourceFileInfo.TextLines.Count
-                
-                ' Ensure at least one line
-                If pLineCount = 0 Then
-                    pSourceFileInfo.TextLines.Add("")
-                    pLineCount = 1
-                End If
-                
-                ' Resize metadata arrays
-                ReDim pLineMetadata(pLineCount - 1)
-                ReDim pCharacterColors(pLineCount - 1)
-                for i As Integer = 0 To pLineCount - 1
-                    pLineMetadata(i) = New LineMetadata()
-                    pCharacterColors(i) = New CharacterColorInfo() {}
-                    ProcessLineFormatting(i)
-                Next
-                
-                ' Reset cursor
-                SetCursorPosition(0, 0)
-                
-                ' Update display
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                pDrawingArea?.QueueDraw()
-                
-                ' Schedule parsing
-                ScheduleParse()
-                
-            Catch ex As Exception
-                Console.WriteLine($"RefreshFromSourceFileInfo error: {ex.Message}")
-            End Try
-        End Sub
-
         Public ReadOnly Property ThemeManager As ThemeManager
             Get
                 Return pThemeManager
@@ -909,6 +979,9 @@ Namespace Editors
                 
                 Console.WriteLine($"SetFilePath: Updated file path to {vFilePath}")
                 
+                ' CRITICAL: Update scrollbars after any file path change
+                ' This ensures proper scrollbar initialization even if content hasn't loaded yet
+                UpdateScrollbars()
             Catch ex As Exception
                 Console.WriteLine($"SetFilePath error: {ex.Message}")
             End Try
@@ -925,6 +998,208 @@ Namespace Editors
                 Return True
             End Get
         End Property
+
+        ''' <summary>
+        ''' Handles parse completion notification from ProjectManager
+        ''' </summary>
+        ''' <param name="vFile">The source file that was parsed</param>
+        ''' <param name="vResult">The parse result (SyntaxNode)</param>
+        ''' <remarks>
+        ''' This handler updates the local pRootNode, notifies parsing completion,
+        ''' and triggers a redraw to show updated syntax colors.
+        ''' </remarks>
+        Private Sub OnProjectManagerParseCompleted(vFile As SourceFileInfo, vResult As Object)
+            Try
+                ' Verify this is for our file
+                If vFile Is Nothing OrElse vFile IsNot pSourceFileInfo Then
+                    Return
+                End If
+                
+                Console.WriteLine($"CustomDrawingEditor: ParseCompleted received for {pFilePath}")
+                
+                ' Update the root node from the parse result
+                If TypeOf vResult Is SyntaxNode Then
+                    pRootNode = DirectCast(vResult, SyntaxNode)
+                    Console.WriteLine($"CustomDrawingEditor: Updated pRootNode from parse result")
+                ElseIf vResult IsNot Nothing Then
+                    ' Try to extract SyntaxNode from other result types
+                    Dim lResultType = vResult.GetType()
+                    Dim lRootNodeProperty = lResultType.GetProperty("RootNode")
+                    
+                    If lRootNodeProperty IsNot Nothing Then
+                        Dim lNode = lRootNodeProperty.GetValue(vResult)
+                        If TypeOf lNode Is SyntaxNode Then
+                            pRootNode = DirectCast(lNode, SyntaxNode)
+                            Console.WriteLine($"CustomDrawingEditor: Extracted pRootNode from parse result")
+                        End If
+                    End If
+                End If
+                
+                ' The SourceFileInfo should now have updated CharacterColors
+                ' These are used directly by the drawing code for syntax highlighting
+                Console.WriteLine($"CustomDrawingEditor: CharacterColors updated, ready to draw new colors")
+                
+                ' Notify that parsing is complete (raises DocumentParsed event)
+                NotifyParsingComplete()
+                
+                ' Queue redraw to show the updated colors
+                pDrawingArea?.QueueDraw()
+                
+                Console.WriteLine($"CustomDrawingEditor: Redraw queued for {pFilePath}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectManagerParseCompleted error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles identifier map updates from ProjectManager
+        ''' </summary>
+        ''' <remarks>
+        ''' Simply refreshes the display to show updated colors
+        ''' </remarks>
+        Private Sub OnProjectManagerIdentifierMapUpdated()
+            Try
+                Console.WriteLine("CustomDrawingEditor: Identifier map updated - refreshing display")
+                
+                ' The ProjectManager will re-parse and update CharacterColors
+                ' We just need to redraw
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectManagerIdentifierMapUpdated error: {ex.Message}")
+            End Try
+        End Sub
+
+
+        ''' <summary>
+        ''' Clears the identifier case map
+        ''' </summary>
+        ''' <remarks>
+        ''' Called by MainWindow before reloading the map from ProjectManager
+        ''' </remarks>
+        Public Sub ClearIdentifierCaseMap()
+            Try
+                pIdentifierCaseMap.Clear()
+                Console.WriteLine("Cleared identifier case map")
+            Catch ex As Exception
+                Console.WriteLine($"ClearIdentifierCaseMap error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles project closed event from ProjectManager
+        ''' </summary>
+        ''' <remarks>
+        ''' Clears any cached data when project closes
+        ''' </remarks>
+        Private Sub OnProjectManagerProjectClosed()
+            Try
+                Console.WriteLine($"CustomDrawingEditor: Project closed notification")
+                
+                ' Clear any cached parse data
+                pRootNode = Nothing
+                
+                ' The SourceFileInfo should handle clearing its own data
+                ' We just need to redraw to reflect any changes
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectManagerProjectClosed error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' ===== ProjectManager Helper Methods =====
+        
+        ''' <summary>
+        ''' Internal method to apply theme settings without null checks
+        ''' </summary>
+        ''' <param name="vTheme">The theme to apply</param>
+        Private Sub ApplyThemeInternal(vTheme As EditorTheme)
+            Try
+                If vTheme Is Nothing Then Return
+                
+                Console.WriteLine($"ApplyThemeInternal: Applying theme '{vTheme.Name}'")
+                
+                ' Update background colors FIRST
+                pBackgroundColor = vTheme.BackgroundColor
+                pForegroundColor = vTheme.ForegroundColor
+                
+                ' Update line number colors
+                pLineNumberBgColor = vTheme.LineNumberBackgroundColor
+                pLineNumberFgColor = vTheme.LineNumberColor
+                
+                ' Update selection and cursor colors
+                pSelectionColor = vTheme.SelectionColor
+                pCursorColor = vTheme.CursorColor
+                pCurrentLineBgColor = vTheme.CurrentLineColor
+                
+                ' Set find highlight color
+                If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
+                    pFindHighlightColor = vTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
+                Else
+                    pFindHighlightColor = vTheme.SelectionColor
+                End If
+                
+                ' Update syntax colors if available
+                If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
+                    pSyntaxColorSet.UpdateFromTheme(vTheme)
+                    ' Create syntax highlighter with the color set
+                End If
+                
+                ' CRITICAL: Update line number widget theme IMMEDIATELY
+                ' This ensures the line number background updates with the editor background
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.UpdateTheme(vTheme)
+                    ' Force immediate redraw of line number widget
+                    pLineNumberWidget.QueueDraw()
+                End If
+                
+                ' Apply CSS theme to drawing area for immediate background update
+                ApplyThemeToWidget(vTheme)
+                
+                ' Queue redraw of main drawing area
+                pDrawingArea?.QueueDraw()
+                
+                pThemeApplied = True
+                
+                Console.WriteLine($"ApplyThemeInternal: Applied theme colors immediately")
+                
+                ' Now request async recoloring for syntax highlighting
+                ' This happens after the immediate visual update
+                RequestAsyncRecoloring()
+                
+            Catch ex As Exception
+                Console.WriteLine($"ApplyThemeInternal error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' To: CustomDrawingEditor.Events.vb
+        ''' <summary>
+        ''' Called when the editor becomes visible (tab switched to this editor)
+        ''' </summary>
+        ''' <remarks>
+        ''' This ensures syntax highlighting is properly applied when switching tabs
+        ''' </remarks>
+        Public Shadows Sub OnShown() Implements IEditor.OnShown
+            Try
+                Console.WriteLine($"CustomDrawingEditor.OnShown: Editor shown for {pFilePath}")
+                
+                ' Force re-colorization to ensure syntax highlighting is visible
+                ForceRecolorization()
+                
+                ' Ensure the drawing area is focused for keyboard input
+                If pDrawingArea IsNot Nothing AndAlso pDrawingArea.CanFocus Then
+                    pDrawingArea.GrabFocus()
+                End If
+                
+                ' Queue a redraw to ensure everything is displayed properly
+                pDrawingArea?.QueueDraw()
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnShown error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     

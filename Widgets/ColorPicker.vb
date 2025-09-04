@@ -94,11 +94,11 @@ Namespace Widgets
             MyBase.New(If(vLayoutMode = LayoutMode.eHorizontal, Orientation.Horizontal, Orientation.Vertical), 5)
             
             pLayoutMode = vLayoutMode
-            pCurrentColor = New Gdk.RGBA() With {.Red = 1.0, .Green = 0.0, .Blue = 0.0, .Alpha = 1.0}
+            pCurrentColor = New Gdk.RGBA() with {.Red = 1.0, .Green = 0.0, .Blue = 0.0, .Alpha = 1.0}
             
             ' Initialize custom colors with empty slots
-            For i As Integer = 0 To 15
-                pCustomColors.Add(New Gdk.RGBA() With {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0})
+            for i As Integer = 0 To 15
+                pCustomColors.Add(New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0})
             Next
             
             BuildUI()
@@ -425,8 +425,8 @@ Namespace Widgets
             }
             
             Dim lColorIndex As Integer = 0
-            For row As Integer = 0 To 5
-                For col As Integer = 0 To 7
+            for row As Integer = 0 To 5
+                for col As Integer = 0 To 7
                     If lColorIndex < lColors.Length Then
                         Dim lColorArea As DrawingArea = CreateColorArea(lColors(lColorIndex))
                         lGrid.Attach(lColorArea, col, row, 1, 1)
@@ -448,8 +448,8 @@ Namespace Widgets
             
             ' Create 2 rows of 8 custom color slots
             Dim lIndex As Integer = 0
-            For row As Integer = 0 To 1
-                For col As Integer = 0 To 7
+            for row As Integer = 0 To 1
+                for col As Integer = 0 To 7
                     Dim lColorArea As DrawingArea = CreateCustomColorArea(lIndex)
                     lGrid.Attach(lColorArea, col, row, 1, 1)
                     pCustomColorAreas.Add(lColorArea)
@@ -508,8 +508,8 @@ Namespace Widgets
                 Dim lHeight As Integer = pGradientArea.AllocatedHeight
                 
                 ' Draw saturation-lightness gradient for current hue
-                For x As Integer = 0 To lWidth - 1
-                    For y As Integer = 0 To lHeight - 1
+                for x As Integer = 0 To lWidth - 1
+                    for y As Integer = 0 To lHeight - 1
                         Dim lSaturation As Double = x / CDbl(lWidth - 1)
                         Dim lLightness As Double = 1.0 - (y / CDbl(lHeight - 1))
                         
@@ -545,7 +545,7 @@ Namespace Widgets
                 Dim lHeight As Integer = pHueSlider.AllocatedHeight
                 
                 ' Draw hue gradient
-                For y As Integer = 0 To lHeight - 1
+                for y As Integer = 0 To lHeight - 1
                     Dim lHue As Double = (y / CDbl(lHeight - 1)) * 360
                     Dim lRgb As (Double, Double, Double) = HslToRgb(lHue, 1.0, 0.5)
                     lContext.SetSourceRgb(lRgb.Item1, lRgb.Item2, lRgb.Item3)
@@ -932,7 +932,7 @@ Namespace Widgets
                 Dim lBlue As Double = pBlueEntry.Value / 255.0
                 
                 ' Update current color
-                pCurrentColor = New Gdk.RGBA() With {
+                pCurrentColor = New Gdk.RGBA() with {
                     .Red = lRed,
                     .Green = lGreen,
                     .Blue = lBlue,
@@ -1010,7 +1010,7 @@ Namespace Widgets
                 Dim lRgb As (Double, Double, Double) = HslToRgb(pCurrentHue, pCurrentSaturation, pCurrentLightness)
                 
                 ' Update current color
-                pCurrentColor = New Gdk.RGBA() With {
+                pCurrentColor = New Gdk.RGBA() with {
                     .Red = lRgb.Item1,
                     .Green = lRgb.Item2,
                     .Blue = lRgb.Item3,
@@ -1222,11 +1222,11 @@ Namespace Widgets
                     Return pCustomColors(vIndex)
                 End If
                 
-                Return New Gdk.RGBA() With {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
+                Return New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
                 
             Catch ex As Exception
                 Console.WriteLine($"ColorPicker.GetCustomColor error: {ex.Message}")
-                Return New Gdk.RGBA() With {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
+                Return New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
             End Try
         End Function
         
@@ -1235,17 +1235,74 @@ Namespace Widgets
         ''' </summary>
         Public Sub ClearCustomColors()
             Try
-                For i As Integer = 0 To pCustomColors.Count - 1
-                    pCustomColors(i) = New Gdk.RGBA() With {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
+                for i As Integer = 0 To pCustomColors.Count - 1
+                    pCustomColors(i) = New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1.0}
                 Next
                 
                 ' Redraw all custom color areas
-                For Each lArea In pCustomColorAreas
+                for each lArea in pCustomColorAreas
                     lArea.QueueDraw()
                 Next
                 
             Catch ex As Exception
                 Console.WriteLine($"ColorPicker.ClearCustomColors error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Sets the color and forces immediate visual update
+        ''' </summary>
+        ''' <param name="vColor">The color to set</param>
+        ''' <remarks>
+        ''' This method is used when external code needs to set the color
+        ''' and ensure immediate visual feedback
+        ''' </remarks>
+        Public Sub SetColor(vColor As Gdk.RGBA)
+            Try
+                ' Only update if the color is actually different
+                If ColorsEqual(pCurrentColor, vColor) Then Return
+                
+                pIsUpdating = True
+                
+                ' Set the internal color
+                pCurrentColor = vColor
+                
+                ' Convert to HSL
+                Dim lHsl As (Double, Double, Double) = RgbToHsl(vColor.Red, vColor.Green, vColor.Blue)
+                pCurrentHue = lHsl.Item1
+                pCurrentSaturation = lHsl.Item2
+                pCurrentLightness = lHsl.Item3
+                
+                ' Update gradient crosshair position
+                UpdateGradientCrosshair()
+                
+                ' Update all UI elements
+                UpdateUI()
+                
+                ' Force immediate redraw of visual elements
+                If pGradientArea IsNot Nothing Then 
+                    pGradientArea.QueueDraw()
+                    ' Process pending events to force immediate redraw
+                    While Gtk.Application.EventsPending()
+                        Gtk.Application.RunIteration(False)
+                    End While
+                End If
+                
+                If pHueSlider IsNot Nothing Then 
+                    pHueSlider.QueueDraw()
+                End If
+                
+                If pColorPreview IsNot Nothing Then 
+                    pColorPreview.QueueDraw()
+                End If
+                
+                ' Don't fire the ColorChanged event here since this is an external set
+                ' The calling code is responsible for handling any state changes
+                
+            Catch ex As Exception
+                Console.WriteLine($"ColorPicker.SetColor error: {ex.Message}")
+            Finally
+                pIsUpdating = False
             End Try
         End Sub
         

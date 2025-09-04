@@ -34,6 +34,7 @@ Namespace Editors
         Private pSyntaxColorSet As SyntaxColorSet
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
+        Private pThemeManager As ThemeManager
         
         ' Artifact metadata
         Private pArtifactType As String = ""
@@ -48,10 +49,11 @@ Namespace Editors
         Public Event CompareRequested(vArtifactId As String, vContent As String, vTargetPath As String)
         
         ' ===== Constructor =====
-        Public Sub New(vSyntaxColorSet As SyntaxColorSet, vSettingsManager As SettingsManager, Optional vProjectManager As ProjectManager = Nothing)
+        Public Sub New(vSyntaxColorSet As SyntaxColorSet, vSettingsManager As SettingsManager, vThemeManager As ThemeManager, Optional vProjectManager As ProjectManager = Nothing)
             MyBase.New(Orientation.Vertical, 0)
             
             Try
+                pThemeManager = vThemeManager
                 pSyntaxColorSet = vSyntaxColorSet
                 pSettingsManager = vSettingsManager
                 pProjectManager = vProjectManager
@@ -73,12 +75,12 @@ Namespace Editors
                 CreateHeaderArea()
                 
                 ' Create initial empty SourceFileInfo
-                pSourceFileInfo = New SourceFileInfo("", "")
+                pSourceFileInfo = New SourceFileInfo("", "", "")
                 pSourceFileInfo.TextLines.Add("")
                 pSourceFileInfo.IsLoaded = True
                 
                 ' Create editor with SourceFileInfo
-                pEditor = New CustomDrawingEditor(pSourceFileInfo)
+                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager)
                 pEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 
                 ' Pack components
@@ -167,7 +169,7 @@ Namespace Editors
                 Dim lSuggestedPath As String = GetSuggestedFilePath()
                 
                 ' Create new SourceFileInfo for the artifact
-                pSourceFileInfo = New SourceFileInfo(lSuggestedPath, "")
+                pSourceFileInfo = New SourceFileInfo(lSuggestedPath, "", "")
                 pSourceFileInfo.Content = vContent
                 pSourceFileInfo.TextLines = New List(Of String)(vContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
                 If pSourceFileInfo.TextLines.Count = 0 Then
@@ -180,7 +182,7 @@ Namespace Editors
                     pMainBox.Remove(pEditor)
                 End If
                 
-                pEditor = New CustomDrawingEditor(pSourceFileInfo)
+                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager)
                 pEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 
                 ' Pack the new editor (before status bar)
@@ -271,7 +273,7 @@ Namespace Editors
                 
                 ' Clean the artifact name for use as filename
                 Dim lCleanName As String = pArtifactName
-                For Each lChar In System.IO.Path.GetInvalidFileNameChars()
+                for each lChar in System.IO.Path.GetInvalidFileNameChars()
                     lCleanName = lCleanName.Replace(lChar, "_"c)
                 Next
                 

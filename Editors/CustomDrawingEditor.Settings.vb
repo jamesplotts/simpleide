@@ -48,52 +48,11 @@ Namespace Editors
                 If pThemeManager IsNot Nothing Then
                     Dim lCurrentTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
                     If lCurrentTheme IsNot Nothing Then
-                        ApplyTheme(lCurrentTheme)
+                        ApplyThemeInternal(lCurrentTheme)
                     End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme (parameterless) error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Apply theme from theme manager
-        ''' </summary>
-        Public Sub ApplyTheme(vTheme As EditorTheme)
-            Try
-                ' Store theme colors
-                If vTheme IsNot Nothing Then
-                    pBackgroundColor = vTheme.GetColor(EditorTheme.Tags.eBackgroundColor)
-                    pForegroundColor = vTheme.GetColor(EditorTheme.Tags.eForegroundColor)
-                    pLineNumberBgColor = vTheme.GetColor(EditorTheme.Tags.eLineNumberBackgroundColor)
-                    pLineNumberFgColor = vTheme.GetColor(EditorTheme.Tags.eLineNumberColor)
-                    pSelectionColor = vTheme.GetColor(EditorTheme.Tags.eSelectionColor)
-                    pCurrentLineColor = vTheme.GetColor(EditorTheme.Tags.eCurrentLineColor)
-                    
-                    ' Update syntax highlighting colors
-                    If pSyntaxColorSet IsNot Nothing Then
-                        pSyntaxColorSet.UpdateFromTheme(vTheme)
-                    End If
-                    
-                    ' Update line number widget theme
-                    If pLineNumberWidget IsNot Nothing Then
-                        pLineNumberWidget.UpdateTheme(vTheme)
-                    End If
-                    
-                    ' Reprocess syntax highlighting with new colors
-                    If pSyntaxHighlighter IsNot Nothing Then
-                        For i As Integer = 0 To pLineCount - 1
-                            ProcessLineFormatting(i)
-                        Next
-                    End If
-                    
-                    ' Queue redraw
-                    pDrawingArea?.QueueDraw()
-                    pLineNumberWidget?.QueueDraw()
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyTheme error: {ex.Message}")
             End Try
         End Sub
         
@@ -117,7 +76,7 @@ Namespace Editors
             Try
                 If vTheme.SyntaxColors Is Nothing Then Return
                 
-                For Each kvp In vTheme.SyntaxColors
+                for each kvp in vTheme.SyntaxColors
                     Select Case kvp.Key
                         Case SyntaxColorSet.Tags.eKeyword
                             pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eKeyword) = kvp.Value
@@ -140,9 +99,6 @@ Namespace Editors
                     End Select
                 Next
                 
-                ' Re-parse to apply new colors
-                ScheduleParse()
-                
             Catch ex As Exception
                 Console.WriteLine($"UpdateSyntaxColorsFromTheme error: {ex.Message}")
             End Try
@@ -151,21 +107,19 @@ Namespace Editors
         ' Apply theme colors to widget
         Private Sub ApplyThemeToWidget(vTheme As EditorTheme)
             Try
-                ' Create CSS for the widget - Fixed: using underscore instead of hyphen
+                ' Create CSS for immediate background color update
                 Dim lCss As String = $"
-                    .EditorWidget {{
+                    drawingarea {{
                         background-color: {vTheme.BackgroundColor};
-                        color: {vTheme.ForegroundColor};
                     }}
                 "
                 
-                ' Apply CSS to drawing area
+                ' Apply CSS to drawing area for immediate effect
                 If pDrawingArea IsNot Nothing Then
-                    Dim lCssProvider As New CssProvider()
-                    lCssProvider.LoadFromData(lCss)
-                    pDrawingArea.StyleContext.AddProvider(lCssProvider, CUInt(StyleProviderPriority.Application))
-                    pDrawingArea.StyleContext.AddClass("EditorWidget")
+                    CssHelper.ApplyCssToWidget(pDrawingArea, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
                 End If
+                
+                Console.WriteLine($"ApplyThemeToWidget: Applied immediate background color")
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyThemeToWidget error: {ex.Message}")
@@ -191,14 +145,24 @@ Namespace Editors
         ' Set editor dependencies (called by factory or main window)
         Public Sub SetDependencies(vSyntaxColorSet As SyntaxColorSet, vSettingsManager As SettingsManager)
             Try
-                pSyntaxColorSet = vSyntaxColorSet
+                ' Store the settings manager
                 pSettingsManager = vSettingsManager
                 
-                ' Update syntax highlighter with new color set
-                If pSyntaxHighlighter IsNot Nothing AndAlso vSyntaxColorSet IsNot Nothing Then
-                    pSyntaxHighlighter = New VBSyntaxHighlighter(vSyntaxColorSet)
-                End If
-                
+                ' Only use the provided SyntaxColorSet if we don't have theme colors
+                If pSyntaxColorSet Is Nothing Then
+                    If vSyntaxColorSet IsNot Nothing Then
+                        pSyntaxColorSet = vSyntaxColorSet
+                        Console.WriteLine("SetDependencies: Using provided SyntaxColorSet")
+                    Else
+                        ' Create a default one if nothing provided
+                        pSyntaxColorSet = New SyntaxColorSet()
+                        Console.WriteLine("SetDependencies: Created default SyntaxColorSet")
+                    End If
+                    
+                Else
+                    Console.WriteLine("SetDependencies: Keeping theme-based SyntaxColorSet")
+                End If        
+	        
                 ' Apply current settings
                 If vSettingsManager IsNot Nothing Then
                     ApplySettingsFromManager()
@@ -250,12 +214,7 @@ Namespace Editors
                     ' Update indent size to match
                     pIndentSize = vSpaces
                     
-                    ' Recalculate display if using spaces for tabs
-                    If Not pUseTabs Then
-                        ' Re-parse to update tab display
-                        ScheduleParse()
-                    End If
-                    
+                   
                     ' Queue redraw
                     pDrawingArea?.QueueDraw()
                 End If
@@ -271,9 +230,7 @@ Namespace Editors
                 If pUseTabs <> vUseTabs Then
                     pUseTabs = vUseTabs
                     
-                    ' Re-parse to update tab display
-                    ScheduleParse()
-                    
+                   
                     ' Queue redraw
                     pDrawingArea?.QueueDraw()
                 End If
@@ -371,8 +328,8 @@ Namespace Editors
                         pMatchingBracketLine = -1
                         pMatchingBracketColumn = -1
                     Else
-                        ' Update bracket matching (if method exists)
-                        ' UpdateBracketMatching() ' Method needs to be implemented
+                        ' Update bracket matching 
+                        UpdateBracketMatching() 
                     End If
                     
                     ' Queue redraw
@@ -513,7 +470,7 @@ Namespace Editors
                 
                 ' Update syntax colors if available
                 If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
-                    For Each kvp In vTheme.SyntaxColors
+                    for each kvp in vTheme.SyntaxColors
                         Select Case kvp.Key
                             Case SyntaxColorSet.Tags.eKeyword
                                 pSyntaxColorSet.SyntaxColor(SyntaxColorSet.Tags.eKeyword) = kvp.Value
@@ -536,8 +493,6 @@ Namespace Editors
                         End Select
                     Next
                     
-                    ' Schedule a reparse to apply the new syntax colors
-                    ScheduleParse()
                 End If
                 
                 ' Apply theme to drawing area background (CSS)
@@ -594,6 +549,28 @@ Namespace Editors
                 Return New EditorTheme("Default")
             End Try
         End Function
+
+        ''' <summary>
+        ''' Requests asynchronous recoloring of syntax highlighting
+        ''' </summary>
+        ''' <remarks>
+        ''' This is called after theme changes to update syntax colors without blocking the UI
+        ''' </remarks>
+        Private Sub RequestAsyncRecoloring()
+            Try
+                ' If we have a ProjectManager and SourceFileInfo, request recoloring through it
+                If pProjectManager IsNot Nothing AndAlso pSourceFileInfo IsNot Nothing Then
+                    Console.WriteLine("RequestAsyncRecoloring: Requesting color update from ProjectManager")
+                    pProjectManager.UpdateFileColors(pSourceFileInfo)
+                Else
+                    ' Fallback to local recoloring
+                    Console.WriteLine("RequestAsyncRecoloring: Using local ForceRecolorization")
+                    ForceRecolorization()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"RequestAsyncRecoloring error: {ex.Message}")
+            End Try
+        End Sub
         
     End Class
     

@@ -29,6 +29,13 @@ Namespace Managers
         Public Event FileRemoved(vFilePath As String)
         Public Event FileRenamed(vOldPath As String, vNewPath As String)
         Public Event IdentifierMapUpdated()
+
+        ' Events
+        Public Event ProjectChanged(vProjectPath As String)
+        Public Event FileOpened(vFilePath As String)
+        Public Event FileClosed(vFilePath As String)
+        Public Event FileSaved(vFilePath As String)
+
         
         ' ===== Private Fields =====
         Private pCurrentProjectInfo As ProjectInfo
@@ -37,15 +44,80 @@ Namespace Managers
         Private pIsProjectOpen As Boolean = False
         Private pIsDirty As Boolean = False
         Private pRootNode As SyntaxNode
+        Private pThemeManager As ThemeManager
 
-        ' ===== Events =====
 
+        
         ''' <summary>
-        ''' Raised when a file has been parsed successfully
+        ''' Dictionary of all source files in the project, keyed by full path
         ''' </summary>
-        ''' <param name="vFile">The SourceFileInfo that was parsed</param>
-        ''' <param name="vResult">The root SyntaxNode of the parse result</param>
-        Public Event ParseCompleted(vFile As SourceFileInfo, vResult As SyntaxNode)
+        Private pSourceFiles As New Dictionary(Of String, SourceFileInfo)()
+        
+        ''' <summary>
+        ''' The complete project syntax tree combining all files
+        ''' </summary>
+        Private pProjectSyntaxTree As SyntaxNode
+        
+        ''' <summary>
+        ''' Indicates if project structure is currently being loaded
+        ''' </summary>
+        Private pIsLoadingStructure As Boolean = False
+        
+        ' ===== Events for Enhanced Features =====
+        
+        ''' <summary>
+        ''' Raised when project structure has been fully parsed
+        ''' </summary>
+        Public Event ProjectStructureLoaded(vRootNode As SyntaxNode)
+        
+        ''' <summary>
+        ''' Raised when a file in the project is parsed
+        ''' </summary>
+        Public Event FileParsed(vFileInfo As SourceFileInfo)
+        
+        ''' <summary>
+        ''' Raised when parsing progress updates
+        ''' </summary>
+        Public Event ParsingProgress(vCurrent As Integer, vTotal As Integer, vFileName As String)
+        
+        
+        ''' <summary>
+        ''' All DocumentModels keyed by relative file path from project root
+        ''' </summary>
+        Private pDocumentModels As New Dictionary(Of String, DocumentModel)()
+        
+        ''' <summary>
+        ''' Unified namespace tree combining all DocumentModels
+        ''' </summary>
+        Private pUnifiedNamespaceTree As DocumentNode
+        
+        ''' <summary>
+        ''' Maps fully qualified names to DocumentNodes for fast lookup
+        ''' </summary>
+        Private pSymbolTable As New Dictionary(Of String, DocumentNode)(StringComparer.OrdinalIgnoreCase)
+        
+        ''' <summary>
+        ''' Tracks which DocumentModels have active editors
+        ''' </summary>
+        Private pActiveEditors As New Dictionary(Of String, List(Of IEditor))()
+        
+       
+        ''' <summary>
+        ''' Total files to load for progress reporting
+        ''' </summary>
+        Private pTotalFilesToLoad As Integer = 0
+        
+        ''' <summary>
+        ''' Files loaded so far
+        ''' </summary>
+        Private pFilesLoaded As Integer = 0
+        
+        ''' <summary>
+        ''' Lock for thread-safe operations
+        ''' </summary>
+        Private pLoadLock As New Object()
+        
+
         
         ' ===== Properties =====
 
@@ -66,6 +138,20 @@ Namespace Managers
                 End If
                 Return pParser
             End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets or sets the ThemeManager for accessing current theme colors
+        ''' </summary>
+        ''' <value>The ThemeManager instance</value>
+        Public Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+            Set(value As ThemeManager)
+                pThemeManager = value
+                ApplyCurrentTheme()
+            End Set
         End Property
 
         Public ReadOnly Property IsProjectOpen As Boolean
@@ -117,11 +203,57 @@ Namespace Managers
             End Get
         End Property
 
-        Public Sub MarkDirty()
-            pIsDirty = True
-        End Sub
+        ' ===== DocumentModel Events =====
+        
+        ''' <summary>
+        ''' Raised as files are loaded during project open
+        ''' </summary>
+        Public Event ProjectLoadProgress(vFilesLoaded As Integer, vTotalFiles As Integer, vCurrentFile As String)
+        
+        ''' <summary>
+        ''' Raised when project structure changes (namespace tree updated)
+        ''' </summary>
+        Public Event ProjectStructureChanged(vRootNode As DocumentNode)
+        
+        ''' <summary>
+        ''' Raised when a DocumentModel is created
+        ''' </summary>
+        Public Event DocumentModelCreated(vFilePath As String, vModel As DocumentModel)
+        
+        ''' <summary>
+        ''' Raised when a DocumentModel is removed
+        ''' </summary>
+        Public Event DocumentModelRemoved(vFilePath As String)
+        
+        ''' <summary>
+        ''' Raised when all documents have been loaded and parsed
+        ''' </summary>
+        Public Event AllDocumentsLoaded(vDocumentCount As Integer)
+
+        ' ===== Events =====
+
+        ''' <summary>
+        ''' Raised when a file has been parsed successfully
+        ''' </summary>
+        ''' <param name="vFile">The SourceFileInfo that was parsed</param>
+        ''' <param name="vResult">The root SyntaxNode of the parse result</param>
+        Public Event ParseCompleted(vFile As SourceFileInfo, vResult As SyntaxNode)
+
+        ' ===== Updated Event Delegates =====
+        
+        ''' <summary>
+        ''' Event handler for project structure changes with SyntaxNode
+        ''' </summary>
+        Public Delegate Sub ProjectStructureChangedSyntaxEventHandler(vRootNode As SyntaxNode)
+        
+        ''' <summary>
+        ''' Additional event for SyntaxNode structure changes
+        ''' </summary>
+        Public Event ProjectStructureChangedSyntax As ProjectStructureChangedSyntaxEventHandler
+
         
         ' ===== Constructor =====
+
         Public Sub New()
             InitializeParser()
         End Sub
@@ -170,7 +302,7 @@ Namespace Managers
                 
                 ' Initialize source files list from compile items
                 for each lItem in lParsedInfo.CompileItems
-                    pCurrentProjectInfo.SourceFiles.Add(Path.Combine(pCurrentProjectInfo.ProjectDirectory, lItem))
+                    pCurrentProjectInfo.SourceFiles.Add(System.IO.Path.Combine(pCurrentProjectInfo.ProjectDirectory, lItem))
                 Next
                 
                 ' Load project metadata
@@ -184,7 +316,7 @@ Namespace Managers
                 pIsDirty = False
 
                 InitializeProjectReferences()
-                
+                InitializeIndices()
                 ' Raise event
                 RaiseEvent ProjectLoaded(vProjectPath)
                 
@@ -819,17 +951,6 @@ Namespace Managers
             GC.SuppressFinalize(Me)
         End Sub
 
-        ' ===== Updated Event Delegates =====
-        
-        ''' <summary>
-        ''' Event handler for project structure changes with SyntaxNode
-        ''' </summary>
-        Public Delegate Sub ProjectStructureChangedSyntaxEventHandler(vRootNode As SyntaxNode)
-        
-        ''' <summary>
-        ''' Additional event for SyntaxNode structure changes
-        ''' </summary>
-        Public Event ProjectStructureChangedSyntax As ProjectStructureChangedSyntaxEventHandler
         
         ''' <summary>
         ''' Raise both events for compatibility
@@ -1287,6 +1408,43 @@ Namespace Managers
                 Case Else
                     Return 99
             End Select
+        End Function
+
+        ''' <summary>
+        ''' Raises the FileRenamed event to notify listeners of a file rename operation
+        ''' </summary>
+        ''' <param name="vOldPath">The original file path before renaming</param>
+        ''' <param name="vNewPath">The new file path after renaming</param>
+        ''' <remarks>
+        ''' This method is called by external components (like ProjectExplorer) after
+        ''' successfully renaming a file to notify other components (like open editor tabs)
+        ''' that need to update their references to the renamed file
+        ''' </remarks>
+        Public Sub RaiseFileRenamedEvent(vOldPath As String, vNewPath As String)
+            Try
+                Console.WriteLine($"ProjectManager.RaiseFileRenamedEvent: {vOldPath} -> {vNewPath}")
+                RaiseEvent FileRenamed(vOldPath, vNewPath)
+            Catch ex As Exception
+                Console.WriteLine($"RaiseFileRenamedEvent error: {ex.Message}")
+            End Try
+        End Sub     
+
+        Public Sub MarkDirty()
+            pIsDirty = True
+        End Sub
+   
+        ''' <summary>
+        ''' Gets the count of loaded source files
+        ''' </summary>
+        ''' <returns>The number of source files currently loaded</returns>
+        Public Function GetSourceFileCount() As Integer
+            Try
+                If pSourceFiles Is Nothing Then Return 0
+                Return pSourceFiles.Count
+            Catch ex As Exception
+                Console.WriteLine($"GetSourceFileCount error: {ex.Message}")
+                Return 0
+            End Try
         End Function
 
     End Class

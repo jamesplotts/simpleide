@@ -514,8 +514,8 @@ Namespace Managers
         ' Create Help Viewer tab
         Private Sub CreateHelpViewerTab()
             Try
+                Console.WriteLine($"CreateHelpViewerTab Called")
                 pHelpViewerPanel = New HelpViewerPanel()
-                
                 ' Create tab with close button - FIXED: Pass delegate properly
                 Dim lTabLabel As Widget = CreateTabWithCloseButton("Help", 
                     Sub() 
@@ -765,17 +765,34 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Append text to console
+        ''' <summary>
+        ''' Append text to console with thread-safe TextIter handling
+        ''' </summary>
+        ''' <param name="vText">Text to append to the console</param>
         Public Sub AppendToConsole(vText As String)
             Try
-                If pConsoleTextView IsNot Nothing Then
-                    Dim lBuffer As TextBuffer = pConsoleTextView.Buffer
-                    Dim lEndIter As TextIter = lBuffer.EndIter
-                    lBuffer.PlaceCursor(lEndIter)
-                    lBuffer.InsertAtCursor(vText)
-                    
-                    ' Scroll to bottom
-                    pConsoleTextView.ScrollToIter(lBuffer.EndIter, 0, False, 0, 0)
+                If pConsoleTextView IsNot Nothing AndAlso pConsoleTextView.Buffer IsNot Nothing Then
+                    ' Use GLib.Idle to ensure we're on the UI thread
+                    GLib.Idle.Add(Function()
+                        Try
+                            Dim lBuffer As TextBuffer = pConsoleTextView.Buffer
+                            
+                            ' Get end iter, place cursor, and insert in one operation
+                            Dim lEndIter As TextIter = lBuffer.EndIter
+                            lBuffer.PlaceCursor(lEndIter)
+                            lBuffer.InsertAtCursor(vText)
+                            
+                            ' Create a mark at the end for scrolling
+                            ' Marks persist across buffer modifications unlike iterators
+                            Dim lEndMark As TextMark = lBuffer.CreateMark(Nothing, lBuffer.EndIter, False)
+                            pConsoleTextView.ScrollToMark(lEndMark, 0.0, False, 0.0, 0.0)
+                            lBuffer.DeleteMark(lEndMark)
+                            
+                        Catch ex As Exception
+                            Console.WriteLine($"AppendToConsole inner error: {ex.Message}")
+                        End Try
+                        Return False ' Remove from idle queue
+                    End Function)
                 End If
             Catch ex As Exception
                 Console.WriteLine($"AppendToConsole error: {ex.Message}")

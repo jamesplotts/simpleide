@@ -86,11 +86,11 @@ Namespace Dialogs
                 pStagedFilesView = New TreeView(pStagedFilesStore)
                 
                 ' Status column
-                Dim lStatusColumn As New TreeViewColumn("Status", New CellRendererText(), "Text", 0)
+                Dim lStatusColumn As New TreeViewColumn("Status", New CellRendererText(), "text", 0)
                 pStagedFilesView.AppendColumn(lStatusColumn)
                 
                 ' File column
-                Dim lFileColumn As New TreeViewColumn("File", New CellRendererText(), "Text", 1)
+                Dim lFileColumn As New TreeViewColumn("File", New CellRendererText(), "text", 1)
                 lFileColumn.Expand = True
                 pStagedFilesView.AppendColumn(lFileColumn)
                 
