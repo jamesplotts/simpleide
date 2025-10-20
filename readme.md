@@ -307,6 +307,7 @@ You should have received a copy of the GNU General Public License along with thi
 - **Author**: James Duane Plotts
 - **Repository**: [https://github.com/jamesplotts/simpleide](https://github.com/jamesplotts/simpleide)
 - **Issues**: [https://github.com/jamesplotts/simpleide/issues](https://github.com/jamesplotts/simpleide/issues)
+- **Donate**: [https://buymeacoffee.com/jamesplotts](https://buymeacoffee.com/jamesplotts)
 
 ---
 
