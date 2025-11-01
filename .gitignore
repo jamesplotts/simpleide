@@ -10,5 +10,13 @@ ud.sh
 .log
 bin
 obj
+ParseOutput
+syntaxtreestructure.txt
+up.sh
+AA*.vb
+*.old
+.gitignore
+.Scratchpads
+SimpleIDE
  
 debug_output.log
