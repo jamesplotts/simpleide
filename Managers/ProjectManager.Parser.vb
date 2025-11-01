@@ -130,7 +130,6 @@ Namespace Managers
                                 UpdateSourceFileMetadata(lSourceFile, lParseResult)
                                 
                                 ' Mark as parsed
-                                lSourceFile.IsParsed = True
                                 lSourceFile.NeedsParsing = False
                                 lSourceFile.LastParsed = DateTime.Now
                                 
@@ -296,7 +295,6 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Replace: SimpleIDE.Managers.ProjectManager.LoadProjectStructure
         ''' <summary>
         ''' Loads the project structure by parsing all source files with progress reporting
         ''' </summary>
@@ -317,89 +315,71 @@ Namespace Managers
                     Return False
                 End If
                 
-                ' Initialize parser if needed
-                InitializeParser()
+                ' Get list of source files
+                Dim lSourceFilePaths As List(Of String) = pCurrentProjectInfo.SourceFiles
                 
-                ' Get total file count for progress reporting
-                Dim lTotalFiles As Integer = pSourceFiles.Count
-                Console.WriteLine($"ProjectManager: Will parse {lTotalFiles} files")
+                If lSourceFilePaths Is Nothing OrElse lSourceFilePaths.Count = 0 Then
+                    Console.WriteLine("ProjectManager: No source files in project")
+                    Return False
+                End If
                 
-                ' Report initial progress
-                RaiseEvent ParsingProgress(0, lTotalFiles, "Initializing parser...")
+                ' Ensure pSourceFiles dictionary is initialized
+                If pSourceFiles Is Nothing Then
+                    pSourceFiles = New Dictionary(Of String, SourceFileInfo)()
+                End If
                 
-                ' Parse the project - but we need to add progress reporting
-                ' Since ProjectParser.ParseProject doesn't report progress, we'll simulate it
-                Dim lFileIndex As Integer = 0
+                Dim lSuccessCount As Integer = 0
+                Dim lFailedFiles As New List(Of String)()
                 
-                ' Report progress for each file (simulate based on file count)
-                ' We'll report progress in chunks as a workaround
-                Dim lProgressTimer As System.Threading.Timer = Nothing
-                Dim lParseComplete As Boolean = False
-                
-                ' Create a timer to report simulated progress
-                lProgressTimer = New System.Threading.Timer(
-                    Sub(state)
-                        If Not lParseComplete AndAlso lFileIndex < lTotalFiles Then
-                            lFileIndex += Math.Max(1, lTotalFiles \ 20) ' Update in ~20 steps
-                            If lFileIndex > lTotalFiles Then lFileIndex = lTotalFiles
-                            
-                            Dim lFileName As String = ""
-                            If pSourceFiles.Count > lFileIndex Then
-                                Dim lFiles As List(Of String) = pSourceFiles.Keys.ToList()
-                                If lFileIndex < lFiles.Count Then
-                                    lFileName = Path.GetFileName(lFiles(lFileIndex))
-                                End If
+                ' Load each file
+                For Each lFilePath In lSourceFilePaths
+                    Try
+                        ' Check if already loaded
+                        Dim lSourceFile As SourceFileInfo = Nothing
+                        
+                        If pSourceFiles.ContainsKey(lFilePath) Then
+                            lSourceFile = pSourceFiles(lFilePath)
+                            If lSourceFile.IsLoaded Then
+                                lSuccessCount += 1
+                                Continue For
                             End If
+                        Else
+                            ' Create new SourceFileInfo
+                            lSourceFile = New SourceFileInfo(lFilePath, "")
+                            lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                             
-                            ' Raise progress event on UI thread
-                            Gtk.Application.Invoke(Sub()
-                                RaiseEvent ParsingProgress(lFileIndex, lTotalFiles, lFileName)
-                            End Sub)
+                            ' IMPORTANT: Wire up events and set ProjectManager reference
+                            WireSourceFileInfoEvents(lSourceFile)
+                            
+                            pSourceFiles(lFilePath) = lSourceFile
                         End If
-                    End Sub,
-                    Nothing, 100, 100) ' Update every 100ms
+                        
+                        ' Load the file
+                        If lSourceFile.LoadContent() Then
+                            lSuccessCount += 1
+                            Console.WriteLine($"  Loaded: {Path.GetFileName(lFilePath)} ({lSourceFile.Content.Length} chars)")
+                        Else
+                            lFailedFiles.Add(lFilePath)
+                            Console.WriteLine($"  Failed: {Path.GetFileName(lFilePath)}")
+                        End If
+                        
+                    Catch ex As Exception
+                        Console.WriteLine($"  Error loading {Path.GetFileName(lFilePath)}: {ex.Message}")
+                        lFailedFiles.Add(lFilePath)
+                    End Try
+                Next
                 
-                ' Do the actual parsing
-                pProjectSyntaxTree = pProjectParser.ParseProject()
-                lParseComplete = True
+                Console.WriteLine($"ProjectManager: Loaded {lSuccessCount} of {lSourceFilePaths.Count} source files")
                 
-                ' Stop the progress timer
-                If lProgressTimer IsNot Nothing Then
-                    lProgressTimer.Dispose()
+                If lFailedFiles.Count > 0 Then
+                    Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
+                    For Each lFile In lFailedFiles
+                        Console.WriteLine($"  - {Path.GetFileName(lFile)}")
+                    Next
                 End If
                 
-                ' Report completion
-                RaiseEvent ParsingProgress(lTotalFiles, lTotalFiles, "Complete")
-                
-                If pProjectParser IsNot Nothing Then
-                    pParseErrors = pProjectParser.GetParseErrors()
-                End If
-                
-                pLastParseTime = DateTime.Now
-                
-                ' Check if we actually got a valid tree
-                If pProjectSyntaxTree IsNot Nothing Then
-                    Console.WriteLine($"ProjectManager: ParseProject returned tree with root: {pProjectSyntaxTree.Name}")
-                    Console.WriteLine($"  Root type: {pProjectSyntaxTree.NodeType}")
-                    Console.WriteLine($"  Children count: {pProjectSyntaxTree.Children.Count}")
-                Else
-                    Console.WriteLine("ProjectManager: ParseProject returned Nothing!")
-                End If
-                
-                ' Raise completion events
-                If pProjectSyntaxTree IsNot Nothing Then
-                    RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
-                    Console.WriteLine("ProjectManager: Raised ProjectStructureLoaded event")
-                End If
-                
-                If pParseErrors IsNot Nothing AndAlso pParseErrors.Count > 0 Then
-                    RaiseEvent ParseErrorsOccurred(pParseErrors)
-                End If
-                
-                ' Trigger async parsing for colors
-                Task.Run(Function() ParseAllFilesAsync())
-                
-                Return pProjectSyntaxTree IsNot Nothing
+                ' Parse the project structure
+                Return ParseProjectStructure()
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.LoadProjectStructure error: {ex.Message}")
@@ -512,100 +492,99 @@ Namespace Managers
         
         ' ===== Private Helper Methods =====
         
-        ''' <summary>
-        ''' Loads all source files in the project and triggers async parsing
-        ''' </summary>
-        ''' <returns>True if all files loaded successfully</returns>
-        ''' <remarks>
-        ''' After loading all files, this method triggers ParseAllFilesAsync to
-        ''' pre-compute LineMetadata and CharacterColors for instant rendering
-        ''' </remarks>
-        Private Function LoadAllSourceFiles() As Boolean
+' Replace: SimpleIDE.Managers.ProjectManager.LoadAllSourceFiles
+''' <summary>
+''' Loads all source files in the project and triggers async parsing
+''' </summary>
+''' <returns>True if all files loaded successfully</returns>
+''' <remarks>
+''' After loading all files, this method triggers ParseAllFilesAsync to
+''' pre-compute LineMetadata and CharacterColors for instant rendering
+''' </remarks>
+Private Function LoadAllSourceFiles() As Boolean
+    Try
+        Console.WriteLine("ProjectManager: Loading all source files...")
+        
+        If pCurrentProjectInfo Is Nothing Then
+            Console.WriteLine("ProjectManager: No project info available")
+            Return False
+        End If
+        
+        ' Get list of source files
+        Dim lSourceFilePaths As List(Of String) = pCurrentProjectInfo.SourceFiles
+        Console.WriteLine($"ProjectManager: Found {lSourceFilePaths.Count} source files to load")
+        
+        If lSourceFilePaths.Count = 0 Then
+            Console.WriteLine("ProjectManager: No source files in project")
+            Return False
+        End If
+        
+        ' Ensure pSourceFiles dictionary is initialized
+        If pSourceFiles Is Nothing Then
+            pSourceFiles = New Dictionary(Of String, SourceFileInfo)()
+        End If
+        
+        Dim lSuccessCount As Integer = 0
+        Dim lFailedFiles As New List(Of String)()
+        
+        ' Load each file
+        For Each lFilePath In lSourceFilePaths
             Try
-                Console.WriteLine("ProjectManager: Loading all source files...")
+                ' Check if already loaded
+                Dim lSourceFile As SourceFileInfo = Nothing
                 
-                If pCurrentProjectInfo Is Nothing Then
-                    Console.WriteLine("ProjectManager: No project info available")
-                    Return False
-                End If
-                
-                ' Get list of source files
-                Dim lSourceFilePaths As List(Of String) = pCurrentProjectInfo.SourceFiles
-                Console.WriteLine($"ProjectManager: Found {lSourceFilePaths.Count} source files to load")
-                
-                If lSourceFilePaths.Count = 0 Then
-                    Console.WriteLine("ProjectManager: No source files in project")
-                    Return False
-                End If
-                
-                ' Ensure pSourceFiles dictionary is initialized
-                If pSourceFiles Is Nothing Then
-                    pSourceFiles = New Dictionary(Of String, SourceFileInfo)()
-                End If
-                
-                Dim lSuccessCount As Integer = 0
-                Dim lFailedFiles As New List(Of String)()
-                
-                ' Load each file
-                for each lFilePath in lSourceFilePaths
-                    Try
-                        ' Check if already loaded
-                        Dim lSourceFile As SourceFileInfo = Nothing
-                        
-                        If pSourceFiles.ContainsKey(lFilePath) Then
-                            lSourceFile = pSourceFiles(lFilePath)
-                            If lSourceFile.IsLoaded Then
-                                lSuccessCount += 1
-                                Continue for
-                            End If
-                        Else
-                            ' Create new SourceFileInfo
-                            lSourceFile = New SourceFileInfo(lFilePath, "", pCurrentProjectInfo.ProjectDirectory)
-                            lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                            
-                            pSourceFiles(lFilePath) = lSourceFile
-                        End If
-                        
-                        ' Load the file
-                        If lSourceFile.LoadContent() Then
-                            lSuccessCount += 1
-                            Console.WriteLine($"  Loaded: {Path.GetFileName(lFilePath)} ({lSourceFile.Content.Length} chars)")
-                        Else
-                            lFailedFiles.Add(lFilePath)
-                            Console.WriteLine($"  Failed: {Path.GetFileName(lFilePath)}")
-                        End If
-                        
-                    Catch ex As Exception
-                        Console.WriteLine($"  Error loading {Path.GetFileName(lFilePath)}: {ex.Message}")
-                        lFailedFiles.Add(lFilePath)
-                    End Try
-                Next
-                
-                Console.WriteLine($"ProjectManager: Loaded {lSuccessCount}/{lSourceFilePaths.Count} files successfully")
-                
-                If lFailedFiles.Count > 0 Then
-                    Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
-                    for each lPath in lFailedFiles.Take(5)
-                        Console.WriteLine($"  - {Path.GetFileName(lPath)}")
-                    Next
-                End If
-                
-                ' CRITICAL: Trigger async parsing of all loaded files
-                If lSuccessCount > 0 Then
-                    Console.WriteLine("ProjectManager: Triggering async parse of all loaded files...")
+                If pSourceFiles.ContainsKey(lFilePath) Then
+                    lSourceFile = pSourceFiles(lFilePath)
+                    If lSourceFile.IsLoaded Then
+                        lSuccessCount += 1
+                        Continue For
+                    End If
+                Else
+                    ' Create new SourceFileInfo
+                    lSourceFile = New SourceFileInfo(lFilePath, "")
+                    lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                     
-                    ' Launch the async parsing - don't await here to avoid blocking
-                    Task.Run(Function() ParseAllFilesAsync())
+                    ' CRITICAL FIX: Wire up events for the new SourceFileInfo
+                    WireSourceFileInfoEvents(lSourceFile)
+                    
+                    pSourceFiles(lFilePath) = lSourceFile
                 End If
                 
-                ' Return true if at least some files loaded
-                Return lSuccessCount > 0
+                ' Load the file
+                If lSourceFile.LoadContent() Then
+                    lSuccessCount += 1
+                    Console.WriteLine($"  Loaded: {Path.GetFileName(lFilePath)} ({lSourceFile.Content.Length} chars)")
+                Else
+                    lFailedFiles.Add(lFilePath)
+                    Console.WriteLine($"  Failed: {Path.GetFileName(lFilePath)}")
+                End If
                 
             Catch ex As Exception
-                Console.WriteLine($"ProjectManager.LoadAllSourceFiles error: {ex.Message}")
-                Return False
+                Console.WriteLine($"  Error loading {Path.GetFileName(lFilePath)}: {ex.Message}")
+                lFailedFiles.Add(lFilePath)
             End Try
-        End Function
+        Next
+        
+        Console.WriteLine($"ProjectManager: Loaded {lSuccessCount} of {lSourceFilePaths.Count} source files")
+        
+        If lFailedFiles.Count > 0 Then
+            Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
+            For Each lFile In lFailedFiles
+                Console.WriteLine($"  - {Path.GetFileName(lFile)}")
+            Next
+        End If
+        
+        ' Start async parsing of all loaded files
+        Task.Run(AddressOf ParseAllFilesAsync)
+        
+        Return lSuccessCount > 0
+        
+    Catch ex As Exception
+        Console.WriteLine($"ProjectManager.LoadAllSourceFiles error: {ex.Message}")
+        Console.WriteLine($"  Stack trace: {ex.StackTrace}")
+        Return False
+    End Try
+End Function
         
         ''' <summary>
         ''' Finds a node by its fully qualified name
@@ -675,15 +654,13 @@ Namespace Managers
             End Try
         End Function
 
-        ' Replace: SimpleIDE.Managers.ProjectManager.ParseFileAsync
         ''' <summary>
-        ''' Parses a file asynchronously and updates both LineMetadata and CharacterColors
+        ''' Asynchronously parses a source file and updates its metadata and tokens
         ''' </summary>
         ''' <param name="vFile">The source file to parse</param>
+        ''' <returns>Task that completes when parsing is done</returns>
         ''' <remarks>
-        ''' This method performs two critical steps:
-        ''' 1. Parse the file to get LineMetadata with syntax tokens
-        ''' 2. Apply theme colors to generate CharacterColors array
+        ''' CRITICAL FIX: Removed call to EnsureCharacterTokens which was resetting all tokens
         ''' </remarks>
         Public Async Function ParseFileAsync(vFile As SourceFileInfo) As Task
             Try
@@ -716,7 +693,6 @@ Namespace Managers
                             UpdateSourceFileMetadata(vFile, lParseResult)
                             
                             ' Update parse state
-                            vFile.IsParsed = True
                             vFile.NeedsParsing = False
                             vFile.LastParsed = DateTime.Now
                             
@@ -725,19 +701,10 @@ Namespace Managers
                                 vFile.ParseErrors = lParseResult.Errors
                             End If
                             
-                            ' CRITICAL FIX: Apply theme colors immediately after parsing
-                            'Console.WriteLine($"ProjectManager.ParseFileAsync: Applying theme colors for {vFile.FileName}")
-                            
-                            ' Check if we have tokens to colorize
-                            Dim lHasTokens As Boolean = False
-                            If vFile.LineMetadata IsNot Nothing Then
-                                for each lMetadata in vFile.LineMetadata
-                                    If lMetadata?.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
-                                        lHasTokens = True
-                                        Exit for
-                                    End If
-                                Next
-                            End If
+                            ' DON'T call EnsureCharacterTokens - it resets everything!
+                            ' The UpdateSourceFileMetadata->UpdateCharacterTokens flow
+                            ' already handles updating the tokens properly
+                            ' vFile.EnsureCharacterTokens()  ' <-- REMOVED: This was resetting all tokens!
                             
                         Else
                             Console.WriteLine($"ProjectManager.ParseFileAsync: Parse result was Nothing for {vFile.FileName}")
@@ -778,7 +745,7 @@ Namespace Managers
         ''' <param name="vFile">The source file to update</param>
         ''' <param name="vParseResult">The parse result containing tokens</param>
         ''' <remarks>
-        ''' This method updates ONLY the LineMetadata array with token information.
+        ''' Fixed to only update lines that were actually parsed, preserving unchanged lines
         ''' </remarks>
         Private Sub UpdateSourceFileMetadata(vFile As SourceFileInfo, vParseResult As Syntax.ParseResult)
             Try
@@ -787,15 +754,30 @@ Namespace Managers
                 
                 Dim lLineCount As Integer = vFile.TextLines.Count
                 
-                ' Copy LineMetadata from parse result
-                For i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
-                    vFile.LineMetadata(i) = vParseResult.LineMetadata(i)
+                ' CRITICAL FIX: Only update LineMetadata for lines that were actually parsed
+                ' Don't overwrite metadata for unchanged lines
+                for i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
+                    ' Only update if the parse result has metadata for this line
+                    If vParseResult.LineMetadata(i) IsNot Nothing Then
+                        ' Check if this line was actually parsed (has new tokens)
+                        ' Compare with existing to see if it's actually new
+                        Dim lExistingMetadata As LineMetadata = vFile.LineMetadata(i)
+                        Dim lNewMetadata As LineMetadata = vParseResult.LineMetadata(i)
+                        
+                        ' Only replace if it's truly new parsed data
+                        If lNewMetadata.ParseState = LineParseState.eParsed AndAlso
+                           (lExistingMetadata Is Nothing OrElse 
+                            lExistingMetadata.ParseState = LineParseState.eUnparsed OrElse
+                            lExistingMetadata.ParseState = LineParseState.eUnspecified) Then
+                            vFile.LineMetadata(i) = lNewMetadata
+                        End If
+                    End If
                 Next
                 
                 ' Update character tokens from the parsed metadata
                 UpdateCharacterTokens(vFile)
                 
-                'Console.WriteLine($"UpdateSourceFileMetadata: Updated {lLineCount} lines of metadata and tokens for {vFile.FileName}")
+                Console.WriteLine($"UpdateSourceFileMetadata: Updated metadata and tokens for {vFile.FileName}")
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateSourceFileMetadata error: {ex.Message}")
@@ -926,8 +908,7 @@ Namespace Managers
         ''' </summary>
         ''' <param name="vFile">The source file to update tokens for</param>
         ''' <remarks>
-        ''' This method converts parsed syntax tokens into byte-encoded tokens.
-        ''' No color mapping is done here - just token type encoding.
+        ''' Fixed to not call EnsureCharacterTokens which was resetting all tokens
         ''' </remarks>
         Private Sub UpdateCharacterTokens(vFile As SourceFileInfo)
             Try
@@ -938,14 +919,14 @@ Namespace Managers
                 
                 'Console.WriteLine($"UpdateCharacterTokens: Starting token update for {vFile.FileName}")
                 
-                ' Ensure CharacterTokens array is properly sized
-                vFile.EnsureCharacterTokens()
+                ' DON'T call EnsureCharacterTokens here - it resets everything!
+                ' The tokens array should already be properly sized from text modifications
                 
                 ' Update tokens for each line
                 Dim lLineCount As Integer = vFile.TextLines.Count
                 Dim lLinesWithTokens As Integer = 0
                 
-                For i As Integer = 0 To lLineCount - 1
+                for i As Integer = 0 To lLineCount - 1
                     ' Get the metadata for this line
                     Dim lMetadata As LineMetadata = vFile.GetLineMetadata(i)
                     
@@ -954,15 +935,15 @@ Namespace Managers
                         vFile.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
                         lLinesWithTokens += 1
                     Else
-                        ' No tokens for this line, ensure it has default tokens
-                        If i < vFile.CharacterTokens.Length Then
+                        ' CRITICAL: Don't reset lines that have no tokens in the metadata
+                        ' They might just be unchanged lines that weren't reparsed
+                        ' Only apply defaults if the line truly has no tokens at all
+                        If i < vFile.CharacterTokens.Length AndAlso vFile.CharacterTokens(i) Is Nothing Then
                             Dim lLineLength As Integer = vFile.TextLines(i).Length
                             If lLineLength > 0 Then
-                                If vFile.CharacterTokens(i) Is Nothing OrElse vFile.CharacterTokens(i).Length <> lLineLength Then
-                                    ReDim vFile.CharacterTokens(i)(lLineLength - 1)
-                                End If
+                                ReDim vFile.CharacterTokens(i)(lLineLength - 1)
                                 Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
-                                For j As Integer = 0 To lLineLength - 1
+                                for j As Integer = 0 To lLineLength - 1
                                     vFile.CharacterTokens(i)(j) = lDefaultToken
                                 Next
                             Else
@@ -979,6 +960,71 @@ Namespace Managers
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
             End Try
         End Sub
+
+' Add: SimpleIDE.Managers.ProjectManager.OnSourceFileInfoRequestProjectManager
+' To: ProjectManager.Parser.vb
+
+''' <summary>
+''' Handles ProjectManager requests from SourceFileInfo instances
+''' </summary>
+''' <param name="sender">The requesting SourceFileInfo</param>
+''' <param name="e">EventArgs containing the ProjectManager property to set</param>
+Private Sub OnSourceFileInfoRequestProjectManager(sender As Object, e As SourceFileInfo.ProjectManagerRequestEventArgs)
+    Try
+        ' Provide ourselves as the ProjectManager
+        e.ProjectManager = Me
+        
+        Dim lSourceFile As SourceFileInfo = TryCast(sender, SourceFileInfo)
+        If lSourceFile IsNot Nothing Then
+            Console.WriteLine($"ProjectManager: Provided self-reference to SourceFileInfo for {lSourceFile.FileName}")
+        End If
+        
+    Catch ex As Exception
+        Console.WriteLine($"OnSourceFileInfoRequestProjectManager error: {ex.Message}")
+    End Try
+End Sub
+
+''' <summary>
+''' Wires up event handlers for a SourceFileInfo instance
+''' </summary>
+''' <param name="vSourceFile">The SourceFileInfo to wire up</param>
+Private Sub WireSourceFileInfoEvents(vSourceFile As SourceFileInfo)
+    Try
+        If vSourceFile Is Nothing Then Return
+        
+        ' Wire up the ProjectManagerRequested event
+        AddHandler vSourceFile.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+        
+        ' Also set the ProjectManager directly since we have it
+        vSourceFile.ProjectManager = Me
+        
+        Console.WriteLine($"ProjectManager: Wired events for {vSourceFile.FileName}")
+        
+    Catch ex As Exception
+        Console.WriteLine($"WireSourceFileInfoEvents error: {ex.Message}")
+    End Try
+End Sub
+
+''' <summary>
+''' Unwires event handlers for a SourceFileInfo instance
+''' </summary>
+''' <param name="vSourceFile">The SourceFileInfo to unwire</param>
+Private Sub UnwireSourceFileInfoEvents(vSourceFile As SourceFileInfo)
+    Try
+        If vSourceFile Is Nothing Then Return
+        
+        ' Unwire the ProjectManagerRequested event
+        RemoveHandler vSourceFile.ProjectManagerRequested, AddressOf OnSourceFileInfoRequestProjectManager
+        
+        ' Call cleanup on the SourceFileInfo
+        vSourceFile.Cleanup()
+        
+        Console.WriteLine($"ProjectManager: Unwired events for {vSourceFile.FileName}")
+        
+    Catch ex As Exception
+        Console.WriteLine($"UnwireSourceFileInfoEvents error: {ex.Message}")
+    End Try
+End Sub
         
     End Class
     

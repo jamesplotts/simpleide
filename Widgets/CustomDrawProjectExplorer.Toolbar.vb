@@ -45,7 +45,7 @@ Namespace Widgets
                 lExpandingSeparator.Expand = True
                 pToolbar.Add(lExpandingSeparator)
                 
-                CreateCloseButton()
+                'CreateCloseButton()
                 
                 ' Add toolbar to container
                 PackStart(pToolbar, False, False, 0)

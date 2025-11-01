@@ -70,29 +70,8 @@ Namespace Editors
             End Try
         End Sub
 
-        Public Property ShowLineNumbers As Boolean Implements IEditor.ShowLineNumbers
-            Get
-                Return pShowLineNumbers
-            End Get
-            Set(value As Boolean)
-                Try
-                    If pShowLineNumbers <> value Then
-                        pShowLineNumbers = value
-                        
-                        ' Show/hide line number widget
-                        If pLineNumberWidget IsNot Nothing Then
-                            pLineNumberWidget.Visible = pShowLineNumbers
-                        End If
-                        
-                        ' Queue redraw
-                        pDrawingArea?.QueueDraw()
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"ShowLineNumbers setter error: {ex.Message}")
-                End Try
-            End Set
-        End Property
 
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.Dispose
         Protected Overrides Sub Dispose(vDisposing As Boolean)
             Try
                 ' Only dispose once
@@ -121,9 +100,16 @@ Namespace Editors
                         pProjectManager = Nothing
                     End If
                     
-                    ' Unsubscribe from SourceFileInfo
+                    ' CRITICAL FIX: Properly unhook ALL SourceFileInfo events
+                    ' This was missing and causing the reopening issue!
                     If pSourceFileInfo IsNot Nothing Then
+                        ' Remove ContentChanged handler
                         RemoveHandler pSourceFileInfo.ContentChanged, AddressOf OnSourceFileContentChanged
+                        
+                        ' CRITICAL: Call UnhookSourceFileInfoEvents to remove TextLinesChanged and RenderingChanged handlers
+                        UnhookSourceFileInfoEvents()
+                        
+                        ' Clear the reference
                         pSourceFileInfo = Nothing
                     End If
         
@@ -155,7 +141,7 @@ Namespace Editors
                         RemoveHandler pDrawingArea.FocusInEvent, lFocusInHandler
                         RemoveHandler pDrawingArea.FocusOutEvent, lFocusOutHandler
                         
-                        pDrawingArea.Dispose()
+                        pDrawingArea.Destroy()
                         pDrawingArea = Nothing
                     End If
         
@@ -172,15 +158,15 @@ Namespace Editors
                     pFilePath = Nothing
         
                     ' Dispose widgets
-                    pLineNumberWidget?.Dispose()
-                    pVScrollbar?.Dispose()
-                    pHScrollbar?.Dispose()
-                    pCornerBox?.Dispose()
-                    pMainGrid?.Dispose()
+                    pLineNumberWidget?.Destroy()
+                    pVScrollbar?.Destroy()
+                    pHScrollbar?.Destroy()
+                    pCornerBox?.Destroy()
+                    pMainGrid?.Destroy()
                     
                     ' Dispose context menus
-                    pContextMenu?.Dispose()
-                    pLineNumberContextMenu?.Dispose()
+                    pContextMenu?.Destroy()
+                    pLineNumberContextMenu?.Destroy()
                     
                     ' Clear references
                     pLineNumberWidget = Nothing

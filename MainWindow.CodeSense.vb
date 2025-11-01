@@ -11,13 +11,13 @@ Imports SimpleIDE.Syntax
 Partial Public Class MainWindow
     
     ' CodeSense components
-    'Private pCodeSenseEngine As CodeSenseEngine
+
     Private pCodeSenseWindow As Window
     Private pCodeSenseTreeView As TreeView
     Private pCodeSenseListStore As ListStore
     Private pCodeSenseTimer As UInteger = 0
     
-    ' Initialize CodeSense system
+    ' Initialize CodeS ense system
     Private Sub InitializeCodeSense()
         Try
             Static bolAlreadyRun As Boolean

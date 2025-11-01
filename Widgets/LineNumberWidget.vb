@@ -72,22 +72,38 @@ Namespace Widgets
         ' ===== Public Methods =====
         
         ''' <summary>
-        ''' Updates the font used for line numbers
+        ''' Updates the font and metrics from the editor
         ''' </summary>
-        ''' <param name="vFontDescription">Font description to use</param>
-        ''' <param name="vLineHeight">Height of each line in pixels</param>
-        ''' <param name="vCharWidth">Width of each character in pixels</param>
-        Public Sub UpdateFont(vFontDescription As FontDescription, vLineHeight As Integer, vCharWidth As Integer)
+        ''' <param name="vFontDescription">New font description</param>
+        ''' <param name="vLineHeight">Updated line height</param>
+        ''' <param name="vCharWidth">Updated character width</param>
+        Public Sub UpdateFont(vFontDescription As Pango.FontDescription, vLineHeight As Integer, vCharWidth As Integer)
             Try
+                ' Update font description
                 pFontDescription = vFontDescription
+                
+                ' Update metrics
                 pLineHeight = vLineHeight
                 pCharWidth = vCharWidth
                 
-                ' Update width based on line count
-                UpdateWidth()
+                ' Recalculate width based on new character width
+                If pEditor IsNot Nothing Then
+                    Dim lMaxLineNumber As Integer = pEditor.LineCount
+                    Dim lDigits As Integer = Math.Max(3, lMaxLineNumber.ToString().Length)
+                    Dim lNewWidth As Integer = (lDigits * pCharWidth) + (pRightPadding * 2)
+                    
+                    ' Update width if changed
+                    If lNewWidth <> pWidth Then
+                        pWidth = lNewWidth
+                        WidthRequest = pWidth
+                        Console.WriteLine($"LineNumberWidget.UpdateFont: Width updated to {pWidth}px")
+                    End If
+                End If
                 
-                ' Redraw
+                ' Force redraw
                 QueueDraw()
+                
+                Console.WriteLine($"LineNumberWidget.UpdateFont: Updated with LineHeight={vLineHeight}, CharWidth={vCharWidth}")
                 
             Catch ex As Exception
                 Console.WriteLine($"LineNumberWidget.UpdateFont error: {ex.Message}")
@@ -185,7 +201,7 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Draws the line numbers
+        ''' Draws the line numbers with proper font alignment
         ''' </summary>
         Private Sub DrawLineNumbers(vContext As Cairo.Context)
             Try
@@ -196,8 +212,8 @@ Namespace Widgets
                 Dim lFirstVisibleLine As Integer = pEditor.FirstVisibleLine
                 Dim lCurrentLine As Integer = pEditor.CurrentLine
                 
-                ' Calculate visible range
-                Dim lVisibleLines As Integer = (AllocatedHeight \ pLineHeight) + 2
+                ' Calculate visible range - add extra lines to ensure we draw everything visible
+                Dim lVisibleLines As Integer = (AllocatedHeight \ pLineHeight) + 3
                 Dim lLastLine As Integer = Math.Min(lLineCount - 1, lFirstVisibleLine + lVisibleLines)
                 
                 ' Create layout for text
@@ -216,10 +232,36 @@ Namespace Widgets
                         vContext.SetSourceRgba(0.52, 0.52, 0.52, 1.0) ' Fallback gray
                     End If
                     
-                    ' Draw each visible line number
-                    for i As Integer = lFirstVisibleLine To lLastLine
-                        ' Calculate Y position (account for scroll)
-                        Dim lY As Integer = ((i - lFirstVisibleLine) * pLineHeight) + pTopPadding - 3
+                    ' Get font metrics for proper baseline alignment
+                    Dim lAscent As Integer = 0
+                    Try
+                        ' Measure a sample character to get the actual text height
+                        lLayout.SetText("8")  ' Use a full-height digit
+                        Dim lInkRect, lLogicalRect As Pango.Rectangle
+                        lLayout.GetPixelExtents(lInkRect, lLogicalRect)
+                        
+                        ' The ascent is roughly where we want to position the baseline
+                        ' Use logical height as approximation if we can't get real metrics
+                        lAscent = CInt(lLogicalRect.Height * 0.8)  ' Slightly above center for better alignment
+                    Catch
+                        ' Fallback to approximate ascent
+                        lAscent = CInt(pLineHeight * 0.75)
+                    End Try
+                    
+                    ' Draw each visible line number (including partially visible ones)
+                    For i As Integer = Math.Max(0, lFirstVisibleLine - 1) To lLastLine
+                        ' Calculate Y position to match editor text
+                        ' The editor draws at: (line - firstLine) * lineHeight + topPadding
+                        Dim lLineIndex As Integer = i - lFirstVisibleLine
+                        Dim lLineTop As Integer = (lLineIndex - 1) * pLineHeight + pTopPadding
+                        
+                        ' Add ascent to get baseline position
+                        Dim lY As Integer = lLineTop + lAscent
+                        
+                        ' Skip if completely outside visible area
+                        If lY < -pLineHeight OrElse lY > AllocatedHeight + pLineHeight Then
+                            Continue For
+                        End If
                         
                         ' Set text (1-based line numbers)
                         lLayout.SetText((i + 1).ToString())

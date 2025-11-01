@@ -276,50 +276,7 @@ Namespace Widgets
                 Console.WriteLine($"CreateUIComponents error: {ex.Message}")
             End Try
         End Sub
-'        Private Sub CreateUIComponents()
-'            Try
-'                ' Create main container box (vertical)
-'                Dim lMainBox As New Box(Orientation.Vertical, 0)
-'                
-'                ' Create horizontal container for drawing area and vertical scrollbar
-'                Dim lHorizontalBox As New Box(Orientation.Horizontal, 0)
-'                
-'                ' Create drawing area
-'                pDrawingArea = New DrawingArea()
-'                pDrawingArea.CanFocus = True
-'                pDrawingArea.Events = EventMask.AllEventsMask
-'                pDrawingArea.Expand = True
-'                
-'                ' Create vertical scrollbar
-'                pVScrollBar = New Scrollbar(Orientation.Vertical, Nothing)
-'                
-'                ' Create horizontal scrollbar
-'                pHScrollBar = New Scrollbar(Orientation.Horizontal, Nothing)
-'                
-'                ' Create corner box
-'                pCornerBox = New DrawingArea()
-'                pCornerBox.SetSizeRequest(20, 20) ' Match scrollbar width/height
-'                
-'                ' Pack horizontal box
-'                lHorizontalBox.PackStart(pDrawingArea, True, True, 0)
-'                lHorizontalBox.PackStart(pVScrollBar, False, False, 0)
-'                
-'                ' Create bottom box for horizontal scrollbar and corner
-'                Dim lBottomBox As New Box(Orientation.Horizontal, 0)
-'                lBottomBox.PackStart(pHScrollBar, True, True, 0)
-'                lBottomBox.PackStart(pCornerBox, False, False, 0)
-'                
-'                ' Pack main box
-'                lMainBox.PackStart(lHorizontalBox, True, True, 0)
-'                lMainBox.PackStart(lBottomBox, False, False, 0)
-'                
-'                ' Add to main container
-'                PackStart(lMainBox, True, True, 0)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"CreateUIComponents error: {ex.Message}")
-'            End Try
-'        End Sub
+
         
         ' ===== Drawing Initialization =====
         
@@ -439,46 +396,7 @@ Namespace Widgets
             End Try
         End Sub
         
-'         ''' <summary>
-'         ''' Updated ClearStructure to allow recovery and show caller
-'         ''' </summary>
-'         Public Sub ClearStructure() Implements IObjectExplorer.ClearStructure
-'             Try
-'                 ' DEBUG: Show stack trace to find who's calling this
-'                 Console.WriteLine("=====================================")
-'                 Console.WriteLine("ClearStructure called - STACK TRACE:")
-'                 Console.WriteLine(Environment.StackTrace)
-'                 Console.WriteLine("=====================================")
-'                 
-'                 Console.WriteLine("ClearStructure called - preserving last valid root for recovery")
-'                 
-'                 ' Save state before clearing
-'                 If pRootNode IsNot Nothing Then
-'                     pLastValidRootNode = pRootNode
-'                     pIsProjectLoaded = True
-'                     Console.WriteLine($"ClearStructure: Saved root node with {pRootNode.Children.Count} children")
-'                 End If
-'                 
-'                 ' Clear current display but keep last valid root for recovery
-'                 pRootNode = Nothing
-'                 Console.WriteLine($"ClearStructure  pVisibleNodesClear()")
-'                 
-'                 pVisibleNodes.Clear()
-'                 pExpandedNodes.Clear()
-'                 pNodeCache.Clear()
-'                 pSelectedNode = Nothing
-'                 pHoveredNode = Nothing
-'                 
-'                 ' Don't clear pLastValidRootNode or pIsProjectLoaded
-'                 ' This allows recovery if needed
-'                 
-'                 UpdateScrollbars()
-'                 pDrawingArea?.QueueDraw()
-'                 
-'             Catch ex As Exception
-'                 Console.WriteLine($"ClearStructure error: {ex.Message}")
-'             End Try
-'         End Sub
+
 
 
         ''' <summary>

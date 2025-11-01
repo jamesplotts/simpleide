@@ -368,8 +368,9 @@ Partial Public Class MainWindow
             Next
             
             ' Create new editor
-            Dim lNewEditor As IEditor = EditorFactory.CreateEditor(vFilePath)
-            
+            Dim lNewEditor As IEditor = New CustomDrawingEditor(New SourceFileInfo(vFilePath, ""), pThemeManager, pSettingsManager)
+            lNewEditor.SettingsManager = pSettingsManager
+
             ' Pass the DocumentModel to the editor
             If TypeOf lNewEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = CType(lNewEditor, CustomDrawingEditor)
@@ -384,11 +385,8 @@ Partial Public Class MainWindow
 '            lScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
 '            lScrolledWindow.Add(CType(lNewEditor, Widget))
             
-            ' Create tab label with close button
-            Dim lTabLabel As Widget = CreateTabLabel(System.IO.Path.GetFileName(vFilePath), lNewEditor.IsModified)
-            
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lNewEditor, lTabLabel)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lNewEditor, System.IO.Path.GetFileName(vFilePath))
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             

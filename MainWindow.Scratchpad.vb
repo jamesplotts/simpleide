@@ -217,7 +217,7 @@ Partial Public Class MainWindow
             lTabInfo.Modified = False
             
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lScratchpadPanel, lTabInfo.TabLabel)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lScratchpadPanel, "Scratchpad")
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             

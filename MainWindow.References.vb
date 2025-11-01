@@ -52,7 +52,7 @@ Partial Public Class MainWindow
             
             ' Select initial tab if specified
             If vInitialTab >= 0 AndAlso vInitialTab < lDialog.Notebook.NPages Then
-                lDialog.Notebook.Page = vInitialTab
+                lDialog.Notebook.SetCurrentTab(vInitialTab, True)
             End If
             
             ' Handle references changed event

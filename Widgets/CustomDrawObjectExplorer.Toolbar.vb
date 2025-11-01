@@ -1323,7 +1323,6 @@ Namespace Widgets
                              CodeNodeType.eFunction,
                              CodeNodeType.eProperty,
                              CodeNodeType.eField,
-                             CodeNodeType.eConstant,
                              CodeNodeType.eEvent,
                              CodeNodeType.eDelegate,
                              CodeNodeType.eConstructor,

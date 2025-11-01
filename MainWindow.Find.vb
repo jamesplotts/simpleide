@@ -222,7 +222,7 @@ Partial Public Class MainWindow
                 Dim lTab As TabInfo = pOpenTabs(vFilePath)
                 If lTab?.Editor IsNot Nothing Then
                     ' Reload content
-                    lTab.Editor.SourceFileInfo.ReloadFile()
+                    lTab.Editor.SourceFileInfo.LoadContent()
 '                    ReloadFile(lTab.FilePath)
                 End If
             Else

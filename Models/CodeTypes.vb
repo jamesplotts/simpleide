@@ -73,7 +73,6 @@ Namespace Models
         eMethod
         eFunction
         eProperty
-        eConstant
         eComment
         eRegion
         eField
@@ -84,6 +83,7 @@ Namespace Models
         eVariable
         eOperator
         eEnumValue
+        eFile
         eLastValue
     End Enum
     
@@ -210,7 +210,20 @@ Namespace Models
 '        Public Property Text As String = ""
 '    End Class
     
-
+    ''' <summary>
+    ''' Types of character tokens for syntax highlighting
+    ''' </summary>
+    Public Enum CharacterTokenType
+        eText
+        eKeyword
+        eString
+        eNumber
+        eComment
+        eOperator
+        eIdentifier
+        eType
+        ePreprocessor
+    End Enum
     
     ' Parse error information
     Public Class ParseError

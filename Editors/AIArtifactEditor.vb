@@ -75,13 +75,10 @@ Namespace Editors
                 CreateHeaderArea()
                 
                 ' Create initial empty SourceFileInfo
-                pSourceFileInfo = New SourceFileInfo("", "", "")
-                pSourceFileInfo.TextLines.Add("")
-                pSourceFileInfo.IsLoaded = True
+                pSourceFileInfo = New SourceFileInfo("", "")
                 
                 ' Create editor with SourceFileInfo
-                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager)
-                pEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager, pSettingsManager)
                 
                 ' Pack components
                 pMainBox.PackStart(pHeaderBox, False, False, 0)
@@ -169,21 +166,17 @@ Namespace Editors
                 Dim lSuggestedPath As String = GetSuggestedFilePath()
                 
                 ' Create new SourceFileInfo for the artifact
-                pSourceFileInfo = New SourceFileInfo(lSuggestedPath, "", "")
-                pSourceFileInfo.Content = vContent
-                pSourceFileInfo.TextLines = New List(Of String)(vContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
+                pSourceFileInfo = New SourceFileInfo(lSuggestedPath, vContent)
                 If pSourceFileInfo.TextLines.Count = 0 Then
                     pSourceFileInfo.TextLines.Add("")
                 End If
-                pSourceFileInfo.IsLoaded = True
                 
                 ' Remove old editor and create new one with updated SourceFileInfo
                 If pEditor IsNot Nothing Then
                     pMainBox.Remove(pEditor)
                 End If
                 
-                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager)
-                pEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pEditor = New CustomDrawingEditor(pSourceFileInfo, pThemeManager, pSettingsManager)
                 
                 ' Pack the new editor (before status bar)
                 pMainBox.PackStart(pEditor, True, True, 0)

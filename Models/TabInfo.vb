@@ -44,7 +44,32 @@ Namespace Models
                     NavigationDropdowns = Nothing
                 End If
                 
-                ' Note: We don't dispose GTK widgets as GTK handles that
+                ' CRITICAL FIX: Properly destroy the GTK container widget
+                ' This is essential to prevent the widget from lingering in GTK's internal tracking
+                If EditorContainer IsNot Nothing Then
+                    ' If it's a container, recursively destroy all children
+                    If TypeOf EditorContainer Is Container Then
+                        Dim lContainer As Container = CType(EditorContainer, Container)
+                        ' Remove all children from the container first
+                        For Each lChild In lContainer.Children
+                            lContainer.Remove(lChild)
+                            ' Destroy child widgets if they're not already disposed
+                            If lChild IsNot Nothing Then
+                                lChild.Destroy()
+                            End If
+                        Next
+                    End If
+                    
+                    ' Now destroy the container itself
+                    EditorContainer.Destroy()
+                    EditorContainer = Nothing
+                End If
+                
+                ' Also destroy the tab label widget
+                If TabLabel IsNot Nothing Then
+                    TabLabel.Destroy()
+                    TabLabel = Nothing
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"error disposing TabInfo: {ex.Message}")

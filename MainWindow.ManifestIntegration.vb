@@ -7,6 +7,7 @@ Imports SimpleIDE.Editors
 Imports SimpleIDE.Models
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Widgets
 
 Partial Public Class MainWindow
     
@@ -57,12 +58,11 @@ Partial Public Class MainWindow
             pManifestEditor = New ManifestEditor(Me, pCurrentProject, pSettingsManager)
             
             ' Handle events
-            AddHandler pManifestEditor.Modified, AddressOf OnManifestModified
+            'AddHandler pManifestEditor.Modified, AddressOf OnManifestModified
             AddHandler pManifestEditor.SaveRequested, AddressOf OnManifestSaveRequested
             
             ' Create tab
-            Dim lTabLabel As Box = CreateTabLabel("app.manifest", True)
-            pManifestTabIndex = pNotebook.AppendPage(pManifestEditor, lTabLabel)
+            pManifestTabIndex = pNotebook.AppendPage(pManifestEditor, "app.manifest")
             
             ' Show the tab
             pNotebook.ShowAll()
@@ -79,14 +79,14 @@ Partial Public Class MainWindow
     
     Private Sub OnManifestModified(vIsModified As Boolean)
         Try
-            ' Update tab label if needed
-            If pManifestTabIndex >= 0 Then
-                Dim lTabLabel As Widget = pNotebook.GetTabLabel(pManifestEditor)
-                If lTabLabel IsNot Nothing AndAlso TypeOf lTabLabel Is Box Then
-                    ' FIXED: Call the overloaded version that takes Box and Boolean
-                    UpdateTabModifiedState(CType(lTabLabel, Box), vIsModified)
-                End If
-            End If
+'             ' Update tab label if needed
+'             If pManifestTabIndex >= 0 Then
+'                 Dim lTabLabel As Widget = pNotebook.GetTabLabel(pManifestEditor)
+'                 If lTabLabel IsNot Nothing AndAlso TypeOf lTabLabel Is Box Then
+'                     ' FIXED: Call the overloaded version that takes Box and Boolean
+'                     UpdateTabModifiedState(CType(lTabLabel, Box), vIsModified)
+'                 End If
+'             End If
             
         Catch ex As Exception
             Console.WriteLine($"OnManifestModified error: {ex.Message}")
@@ -266,30 +266,55 @@ Partial Public Class MainWindow
     End Sub
     
     ' Update tab modified state
-    Private Sub UpdateTabModifiedState(vEditor As IEditor)
-        Try
-            ' Find the tab for this editor
-            For Each lTabEntry In pOpenTabs
-                Dim lTabInfo As TabInfo = lTabEntry.Value
-                If lTabInfo.Editor Is vEditor Then
-                    ' Get the tab widget
-                    Dim lTabWidget As Widget = pNotebook.GetTabLabel(vEditor.Widget)
-                    If lTabWidget IsNot Nothing AndAlso TypeOf lTabWidget Is Box Then
-                        UpdateTabModifiedState(CType(lTabWidget, Box), lTabInfo.Modified)
+        ''' <summary>
+        ''' Updates the tab's modified indicator based on editor state
+        ''' </summary>
+        ''' <param name="vEditor">The editor whose state changed</param>
+        Private Sub UpdateTabModifiedState(vEditor As IEditor)
+            Try
+                ' Find the tab containing this editor
+                for each lTabEntry in pOpenTabs
+                    Dim lTabInfo As TabInfo = lTabEntry.Value
+                    If lTabInfo.Editor Is vEditor Then
+                        ' Update the TabInfo modified state
+                        lTabInfo.Modified = vEditor.IsModified
+                        
+                        ' Find the tab index in the notebook
+                        Dim lTabIndex As Integer = -1
+                        for i As Integer = 0 To pNotebook.NPages - 1
+                            Dim lPage As Widget = pNotebook.GetNthPage(i)
+                            If lPage Is lTabInfo.EditorContainer Then
+                                lTabIndex = i
+                                Exit for
+                            End If
+                        Next
+                        
+                        ' Update the CustomDrawNotebook tab modified state
+                        If lTabIndex >= 0 Then
+                            If TypeOf pNotebook Is CustomDrawNotebook Then
+                                DirectCast(pNotebook, CustomDrawNotebook).SetTabModified(lTabIndex, vEditor.IsModified)
+                            End If
+                        End If
+                        
+                        ' Update window title if this is the current tab
+                        If lTabIndex = pNotebook.CurrentPage Then
+                            UpdateWindowTitle()
+                        End If
+                        
+                        Exit for
                     End If
-                    Exit For
-                End If
-            Next
-        Catch ex As Exception
-            Console.WriteLine($"UpdateTabModifiedState error: {ex.Message}")
-        End Try
-    End Sub
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"UpdateTabModifiedState error: {ex.Message}")
+            End Try
+        End Sub
     
     ' Update tab modified state
     Private Sub UpdateTabModifiedState(vTabLabel As Box, vIsModified As Boolean)
         Try
             ' Find the label in the box
-            For Each lChild In vTabLabel.Children
+            for each lChild in vTabLabel.Children
                 If TypeOf lChild Is Label Then
                     Dim lLabel As Label = CType(lChild, Label)
                     Dim lText As String = lLabel.Text
@@ -305,7 +330,7 @@ Partial Public Class MainWindow
                     End If
                     
                     lLabel.Text = lText
-                    Exit For
+                    Exit for
                 End If
             Next
             

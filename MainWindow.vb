@@ -31,7 +31,6 @@ Partial Public Class MainWindow
     Private pFileSystemWatcher As Utilities.FileSystemWatcher
     Private pMemoryManifest As MemoryManifest
     Private pProjectManager As ProjectManager
-    Private pEditorFactory As EditorFactory
     
     ' UI Components
     Private pMainVBox As Box
@@ -40,7 +39,7 @@ Partial Public Class MainWindow
     Private pMainHPaned As Paned
     Private pCenterVPaned As Paned
     Private pProjectExplorer As CustomDrawProjectExplorer
-    Private pNotebook As Notebook
+    Private pNotebook As CustomDrawNotebook
     Private pStatusBar As Statusbar
     
     ' Bottom panel manager
@@ -56,7 +55,7 @@ Partial Public Class MainWindow
     Private pPendingProjectFile As String = Nothing
     Private pTotalFilesToParse As Integer = 0
     Private pCurrentFileParsed As Integer = 0
-    
+    Private pPanedSaveTimer As System.Threading.Timer
     
     ' ===== Constructor =====
     
@@ -71,6 +70,7 @@ Partial Public Class MainWindow
 
             pMemoryManifest = New MemoryManifest(pSettingsManager)
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
+            AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsManagerSettingsChanged_WelcomeTab
 
             InitializeThemeSystem()
 
@@ -81,13 +81,12 @@ Partial Public Class MainWindow
             
             ' Build UI (creates the structure but NOT ObjectExplorer)
             BuildUI()
+            
             AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
             
             ' CRITICAL: Initialize left panel BEFORE project manager
             ' This creates the ObjectExplorer instance
-            InitializeLeftPanel()
-
-            InitializeLeftPanelWidth()
+            InitializeLeftPanel()            
             
             ' NOW safe to create project manager
             AddHandler pProjectManager.ProjectLoaded, AddressOf OnProjectManagerProjectLoaded
@@ -96,6 +95,7 @@ Partial Public Class MainWindow
             AddHandler pProjectManager.FileAdded, AddressOf OnProjectManagerFileAdded
             AddHandler pProjectManager.FileRemoved, AddressOf OnProjectManagerFileRemoved
             AddHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
+            AddHandler pProjectManager.FileSaved, AddressOf OnProjectManagerFileSaved
             
             ' FIX: Now set the ProjectManager in ProjectExplorer since it was created before ProjectManager existed
             If pProjectExplorer IsNot Nothing Then
@@ -148,13 +148,10 @@ Partial Public Class MainWindow
             ' Setup file system watcher
             SetupFileSystemWatcher()
             
-            pEditorFactory = New EditorFactory()
-            EditorFactory.Initialize(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
             
             InitializeObjectExplorer()
             InitializeCodeSense()
             InitializeProjectManagerReferences()
-            'InitializeCapitalizationSystem
 
             ' Setup window state tracking
             ' TODO: SetupWindowStateTracking()
@@ -168,16 +165,74 @@ Partial Public Class MainWindow
             End If
 
             SetupKeyboardShortcuts()
-            
-            ' Hide bottom panel on startup - use idle handler to ensure proper initialization
-            GLib.Idle.Add(Function()
-                pBottomPanelManager?.Hide()
-                HideBottomPanel()
-                UpdateToolbarButtons()
-                Return False ' Remove idle handler
-            End Function)
 
+            ' CRITICAL FIX: Show all BEFORE setting up panels
             ShowAll()
+           
+            ' CRITICAL FIX: Ensure left panel is properly initialized and visible
+            ' Use idle handler to ensure proper initialization AFTER ShowAll()
+            GLib.Idle.Add(Function()
+                Try
+                    ' Ensure left panel is visible with correct width
+                    If pLeftNotebook IsNot Nothing Then
+                        pLeftNotebook.ShowAll()
+                        Console.WriteLine($"Left notebook shown with {pLeftNotebook.NPages} pages")
+                    End If
+                    
+                    ' Get saved width or use default
+                    Dim lSavedWidth As Integer = LEFT_PANEL_MINIMUM_WIDTH
+                    If pSettingsManager IsNot Nothing Then
+                        lSavedWidth = pSettingsManager.GetInteger("leftpanelwidth", LEFT_PANEL_MINIMUM_WIDTH)
+                        If lSavedWidth < LEFT_PANEL_MINIMUM_WIDTH Then
+                            lSavedWidth = LEFT_PANEL_MINIMUM_WIDTH
+                        End If
+                        If lSavedWidth > 500 Then lSavedWidth = 500
+                    End If
+                    
+                    ' Set the position
+                    If pMainHPaned IsNot Nothing Then
+                        pMainHPaned.Position = lSavedWidth
+                        Console.WriteLine($"Set left panel initial position to {lSavedWidth}")
+                    End If
+                    
+                    ' Ensure left notebook is visible
+                    If pLeftNotebook IsNot Nothing Then
+                        pLeftNotebook.Visible = True
+                        pLeftNotebook.ShowAll()
+                        Console.WriteLine($"Left notebook visibility ensured")
+                    End If
+                    
+                    ' Run auto-diagnosis to check and fix any issues
+                    AutoDiagnoseOnStartup()
+                    
+                    ' Hide bottom panel on startup
+                    pBottomPanelManager?.Hide()
+                    HideBottomPanel()
+                    UpdateToolbarButtons()
+                    
+                Catch ex As Exception
+                    Console.WriteLine($"Error setting initial panel state: {ex.Message}")
+                End Try
+                Return False ' Remove idle handler
+            End Function)   
+            
+            ' Add another idle handler as a safety check after a short delay
+            GLib.Timeout.Add(500, Function()
+                Try
+                    ' Final check - if left panel still not visible, force it
+                    If pLeftNotebook IsNot Nothing AndAlso Not pLeftNotebook.Visible Then
+                        Console.WriteLine("WARNING: Left panel still not visible after 500ms, forcing visibility")
+                        ForceShowLeftPanel()
+                        EnsureLeftPanelWidth
+                    ElseIf pMainHPaned IsNot Nothing AndAlso pMainHPaned.Position < 50 Then
+                        Console.WriteLine("WARNING: Left panel position still too small after 500ms, forcing position")
+                        pMainHPaned.Position = LEFT_PANEL_MINIMUM_WIDTH
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"500ms safety check error: {ex.Message}")
+                End Try
+                Return False ' Remove timeout
+            End Function)   
 
             ' If we're not loading a project via the other constructor,
             ' check for auto-detect or recent projects after UI is shown
@@ -262,8 +317,19 @@ Partial Public Class MainWindow
             
             ' Create main horizontal paned for project explorer and center
             pMainHPaned = New Paned(Orientation.Horizontal)
-            pMainHPaned.Position = LEFT_PANEL_WIDTH
             
+            ' Get saved width from settings
+            Dim lSavedWidth As Integer = LEFT_PANEL_MINIMUM_WIDTH  ' Use the 310 constant
+            If pSettingsManager IsNot Nothing Then
+                lSavedWidth = pSettingsManager.GetInteger("leftpanelwidth", LEFT_PANEL_MINIMUM_WIDTH)
+                
+                ' Validate the position
+                If lSavedWidth < LEFT_PANEL_MINIMUM_WIDTH Then 
+                    lSavedWidth = LEFT_PANEL_MINIMUM_WIDTH
+                End If
+                If lSavedWidth > 500 Then lSavedWidth = 500
+            End If      
+                       
             ' Create project explorer
             pProjectExplorer = New CustomDrawProjectExplorer(pSettingsManager, pProjectManager, pThemeManager)
             AddHandler pProjectExplorer.FileSelected, AddressOf OnProjectFileSelected
@@ -280,12 +346,15 @@ Partial Public Class MainWindow
             SetupPanedHandling()
              
             ' Create editor notebook
-            pNotebook = New Notebook()
-            pNotebook.Scrollable = True
-            pNotebook.EnablePopup = True
-            AddHandler pNotebook.SwitchPage, AddressOf OnNotebookPageSwitched
-            'AddHandler pNotebook.PageRemoved, AddressOf OnNotebookPageRemoved
+            pNotebook = New CustomDrawNotebook()
+            DirectCast(pNotebook, CustomDrawNotebook).SetThemeManager(pThemeManager)
+            DirectCast(pNotebook, CustomDrawNotebook).ShowHidePanelButton = False ' Main editor doesn't need hide button
             
+            ' Wire up CustomDrawNotebook events
+            AddHandler DirectCast(pNotebook, CustomDrawNotebook).CurrentTabChanged, AddressOf OnMainNotebookPageSwitched
+            AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabClosed, AddressOf OnCustomNotebookTabClosed
+            AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabModifiedChanged, AddressOf OnCustomNotebookTabModifiedChanged
+
             pCenterVPaned.Pack1(pNotebook, True, False)
             
             ' Create bottom panel manager
@@ -293,12 +362,14 @@ Partial Public Class MainWindow
             
             ' Connect bottom panel events
             AddHandler pBottomPanelManager.FindResultSelected, AddressOf OnFindResultSelected
+            AddHandler pBottomPanelManager.BuildErrorWarningSelected, AddressOf OnFindResultSelected
             AddHandler pBottomPanelManager.TodoSelected, AddressOf OnTodoSelected
             AddHandler pBottomPanelManager.ErrorDoubleClicked, AddressOf OnBuildErrorDoubleClicked
             AddHandler pBottomPanelManager.SendErrorsToAI, AddressOf OnSendBuildErrorsToAI
             AddHandler pBottomPanelManager.PanelClosed, AddressOf OnBottomPanelClosed
 
-            
+            ' Hook up notebook fix after window is realized
+            AddHandler Me.Realized, AddressOf OnWindowRealizedForNotebooks            
             
 
             ' Initialize find panel events
@@ -312,6 +383,7 @@ Partial Public Class MainWindow
             ' Add center paned to main paned
             pMainHPaned.Pack2(pCenterVPaned, True, False)
             
+
             ' Add main paned to vbox
             pMainVBox.PackStart(pMainHPaned, True, True, 0)
             
@@ -453,16 +525,44 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    Private Sub OnNotebookPageSwitched(vSender As Object, vArgs As SwitchPageArgs)
+    Private Sub OnMainNotebookPageSwitched(vOldIndex As Integer, vNewIndex As Integer)
         Try
-            UpdateStatusBar("")
-            UpdateWindowTitle()
-            UpdateToolbarButtons()
+            ' Update UI for the new tab
+            If vNewIndex >= 0 AndAlso vNewIndex < pNotebook.NPages Then
+                Dim lPage As Widget = pNotebook.GetNthPage(vNewIndex)
+                
+                ' Find the tab info for this page
+                for each lTabEntry in pOpenTabs
+                    Dim lTabInfo As TabInfo = lTabEntry.Value
+                    If lTabInfo.EditorContainer Is lPage OrElse 
+                       (lTabInfo.Editor IsNot Nothing AndAlso lTabInfo.Editor.Widget Is lPage) Then
+                        
+                        ' Update window title
+                        UpdateWindowTitle()
+                        
+                        ' Update status bar
+                        If lTabInfo.Editor IsNot Nothing Then
+                            Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
+                            UpdateStatusBar($"Editing: {lFileName}")
+                        End If
+                        
+                        ' Update Object Explorer if needed
+                        UpdateObjectExplorerForActiveTab()
+                        
+                        ' Focus the editor
+                        If lTabInfo.Editor?.Widget IsNot Nothing Then
+                            lTabInfo.Editor.Widget.GrabFocus()
+                        End If
+                        
+                        Exit for
+                    End If
+                Next
+            End If
+            
         Catch ex As Exception
             Console.WriteLine($"OnNotebookPageSwitched error: {ex.Message}")
         End Try
     End Sub
-
     
     Public Function ShowQuestion(vTitle As String, vMessage As String) As Boolean
         Try
@@ -533,7 +633,7 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    Public ReadOnly Property OpenTabs() as Dictionary(Of String, TabInfo)
+    Public ReadOnly Property OpenTabs() As Dictionary(Of String, TabInfo)
         Get
             Return pOpenTabs
         End Get
@@ -622,8 +722,8 @@ Partial Public Class MainWindow
             Dim lChangedMask As Gdk.WindowState = vArgs.Event.ChangedMask
             
             ' Check if focused state changed
-            If (lChangedMask And Gdk.WindowState.Focused) = Gdk.WindowState.Focused Then
-                Dim lIsFocused As Boolean = (lNewState And Gdk.WindowState.Focused) = Gdk.WindowState.Focused
+            If (lChangedMask and Gdk.WindowState.Focused) = Gdk.WindowState.Focused Then
+                Dim lIsFocused As Boolean = (lNewState and Gdk.WindowState.Focused) = Gdk.WindowState.Focused
                 
                 If lIsFocused Then
                     Console.WriteLine("Window became focused via state change")
@@ -664,14 +764,14 @@ Partial Public Class MainWindow
             ' Hook up notebook events with Object Explorer integration
             If pNotebook IsNot Nothing Then
                 ' Remove any existing handler to avoid duplicates
-                RemoveHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
-                AddHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
+                RemoveHandler pNotebook.CurrentTabChanged, AddressOf OnMainNotebookPageSwitched
+                AddHandler pNotebook.CurrentTabChanged, AddressOf OnMainNotebookPageSwitched
             End If
             
             ' Hook up left notebook page changes for Object Explorer activation
             If pLeftNotebook IsNot Nothing Then
-                RemoveHandler pLeftNotebook.SwitchPage, AddressOf OnLeftNotebookPageChanged
-                AddHandler pLeftNotebook.SwitchPage, AddressOf OnLeftNotebookPageChanged
+                RemoveHandler pLeftNotebook.CurrentTabChanged, AddressOf OnLeftNotebookPageChanged
+                AddHandler pLeftNotebook.CurrentTabChanged, AddressOf OnLeftNotebookPageChanged
             End If
             
             Console.WriteLine("Object Explorer integration initialized")
@@ -753,6 +853,71 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnWindowRealizedWithProject error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Initializes the paned position from settings or defaults
+    ''' </summary>
+    Private Sub InitializePanedPosition()
+        Try
+            ' Get saved position from settings, default to 250 pixels for left panel
+            Dim lSavedPosition As Integer = LEFT_PANEL_MINIMUM_WIDTH
+            If pSettingsManager IsNot Nothing Then
+                lSavedPosition = pSettingsManager.GetInteger("LeftPanelWidth", LEFT_PANEL_MINIMUM_WIDTH)
+                
+                ' Validate the position (must be reasonable)
+                If lSavedPosition < LEFT_PANEL_MINIMUM_WIDTH Then lSavedPosition = LEFT_PANEL_MINIMUM_WIDTH
+                If lSavedPosition > 500 Then lSavedPosition = 500
+            End If
+            
+            ' Set the paned position
+            If pMainHPaned IsNot Nothing Then
+                pMainHPaned.Position = lSavedPosition
+                Console.WriteLine($"InitializePanedPosition: Set to {lSavedPosition}")
+            End If
+            
+            ' Connect to notify event to save position when changed
+            If pMainHPaned IsNot Nothing Then
+                AddHandler pMainHPaned.MotionNotifyEvent, AddressOf OnPanedPositionChanged
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"InitializePanedPosition error: {ex.Message}")
+        End Try
+    End Sub    
+
+    ''' <summary>
+    ''' Handles paned position changes to save the setting
+    ''' </summary>
+    Private Sub OnPanedPositionChanged(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Use a timer to debounce the saves (only save after user stops dragging)
+            If pPanedSaveTimer IsNot Nothing Then
+                pPanedSaveTimer.Dispose()
+            End If
+            
+            pPanedSaveTimer = New System.Threading.Timer(
+                Sub()
+                    Try
+                        Application.Invoke(
+                            Sub()
+                                If pMainHPaned IsNot Nothing AndAlso pSettingsManager IsNot Nothing Then
+                                    Dim lPosition As Integer = pMainHPaned.Position
+                                    If lPosition > 0 Then ' Only save valid positions
+                                        pSettingsManager.SetInteger("LeftPanelWidth", lPosition)
+                                        Console.WriteLine($"Saved paned position: {lPosition}")
+                                    End If
+                                End If
+                            End Sub)
+                    Catch ex As Exception
+                        Console.WriteLine($"Error saving paned position: {ex.Message}")
+                    End Try
+                End Sub,
+                Nothing, 500, System.Threading.Timeout.Infinite) ' Save after 500ms of no changes
+                
+        Catch ex As Exception
+            Console.WriteLine($"OnPanedPositionChanged error: {ex.Message}")
         End Try
     End Sub
     

@@ -25,7 +25,7 @@ Namespace Widgets
         Public Event ErrorDoubleClicked(vError As BuildError)
         
         ' ===== Private Fields =====
-        Private pNotebook As Notebook
+        Private pNotebook As CustomDrawNotebook
         Private pCopyButton As Button
         Private pSendToAIButton As Button
         Private pThemeManager As ThemeManager
@@ -53,11 +53,23 @@ Namespace Widgets
         ''' <summary>
         ''' Creates a new BuildOutputPanel using CustomDrawDataGrid
         ''' </summary>
-        Public Sub New()
+        Public Sub New(vThemeManager As ThemeManager)
             MyBase.New(Orientation.Vertical, 0)
+            pThemeManager = vThemeManager
             
             CreateUI()
             ShowAll()
+            
+            ' Make sure the notebook shows the Output tab
+            If pNotebook IsNot Nothing Then
+                pNotebook.CurrentPage = 0
+                
+                ' Force the notebook to update its display
+                If TypeOf pNotebook Is CustomDrawNotebook Then
+                    Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                    lCustomNotebook.QueueDraw()
+                End If
+            End If
         End Sub
         
         ' ===== Public Properties =====
@@ -83,7 +95,7 @@ Namespace Widgets
         ''' <summary>
         ''' Gets the internal notebook widget for tab switching
         ''' </summary>
-        Public ReadOnly Property Notebook As Notebook
+        Public ReadOnly Property Notebook As CustomDrawNotebook
             Get
                 Return pNotebook
             End Get
@@ -128,7 +140,11 @@ Namespace Widgets
                 Me.PackStart(lHeaderBox, False, False, 0)
                 
                 ' Create notebook
-                pNotebook = New Notebook()
+                pNotebook = New CustomDrawNotebook()
+                pNotebook.ShowHidePanelButton = False ' Bottom panel needs hide button
+                pNotebook.ShowDropDownButton = False  ' No dropdown needed - all tabs fit
+                pNotebook.ShowScrollButtons = False    ' No scroll buttons needed - all tabs fit
+                pNotebook.ShowTabCloseButtons = False   ' CHANGED: Show close buttons on tabs
                 Me.PackStart(pNotebook, True, True, 0)
                 
                 ' Create tabs
@@ -152,6 +168,7 @@ Namespace Widgets
                 
                 pOutputTextView = New TextView()
                 pOutputTextView.Editable = False
+                'pOutputTextView.Selectable = True
                 pOutputTextView.WrapMode = WrapMode.Word
                 pOutputTextView.Monospace = True
                 
@@ -168,7 +185,7 @@ Namespace Widgets
                 lWarningTag.Foreground = "orange"
                 pOutputBuffer.TagTable.Add(lWarningTag)
                 
-                pNotebook.AppendPage(pOutputScrolledWindow, New Label("Output"))
+                pNotebook.AppendPage(pOutputScrolledWindow,"Output")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateOutputTab error: {ex.Message}")
@@ -429,7 +446,7 @@ Namespace Widgets
                 End If
                 
                 ScrollOutputToBottom()
-                
+                pNotebook.SetCurrentTab(0, True)
             Catch ex As Exception
                 Console.WriteLine($"AppendOutput(tag) error: {ex.Message}")
             End Try
@@ -543,11 +560,11 @@ Namespace Widgets
         End Function 
        
         ''' <summary>
-        ''' Updates tab labels with error/warning counts and colors from theme
+        ''' Updates the tab labels with error and warning counts using Pango markup for colors
         ''' </summary>
         Private Sub UpdateTabLabels()
             Try
-                ' Get current theme colors
+                ' Get theme colors
                 Dim lErrorColor As String = "#FF0000"  ' Default red
                 Dim lWarningColor As String = "#FFA500"  ' Default orange
                 
@@ -560,37 +577,33 @@ Namespace Widgets
                     End If
                 End If
                 
-                ' Update error tab label with color
-                If pNotebook.NPages > 1 Then
-                    Dim lErrorLabel As Label = TryCast(pNotebook.GetTabLabel(pNotebook.GetNthPage(1)), Label)
-                    If lErrorLabel IsNot Nothing Then
-                        lErrorLabel.UseMarkup = True  ' Ensure markup is enabled
-                        
+                ' Update error tab label with color using CustomDrawNotebook's markup support
+                If pNotebook IsNot Nothing AndAlso TypeOf pNotebook Is CustomDrawNotebook Then
+                    Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                    
+                    ' Update Errors tab (index 1)
+                    If lCustomNotebook.NPages > 1 Then
                         If pBuildErrors.Count > 0 Then
-                            ' Use theme error color
-                            lErrorLabel.Markup = $"<span foreground='{lErrorColor}'>Errors ({pBuildErrors.Count})</span>"
+                            ' Use markup to color the text
+                            lCustomNotebook.SetTabLabelText(1, $"<span foreground='{lErrorColor}'>Errors ({pBuildErrors.Count})</span>")
                         Else
-                            ' Normal theme color when no errors
-                            lErrorLabel.Markup = "Errors (0)"
+                            ' No errors - use normal text
+                            lCustomNotebook.SetTabLabelText(1, "Errors (0)")
+                        End If
+                    End If
+                    
+                    ' Update Warnings tab (index 2)
+                    If lCustomNotebook.NPages > 2 Then
+                        If pBuildWarnings.Count > 0 Then
+                            ' Use markup to color the text
+                            lCustomNotebook.SetTabLabelText(2, $"<span foreground='{lWarningColor}'>Warnings ({pBuildWarnings.Count})</span>")
+                        Else
+                            ' No warnings - use normal text
+                            lCustomNotebook.SetTabLabelText(2, "Warnings (0)")
                         End If
                     End If
                 End If
                 
-                ' Update warning tab label with color
-                If pNotebook.NPages > 2 Then
-                    Dim lWarningLabel As Label = TryCast(pNotebook.GetTabLabel(pNotebook.GetNthPage(2)), Label)
-                    If lWarningLabel IsNot Nothing Then
-                        lWarningLabel.UseMarkup = True  ' Ensure markup is enabled
-                        
-                        If pBuildWarnings.Count > 0 Then
-                            ' Use theme warning color  
-                            lWarningLabel.Markup = $"<span foreground='{lWarningColor}'>Warnings ({pBuildWarnings.Count})</span>"
-                        Else
-                            ' Normal theme color when no warnings
-                            lWarningLabel.Markup = "Warnings (0)"
-                        End If
-                    End If
-                End If
             Catch ex As Exception
                 Console.WriteLine($"UpdateTabLabels error: {ex.Message}")
             End Try
@@ -655,27 +668,19 @@ Namespace Widgets
         ' ===== Event Handlers =====
         
         ''' <summary>
-        ''' Handles double-click on error row
+        ''' Handles selection change in error grid
         ''' </summary>
-        Private Sub OnErrorRowDoubleClicked(vRowIndex As Integer, vRow As DataGridRow)
+        Private Sub OnErrorSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
             Try
                 If vRow?.Tag IsNot Nothing Then
                     Dim lError As BuildError = TryCast(vRow.Tag, BuildError)
                     If lError IsNot Nothing Then
                         RaiseEvent ErrorSelected(lError.FilePath, lError.Line, lError.Column)
-                        RaiseEvent ErrorDoubleClicked(lError)
                     End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"OnErrorRowDoubleClicked error: {ex.Message}")
             End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handles selection change in error grid
-        ''' </summary>
-        Private Sub OnErrorSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer)
-            ' Optional: Handle selection change if needed
         End Sub
         
         ''' <summary>
@@ -697,8 +702,17 @@ Namespace Widgets
         ''' <summary>
         ''' Handles selection change in warning grid
         ''' </summary>
-        Private Sub OnWarningSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer)
-            ' Optional: Handle selection change if needed
+        Private Sub OnWarningSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
+            Try
+                If vRow?.Tag IsNot Nothing Then
+                    Dim lError As BuildError = TryCast(vRow.Tag, BuildError)
+                    If lError IsNot Nothing Then
+                        RaiseEvent ErrorSelected(lError.FilePath, lError.Line, lError.Column)
+                    End If
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"OnErrorRowDoubleClicked error: {ex.Message}")
+            End Try
         End Sub
         
         ''' <summary>
@@ -940,6 +954,8 @@ Namespace Widgets
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
                 pThemeManager = vThemeManager
+               
+                pNotebook.SetThemeManager(vThemeManager)
                 
                 ' Pass theme manager to data grids if they support it
                 If pErrorsDataGrid IsNot Nothing Then

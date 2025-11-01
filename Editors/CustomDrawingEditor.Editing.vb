@@ -20,66 +20,85 @@ Namespace Editors
         ' ===== Character Operations =====
 
         ''' <summary>
-        ''' Inserts a character at the specified position
+        ''' Inserts a character at the specified position using atomic operation
         ''' </summary>
         ''' <param name="vLine">Line number (0-based)</param>
         ''' <param name="vColumn">Column position (0-based)</param>
         ''' <param name="vChar">Character to insert</param>
         ''' <remarks>
-        ''' Uses SourceFileInfo for text manipulation and requests async parsing
+        ''' Refactored to use SourceFileInfo.InsertCharacter atomic method
         ''' </remarks>
         Private Sub InsertCharacterAt(vLine As Integer, vColumn As Integer, vChar As Char)
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 If pSourceFileInfo Is Nothing Then Return
+                If pIsReadOnly Then Return
                 
-                ' Record for undo using EditorPosition
+                ' Get current line for validation
+                Dim lLine As String = pSourceFileInfo.TextLines(vLine)
+                
+                ' Clamp column to valid range
+                vColumn = Math.Max(0, Math.Min(vColumn, lLine.Length))
+                
+                ' Record for undo BEFORE the operation
                 If pUndoRedoManager IsNot Nothing Then
                     Dim lStartPos As New EditorPosition(vLine, vColumn)
                     Dim lEndPos As New EditorPosition(vLine, vColumn + 1)
                     pUndoRedoManager.RecordInsertText(lStartPos, vChar.ToString(), lEndPos)
                 End If
                 
-                ' Insert through SourceFileInfo
-                pSourceFileInfo.InsertTextInLine(vLine, vColumn, vChar.ToString())
+                ' Use atomic InsertCharacter method
+                pSourceFileInfo.InsertCharacter(vLine, vColumn, vChar)
                 
+                ' Update state after operation
                 IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertCharacterAt error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub     
+   
         ''' <summary>
-        ''' Deletes a character at the specified position
+        ''' Deletes a character at the specified position using atomic operation
         ''' </summary>
+        ''' <param name="vLine">Line number (0-based)</param>
+        ''' <param name="vColumn">Column position (0-based)</param>
         ''' <remarks>
-        ''' Updated to use SourceFileInfo for text manipulation
+        ''' Refactored to use SourceFileInfo.DeleteCharacter atomic method
         ''' </remarks>
         Private Sub DeleteCharacterAt(vLine As Integer, vColumn As Integer)
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 If pSourceFileInfo Is Nothing Then Return
+                If pIsReadOnly Then Return
                 
                 Dim lLine As String = pSourceFileInfo.TextLines(vLine)
-                If vColumn >= 0 AndAlso vColumn < lLine.Length Then
-                    Dim lDeletedChar As Char = lLine(vColumn)
-                    
-                    ' Record for undo using EditorPosition
-                    If pUndoRedoManager IsNot Nothing Then
-                        Dim lStartPos As New EditorPosition(vLine, vColumn)
-                        Dim lEndPos As New EditorPosition(vLine, vColumn + 1)
-                        Dim lCursorPos As New EditorPosition(vLine, vColumn)
-                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
-                    End If
-                    
-                    ' Delete through SourceFileInfo
-                    pSourceFileInfo.DeleteTextInLine(vLine, vColumn, vColumn + 1)
-                    
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs)
+                If vColumn < 0 OrElse vColumn >= lLine.Length Then Return
+                
+                ' Get the character that will be deleted for undo
+                Dim lDeletedChar As Char = lLine(vColumn)
+                
+                ' Record for undo BEFORE the operation
+                If pUndoRedoManager IsNot Nothing Then
+                    Dim lStartPos As New EditorPosition(vLine, vColumn)
+                    Dim lEndPos As New EditorPosition(vLine, vColumn + 1)
+                    Dim lCursorPos As New EditorPosition(vLine, vColumn)
+                    pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
                 End If
+                
+                ' Use atomic DeleteCharacter method
+                pSourceFileInfo.DeleteCharacter(vLine, vColumn)
+                
+                ' Update state after operation
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Queue redraw
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteCharacterAt error: {ex.Message}")
@@ -89,30 +108,30 @@ Namespace Editors
         ' ===== Line Operations =====
         
         ''' <summary>
-        ''' Inserts a new line at cursor position
+        ''' Inserts a new line at cursor position using atomic operation
         ''' </summary>
         ''' <remarks>
-        ''' Simplified to update SourceFileInfo and let async parsing handle colors
+        ''' Refactored to use SourceFileInfo.InsertText atomic method for newline insertion
         ''' </remarks>
         Private Sub InsertNewLine()
             Try
-                If pIsReadOnly Then Return
-                If pSourceFileInfo Is Nothing Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
-                ' Get current line
-                Dim lCurrentLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                ' Delete selection first if exists
+                If pHasSelection Then
+                    DeleteSelection()
+                End If
                 
-                ' Split at cursor position
-                Dim lBeforeCursor As String = lCurrentLine.Substring(0, pCursorColumn)
-                Dim lAfterCursor As String = If(pCursorColumn < lCurrentLine.Length, 
-                                                lCurrentLine.Substring(pCursorColumn), 
-                                                "")
+                ' Record for undo
+                If pUndoRedoManager IsNot Nothing Then
+                    Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn)
+                    ' After newline, cursor will be at start of next line
+                    Dim lEndPos As New EditorPosition(pCursorLine + 1, 0)
+                    pUndoRedoManager.RecordInsertText(lStartPos, Environment.NewLine, lEndPos)
+                End If
                 
-                ' Update current line with text before cursor
-                pSourceFileInfo.UpdateTextLine(pCursorLine, lBeforeCursor)
-                
-                ' Insert new line with text after cursor
-                pSourceFileInfo.InsertLine(pCursorLine + 1, lAfterCursor)
+                ' Use atomic InsertText method for newline
+                pSourceFileInfo.InsertText(pCursorLine, pCursorColumn, Environment.NewLine)
                 
                 ' Move cursor to beginning of next line
                 SetCursorPosition(pCursorLine + 1, 0)
@@ -122,14 +141,14 @@ Namespace Editors
                     ApplyAutoIndent(pCursorLine)
                 End If
                 
-                ' Mark as modified
-                pIsModified = True
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
-                ' Trigger events
-                OnTextModified()
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
                 pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
@@ -140,243 +159,39 @@ Namespace Editors
         ' ===== Delete Operations =====
         
         ''' <summary>
-        ''' Deletes backward from cursor (Backspace)
+        ''' Deletes backward from cursor (for compatibility)
         ''' </summary>
         ''' <remarks>
-        ''' Simplified to update SourceFileInfo and let async parsing handle colors
+        ''' Now just calls HandleBackspace which uses atomic operations
         ''' </remarks>
         Private Sub DeleteBackward()
-            Try
-                If pIsReadOnly Then Return
-                
-                If pHasSelection Then
-                    DeleteSelection()
-                Else
-                    If pCursorColumn > 0 Then
-                        ' Delete character before cursor
-                        If pSourceFileInfo IsNot Nothing Then
-                            pSourceFileInfo.DeleteTextInLine(pCursorLine, pCursorColumn - 1, pCursorColumn)
-                            
-                            ' Move cursor back
-                            pCursorColumn -= 1
-                            
-                            ' Mark as modified
-                            pIsModified = True
-                        End If
-                    ElseIf pCursorLine > 0 Then
-                        ' Join with previous line
-                        If pSourceFileInfo IsNot Nothing Then
-                            Dim lPrevLineLength As Integer = pSourceFileInfo.TextLines(pCursorLine - 1).Length
-                            pSourceFileInfo.JoinLines(pCursorLine - 1)
-                            
-                            ' Move cursor to join position
-                            pCursorLine -= 1
-                            pCursorColumn = lPrevLineLength
-                            
-                            ' Mark as modified
-                            pIsModified = True
-                        End If
-                    End If
-                End If
-                
-                ' Trigger events
-                OnTextModified()
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"DeleteBackward error: {ex.Message}")
-            End Try
+            HandleBackspace()
         End Sub
         
         ''' <summary>
-        ''' Deletes forward from cursor (Delete key)
+        ''' Deletes forward from cursor (for compatibility)
         ''' </summary>
         ''' <remarks>
-        ''' Simplified to update SourceFileInfo and let async parsing handle colors
+        ''' Now just calls HandleDelete which uses atomic operations
         ''' </remarks>
         Private Sub DeleteForward()
-            Try
-                If pIsReadOnly Then Return
-                
-                If pHasSelection Then
-                    DeleteSelection()
-                Else
-                    If pSourceFileInfo IsNot Nothing Then
-                        Dim lLineText As String = pSourceFileInfo.TextLines(pCursorLine)
-                        
-                        If pCursorColumn < lLineText.Length Then
-                            ' Delete character at cursor
-                            pSourceFileInfo.DeleteTextInLine(pCursorLine, pCursorColumn, pCursorColumn + 1)
-                            
-                            ' Mark as modified
-                            pIsModified = True
-                        ElseIf pCursorLine < pLineCount - 1 Then
-                            ' Join with next line
-                            pSourceFileInfo.JoinLines(pCursorLine)
-                            
-                            ' Mark as modified
-                            pIsModified = True
-                        End If
-                    End If
-                End If
-                
-                ' Trigger events
-                OnTextModified()
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"DeleteForward error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' ===== Text Insertion =====
-        
-
-        
-        ' ===== Multi-line Text Operations =====
-        
-        ''' <summary>
-        ''' Inserts multi-line text at a specific position
-        ''' </summary>
-        Friend Sub InsertMultiLineTextAt(vLine As Integer, vColumn As Integer, vText As String)
-            Try
-                ' Split text into lines
-                Dim lLines() As String = vText.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
-                
-                If lLines.Length = 0 Then Return
-                
-                ' Get the current line
-                Dim lCurrentLine As String = TextLines(vLine)
-                Dim lBeforeInsert As String = If(vColumn > 0, lCurrentLine.Substring(0, Math.Min(vColumn, lCurrentLine.Length)), "")
-                Dim lAfterInsert As String = If(vColumn < lCurrentLine.Length, lCurrentLine.Substring(vColumn), "")
-                
-                If lLines.Length = 1 Then
-                    ' Single line insert
-                    TextLines(vLine) = lBeforeInsert & lLines(0) & lAfterInsert
-                    pLineMetadata(vLine).MarkChanged()
-                    
-                    ' Move cursor to end of inserted text
-                    SetCursorPosition(vLine, vColumn + lLines(0).Length)
-                Else
-                    ' Multi-line insert
-                    ' First line
-                    TextLines(vLine) = lBeforeInsert & lLines(0)
-                    pLineMetadata(vLine).MarkChanged()
-                    
-                    ' Insert middle lines
-                    for i As Integer = 1 To lLines.Length - 2
-                        InsertLineAt(vLine + i, lLines(i))
-                    Next
-                    
-                    ' Last line
-                    InsertLineAt(vLine + lLines.Length - 1, lLines(lLines.Length - 1) & lAfterInsert)
-                    
-                    ' Move cursor to end of inserted text
-                    SetCursorPosition(vLine + lLines.Length - 1, lLines(lLines.Length - 1).Length)
-                End If
-                
-                ' Update line count
-                UpdateLineNumberWidth()
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"InsertMultiLineTextAt error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' ===== Replace Operations =====
-        
-        ''' <summary>
-        ''' Replaces text at a specific position
-        ''' </summary>
-        Friend Sub ReplaceTextAt(vLine As Integer, vColumn As Integer, vLength As Integer, vNewText As String)
-            Try
-                If vLine < 0 OrElse vLine >= pLineCount Then Return
-                
-                Dim lLine As String = TextLines(vLine)
-                
-                ' Ensure column is within valid range
-                If vColumn < 0 Then vColumn = 0
-                If vColumn > lLine.Length Then vColumn = lLine.Length
-                
-                ' Calculate actual length to replace
-                Dim lActualLength As Integer = Math.Min(vLength, lLine.Length - vColumn)
-                
-                ' Replace the text
-                If lActualLength > 0 Then
-                    lLine = lLine.Remove(vColumn, lActualLength)
-                End If
-                lLine = lLine.Insert(vColumn, vNewText)
-                
-                TextLines(vLine) = lLine
-                pLineMetadata(vLine).MarkChanged()
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"ReplaceTextAt error: {ex.Message}")
-            End Try
+            HandleDelete()
         End Sub
         
         ' ===== Helper Key Handlers =====
         
         ''' <summary>
-        ''' Handles the Return/Enter key press
+        ''' Handles the Return/Enter key press using atomic operation
         ''' </summary>
         ''' <remarks>
-        ''' Uses SourceFileInfo for line operations and triggers async parsing
+        ''' Refactored to use InsertNewLine which uses atomic InsertText
         ''' </remarks>
         Private Sub HandleReturn()
             Try
                 If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
-                ' Handle selection replacement
-                If pHasSelection Then
-                    DeleteSelection()
-                End If
-                
-                ' Get current line text from SourceFileInfo
-                Dim lCurrentLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                
-                ' Split line at cursor position
-                Dim lBeforeCursor As String = If(pCursorColumn > 0, lCurrentLine.Substring(0, Math.Min(pCursorColumn, lCurrentLine.Length)), "")
-                Dim lAfterCursor As String = If(pCursorColumn < lCurrentLine.Length, lCurrentLine.Substring(pCursorColumn), "")
-                
-                ' Update current line with text before cursor
-                pSourceFileInfo.UpdateTextLine(pCursorLine, lBeforeCursor)
-                
-                ' Insert new line with text after cursor
-                pSourceFileInfo.InsertLine(pCursorLine + 1, lAfterCursor)
-                
-                
-                ' Move cursor to beginning of next line
-                SetCursorPosition(pCursorLine + 1, 0)
-                
-                ' Apply auto-indent if enabled
-                If pSettingsManager IsNot Nothing AndAlso pSettingsManager.AutoIndent Then
-                    ApplyAutoIndent(pCursorLine)
-                End If
-                
-                ' Request async parsing
-                pSourceFileInfo.RequestAsyncParse()
-                
-                ' Mark as modified
-                IsModified = True
-                
-                ' Trigger events
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
+                ' Simply call InsertNewLine which handles everything
+                InsertNewLine()
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleReturn error: {ex.Message}")
@@ -384,110 +199,132 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Handles the Backspace key
+        ''' Handles the Backspace key using atomic operations
         ''' </summary>
         ''' <remarks>
-        ''' Uses SourceFileInfo for all text operations
+        ''' Refactored to use atomic DeleteCharacter and DeleteText methods
         ''' </remarks>
         Private Sub HandleBackspace()
             Try
                 If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
                 If pHasSelection Then
+                    ' Delete selection
                     DeleteSelection()
                 ElseIf pCursorColumn > 0 Then
                     ' Delete character before cursor
-                    Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                    Dim lNewLine As String = lLine.Remove(pCursorColumn - 1, 1)
                     
-                    ' Update through SourceFileInfo
-                    pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
+                    ' Get the character being deleted for undo
+                    Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                    Dim lDeletedChar As Char = lLine(pCursorColumn - 1)
+                    
+                    ' Record for undo
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                        Dim lEndPos As New EditorPosition(pCursorLine, pCursorColumn)
+                        Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
+                    End If
+                    
+                    ' Use atomic DeleteCharacter
+                    pSourceFileInfo.DeleteCharacter(pCursorLine, pCursorColumn - 1)
                     
                     ' Move cursor back
                     SetCursorPosition(pCursorLine, pCursorColumn - 1)
                     
-                    ' Request async parsing
-                    pSourceFileInfo.RequestAsyncParse()
-                    
-                    ' Mark as modified
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs)
-                    
                 ElseIf pCursorLine > 0 Then
                     ' Join with previous line
                     Dim lPrevLine As String = pSourceFileInfo.TextLines(pCursorLine - 1)
+                    Dim lPrevLineLength As Integer = lPrevLine.Length
                     Dim lCurrentLine As String = pSourceFileInfo.TextLines(pCursorLine)
                     
-                    ' Join the lines
-                    pSourceFileInfo.UpdateTextLine(pCursorLine - 1, lPrevLine & lCurrentLine)
-                    pSourceFileInfo.DeleteLine(pCursorLine)
+                    ' Record for undo
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine - 1, lPrevLineLength)
+                        Dim lEndPos As New EditorPosition(pCursorLine, 0)
+                        Dim lCursorPos As New EditorPosition(pCursorLine - 1, lPrevLineLength)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, Environment.NewLine, lCursorPos)
+                    End If
                     
+                    ' Use atomic DeleteText to remove the newline between lines
+                    pSourceFileInfo.DeleteText(pCursorLine - 1, lPrevLineLength, pCursorLine, 0)
                     
-                    ' Move cursor to join point
-                    SetCursorPosition(pCursorLine - 1, lPrevLine.Length)
-                    
-                    ' Request async parsing
-                    pSourceFileInfo.RequestAsyncParse()
-                    
-                    ' Mark as modified
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs)
+                    ' Move cursor to join position
+                    SetCursorPosition(pCursorLine - 1, lPrevLineLength)
                 End If
                 
-                ' Queue redraw
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
                 pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleBackspace error: {ex.Message}")
             End Try
         End Sub
+
         
         ''' <summary>
-        ''' Handles the Delete key
+        ''' Handles the Delete key using atomic operations
         ''' </summary>
         ''' <remarks>
-        ''' Uses SourceFileInfo for all text operations
+        ''' Refactored to use atomic DeleteCharacter and DeleteText methods
         ''' </remarks>
         Private Sub HandleDelete()
             Try
                 If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
                 If pHasSelection Then
+                    ' Delete selection
                     DeleteSelection()
                 ElseIf pCursorColumn < pSourceFileInfo.TextLines(pCursorLine).Length Then
                     ' Delete character at cursor
+                    
+                    ' Get the character being deleted for undo
                     Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                    Dim lNewLine As String = lLine.Remove(pCursorColumn, 1)
+                    Dim lDeletedChar As Char = lLine(pCursorColumn)
                     
-                    ' Update through SourceFileInfo
-                    pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
+                    ' Record for undo
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn)
+                        Dim lEndPos As New EditorPosition(pCursorLine, pCursorColumn + 1)
+                        Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
+                    End If
                     
-                    ' Request async parsing
-                    pSourceFileInfo.RequestAsyncParse()
+                    ' Use atomic DeleteCharacter
+                    pSourceFileInfo.DeleteCharacter(pCursorLine, pCursorColumn)
                     
-                    ' Mark as modified
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs)
-                    
-                ElseIf pCursorLine < pLineCount - 1 Then
+                ElseIf pCursorLine < pSourceFileInfo.TextLines.Count - 1 Then
                     ' Join with next line
                     Dim lCurrentLine As String = pSourceFileInfo.TextLines(pCursorLine)
                     Dim lNextLine As String = pSourceFileInfo.TextLines(pCursorLine + 1)
                     
-                    ' Join the lines
-                    pSourceFileInfo.UpdateTextLine(pCursorLine, lCurrentLine & lNextLine)
-                    pSourceFileInfo.DeleteLine(pCursorLine + 1)
+                    ' Record for undo
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine, lCurrentLine.Length)
+                        Dim lEndPos As New EditorPosition(pCursorLine + 1, 0)
+                        Dim lCursorPos As New EditorPosition(pCursorLine, lCurrentLine.Length)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, Environment.NewLine, lCursorPos)
+                    End If
                     
-                    
-                    ' Request async parsing
-                    pSourceFileInfo.RequestAsyncParse()
-                    
-                    ' Mark as modified
-                    IsModified = True
-                    RaiseEvent TextChanged(Me, New EventArgs)
+                    ' Use atomic DeleteText to remove the newline between lines
+                    pSourceFileInfo.DeleteText(pCursorLine, lCurrentLine.Length, pCursorLine + 1, 0)
                 End If
                 
-                ' Queue redraw
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
                 pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
@@ -635,56 +472,54 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Inserts text at the specified position using EditorPosition parameter
+        ''' Inserts text at the specified position using atomic operation
         ''' </summary>
-        ''' <param name="vPosition">The position where text should be inserted</param>
-        ''' <param name="vText">The text to insert</param>
+        ''' <param name="vPosition">Position to insert at</param>
+        ''' <param name="vText">Text to insert (can be multi-line)</param>
         ''' <remarks>
-        ''' This method is used by UndoRedoManager during undo/redo operations.
-        ''' It properly handles multi-line insertions and updates all state.
+        ''' Refactored to use SourceFileInfo.InsertText atomic method
         ''' </remarks>
         Public Sub InsertTextAtPosition(vPosition As EditorPosition, vText As String) Implements IEditor.InsertTextAtPosition
             Try
-                If pIsReadOnly OrElse String.IsNullOrEmpty(vText) Then Return
-                If pSourceFileInfo Is Nothing Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing OrElse String.IsNullOrEmpty(vText) Then Return
                 
                 ' Validate position
                 Dim lLine As Integer = Math.Max(0, Math.Min(vPosition.Line, pLineCount - 1))
-                Dim lColumn As Integer = Math.Max(0, vPosition.Column)
+                Dim lColumn As Integer = Math.Max(0, Math.Min(vPosition.Column, pSourceFileInfo.TextLines(lLine).Length))
                 
-                ' For insertions beyond current line length, pad with spaces
-                If lLine < pLineCount Then
-                    Dim lLineText As String = pSourceFileInfo.TextLines(lLine)
-                    If lColumn > lLineText.Length Then
-                        ' Pad the line to reach the insertion point
-                        Dim lPadding As String = New String(" "c, lColumn - lLineText.Length)
-                        pSourceFileInfo.InsertTextInLine(lLine, lLineText.Length, lPadding)
-                    End If
+                ' Calculate end position for undo
+                Dim lEndPos As EditorPosition
+                Dim lLines() As String = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
+                
+                If lLines.Length = 1 Then
+                    ' Single line insertion
+                    lEndPos = New EditorPosition(lLine, lColumn + vText.Length)
+                Else
+                    ' Multi-line insertion
+                    Dim lLastLineLength As Integer = lLines(lLines.Length - 1).Length
+                    lEndPos = New EditorPosition(lLine + lLines.Length - 1, lLastLineLength)
                 End If
                 
-                ' Set cursor to insertion position
-                SetCursorPosition(lLine, lColumn)
-                
-                ' Check if this is being called by undo/redo
-                Dim lIsUndoRedo As Boolean = pUndoRedoManager IsNot Nothing AndAlso pUndoRedoManager.IsUndoingOrRedoing
-                
-                ' If not undo/redo, record for undo
-                If Not lIsUndoRedo AndAlso pUndoRedoManager IsNot Nothing Then
-                    ' Calculate end position after insertion
-                    Dim lNewCursorPos As EditorPosition
-                    Dim lLines() As String = vText.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                    
-                    If lLines.Length = 1 Then
-                        lNewCursorPos = New EditorPosition(lLine, lColumn + vText.Length)
-                    Else
-                        lNewCursorPos = New EditorPosition(lLine + lLines.Length - 1, lLines(lLines.Length - 1).Length)
-                    End If
-                    
-                    pUndoRedoManager.RecordInsertText(vPosition, vText, lNewCursorPos)
+                ' Record for undo
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordInsertText(New EditorPosition(lLine, lColumn), vText, lEndPos)
                 End If
                 
-                ' Use InsertTextDirect for the actual insertion
-                InsertTextDirect(vText)
+                ' Use atomic InsertText method
+                pSourceFileInfo.InsertText(lLine, lColumn, vText)
+                
+                ' Set cursor to end of inserted text
+                SetCursorPosition(lEndPos.Line, lEndPos.Column)
+                
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertTextAtPosition error: {ex.Message}")
@@ -694,49 +529,75 @@ Namespace Editors
         ''' <summary>
         ''' Replaces the current selection with the specified text
         ''' </summary>
-        ''' <param name="vText">Text to replace the selection with</param>
+        ''' <param name="vText">Text to replace selection with</param>
         ''' <remarks>
-        ''' If there is no selection, the text is inserted at the cursor position.
-        ''' This method records the operation for undo/redo.
+        ''' Uses atomic operations for both deletion and insertion
         ''' </remarks>
         Public Sub ReplaceSelection(vText As String) Implements IEditor.ReplaceSelection
             Try
-                ' Check if read-only
-                If pIsReadOnly Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
-                ' If no text provided, this is equivalent to delete
-                If vText Is Nothing Then vText = ""
-                
-                ' Begin undo group for the replacement operation
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                Try
-                    If pHasSelection Then
-                        ' ===== Replace Selected Text =====
-                        ReplaceSelectedText(vText)
-                    Else
-                        ' ===== No Selection - Insert at Cursor =====
-                        InsertAtCursor(vText)
+                If pHasSelection Then
+                    ' Get selection bounds
+                    Dim lStart As EditorPosition = GetSelectionStart()
+                    Dim lEnd As EditorPosition = GetSelectionEnd()
+                    
+                    ' Get text being replaced for undo
+                    Dim lOldText As String = GetSelectedText()
+                    
+                    ' Begin undo group for replace operation
+                    If pUndoRedoManager IsNot Nothing Then
+                        pUndoRedoManager.BeginUserAction()
                     End If
                     
-                Finally
+                    ' Delete selection using atomic operation
+                    pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
+                    
+                    ' Insert new text using atomic operation
+                    If Not String.IsNullOrEmpty(vText) Then
+                        pSourceFileInfo.InsertText(lStart.Line, lStart.Column, vText)
+                    End If
+                    
                     ' End undo group
                     If pUndoRedoManager IsNot Nothing Then
+                        ' Calculate new cursor position
+                        Dim lNewCursorPos As EditorPosition
+                        If vText.Contains(Environment.NewLine) Then
+                            Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
+                            lNewCursorPos = New EditorPosition(lStart.Line + lLines.Length - 1, 
+                                                               lLines(lLines.Length - 1).Length)
+                        Else
+                            lNewCursorPos = New EditorPosition(lStart.Line, lStart.Column + vText.Length)
+                        End If
+                        
+                        pUndoRedoManager.RecordReplaceText(lStart, lEnd, lOldText, vText, lNewCursorPos)
                         pUndoRedoManager.EndUserAction()
                     End If
-                End Try
+                    
+                    ' Clear selection
+                    ClearSelection()
+                    
+                    ' Position cursor at end of inserted text
+                    If vText.Contains(Environment.NewLine) Then
+                        Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
+                        SetCursorPosition(lStart.Line + lLines.Length - 1, lLines(lLines.Length - 1).Length)
+                    Else
+                        SetCursorPosition(lStart.Line, lStart.Column + vText.Length)
+                    End If
+                Else
+                    ' No selection, just insert
+                    InsertText(vText)
+                End If
                 
-                ' Mark document as modified
+                ' Update state
                 IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
                 ' Update UI
+                UpdateLineNumberWidth()
                 UpdateScrollbars()
-                pLineNumberWidget?.QueueDraw()
-                
-                ' Raise text changed event
-                RaiseEvent TextChanged(Me, New EventArgs())
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"ReplaceSelection error: {ex.Message}")
@@ -775,7 +636,7 @@ Namespace Editors
                     ' Delete old text and insert new
                     DeleteTextDirect(lStartPos, lEndPos)
                     SetCursorPosition(lStartPos)
-                    InsertTextDirect(vText)
+                    InsertText(vText)
                 End If
                 
                 ' Clear selection
@@ -806,7 +667,7 @@ Namespace Editors
                 End If
                 
                 ' Insert the text
-                InsertTextDirect(vText)
+                pSourceFileInfo.InsertText(pCursorLine, pCursorColumn, vText)
                 
                 ' Cursor position is already updated by InsertTextDirect
                 
@@ -843,109 +704,14 @@ Namespace Editors
             End Try
         End Function
         
-        ''' <summary>
-        ''' Directly inserts text at the current cursor position without recording undo
-        ''' </summary>
-        ''' <param name="vText">Text to insert (can be multi-line)</param>
-        ''' <remarks>
-        ''' This is used by paste operations and undo/redo.
-        ''' It must NOT record undo actions to avoid infinite loops.
-        ''' Enhanced to ensure proper syntax coloring for large pastes.
-        ''' </remarks>
-        Friend Sub InsertTextDirect(vText As String)
-            Try
-                If pSourceFileInfo Is Nothing Then Return
-                
-                ' Track if this is a large insertion for special handling
-                Dim lIsLargeInsertion As Boolean = vText.Length > 500
-                Dim lStartLine As Integer = pCursorLine
-                
-                ' Check if text contains newlines
-                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) OrElse vText.Contains(vbCr) Then
-                    ' Multi-line insertion
-                    pSourceFileInfo.InsertMultiLineText(pCursorLine, pCursorColumn, vText)
-                    
-                    ' Calculate new cursor position
-                    Dim lLines() As String = vText.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                    Dim lEndLine As Integer = pCursorLine + lLines.Length - 1
-                    Dim lEndColumn As Integer
-                    
-                    If lLines.Length = 1 Then
-                        lEndColumn = pCursorColumn + lLines(0).Length
-                    Else
-                        ' For multi-line, cursor goes to end of last line
-                        lEndColumn = lLines(lLines.Length - 1).Length
-                    End If
-                    
-                    ' Update cursor
-                    SetCursorPosition(lEndLine, lEndColumn)
-                    
-                    ' Log for debugging large pastes
-                    If lIsLargeInsertion Then
-                        Console.WriteLine($"InsertTextDirect: Large multi-line insertion ({lLines.Length} lines, {vText.Length} chars)")
-                        Console.WriteLine($"  Lines affected: {lStartLine} to {lEndLine}")
-                    End If
-                    
-                Else
-                    ' Single line insertion
-                    pSourceFileInfo.InsertTextInLine(pCursorLine, pCursorColumn, vText)
-                    
-                    ' Update cursor
-                    SetCursorPosition(pCursorLine, pCursorColumn + vText.Length)
-                    
-                    ' Log for debugging large pastes
-                    If lIsLargeInsertion Then
-                        Console.WriteLine($"InsertTextDirect: Large single-line insertion ({vText.Length} chars)")
-                    End If
-                End If
-                
-                ' Request async parse for syntax coloring
-                pSourceFileInfo.RequestAsyncParse()
-                
-                ' CRITICAL FIX: For large insertions, ensure immediate visual feedback
-                ' The async parse may take time, so we need to ensure the text is visible
-                If lIsLargeInsertion Then
-                    Console.WriteLine("InsertTextDirect: Large insertion detected, ensuring immediate display")
-                    
-                    ' Force a redraw to show the text immediately (even without colors)
-                    pDrawingArea?.QueueDraw()
-                    
-                    ' Schedule a forced recolorization after a short delay
-                    ' This gives the async parse a chance to start but ensures coloring happens
-                    Gtk.Application.Invoke(Sub()
-                        Try
-                            pDrawingArea?.QueueDraw()
-                        Catch ex As Exception
-                            Console.WriteLine($"InsertTextDirect delayed recolor error: {ex.Message}")
-                        End Try
-                    End Sub)
-                End If
-                
-                ' Mark as modified
-                IsModified = True
-                
-                ' Update UI
-                UpdateLineNumberWidth()
-                UpdateScrollbars()
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-                ' Raise events
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-            Catch ex As Exception
-                Console.WriteLine($"InsertTextDirect error: {ex.Message}")
-                Console.WriteLine($"  Stack: {ex.StackTrace}")
-            End Try
-        End Sub
+
 
         ''' <summary>
         ''' Helper to insert text within a single line
         ''' </summary>
         Private Sub InsertTextInLine(vLine As Integer, vColumn As Integer, vText As String)
             Try
-                pSourceFileInfo.InsertTextInLine(vLine, vColumn, vText)
+                pSourceFileInfo.InsertText(vLine, vColumn, vText)
             Catch ex As Exception
                 Console.WriteLine($"InsertTextInLine error: {ex.Message}")
             End Try
@@ -981,24 +747,38 @@ Namespace Editors
         ''' Called when text is modified to trigger parsing and update state
         ''' </summary>
         ''' <remarks>
-        ''' Updated to work with the new architecture where SourceFileInfo handles parsing requests
+        ''' Enhanced to ensure immediate visual feedback and proper update chain
         ''' </remarks>
         Private Sub OnTextModified()
             Try
                 ' Mark as modified
                 IsModified = True
                 
-               
                 ' Update UI elements if needed
                 UpdateLineNumberWidth()
                 UpdateScrollbars()
                 
+                ' CRITICAL: Ensure immediate redraw for visual feedback
                 ' The SourceFileInfo should have already requested async parsing
-                ' when we called its text manipulation methods (InsertTextInLine, DeleteTextInLine, etc.)
-                ' So we don't need to explicitly request parsing here
+                ' when we called its text manipulation methods
                 
-                ' Raise text changed event
+                ' Force immediate redraw to show text changes (even with default colors)
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
+                
+                ' Also redraw line numbers if visible
+                If pLineNumberWidget IsNot Nothing Then
+                    pLineNumberWidget.QueueDraw()
+                End If
+                
+                ' Raise text changed event for MainWindow
                 RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Log for debugging
+                If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.NeedsParsing Then
+                    Console.WriteLine($"OnTextModified: Text changed, parse requested for {pFilePath}")
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnTextModified error: {ex.Message}")
@@ -1009,21 +789,26 @@ Namespace Editors
         ''' Insert a character at the cursor position
         ''' </summary>
         ''' <param name="vChar">Character to insert</param>
+        ''' <remarks>
+        ''' Public method for inserting at cursor, handles selection replacement
+        ''' </remarks>
         Public Sub InsertCharacter(vChar As Char)
             Try
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+                
                 ' Handle selection replacement first
                 If pHasSelection Then
                     DeleteSelection()
                 End If
                 
-                ' Insert the character using our internal implementation
+                ' Insert the character using atomic operation
                 InsertCharacterAt(pCursorLine, pCursorColumn, vChar)
                 
                 ' Move cursor forward
                 SetCursorPosition(pCursorLine, pCursorColumn + 1)
                 
-                ' Trigger text modified
-                OnTextModified()
+                ' Ensure cursor visible
+                EnsureCursorVisible()
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertCharacter error: {ex.Message}")
@@ -1033,8 +818,13 @@ Namespace Editors
         ''' <summary>
         ''' Delete the character at the cursor position
         ''' </summary>
+        ''' <remarks>
+        ''' Public method for deleting at cursor, handles selection deletion
+        ''' </remarks>
         Public Sub DeleteCharacter()
             Try
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+                
                 ' Handle selection deletion first
                 If pHasSelection Then
                     DeleteSelection()
@@ -1043,8 +833,8 @@ Namespace Editors
                     DeleteCharacterAt(pCursorLine, pCursorColumn)
                 End If
                 
-                ' Trigger text modified
-                OnTextModified()
+                ' Ensure cursor visible
+                EnsureCursorVisible()
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteCharacter error: {ex.Message}")
@@ -1052,113 +842,49 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Insert text at the cursor position
+        ''' Inserts text at the current cursor position
         ''' </summary>
         ''' <param name="vText">Text to insert</param>
         ''' <remarks>
-        ''' Updated to handle multi-line text and use SourceFileInfo for all text manipulation
+        ''' Public method that uses InsertTextAtPosition internally
         ''' </remarks>
         Public Sub InsertText(vText As String) Implements IEditor.InsertText
             Try
-                If String.IsNullOrEmpty(vText) OrElse pIsReadOnly Then Return
-                If pSourceFileInfo Is Nothing Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing OrElse String.IsNullOrEmpty(vText) Then Return
                 
-                ' Handle selection replacement first
+                ' Delete selection first if exists
                 If pHasSelection Then
                     DeleteSelection()
                 End If
                 
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                ' Check if text contains newlines
-                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) OrElse vText.Contains(vbCr) Then
-                    ' Multi-line insertion
-                    Dim lLines() As String = vText.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                    
-                    ' Get current line
-                    Dim lCurrentLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                    
-                    ' Split current line at cursor position
-                    Dim lBeforeCursor As String = If(pCursorColumn > 0, lCurrentLine.Substring(0, Math.Min(pCursorColumn, lCurrentLine.Length)), "")
-                    Dim lAfterCursor As String = If(pCursorColumn < lCurrentLine.Length, lCurrentLine.Substring(pCursorColumn), "")
-                    
-                    ' Update first line with text before cursor + first line of inserted text
-                    pSourceFileInfo.UpdateTextLine(pCursorLine, lBeforeCursor & lLines(0))
-                    
-                    ' Insert middle lines
-                    for i As Integer = 1 To lLines.Length - 2
-                        pSourceFileInfo.InsertLine(pCursorLine + i, lLines(i))
-                    Next
-                    
-                    ' Insert last line with remaining text + text after cursor
-                    If lLines.Length > 1 Then
-                        pSourceFileInfo.InsertLine(pCursorLine + lLines.Length - 1, lLines(lLines.Length - 1) & lAfterCursor)
-                    End If
-                    
-                    ' Update cursor position to end of inserted text
-                    Dim lNewLine As Integer = pCursorLine + lLines.Length - 1
-                    Dim lNewColumn As Integer = lLines(lLines.Length - 1).Length
-                    SetCursorPosition(lNewLine, lNewColumn)
-                    
-                    
-                Else
-                    ' Single line insertion
-                    pSourceFileInfo.InsertTextInLine(pCursorLine, pCursorColumn, vText)
-                    pSourceFileInfo.UpdateTextLineWithCaseCorrection(pCursorLine)
-                    
-                    ' Move cursor forward
-                    SetCursorPosition(pCursorLine, pCursorColumn + vText.Length)
-                End If
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                ' Request async parsing
-                pSourceFileInfo.RequestAsyncParse()
-                
-                ' Mark as modified
-                pIsModified = True
-                
-                ' Trigger text modified event
-                OnTextModified()
-                
-                ' Queue redraw to show changes
-                pDrawingArea?.QueueDraw()
+                ' Insert at cursor position
+                InsertTextAtPosition(New EditorPosition(pCursorLine, pCursorColumn), vText)
                 
             Catch ex As Exception
                 Console.WriteLine($"InsertText error: {ex.Message}")
-                
-                ' Try to end undo group on error
-                If pUndoRedoManager IsNot Nothing Then
-                    Try
-                        pUndoRedoManager.EndUserAction()
-                    Catch
-                        ' Ignore
-                    End Try
-                End If
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Paste text from clipboard at cursor position
-        ''' </summary>
-        Public Sub Paste() Implements IEditor.Paste
-            Try
-                ' Get clipboard text and handle through OnClipboardTextReceived
-                Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
-                lClipboard.RequestText(AddressOf OnClipboardTextReceived)
-                
-                ' Note: OnClipboardTextReceived will call OnTextModified
-                
-            Catch ex As Exception
-                Console.WriteLine($"Paste error: {ex.Message}")
-            End Try
-        End Sub
+
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.Paste
+''' <summary>
+''' Pastes text from clipboard using atomic operations
+''' </summary>
+''' <remarks>
+''' Uses atomic InsertText method to ensure metadata is properly updated
+''' </remarks>
+Public Sub Paste() Implements IEditor.Paste
+    Try
+        If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+        
+        ' Request clipboard text asynchronously for better UI responsiveness
+        Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
+        lClipboard.RequestText(AddressOf OnClipboardTextReceived)
+        
+    Catch ex As Exception
+        Console.WriteLine($"Paste error: {ex.Message}")
+    End Try
+End Sub
 
 
         

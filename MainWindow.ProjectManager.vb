@@ -107,6 +107,7 @@ Partial Public Class MainWindow
             
             ' Subscribe to the ProjectManagerRequested event
             AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            AddHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
             
             Console.WriteLine("Wired up ProjectManagerRequested event for editor")
             
@@ -125,6 +126,7 @@ Partial Public Class MainWindow
             
             ' Unsubscribe from the ProjectManagerRequested event
             RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            RemoveHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
             
             Console.WriteLine("Unwired ProjectManagerRequested event for editor")
             
@@ -284,22 +286,6 @@ Partial Public Class MainWindow
 
     
     ' ===== Helper Methods =====
-    Private Sub UpdateWindowTitle(Optional vMarkDirty As Boolean = False)
-        Try
-            If pProjectManager.IsProjectOpen Then
-                Dim lTitle As String = $"{pProjectManager.CurrentProjectName} - {WINDOW_TITLE}"
-                If pProjectManager.IsDirty Then
-                    lTitle = $"*{lTitle}"
-                End If
-                Title = lTitle
-            Else
-                Title = WINDOW_TITLE
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"UpdateWindowTitle error: {ex.Message}")
-        End Try
-    End Sub
     
     Private Sub SaveWindowState()
         Try
@@ -407,7 +393,7 @@ Partial Public Class MainWindow
     End Sub
     
     Private Sub OnProjectModified()
-        UpdateWindowTitle(True)
+        UpdateWindowTitle()
         ' After opening a file and creating a tab
         UpdateObjectExplorerForActiveTab()
     End Sub
@@ -1192,7 +1178,6 @@ Partial Public Class MainWindow
                     ' Update the SourceFileInfo in the editor
                     If lTab.Editor IsNot Nothing AndAlso lTab.Editor.SourceFileInfo IsNot Nothing Then
                         lTab.Editor.SourceFileInfo.FilePath = vNewPath
-                        lTab.Editor.SourceFileInfo.FileName = System.IO.Path.GetFileName(vNewPath)
                     End If
                 End If
             Next
@@ -1255,5 +1240,36 @@ Partial Public Class MainWindow
             UpdateProgressBar(vTo)
         End Try
     End Sub
+
+''' <summary>
+''' Handles FileSaved event from ProjectManager
+''' </summary>
+''' <param name="vFilePath">Path of the file that was saved</param>
+''' <remarks>
+''' Ensures tab state is synchronized when files are saved through ProjectManager
+''' </remarks>
+Private Sub OnProjectManagerFileSaved(vFilePath As String)
+    Try
+        ' Check if this file is open in a tab
+        If pOpenTabs.ContainsKey(vFilePath) Then
+            Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
+            
+            ' Update the tab's modified state
+            If lTabInfo.Modified Then
+                lTabInfo.Modified = False
+                UpdateTabLabel(lTabInfo)
+                Console.WriteLine($"OnProjectManagerFileSaved: Updated tab state for {vFilePath}")
+            End If
+            
+            ' Also ensure the editor's IsModified is synced
+            If lTabInfo.Editor IsNot Nothing Then
+                lTabInfo.Editor.IsModified = False
+            End If
+        End If
+        
+    Catch ex As Exception
+        Console.WriteLine($"OnProjectManagerFileSaved error: {ex.Message}")
+    End Try
+End Sub
     
 End Class

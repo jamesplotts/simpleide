@@ -41,9 +41,6 @@ Namespace Interfaces
         ReadOnly Property SelectionStart As EditorPosition
         ReadOnly Property SelectionEnd As EditorPosition
         ReadOnly Property SelectedText As String
-        Property TabWidth As Integer
-        Property UseTabs As Boolean
-        Property AutoIndent As Boolean
         
         ' UI Components (for GTK integration)
         ReadOnly Property Widget As Widget  ' the Main Widget to add to container
@@ -54,7 +51,7 @@ Namespace Interfaces
         ReadOnly Property SourceFileInfo As SourceFileInfo
         
         ' Events
-        Event Modified(vIsModified As Boolean)
+        Event Modified(vSender As Object, vIsModified As Boolean)
         Event CursorPositionChanged(vLine As Integer, vColumn As Integer)
         Event SelectionChanged(vHasSelection As Boolean)
         Event TextChanged(o As Object, e As EventArgs)
@@ -62,9 +59,9 @@ Namespace Interfaces
         Event DocumentParsed(vRootNode As SyntaxNode)
         Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs)
         Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs)
+        Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs)  
         
         ' Helper method for setting file path (used by EditorFactory)
-        Sub SetFilePath(vFilePath As String)
         Sub SetThemeManager(vThemeManager As ThemeManager)
         
         ' Core Operations
@@ -128,12 +125,7 @@ Namespace Interfaces
         Sub ReplaceAll(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean)
         
         ' Formatting
-        Sub ApplyFont(vFontDescription As String)
         Sub ApplyTheme()
-        Sub SetTabWidth(vSpaces As Integer)
-        Sub SetUseTabs(vUseTabs As Boolean)
-        Sub SetShowLineNumbers(vShow As Boolean)
-        Sub SetWordWrap(vEnable As Boolean)
         
         ' Advanced Features
         Function GetWordAtCursor() As String
@@ -155,8 +147,6 @@ Namespace Interfaces
         
         ReadOnly Property SupportsIntellisense As Boolean
         Property Encoding As Encoding
-        Property ShowLineNumbers As Boolean
-        Property WordWrap As Boolean
         ReadOnly Property DisplayName() As String
         ReadOnly Property SupportsCodesense() As Boolean
         Sub StartCodeSense(vContext As CodeSenseContext)
@@ -176,6 +166,9 @@ Namespace Interfaces
         ''' Used with Ctrl+Shift+V shortcut
         ''' </remarks>
         Sub SmartPaste()
+        Function SaveContent() As Boolean
+        Function LoadContent() As Boolean
+        Property SettingsManager() As SettingsManager
 
     End Interface
     

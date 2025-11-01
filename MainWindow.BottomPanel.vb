@@ -85,6 +85,10 @@ Partial Public Class MainWindow
     ' Initialize bottom panel code integrated into BottomPanelManager Class in BottomPanelManager.vb
     Private Sub InitializeBottomPanel()
         Try
+            ' Pass theme manager to bottom panel manager
+            If pBottomPanelManager IsNot Nothing AndAlso pThemeManager IsNot Nothing Then
+                pBottomPanelManager.SetThemeManager(pThemeManager)
+            End If
             InitializePanedConstraints()
             InitializeBuildOutputTheme()
             InitializeBottomPanelTheme()
@@ -282,17 +286,11 @@ Partial Public Class MainWindow
             If lIsError Then
                 ' Update errors tab label
                 Dim lErrorCount As Integer = lTargetGrid.Rows.Count
-                Dim lErrorTabLabel As Label = TryCast(pBuildOutputPanel.Notebook.GetTabLabel(lTargetGrid), Label)
-                If lErrorTabLabel IsNot Nothing Then
-                    lErrorTabLabel.Text = $"Errors ({lErrorCount})"
-                End If
+                pBuildOutputPanel.Notebook.SetTabLabel(1, $"<span foreground='red'>Errors ({lErrorCount})</span>" )
             Else
                 ' Update warnings tab label
-                Dim lWarningCount As Integer = lTargetGrid.Rows.Count
-                Dim lWarningTabLabel As Label = TryCast(pBuildOutputPanel.Notebook.GetTabLabel(lTargetGrid), Label)
-                If lWarningTabLabel IsNot Nothing Then
-                    lWarningTabLabel.Text = $"Warnings ({lWarningCount})"
-                End If
+                Dim lWarningCount as Integer = lTargetGrid.Rows.Count
+                pBuildOutputPanel.Notebook.SetTabLabel(2, $"<span foreground='orange'>Warnings ({lWarningCount})</span>" )
             End If
             
         Catch ex As Exception
@@ -322,16 +320,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Send build errors to AI
-    Private Sub OnSendBuildErrorsToAI(vErrorsText As String)
-        Try
-            ' TODO: Implement AI integration
-            Console.WriteLine("Send to AI: " & vErrorsText)
-            ShowInfo("AI Integration", "AI integration is not yet implemented.")
-        Catch ex As Exception
-            Console.WriteLine($"OnSendBuildErrorsToAI error: {ex.Message}")
-        End Try
-    End Sub
     
     ' Render error icon in tree view
     Private Function RenderErrorIcon(vColumn As TreeViewColumn, vRenderer As CellRenderer, vModel As ITreeModel, vIter As TreeIter) As Boolean

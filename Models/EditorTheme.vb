@@ -24,6 +24,26 @@ Namespace Models
         Public Property WarningColor As String  
         Public Property InfoColor As String
         Public Property SuccessColor As String
+
+        ''' <summary>
+        ''' Background color for the editor/content area (used for active tabs)
+        ''' </summary>
+        Public Property EditorBackgroundColor As String
+        
+        ''' <summary>
+        ''' Background color for inactive tabs
+        ''' </summary>
+        Public Property TabInactiveColor As String
+        
+        ''' <summary>
+        ''' Background color for hovered tabs
+        ''' </summary>
+        Public Property TabHoverColor As String
+        
+        ''' <summary>
+        ''' Accent color for special UI states (dragging, focus indicators, etc.)
+        ''' </summary>
+        Public Property AccentColor As String
         
         ' Syntax colors
         Public Property SyntaxColors As New Dictionary(Of SyntaxColorSet.Tags, String)
@@ -49,6 +69,13 @@ Namespace Models
             eWarningColor
             eInfoColor
             eSuccessColor
+
+            ' Tab colors (NEW)
+            eEditorBackgroundColor
+            eTabInactiveColor
+            eTabHoverColor
+            eAccentColor
+
             eKeywordText
             eTypeText
             eStringText
@@ -89,6 +116,13 @@ Namespace Models
             LineNumberBackgroundColor = "#252526"
             CurrentLineNumberColor = "#FFFFFF"
             CursorColor = "#AEAFAD"
+
+            ' Tab colors (NEW)
+            EditorBackgroundColor = "#1E1E1E"  ' Same as background for consistency
+            TabInactiveColor = "#252526"       ' Slightly lighter than background
+            TabHoverColor = "#2D2D30"          ' Even lighter for hover
+            AccentColor = "#007ACC"            ' VS Code blue accent
+            
             
             ' Status colors
             ErrorColor = "#FF6B6B"
@@ -252,42 +286,54 @@ Namespace Models
 
         Public ReadOnly Property StringColor(vTag As EditorTheme.Tags) As String
             Get
-               Select Case vTag
-                   Case EditorTheme.Tags.eBackgroundColor 
-                       Return BackgroundColor
-                   Case EditorTheme.Tags.eSelectionColor 
-                       Return SelectionColor
-                   Case EditorTheme.Tags.eCurrentLineColor 
-                       Return CurrentLineColor
-                   Case EditorTheme.Tags.eLineNumberColor 
-                       Return LineNumberColor
-                   Case EditorTheme.Tags.eLineNumberBackgroundColor 
-                       Return LineNumberBackgroundColor
-                   Case EditorTheme.Tags.eCurrentLineNumberColor 
-                       Return CurrentLineNumberColor
-                   Case EditorTheme.Tags.eCursorColor 
-                       Return CursorColor
-                   Case EditorTheme.Tags.eKeywordText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eKeyword)
-                   Case EditorTheme.Tags.eTypeText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eType)
-                   Case EditorTheme.Tags.eStringText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eString)
-                   Case EditorTheme.Tags.eCommentText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eComment)
-                   Case EditorTheme.Tags.eNumberText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eNumber)
-                   Case EditorTheme.Tags.eOperatorText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eOperator)
-                   Case EditorTheme.Tags.ePreprocessorText
-                       Return SyntaxColors(SyntaxColorSet.Tags.ePreprocessor)
-                   Case EditorTheme.Tags.eIdentifierText
+                Select Case vTag
+                    Case EditorTheme.Tags.eBackgroundColor 
+                        Return BackgroundColor
+                    Case EditorTheme.Tags.eSelectionColor 
+                        Return SelectionColor
+                    Case EditorTheme.Tags.eCurrentLineColor 
+                        Return CurrentLineColor
+                    Case EditorTheme.Tags.eLineNumberColor 
+                        Return LineNumberColor
+                    Case EditorTheme.Tags.eLineNumberBackgroundColor 
+                        Return LineNumberBackgroundColor
+                    Case EditorTheme.Tags.eCurrentLineNumberColor 
+                        Return CurrentLineNumberColor
+                    Case EditorTheme.Tags.eCursorColor 
+                        Return CursorColor
+
+                    ' Tab colors (NEW)
+                    Case EditorTheme.Tags.eEditorBackgroundColor
+                        Return If(String.IsNullOrEmpty(EditorBackgroundColor), BackgroundColor, EditorBackgroundColor)
+                    Case EditorTheme.Tags.eTabInactiveColor
+                        Return If(String.IsNullOrEmpty(TabInactiveColor), "#252526", TabInactiveColor)
+                    Case EditorTheme.Tags.eTabHoverColor
+                        Return If(String.IsNullOrEmpty(TabHoverColor), "#2D2D30", TabHoverColor)
+                    Case EditorTheme.Tags.eAccentColor
+                        Return If(String.IsNullOrEmpty(AccentColor), "#007ACC", AccentColor)
+
+
+                    Case EditorTheme.Tags.eKeywordText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eKeyword)
+                    Case EditorTheme.Tags.eTypeText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eType)
+                    Case EditorTheme.Tags.eStringText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eString)
+                    Case EditorTheme.Tags.eCommentText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eComment)
+                    Case EditorTheme.Tags.eNumberText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eNumber)
+                    Case EditorTheme.Tags.eOperatorText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eOperator)
+                    Case EditorTheme.Tags.ePreprocessorText
+                        Return SyntaxColors(SyntaxColorSet.Tags.ePreprocessor)
+                    Case EditorTheme.Tags.eIdentifierText
                        Return SyntaxColors(SyntaxColorSet.Tags.eIdentifier)
-                   Case EditorTheme.Tags.eSelectionText
-                       Return SyntaxColors(SyntaxColorSet.Tags.eSelection)
-                   Case Else
+                    Case EditorTheme.Tags.eSelectionText
+                        Return SyntaxColors(SyntaxColorSet.Tags.eSelection)
+                    Case Else
                        Return ForegroundColor
-              End Select
+                End Select
            End Get
         End Property
 
@@ -310,6 +356,16 @@ Namespace Models
                        Return HexToCairoColor(CurrentLineNumberColor)
                    Case EditorTheme.Tags.eCursorColor 
                        Return HexToCairoColor(CursorColor)
+
+                    Case EditorTheme.Tags.eEditorBackgroundColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(EditorBackgroundColor), BackgroundColor, EditorBackgroundColor))
+                    Case EditorTheme.Tags.eTabInactiveColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(TabInactiveColor), "#252526", TabInactiveColor))
+                    Case EditorTheme.Tags.eTabHoverColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(TabHoverColor), "#2D2D30", TabHoverColor))
+                    Case EditorTheme.Tags.eAccentColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(AccentColor), "#007ACC", AccentColor))
+
                    Case EditorTheme.Tags.eKeywordText
                        Return HexToCairoColor(SyntaxColors(SyntaxColorSet.Tags.eKeyword))
                    Case EditorTheme.Tags.eTypeText

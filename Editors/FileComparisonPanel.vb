@@ -67,7 +67,7 @@ Namespace Editors
         End Enum
 
         ' ===== Events =====
-        Public Event FilesSwapped()
+        Public Event FilesSwapped(vLeftPath As String, vRightPath As String)
         Public Event DifferenceNavigated(vDifferenceIndex As Integer, vTotalDifferences As Integer)
 
         
@@ -102,10 +102,9 @@ Namespace Editors
                 CreateLeftHeader()
                 
                 ' Create left editor with temporary SourceFileInfo
-                pLeftSourceFileInfo = New SourceFileInfo("", "", "")
-                pLeftSourceFileInfo.TextLines.Add("")
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
-                pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pLeftSourceFileInfo = New SourceFileInfo("", "")
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager, pSettingsManager)
+                'pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pLeftContainer.PackStart(pLeftHeader, False, False, 0)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                 
@@ -114,10 +113,8 @@ Namespace Editors
                 CreateRightHeader()
                 
                 ' Create right editor with temporary SourceFileInfo
-                pRightSourceFileInfo = New SourceFileInfo("", "", "")
-                pRightSourceFileInfo.TextLines.Add("")
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
-                pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pRightSourceFileInfo = New SourceFileInfo("", "")
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager, pSettingsManager)
                 pRightContainer.PackStart(pRightHeader, False, False, 0)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
                 
@@ -172,8 +169,7 @@ Namespace Editors
                     
                     ' Recreate left editor with the loaded SourceFileInfo
                     pLeftContainer.Remove(pLeftEditor)
-                    pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
-                    pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                    pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager, pSettingsManager)
                     pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                     
                     pLeftFileLabel.Text = System.IO.Path.GetFileName(vLeftFilePath)
@@ -190,8 +186,8 @@ Namespace Editors
                     
                     ' Recreate right editor with the loaded SourceFileInfo
                     pRightContainer.Remove(pRightEditor)
-                    pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
-                    pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                    pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager, pSettingsManager)
+                    'pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                     pRightContainer.PackStart(pRightEditor, True, True, 0)
                     
                     pRightFileLabel.Text = System.IO.Path.GetFileName(vRightFilePath)
@@ -404,34 +400,20 @@ Namespace Editors
         Public Sub LoadContent(vLeftContent As String, vLeftName As String, vRightContent As String, vRightName As String)
             Try
                 ' Update left SourceFileInfo with content
-                pLeftSourceFileInfo = New SourceFileInfo(vLeftName, "", "")
-                pLeftSourceFileInfo.Content = vLeftContent
-                pLeftSourceFileInfo.TextLines = New List(Of String)(vLeftContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                If pLeftSourceFileInfo.TextLines.Count = 0 Then
-                    pLeftSourceFileInfo.TextLines.Add("")
-                End If
-                pLeftSourceFileInfo.IsLoaded = True
+                pLeftSourceFileInfo = New SourceFileInfo(vLeftName, "")
                 
                 ' Recreate left editor
                 pLeftContainer.Remove(pLeftEditor)
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
-                pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager, pSettingsManager)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                 pLeftFileLabel.Text = vLeftName
                 
                 ' Update right SourceFileInfo with content
-                pRightSourceFileInfo = New SourceFileInfo(vRightName, "", "")
-                pRightSourceFileInfo.Content = vRightContent
-                pRightSourceFileInfo.TextLines = New List(Of String)(vRightContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                If pRightSourceFileInfo.TextLines.Count = 0 Then
-                    pRightSourceFileInfo.TextLines.Add("")
-                End If
-                pRightSourceFileInfo.IsLoaded = True
+                pRightSourceFileInfo = New SourceFileInfo(vRightName, "")
                 
                 ' Recreate right editor
                 pRightContainer.Remove(pRightEditor)
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
-                pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager, pSettingsManager)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
                 pRightFileLabel.Text = vRightName
                 
@@ -458,8 +440,10 @@ Namespace Editors
             Catch ex As Exception
                 Console.WriteLine($"SetupScrollSynchronization error: {ex.Message}")
             End Try
-        End Sub        
+        End Sub  
+      
         ' ===== Helper method to get or create SourceFileInfo =====
+
         Private Function GetOrCreateSourceFileInfo(vFilePath As String) As SourceFileInfo
             Try
                 ' Try to get from ProjectManager if available
@@ -470,13 +454,11 @@ Namespace Editors
                     End If
                 End If
                 
-                ' Create new SourceFileInfo
-                Dim lProjectDir As String = System.IO.Path.GetDirectoryName(vFilePath)
-                Return New SourceFileInfo(vFilePath, "", lProjectDir)
+                Return New SourceFileInfo(vFilePath, "")
                 
             Catch ex As Exception
                 Console.WriteLine($"GetOrCreateSourceFileInfo error: {ex.Message}")
-                Return New SourceFileInfo(vFilePath, "", "")
+                Return New SourceFileInfo(vFilePath, "")
             End Try
         End Function
         
@@ -545,14 +527,13 @@ Namespace Editors
                 ' Recreate editors with swapped SourceFileInfo
                 ' Remove and recreate left editor
                 pLeftContainer.Remove(pLeftEditor)
-                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager)
-                pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pLeftEditor = New CustomDrawingEditor(pLeftSourceFileInfo, pThemeManager, pSettingsManager)
+                'pLeftEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
                 pLeftContainer.PackStart(pLeftEditor, True, True, 0)
                 
                 ' Remove and recreate right editor
                 pRightContainer.Remove(pRightEditor)
-                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager)
-                pRightEditor.SetDependencies(pSyntaxColorSet, pSettingsManager)
+                pRightEditor = New CustomDrawingEditor(pRightSourceFileInfo, pThemeManager, pSettingsManager)
                 pRightContainer.PackStart(pRightEditor, True, True, 0)
                 
                 ' Re-setup scroll synchronization
@@ -566,7 +547,7 @@ Namespace Editors
                 UpdateNavigationButtons()
                 
                 ' Raise event
-                RaiseEvent FilesSwapped()
+                RaiseEvent FilesSwapped(pLeftSourceFileInfo.FilePath, pRightSourceFileInfo.FilePath)
                 
             Catch ex As Exception
                 Console.WriteLine($"OnSwapClicked error: {ex.Message}")

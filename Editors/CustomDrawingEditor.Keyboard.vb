@@ -171,6 +171,23 @@ Namespace Editors
                             End If
                             vArgs.RetVal = True
                             Return True
+                        ' Zoom In - Ctrl+Plus (43 for plus, 61 for equals/plus without shift)
+                        Case 43, 61, 65451  ' +, =, KP_Plus
+                            ZoomIn()
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        ' Zoom Out - Ctrl+Minus (45 for minus, 95 for underscore/minus)
+                        Case 45, 65453  ' -, KP_Minus
+                            ZoomOut()
+                            vArgs.RetVal = True
+                            Return True
+                            
+                        ' Zoom Reset - Ctrl+0 (48 for zero)
+                        Case 48, 65456  ' 0, KP_0
+                            ZoomReset()
+                            vArgs.RetVal = True
+                            Return True
                     End Select
                     
                     ' Check for Ctrl+Arrow keys (word navigation)
@@ -200,11 +217,13 @@ Namespace Editors
                 ' Handle regular navigation keys
                 Select Case lKey
                     Case Gdk.Key.Up, Gdk.Key.KP_Up
+                        pSourceFileInfo.SetLineMetadataAndCharacterTokens(pCursorLinep)
                         HandleUpKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
                         
                     Case Gdk.Key.Down, Gdk.Key.KP_Down
+                        pSourceFileInfo.SetLineMetadataAndCharacterTokens(pCursorLinep)
                         HandleDownKey(lModifiers)
                         vArgs.RetVal = True
                         Return True
@@ -286,23 +305,17 @@ Namespace Editors
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
                             
-                            ' Handle character insertion
                             If pHasSelection Then
-                                DeleteSelection()
+                                ' Delete selection first
+                                Dim lStart As EditorPosition = GetSelectionStart()
+                                Dim lEnd As EditorPosition = GetSelectionEnd()
+                                pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
+                                SetCursorPosition(lStart.Line, lStart.Column)
+                                ClearSelection()
                             End If
                             
-                            ' Get current line from SourceFileInfo
-                            Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                            
-                            If pInsertMode OrElse pCursorColumn >= lLine.Length Then
-                                ' Insert mode or at end of line
-                                Dim lNewLine As String = lLine.Insert(Math.Min(pCursorColumn, lLine.Length), lChar.ToString())
-                                pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
-                            Else
-                                ' Overwrite mode
-                                Dim lNewLine As String = lLine.Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.ToString())
-                                pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
-                            End If
+                            ' Insert the character
+                            pSourceFileInfo.InsertCharacter(pCursorLine, pCursorColumn, lChar)
                             
                             ' Move cursor forward
                             SetCursorPosition(pCursorLine, pCursorColumn + 1)
@@ -743,83 +756,68 @@ Namespace Editors
         End Function
         
         ''' <summary>
-        ''' Handles keypad character input (numbers and operators)
+        ''' Handles keypad character input using atomic operations
         ''' </summary>
         ''' <param name="vKey">The keypad key pressed</param>
         ''' <returns>True if handled, False otherwise</returns>
+        ''' <remarks>
+        ''' Refactored to use atomic character operations exclusively
+        ''' </remarks>
         Private Function HandleKeypadCharacter(vKey As Gdk.Key) As Boolean
             Try
-                If pIsReadOnly Then Return False
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return False
                 
                 Dim lChar As Char? = Nothing
                 
-                ' Convert keypad key to character
+                ' Map keypad keys to characters
                 Select Case vKey
-                    ' Keypad numbers
-                    Case Gdk.Key.KP_0
-                        lChar = "0"c
-                    Case Gdk.Key.KP_1
-                        lChar = "1"c
-                    Case Gdk.Key.KP_2
-                        lChar = "2"c
-                    Case Gdk.Key.KP_3
-                        lChar = "3"c
-                    Case Gdk.Key.KP_4
-                        lChar = "4"c
-                    Case Gdk.Key.KP_5
-                        lChar = "5"c
-                    Case Gdk.Key.KP_6
-                        lChar = "6"c
-                    Case Gdk.Key.KP_7
-                        lChar = "7"c
-                    Case Gdk.Key.KP_8
-                        lChar = "8"c
-                    Case Gdk.Key.KP_9
-                        lChar = "9"c
-                        
-                    ' Keypad operators
-                    Case Gdk.Key.KP_Add
-                        lChar = "+"c
-                    Case Gdk.Key.KP_Subtract
-                        lChar = "-"c
-                    Case Gdk.Key.KP_Multiply
-                        lChar = "*"c
-                    Case Gdk.Key.KP_Divide
-                        lChar = "/"c
-                    Case Gdk.Key.KP_Decimal
-                        lChar = "."c
-                        
+                    Case Gdk.Key.KP_0 : lChar = "0"c
+                    Case Gdk.Key.KP_1 : lChar = "1"c
+                    Case Gdk.Key.KP_2 : lChar = "2"c
+                    Case Gdk.Key.KP_3 : lChar = "3"c
+                    Case Gdk.Key.KP_4 : lChar = "4"c
+                    Case Gdk.Key.KP_5 : lChar = "5"c
+                    Case Gdk.Key.KP_6 : lChar = "6"c
+                    Case Gdk.Key.KP_7 : lChar = "7"c
+                    Case Gdk.Key.KP_8 : lChar = "8"c
+                    Case Gdk.Key.KP_9 : lChar = "9"c
+                    Case Gdk.Key.KP_Add : lChar = "+"c
+                    Case Gdk.Key.KP_Subtract : lChar = "-"c
+                    Case Gdk.Key.KP_Multiply : lChar = "*"c
+                    Case Gdk.Key.KP_Divide : lChar = "/"c
+                    Case Gdk.Key.KP_Decimal : lChar = "."c
+                    Case Gdk.Key.KP_Equal : lChar = "="c
+                    Case Gdk.Key.KP_Space : lChar = " "c
+                    Case Gdk.Key.KP_Tab : lChar = vbTab(0)
                     Case Else
                         Return False  ' Not a keypad character
                 End Select
                 
                 If lChar.HasValue Then
-                    ' Handle character insertion
+                    ' Handle character insertion using atomic operation
                     If pHasSelection Then
                         DeleteSelection()
                     End If
                     
-                    ' Get current line from SourceFileInfo
-                    Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
-                    
-                    If pInsertMode OrElse pCursorColumn >= lLine.Length Then
-                        ' Insert mode or at end of line
-                        Dim lNewLine As String = lLine.Insert(Math.Min(pCursorColumn, lLine.Length), lChar.Value.ToString())
-                        pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
+                    ' Handle insert vs overwrite mode
+                    If pInsertMode OrElse pCursorColumn >= pSourceFileInfo.TextLines(pCursorLine).Length Then
+                        ' Insert mode or at end of line - use atomic insert
+                        InsertCharacter(lChar.Value)
                     Else
-                        ' Overwrite mode
-                        Dim lNewLine As String = lLine.Remove(pCursorColumn, 1).Insert(pCursorColumn, lChar.Value.ToString())
-                        pSourceFileInfo.UpdateTextLine(pCursorLine, lNewLine)
+                        ' Overwrite mode - delete then insert
+                        If pUndoRedoManager IsNot Nothing Then
+                            pUndoRedoManager.BeginUserAction()
+                        End If
+                        
+                        ' Delete the character at cursor
+                        DeleteCharacterAt(pCursorLine, pCursorColumn)
+                        ' Insert the new character
+                        InsertCharacter(lChar.Value)
+                        
+                        If pUndoRedoManager IsNot Nothing Then
+                            pUndoRedoManager.EndUserAction()
+                        End If
                     End If
-                    
-                    ' Move cursor forward
-                    SetCursorPosition(pCursorLine, pCursorColumn + 1)
-                    
-                    ' Track modification
-                    OnTextModified()
-                    
-                    ' Redraw
-                    InvalidateLine(pCursorLine)
                     
                     Return True
                 End If

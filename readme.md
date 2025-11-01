@@ -69,6 +69,7 @@ https://discordapp.com/channels/682603493386747904/1408457691734737007
 - Linux operating system (Ubuntu 20.04+, Debian 11+, Fedora 34+, or similar)
 - .NET 8.0 SDK
 - GTK# 3.24 or higher
+- Git
 
 ### Install .NET 8.0
 ```bash
@@ -307,6 +308,7 @@ You should have received a copy of the GNU General Public License along with thi
 - **Author**: James Duane Plotts
 - **Repository**: [https://github.com/jamesplotts/simpleide](https://github.com/jamesplotts/simpleide)
 - **Issues**: [https://github.com/jamesplotts/simpleide/issues](https://github.com/jamesplotts/simpleide/issues)
+- **Donate**: [https://buymeacoffee.com/jamesplotts](https://buymeacoffee.com/jamesplotts)
 
 ---
 

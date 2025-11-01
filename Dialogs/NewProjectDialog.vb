@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports System.IO
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
 
 
 Namespace Dialogs
@@ -113,10 +114,16 @@ Namespace Dialogs
                 Dim lContentArea As Box = CType(ContentArea, Box)
                 lContentArea.Spacing = 10
                 
-                ' Create notebook for tabbed interface
-                Dim lNotebook As New Notebook()
-                lContentArea.PackStart(lNotebook, True, True, 0)
+                ' Create notebook - Use CustomDrawNotebook instead of standard Notebook
+                Dim lNotebook As New CustomDrawNotebook()
                 
+                ' Configure the CustomDrawNotebook
+                lNotebook.ShowHidePanelButton = False  ' Dialog doesn't need hide button
+                lNotebook.ShowDropdownButton = False    ' Dialog doesn't need dropdown
+                lNotebook.ShowScrollButtons = False     ' Usually not needed for dialogs
+                lNotebook.ShowTabCloseButtons = False   ' Dialog tabs shouldn't be closeable
+                
+        
                 ' ===== Project tab =====
                 Dim lProjectBox As New Box(Orientation.Vertical, 10)
                 lProjectBox.BorderWidth = 10
@@ -160,7 +167,7 @@ Namespace Dialogs
                 lTypeBox.BorderWidth = 10
                 
                 pProjectTypeCombo = New ComboBoxText()
-                For Each lTemplate In pTemplates
+                for each lTemplate in pTemplates
                     pProjectTypeCombo.AppendText(lTemplate.Name)
                 Next
                 pProjectTypeCombo.Active = 0 ' Default to Console Application
@@ -176,7 +183,6 @@ Namespace Dialogs
                 lTypeFrame.Add(lTypeBox)
                 lProjectBox.PackStart(lTypeFrame, False, False, 0)
                 
-                lNotebook.AppendPage(lProjectBox, New Label("Project"))
                 
                 ' ===== Advanced tab =====
                 Dim lAdvancedBox As New Box(Orientation.Vertical, 10)
@@ -220,7 +226,9 @@ Namespace Dialogs
                 lGitFrame.Add(lGitBox)
                 lAdvancedBox.PackStart(lGitFrame, False, False, 0)
                 
-                lNotebook.AppendPage(lAdvancedBox, New Label("Advanced"))
+                ' Add tabs using string labels
+                lNotebook.AppendPage(lProjectBox, "Project")
+                lNotebook.AppendPage(lAdvancedBox, "Advanced")        
                 
                 ' Dialog buttons
                 AddButton("Cancel", ResponseType.Cancel)

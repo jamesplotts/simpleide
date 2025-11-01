@@ -165,14 +165,10 @@ Namespace Widgets
                 lPreviewScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 
                 ' Create SourceFileInfo using the content constructor which sets IsDemoMode
-                Dim lPreviewSourceInfo As New SourceFileInfo(GetPreviewText())
-                lPreviewSourceInfo.FilePath = "ThemePreview.vb"
-                lPreviewSourceInfo.FileName = "ThemePreview.vb"
-                lPreviewSourceInfo.TextLines = New List(Of String)(GetPreviewText().Split({Environment.NewLine}, StringSplitOptions.None))
-                lPreviewSourceInfo.IsLoaded = True
+                Dim lPreviewSourceInfo As New SourceFileInfo("ThemePreview.vb", GetPreviewText())
                 
                 ' Create the editor with proper initialization
-                pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo, pThemeManager)
+                pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo, pThemeManager, pSettingsManager)
                 pPreviewEditor.IsReadOnly = True
                 
                 ' IMPORTANT: Set the ThemeManager before applying theme
@@ -665,7 +661,7 @@ Namespace Widgets
                 
                 ' Open in file manager
                 If Directory.Exists(lThemesDir) Then
-                    Process.Start(New ProcessStartInfo() With {
+                    Process.Start(New ProcessStartInfo() with {
                         .FileName = lThemesDir,
                         .UseShellExecute = True
                     })
@@ -690,7 +686,7 @@ Namespace Widgets
             Dim lDialog As New MessageDialog(
                 Me.Toplevel,
                 DialogFlags.Modal,
-                MessageType.Error,
+                MessageType.error,
                 ButtonsType.Ok,
                 vMessage
             )
@@ -778,7 +774,7 @@ Namespace Widgets
                 Return lRgba
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.HexToRgba error: {ex.Message}")
-                Return New Gdk.RGBA() With {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1.0}
+                Return New Gdk.RGBA() with {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1.0}
             End Try
         End Function
 
@@ -911,7 +907,7 @@ Namespace Widgets
                 Dim lIsCustom As Boolean = IsCustomTheme(lThemeName)
                 
                 ' Update menu items sensitivity
-                For Each lItem As Widget In pThemeContextMenu.Children
+                for each lItem As Widget in pThemeContextMenu.Children
                     If TypeOf lItem Is MenuItem Then
                         Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
                         Select Case lMenuItem.Label
@@ -977,7 +973,7 @@ Namespace Widgets
                         Dim lErrorDialog As New MessageDialog(
                             Me.Toplevel,
                             DialogFlags.Modal,
-                            MessageType.Error,
+                            MessageType.error,
                             ButtonsType.Ok,
                             $"Failed To delete theme '{lThemeName}'.")
                         
@@ -1041,7 +1037,7 @@ Namespace Widgets
                         Dim lErrorDialog As New MessageDialog(
                             Me.Toplevel,
                             DialogFlags.Modal,
-                            MessageType.Error,
+                            MessageType.error,
                             ButtonsType.Ok,
                             $"Failed To create theme '{lNewThemeName}'.")
                         
@@ -1108,7 +1104,7 @@ Namespace Widgets
                     
                     ' Save theme to file
                     If pThemeManager.SaveTheme(lTheme, lFilePath) Then
-                        UpdateStatusMessage($"Theme exported to: {lFilePath}")
+                        UpdateStatusMessage($"Theme exported To: {lFilePath}")
                         
                         ' Show success dialog
                         Dim lSuccessDialog As New MessageDialog(
@@ -1126,7 +1122,7 @@ Namespace Widgets
                         Dim lErrorDialog As New MessageDialog(
                             Me.Toplevel,
                             DialogFlags.Modal,
-                            MessageType.Error,
+                            MessageType.error,
                             ButtonsType.Ok,
                             "Failed To export theme.")
                         
@@ -1205,7 +1201,7 @@ Namespace Widgets
                     If pPreviewEditor IsNot Nothing Then
                         pPreviewEditor.SetThemeColors(pCurrentTheme)
                         pPreviewEditor.QueueDraw()
-Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
+                        Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                     End If
                 End If
                 
@@ -1242,6 +1238,18 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                         Return pCurrentTheme.CurrentLineNumberColor
                     Case EditorTheme.Tags.eCursorColor
                         Return pCurrentTheme.CursorColor
+
+                    ' Tab colors (NEW)
+                    Case EditorTheme.Tags.eEditorBackgroundColor
+                        Return pCurrentTheme.EditorBackgroundColor
+                    Case EditorTheme.Tags.eTabInactiveColor
+                        Return pCurrentTheme.TabInactiveColor
+                    Case EditorTheme.Tags.eTabHoverColor
+                        Return pCurrentTheme.TabHoverColor
+                    Case EditorTheme.Tags.eAccentColor
+                        Return pCurrentTheme.AccentColor
+
+
                     Case EditorTheme.Tags.eErrorColor
                         Return pCurrentTheme.ErrorColor
                     Case EditorTheme.Tags.eWarningColor
@@ -1305,7 +1313,7 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                 Dim lIsCustom As Boolean = DirectCast(vItem.Data, Boolean)
                 
                 ' Update menu items sensitivity
-                For Each lItem As Widget In pThemeContextMenu.Children
+                for each lItem As Widget in pThemeContextMenu.Children
                     If TypeOf lItem Is MenuItem Then
                         Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
                         Select Case lMenuItem.Label
@@ -1390,13 +1398,13 @@ Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                 AddColorToList(lColors, pCurrentTheme.CursorColor)
                 
                 ' Add syntax colors
-                For Each kvp In pCurrentTheme.SyntaxColors
+                for each kvp in pCurrentTheme.SyntaxColors
                     AddColorToList(lColors, kvp.Value)
-                    If lColors.Count >= 16 Then Exit For ' ColorPicker has 16 custom slots
+                    If lColors.Count >= 16 Then Exit for ' ColorPicker has 16 custom slots
                 Next
                 
                 ' Set custom colors in ColorPicker
-                For i As Integer = 0 To Math.Min(lColors.Count - 1, 15)
+                for i As Integer = 0 To Math.Min(lColors.Count - 1, 15)
                     pColorPicker.SetCustomColor(i, lColors(i))
                 Next
                 

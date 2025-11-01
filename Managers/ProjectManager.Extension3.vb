@@ -508,19 +508,8 @@ Namespace Managers
                         
                         ' Load the file
                         Console.WriteLine($"  Loading: {lRelativePath}")
-                        Dim lNewSourceFile As New SourceFileInfo(lFullPath, "", pCurrentProjectInfo.ProjectDirectory)
-                        
-                        ' Read file content
-                        Dim lContent As String = System.IO.File.ReadAllText(lFullPath)
-                        lNewSourceFile.Content = lContent
-                        lNewSourceFile.TextLines = New List(Of String)(
-                            lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
-                        )
-                        If lNewSourceFile.TextLines.Count = 0 Then
-                            lNewSourceFile.TextLines.Add("")
-                        End If
-                        lNewSourceFile.IsLoaded = True
-                        lNewSourceFile.RelativePath = lRelativePath
+                        Dim lNewSourceFile As New SourceFileInfo(lFullPath, "")
+
                         
                         ' Add or update in dictionary
                         pSourceFiles(lFullPath) = lNewSourceFile
@@ -652,7 +641,7 @@ Namespace Managers
                             Case CodeNodeType.eMethod, CodeNodeType.eFunction, 
                                  CodeNodeType.eProperty, CodeNodeType.eField,
                                  CodeNodeType.eEvent, CodeNodeType.eConstructor,
-                                 CodeNodeType.eConstant, CodeNodeType.eConst
+                                 CodeNodeType.eConst
                                 lShouldInclude = False
                         End Select
                     End If
@@ -674,7 +663,7 @@ Namespace Managers
                             Case CodeNodeType.eMethod, CodeNodeType.eFunction,
                                  CodeNodeType.eProperty, CodeNodeType.eField,
                                  CodeNodeType.eEvent, CodeNodeType.eConstructor,
-                                 CodeNodeType.eConstant, CodeNodeType.eConst
+                                 CodeNodeType.eConst
                                 lMemberCount += 1
                         End Select
                     Next
@@ -943,60 +932,28 @@ Namespace Managers
                 
                 ' Update the SourceFileInfo with parse results
                 If lParseResult IsNot Nothing Then
-                    ' Check if it's a ParseResult type
-                    If TypeOf lParseResult Is ParseResult Then
-                        Dim lResult As ParseResult = DirectCast(lParseResult, ParseResult)
                         
-                        ' Extract the SyntaxNode tree from ParseResult
-                        If lResult.RootNode IsNot Nothing Then
-                            vFile.SyntaxTree = lResult.RootNode
-                        End If
-                        
-                        ' CRITICAL FIX: Update LineMetadata with syntax tokens
-                        ' This was missing - causing empty token lists
-                        If lResult.LineMetadata IsNot Nothing Then
-                            vFile.UpdateLineMetadata(lResult)
-                            Console.WriteLine($"Updated LineMetadata for {vFile.FileName} with {lResult.LineMetadata.Length} lines")
-                        End If
-                        
-                        ' Extract any errors
-                        If lResult.Errors IsNot Nothing Then
-                            vFile.ParseErrors = lResult.Errors
-                        End If
-                        
-                        vFile.IsParsed = True
-                        vFile.LastParsed = DateTime.Now
-                        
-                        ' Raise parse completed event with the SyntaxNode
-                        RaiseEvent ParseCompleted(vFile, vFile.SyntaxTree)
-                        
-                        Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
-                        Return vFile.SyntaxTree IsNot Nothing
-                        
-                    ElseIf TypeOf lParseResult Is SyntaxNode Then
-                        ' Handle case where parser returns SyntaxNode directly (legacy)
-                        Dim lNode As SyntaxNode = DirectCast(lParseResult, SyntaxNode)
-                        vFile.SyntaxTree = lNode
-                        vFile.IsParsed = True
-                        vFile.LastParsed = DateTime.Now
-                        
-                        ' Clear any previous parse errors
-                        If vFile.ParseErrors Is Nothing Then
-                            vFile.ParseErrors = New List(Of ParseError)()
-                        Else
-                            vFile.ParseErrors.Clear()
-                        End If
-                        
-                        ' Raise parse completed event
-                        RaiseEvent ParseCompleted(vFile, lNode)
-                        
-                        Console.WriteLine($"Parse complete: {vFile.FileName} - Success (legacy)")
-                        Return True
-                    Else
-                        ' Unknown result type
-                        Console.WriteLine($"ProjectManager.ParseFile error: Unknown parse result type: {lParseResult.GetType().Name}")
-                        Return False
+                    ' Extract the SyntaxNode tree from ParseResult
+                    If lParseResult.RootNode IsNot Nothing Then
+                        vFile.SyntaxTree = lParseResult.RootNode
                     End If
+                        
+                    vFile.GenerateMetadata()
+                        
+                    ' Extract any errors
+                    If lParseResult.Errors IsNot Nothing Then
+                        vFile.ParseErrors = lParseResult.Errors
+                    End If
+                    
+                    vFile.NeedsParsing = False
+                    vFile.LastParsed = DateTime.Now
+                    
+                    ' Raise parse completed event with the SyntaxNode
+                    RaiseEvent ParseCompleted(vFile, vFile.SyntaxTree)
+                    
+                    Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
+                    Return vFile.SyntaxTree IsNot Nothing
+                        
                 End If
                 
                 Return False
@@ -1075,10 +1032,8 @@ Namespace Managers
                 End If
                 
                 ' Create new SourceFileInfo
-                Dim lSourceFile As New SourceFileInfo(lFullPath, "", pCurrentProjectInfo.ProjectDirectory)
+                Dim lSourceFile As New SourceFileInfo(lFullPath, "")
                 
-                ' Set project root namespace
-                lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
                 
                 ' Load content
                 If lSourceFile.LoadContent() Then
@@ -1096,8 +1051,569 @@ Namespace Managers
             End Try
         End Function
 
+        ''' <summary>
+        ''' Finds the definition of a symbol in the project
+        ''' </summary>
+        ''' <param name="vWord">The symbol name to find</param>
+        ''' <param name="vCurrentFilePath">The file path where the search originated</param>
+        ''' <param name="vLine">The line number where the symbol was referenced (0-based)</param>
+        ''' <param name="vColumn">The column position where the symbol was referenced (0-based)</param>
+        ''' <returns>DefinitionInfo containing the location of the definition, or Nothing if not found</returns>
+        ''' <remarks>
+        ''' Searches through the project files using both syntax trees and direct text search
+        ''' to find where the symbol is defined.
+        ''' </remarks>
+        Public Function FindDefinition(vWord As String, vCurrentFilePath As String, vLine As Integer, vColumn As Integer) As DefinitionInfo
+            Try
+                Console.WriteLine($"FindDefinition: Searching for '{vWord}' from {vCurrentFilePath}:{vLine}:{vColumn}")
+                
+                If String.IsNullOrWhiteSpace(vWord) Then
+                    Console.WriteLine("FindDefinition: Empty word")
+                    Return Nothing
+                End If
+                
+                ' First, try to find in the current file's SourceFileInfo
+                Dim lCurrentFileInfo As SourceFileInfo = Nothing
+                If pSourceFiles.TryGetValue(vCurrentFilePath, lCurrentFileInfo) Then
+                    ' Try syntax tree search first
+                    If lCurrentFileInfo.SyntaxTree IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Searching in current file's syntax tree")
+                        Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lCurrentFileInfo.SyntaxTree, vWord, True)
+                        
+                        If lDefinitionNode IsNot Nothing Then
+                            Console.WriteLine($"FindDefinition: Found in current file at line {lDefinitionNode.StartLine}")
+                            Return New DefinitionInfo(lDefinitionNode, vCurrentFilePath)
+                        End If
+                    End If
+                    
+                    ' Try direct text search in current file
+                    Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lCurrentFileInfo, vWord)
+                    If lDefInfo IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Found in current file via text search at line {lDefInfo.Line}")
+                        Return lDefInfo
+                    End If
+                End If
+                
+                ' Search through all source files
+                Console.WriteLine("FindDefinition: Searching project-wide")
+                For Each lFileEntry In pSourceFiles
+                    Dim lFilePath As String = lFileEntry.Key
+                    Dim lFileInfo As SourceFileInfo = lFileEntry.Value
+                    
+                    ' Skip the current file (already searched)
+                    If lFilePath = vCurrentFilePath Then Continue For
+                    
+                    ' Try syntax tree search
+                    If lFileInfo.SyntaxTree IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Searching syntax tree in {lFilePath}")
+                        
+                        Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lFileInfo.SyntaxTree, vWord, True)
+                        
+                        If lDefinitionNode IsNot Nothing Then
+                            Console.WriteLine($"FindDefinition: Found in {lFilePath} at line {lDefinitionNode.StartLine}")
+                            Return New DefinitionInfo(lDefinitionNode, lFilePath)
+                        End If
+                    End If
+                    
+                    ' Try direct text search
+                    Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lFileInfo, vWord)
+                    If lDefInfo IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Found in {lFilePath} via text search at line {lDefInfo.Line}")
+                        Return lDefInfo
+                    End If
+                Next
+                
+                Console.WriteLine($"FindDefinition: Definition not found for '{vWord}'")
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindDefinition error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
+                Return Nothing
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Searches for a definition directly in file content using text matching
+        ''' </summary>
+        ''' <param name="vFileInfo">The source file to search</param>
+        ''' <param name="vSymbolName">The symbol name to find</param>
+        ''' <returns>DefinitionInfo if found, Nothing otherwise</returns>
+        Private Function FindDefinitionInFileContent(vFileInfo As SourceFileInfo, vSymbolName As String) As DefinitionInfo
+            Try
+                If vFileInfo Is Nothing OrElse vFileInfo.TextLines Is Nothing Then
+                    Return Nothing
+                End If
+                
+                ' Regular expressions for different definition patterns
+                Dim lPatterns As New List(Of String) From {
+                    $"^\s*(Public |Private |Protected |Friend |Partial |MustInherit |NotInheritable )*\s*(Class|Module|Interface|Structure)\s+{vSymbolName}\b",
+                    $"^\s*(Public |Private |Protected |Friend |Shared |Overridable |Overrides |MustOverride |NotOverridable )*\s*(Sub|Function)\s+{vSymbolName}\s*\(",
+                    $"^\s*(Public |Private |Protected |Friend |ReadOnly |WriteOnly |Default |Shared )*\s*Property\s+{vSymbolName}\b",
+                    $"^\s*(Public |Private |Protected |Friend |WithEvents |Dim |Const )*\s*{vSymbolName}\s+(As|=)",
+                    $"^\s*(Public |Private |Protected |Friend )*\s*Event\s+{vSymbolName}\b",
+                    $"^\s*(Public |Private |Protected |Friend )*\s*Enum\s+{vSymbolName}\b",
+                    $"^\s*(Public |Private |Protected |Friend )*\s*Delegate\s+(Sub|Function)\s+{vSymbolName}\b"
+                }
+                
+                ' Search through lines
+                For i As Integer = 0 To vFileInfo.TextLines.Count - 1
+                    Dim lLine As String = vFileInfo.TextLines(i)
+                    
+                    ' Try each pattern
+                    For Each lPattern In lPatterns
+                        Dim lRegex As New System.Text.RegularExpressions.Regex(lPattern, 
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                        
+                        Dim lMatch = lRegex.Match(lLine)
+                        If lMatch.Success Then
+                            ' Found a definition - calculate column position
+                            Dim lSymbolIndex As Integer = lLine.IndexOf(vSymbolName, StringComparison.OrdinalIgnoreCase)
+                            
+                            ' Create DefinitionInfo
+                            Dim lDefInfo As New DefinitionInfo()
+                            lDefInfo.FilePath = vFileInfo.FilePath
+                            lDefInfo.Line = i
+                            lDefInfo.Column = If(lSymbolIndex >= 0, lSymbolIndex, 0)
+                            lDefInfo.FullyQualifiedName = vSymbolName
+                            
+                            ' Determine node type from the match
+                            If lMatch.Value.IndexOf("Class", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eClass
+                            ElseIf lMatch.Value.IndexOf("Module", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eModule
+                            ElseIf lMatch.Value.IndexOf("Interface", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eInterface
+                            ElseIf lMatch.Value.IndexOf("Sub", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eMethod
+                            ElseIf lMatch.Value.IndexOf("Function", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eFunction
+                            ElseIf lMatch.Value.IndexOf("Property", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eProperty
+                            ElseIf lMatch.Value.IndexOf("Event", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eEvent
+                            ElseIf lMatch.Value.IndexOf("Enum", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                lDefInfo.NodeType = CodeNodeType.eEnum
+                            Else
+                                lDefInfo.NodeType = CodeNodeType.eField
+                            End If
+                            
+                            Console.WriteLine($"FindDefinitionInFileContent: Found '{vSymbolName}' at line {i + 1} as {lDefInfo.NodeType}")
+                            Return lDefInfo
+                        End If
+                    Next
+                Next
+                
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindDefinitionInFileContent error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+                
+        
+        ''' <summary>
+        ''' Recursively searches a syntax node tree for a definition
+        ''' </summary>
+        ''' <param name="vNode">The root node to search from</param>
+        ''' <param name="vSymbolName">The symbol name to find</param>
+        ''' <param name="vIsDefinition">Whether to look for definitions only</param>
+        ''' <returns>The syntax node containing the definition, or Nothing if not found</returns>
+        Private Function FindDefinitionInNode(vNode As SyntaxNode, vSymbolName As String, vIsDefinition As Boolean) As SyntaxNode
+            Try
+                If vNode Is Nothing Then Return Nothing
+                
+                ' Check if this node is a definition of the symbol
+                If IsDefinitionNode(vNode) AndAlso String.Equals(vNode.Name, vSymbolName, StringComparison.OrdinalIgnoreCase) Then
+                    Console.WriteLine($"FindDefinitionInNode: Found definition '{vNode.Name}' of type {vNode.NodeType}")
+                    Return vNode
+                End If
+                
+                ' Recursively search children
+                For Each lChild In vNode.Children
+                    Dim lResult As SyntaxNode = FindDefinitionInNode(lChild, vSymbolName, vIsDefinition)
+                    If lResult IsNot Nothing Then
+                        Return lResult
+                    End If
+                Next
+                
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindDefinitionInNode error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Determines if a syntax node represents a definition (not just a reference)
+        ''' </summary>
+        ''' <param name="vNode">The node to check</param>
+        ''' <returns>True if this is a definition node, False otherwise</returns>
+        Private Function IsDefinitionNode(vNode As SyntaxNode) As Boolean
+            Try
+                ' These node types represent definitions
+                Select Case vNode.NodeType
+                    Case CodeNodeType.eClass,
+                         CodeNodeType.eModule,
+                         CodeNodeType.eInterface,
+                         CodeNodeType.eStructure,
+                         CodeNodeType.eEnum,
+                         CodeNodeType.eMethod,
+                         CodeNodeType.eFunction,
+                         CodeNodeType.eProperty,
+                         CodeNodeType.eField,
+                         CodeNodeType.eEvent,
+                         CodeNodeType.eConstructor,
+                         CodeNodeType.eDelegate,
+                         CodeNodeType.eEnumValue
+                        Return True
+                    Case Else
+                        Return False
+                End Select
+                
+            Catch ex As Exception
+                Console.WriteLine($"IsDefinitionNode error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Extracts the file path from a syntax node's attributes
+        ''' </summary>
+        ''' <param name="vNode">The node to get the file path from</param>
+        ''' <returns>The file path, or empty string if not found</returns>
+        Private Function GetFilePathFromNode(vNode As SyntaxNode) As String
+            Try
+                If vNode Is Nothing Then Return String.Empty
+                
+                ' Check the node's attributes for file path information
+                If vNode.Attributes IsNot Nothing Then
+                    ' Check for FilePath attribute
+                    If vNode.Attributes.ContainsKey("FilePath") Then
+                        Return vNode.Attributes("FilePath")
+                    End If
+                    
+                    ' Check for FilePaths attribute (for partial classes)
+                    If vNode.Attributes.ContainsKey("FilePaths") Then
+                        Dim lPaths As String = vNode.Attributes("FilePaths")
+                        ' Return the first path for now
+                        Dim lPathArray() As String = lPaths.Split(";"c)
+                        If lPathArray.Length > 0 Then
+                            Return lPathArray(0)
+                        End If
+                    End If
+                End If
+                
+                ' Try to get from parent nodes
+                If vNode.Parent IsNot Nothing Then
+                    Return GetFilePathFromNode(vNode.Parent)
+                End If
+                
+                Return String.Empty
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetFilePathFromNode error: {ex.Message}")
+                Return String.Empty
+            End Try
+        End Function
 
-
+        ''' <summary>
+        ''' Exports the complete syntax tree structure to a diagnostic file
+        ''' </summary>
+        ''' <param name="vFilePath">Optional file path (defaults to project root/syntaxtreestructure.txt)</param>
+        ''' <returns>True if successful, False otherwise</returns>
+        ''' <remarks>
+        ''' Creates a detailed diagnostic dump of the entire project syntax tree,
+        ''' including all nodes, their types, locations, and attributes
+        ''' </remarks>
+        Public Function ExportSyntaxTreeDiagnostic(Optional vFilePath As String = Nothing) As Boolean
+            Try
+                ' Determine output file path
+                If String.IsNullOrEmpty(vFilePath) Then
+                    If pCurrentProjectInfo IsNot Nothing Then
+                        vFilePath = Path.Combine(pCurrentProjectInfo.ProjectDirectory, "syntaxtreestructure.txt")
+                    Else
+                        Console.WriteLine("ExportSyntaxTreeDiagnostic: No project loaded")
+                        Return False
+                    End If
+                End If
+                
+                Console.WriteLine($"ExportSyntaxTreeDiagnostic: Writing to {vFilePath}")
+                
+                Dim lBuilder As New System.Text.StringBuilder()
+                
+                ' Header
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine("SIMPLEIDE SYNTAX TREE DIAGNOSTIC OUTPUT")
+                lBuilder.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                lBuilder.AppendLine($"Project: {If(pCurrentProjectInfo?.ProjectName, "N/A")}")
+                lBuilder.AppendLine($"Project Directory: {If(pCurrentProjectInfo?.ProjectDirectory, "N/A")}")
+                lBuilder.AppendLine($"Root Namespace: {If(RootNamespace, "N/A")}")
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine()
+                
+                ' Project stats
+                lBuilder.AppendLine("PROJECT STATISTICS:")
+                lBuilder.AppendLine($"  Total Source Files: {pSourceFiles.Count}")
+                
+                Dim lParsedCount As Integer = 0
+                Dim lLoadedCount As Integer = 0
+                For Each lFile In pSourceFiles.Values
+                    If lFile.IsLoaded Then lLoadedCount += 1
+                    If lFile.IsParsed Then lParsedCount += 1
+                Next
+                
+                lBuilder.AppendLine($"  Files Loaded: {lLoadedCount}")
+                lBuilder.AppendLine($"  Files Parsed: {lParsedCount}")
+                lBuilder.AppendLine()
+                
+                ' Source file details
+                lBuilder.AppendLine("SOURCE FILE DETAILS:")
+                lBuilder.AppendLine("--------------------")
+                
+                For Each lFileEntry In pSourceFiles.OrderBy(Function(x) x.Key)
+                    Dim lPath As String = lFileEntry.Key
+                    Dim lInfo As SourceFileInfo = lFileEntry.Value
+                    
+                    lBuilder.AppendLine($"File: {lInfo.FileName}")
+                    lBuilder.AppendLine($"  Path: {lPath}")
+                    lBuilder.AppendLine($"  Loaded: {lInfo.IsLoaded}")
+                    lBuilder.AppendLine($"  Parsed: {lInfo.IsParsed}")
+                    lBuilder.AppendLine($"  Lines: {If(lInfo.TextLines?.Count, 0)}")
+                    
+                    If lInfo.SyntaxTree IsNot Nothing Then
+                        lBuilder.AppendLine($"  SyntaxTree Root: {lInfo.SyntaxTree.Name} ({lInfo.SyntaxTree.NodeType})")
+                        lBuilder.AppendLine($"  SyntaxTree Children: {lInfo.SyntaxTree.Children.Count}")
+                        
+                        ' Show first level of children
+                        For Each lChild In lInfo.SyntaxTree.Children
+                            lBuilder.AppendLine($"    - {lChild.Name} ({lChild.NodeType}) [{lChild.Children.Count} children]")
+                        Next
+                    Else
+                        lBuilder.AppendLine("  SyntaxTree: NULL")
+                    End If
+                    
+                    lBuilder.AppendLine()
+                Next
+                
+                lBuilder.AppendLine()
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine("PROJECT-WIDE SYNTAX TREE STRUCTURE:")
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine()
+                
+                If pProjectSyntaxTree IsNot Nothing Then
+                    ' Dump the complete tree with full details
+                    DumpNodeRecursiveDetailed(pProjectSyntaxTree, lBuilder, 0, True)
+                    
+                    ' Node statistics
+                    lBuilder.AppendLine()
+                    lBuilder.AppendLine("NODE TYPE STATISTICS:")
+                    lBuilder.AppendLine("---------------------")
+                    
+                    Dim lNodeCounts As New Dictionary(Of CodeNodeType, Integer)()
+                    CountNodeTypes(pProjectSyntaxTree, lNodeCounts)
+                    
+                    For Each lEntry In lNodeCounts.OrderBy(Function(x) x.Key.ToString())
+                        lBuilder.AppendLine($"  {lEntry.Key}: {lEntry.Value}")
+                    Next
+                    
+                Else
+                    lBuilder.AppendLine("*** NO PROJECT SYNTAX TREE AVAILABLE ***")
+                End If
+                
+                ' Check for common issues
+                lBuilder.AppendLine()
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine("DIAGNOSTIC CHECKS:")
+                lBuilder.AppendLine("================================================================================")
+                lBuilder.AppendLine()
+                
+                ' Check for duplicate class nodes
+                Dim lDuplicates As New Dictionary(Of String, List(Of SyntaxNode))()
+                If pProjectSyntaxTree IsNot Nothing Then
+                    CheckForDuplicateNodes(pProjectSyntaxTree, lDuplicates)
+                End If
+                
+                If lDuplicates.Count > 0 Then
+                    lBuilder.AppendLine("WARNING: Found duplicate node names (potential merge issues):")
+                    For Each lDup In lDuplicates
+                        If lDup.Value.Count > 1 Then
+                            lBuilder.AppendLine($"  '{lDup.Key}' appears {lDup.Value.Count} times:")
+                            For Each lNode In lDup.Value
+                                Dim lFileInfo As String = GetNodeFileInfo(lNode)
+                                lBuilder.AppendLine($"    - {lNode.NodeType} at line {lNode.StartLine}, IsPartial={lNode.IsPartial} {lFileInfo}")
+                            Next
+                        End If
+                    Next
+                Else
+                    lBuilder.AppendLine("OK: No duplicate nodes found")
+                End If
+                
+                ' Write to file
+                System.IO.File.WriteAllText(vFilePath, lBuilder.ToString())
+                
+                Console.WriteLine($"ExportSyntaxTreeDiagnostic: Successfully wrote {lBuilder.Length} characters to {vFilePath}")
+                Return True
+                
+            Catch ex As Exception
+                Console.WriteLine($"ExportSyntaxTreeDiagnostic error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
+                Return False
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Recursively dumps a node with detailed information
+        ''' </summary>
+        Private Sub DumpNodeRecursiveDetailed(vNode As SyntaxNode, 
+                                             vBuilder As System.Text.StringBuilder, 
+                                             vIndent As Integer,
+                                             vIncludeAttributes As Boolean)
+            Try
+                If vNode Is Nothing Then Return
+                
+                Dim lIndentStr As String = New String(" "c, vIndent * 2)
+                
+                ' Node header
+                vBuilder.Append(lIndentStr)
+                vBuilder.Append($"[{vNode.NodeType}] {vNode.Name}")
+                
+                ' Add position info if available
+                If vNode.StartLine >= 0 Then
+                    vBuilder.Append($" (Lines {vNode.StartLine + 1}-{vNode.EndLine + 1})")
+                End If
+                
+                ' Add flags
+                Dim lFlags As New List(Of String)()
+                If vNode.IsPartial Then lFlags.Add("PARTIAL")
+                If vNode.IsPublic Then lFlags.Add("PUBLIC")
+                If vNode.IsPrivate Then lFlags.Add("PRIVATE")
+                If vNode.IsProtected Then lFlags.Add("PROTECTED")
+                If vNode.IsFriend Then lFlags.Add("FRIEND")
+                If vNode.IsShared Then lFlags.Add("SHARED")
+                If vNode.IsOverridable Then lFlags.Add("OVERRIDABLE")
+                If vNode.IsOverrides Then lFlags.Add("OVERRIDES")
+                If vNode.IsMustOverride Then lFlags.Add("MUSTOVERRIDE")
+                If vNode.IsNotOverridable Then lFlags.Add("NOTOVERRIDABLE")
+                If vNode.IsMustInherit Then lFlags.Add("MUSTINHERIT")
+                If vNode.IsNotInheritable Then lFlags.Add("NOTINHERITABLE")
+                If vNode.IsImplicit Then lFlags.Add("IMPLICIT")
+                
+                If lFlags.Count > 0 Then
+                    vBuilder.Append($" <{String.Join(", ", lFlags)}>")
+                End If
+                
+                vBuilder.AppendLine()
+                
+                ' Add attributes if requested
+                If vIncludeAttributes AndAlso vNode.Attributes IsNot Nothing AndAlso vNode.Attributes.Count > 0 Then
+                    For Each lAttr In vNode.Attributes
+                        vBuilder.AppendLine($"{lIndentStr}  @{lAttr.Key}: {lAttr.Value}")
+                    Next
+                End If
+                
+                ' Add additional properties
+                If Not String.IsNullOrEmpty(vNode.ReturnType) Then
+                    vBuilder.AppendLine($"{lIndentStr}  ReturnType: {vNode.ReturnType}")
+                End If
+                
+                If Not String.IsNullOrEmpty(vNode.BaseType) Then
+                    vBuilder.AppendLine($"{lIndentStr}  BaseType: {vNode.BaseType}")
+                End If
+                
+                If vNode.Parameters.Count > 0 Then
+                    vBuilder.Append($"{lIndentStr}  Parameters: ")
+                    Dim lParams As New List(Of String)()
+                    For Each lParam In vNode.Parameters
+                        lParams.Add($"{lParam.Name}: {lParam.ParameterType}")
+                    Next
+                    vBuilder.AppendLine(String.Join(", ", lParams))
+                End If
+                
+                ' Process children
+                If vNode.Children.Count > 0 Then
+                    For Each lChild In vNode.Children
+                        DumpNodeRecursiveDetailed(lChild, vBuilder, vIndent + 1, vIncludeAttributes)
+                    Next
+                End If
+                
+            Catch ex As Exception
+                vBuilder.AppendLine($"{New String(" "c, vIndent * 2)}*** ERROR: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Counts node types recursively
+        ''' </summary>
+        Private Sub CountNodeTypes(vNode As SyntaxNode, vCounts As Dictionary(Of CodeNodeType, Integer))
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Count this node
+                If Not vCounts.ContainsKey(vNode.NodeType) Then
+                    vCounts(vNode.NodeType) = 0
+                End If
+                vCounts(vNode.NodeType) += 1
+                
+                ' Count children
+                For Each lChild In vNode.Children
+                    CountNodeTypes(lChild, vCounts)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"CountNodeTypes error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Checks for duplicate nodes with the same name
+        ''' </summary>
+        Private Sub CheckForDuplicateNodes(vNode As SyntaxNode, vDuplicates As Dictionary(Of String, List(Of SyntaxNode)))
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Skip document and namespace nodes
+                If vNode.NodeType <> CodeNodeType.eDocument AndAlso vNode.NodeType <> CodeNodeType.eNamespace Then
+                    Dim lKey As String = $"{vNode.NodeType}:{vNode.Name}"
+                    
+                    If Not vDuplicates.ContainsKey(lKey) Then
+                        vDuplicates(lKey) = New List(Of SyntaxNode)()
+                    End If
+                    vDuplicates(lKey).Add(vNode)
+                End If
+                
+                ' Check children
+                For Each lChild In vNode.Children
+                    CheckForDuplicateNodes(lChild, vDuplicates)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"CheckForDuplicateNodes error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets file information from a node's attributes
+        ''' </summary>
+        Private Function GetNodeFileInfo(vNode As SyntaxNode) As String
+            Try
+                If vNode?.Attributes Is Nothing Then Return ""
+                
+                If vNode.Attributes.ContainsKey("FilePaths") Then
+                    Return $"[Files: {vNode.Attributes("FilePaths")}]"
+                ElseIf vNode.Attributes.ContainsKey("FilePath") Then
+                    Return $"[File: {vNode.Attributes("FilePath")}]"
+                End If
+                
+                Return ""
+                
+            Catch ex As Exception
+                Return $"[Error: {ex.Message}]"
+            End Try
+        End Function
 
         
     End Class

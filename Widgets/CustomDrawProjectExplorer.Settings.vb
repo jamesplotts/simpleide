@@ -5,6 +5,7 @@ Imports System
 Imports System.Collections.Generic
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
+Imports SimpleIDE.Interfaces
 
 Namespace Widgets
     

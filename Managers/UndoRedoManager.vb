@@ -609,35 +609,6 @@ Namespace Managers
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Example: Complex paste operation with formatting
-        ''' </summary>
-        Public Sub PasteWithFormatting(vEditor As IEditor, vText As String)
-            BeginUserAction(UndoGroupType.ePaste)
-            
-            Try
-                ' Delete current selection if any
-                If vEditor.HasSelection Then
-                    Dim lSelStart As EditorPosition = vEditor.SelectionStart
-                    Dim lSelEnd As EditorPosition = vEditor.SelectionEnd
-                    Dim lSelectedText As String = vEditor.GetSelectedText()
-                    
-                    RecordDeleteText(lSelStart, lSelEnd, lSelectedText, lSelStart)
-                    vEditor.DeleteSelection()
-                End If
-                
-                ' Insert the new text
-                Dim lCursorPos As EditorPosition = vEditor.GetCursorPosition()
-                RecordInsertText(lCursorPos, vText, lCursorPos)
-                vEditor.InsertTextAtPosition(lCursorPos, vText)
-                
-                ' Apply formatting (this would also be recorded)
-                ' ... formatting code ...
-                
-            Finally
-                EndUserAction()
-            End Try
-        End Sub
         
         ''' <summary>
         ''' Example: Find and replace all as single undo

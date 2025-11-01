@@ -42,42 +42,35 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' ===== Modified OnProjectExplorerFileSelected =====
-    ' Update the file selection handler to use enhanced opening
-    
+    ''' <summary>
+    ''' Handles file selection from Project Explorer
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file to open</param>
     Private Sub OnProjectExplorerFileSelected(vFilePath As String)
         Try
-            If String.IsNullOrEmpty(vFilePath) Then Return
+            Console.WriteLine($"OnProjectExplorerFileSelected: {vFilePath}")
             
-            ' Use enhanced file opening that integrates with project structure
-            OpenFileWithProjectIntegration(vFilePath)
+            If String.IsNullOrEmpty(vFilePath) Then 
+                Console.WriteLine("OnProjectExplorerFileSelected: Empty file path")
+                Return
+            End If
+            
+            ' Check if file exists
+            If Not System.IO.File.Exists(vFilePath) Then
+                Console.WriteLine($"OnProjectExplorerFileSelected: File not found - {vFilePath}")
+                ShowError("File Not Found", $"The file '{vFilePath}' does not exist.")
+                Return
+            End If
+            
+            ' Use the standard OpenFile method which handles everything
+            ' including checking if file is already open, creating tabs, etc.
+            OpenFile(vFilePath)
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectExplorerFileSelected error: {ex.Message}")
+            ShowError("Open File Error", $"Failed to open file: {ex.Message}")
         End Try
     End Sub
-    
-    ' ===== Add to InitializeMainWindow =====
-    ' Add this to the end of your existing InitializeMainWindow method
-    
-'     Private Sub InitializeMainWindowAdditions()
-'         Try
-'             ' Initialize enhanced project integration
-'             InitializeProjectIntegration()
-'             
-'             ' Replace notebook switch handler with enhanced version
-'             If pNotebook IsNot Nothing Then
-'                 RemoveHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPage
-'                 AddHandler pNotebook.SwitchPage, AddressOf OnNotebookSwitchPageWithProjectIntegration
-'             End If
-'             
-'             ' Add refresh project structure menu item or toolbar button
-'             ' This would be added to your existing menu/toolbar setup
-'             
-'         Catch ex As Exception
-'             Console.WriteLine($"InitializeMainWindowAdditions error: {ex.Message}")
-'         End Try
-'     End Sub
     
     ' ===== Add Refresh Project Menu Handler =====
     ' Add this as a menu item handler
@@ -91,35 +84,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' ===== Modified CreateTab Method =====
-    ' Update the existing CreateTab method to register with project manager
-    
-    Private Function CreateTabEnhanced(vFilePath As String, vContent As String, vIsNew As Boolean) As TabInfo
-        Try
-            ' Call existing CreateTab implementation
-            Dim lTab As TabInfo = CreateTabEnhanced(vFilePath, vContent, vIsNew)
-            
-            If Not lTab Is Nothing AndAlso Not lTab.Editor Is Nothing Then
-                ' Register with project manager if project is open
-                If pProjectManager.IsProjectOpen AndAlso Not String.IsNullOrEmpty(vFilePath) Then
-                    ' Update project file structure
-                    pProjectManager.UpdateFileStructure(vFilePath, lTab.Editor)
-                End If
-                
-                ' Hook up document parsed event
-                AddHandler lTab.Editor.DocumentParsed, AddressOf OnEditorDocumentParsed
-                
-                ' Hook up content changed for project updates
-                AddHandler lTab.Editor.TextChanged, AddressOf OnEditorContentChangedWithProjectUpdate
-            End If
-            
-            Return lTab
-            
-        Catch ex As Exception
-            Console.WriteLine($"CreateTabEnhanced error: {ex.Message}")
-            Return Nothing
-        End Try
-    End Function
     
     ''' <summary>
     ''' Handles editor content changes with project structure update
@@ -152,8 +116,6 @@ Partial Public Class MainWindow
                 Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lTab.FilePath)
                 
                 If lSourceFileInfo IsNot Nothing Then
-                    ' Update the content in SourceFileInfo
-                    lSourceFileInfo.SetAllText(lEditor.Text)
                     
                     ' Request async parse which will update the project structure
                     lSourceFileInfo.RequestAsyncParse()

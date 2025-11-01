@@ -59,17 +59,11 @@ Namespace Widgets
                 pErrorsDataGrid.MultiSelectEnabled = False
                 
                 ' Handle events
-                AddHandler pErrorsDataGrid.RowDoubleClicked, AddressOf OnErrorRowDoubleClicked
                 AddHandler pErrorsDataGrid.SelectionChanged, AddressOf OnErrorSelectionChanged
                 AddHandler pErrorsDataGrid.RenderIcon, AddressOf OnErrorGridRenderIcon
                 
-                ' Create label with markup support
-                Dim lErrorLabel As New Label()
-                lErrorLabel.UseMarkup = True
-                lErrorLabel.Markup = "Errors (0)"  ' Start with normal color
-                
                 ' Add directly to notebook (no ScrolledWindow wrapper)
-                pNotebook.AppendPage(pErrorsDataGrid, lErrorLabel)
+                pNotebook.AppendPage(pErrorsDataGrid,  "Errors (0)")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateErrorsTab error: {ex.Message}")
@@ -95,17 +89,12 @@ Namespace Widgets
                 pWarningsDataGrid.MultiSelectEnabled = False
                 
                 ' Handle events
-                AddHandler pWarningsDataGrid.RowDoubleClicked, AddressOf OnWarningRowDoubleClicked
                 AddHandler pWarningsDataGrid.SelectionChanged, AddressOf OnWarningSelectionChanged
                 AddHandler pWarningsDataGrid.RenderIcon, AddressOf OnWarningGridRenderIcon
                 
-                ' Create label with markup support
-                Dim lWarningLabel As New Label()
-                lWarningLabel.UseMarkup = True
-                lWarningLabel.Markup = "Warnings (0)"  ' Start with normal color
                 
                 ' Add directly to notebook (no ScrolledWindow wrapper)
-                pNotebook.AppendPage(pWarningsDataGrid, lWarningLabel)
+                pNotebook.AppendPage(pWarningsDataGrid, "Warnings (0)")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateWarningsTab error: {ex.Message}")
@@ -223,23 +212,6 @@ Namespace Widgets
             Return lCell
         End Function
         
-'         ''' <summary>
-'         ''' Creates a text cell
-'         ''' </summary>
-'         Private Function CreateTextCell(vText As String) As DataGridCell
-'             Dim lCell As New DataGridCell()
-'             lCell.Value = If(vText, "")
-'             Return lCell
-'         End Function
-'         
-'         ''' <summary>
-'         ''' Creates a number cell
-'         ''' </summary>
-'         Private Function CreateNumberCell(vNumber As Integer) As DataGridCell
-'             Dim lCell As New DataGridCell()
-'             lCell.Value = vNumber
-'             Return lCell
-'         End Function
         
         ' ===== Event Handlers =====
         
@@ -263,9 +235,15 @@ Namespace Widgets
         ''' <summary>
         ''' Handles selection change in error grid
         ''' </summary>
-        Private Sub OnErrorGridSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer)
+        Private Sub OnErrorGridSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
             Try
                 ' Optional: Handle selection change if needed
+                 If vRow?.Tag IsNot Nothing Then
+                    Dim lError As BuildError = TryCast(vRow.Tag, BuildError)
+                    If lError IsNot Nothing Then
+                        RaiseEvent ErrorSelected(lError.FilePath, lError.Line, lError.Column)
+                    End If
+                End If                
                 Console.WriteLine($"Error grid selection changed: Row {vRowIndex}, Column {vColumnIndex}")
             Catch ex As Exception
                 Console.WriteLine($"OnErrorGridSelectionChanged error: {ex.Message}")
@@ -302,59 +280,7 @@ Namespace Widgets
         
         ' ===== Public Methods Override =====
         
-        ''' <summary>
-        ''' Override CreateUI to use DataGrid implementation
-        ''' </summary>
-        Private Sub CreateUIWithDataGrid()
-            Try
-                ' Create header bar with copy button
-                Dim lHeaderBox As New Box(Orientation.Horizontal, 6)
-                lHeaderBox.HeightRequest = 32
-                lHeaderBox.MarginStart = 6
-                lHeaderBox.MarginEnd = 6
-                lHeaderBox.MarginTop = 4
-                lHeaderBox.MarginBottom = 4
-                
-                ' Create title label
-                Dim lTitle As New Label("Build output")
-                lTitle.Halign = Align.Start
-                lHeaderBox.PackStart(lTitle, True, True, 0)
-                
-                ' Create copy button
-                pCopyButton = New Button()
-                pCopyButton.Label = "Copy Errors"
-                pCopyButton.TooltipText = "Copy all Errors and Warnings to clipboard"
-                pCopyButton.Sensitive = False
-                AddHandler pCopyButton.Clicked, AddressOf OnCopyButtonClicked
-                lHeaderBox.PackStart(pCopyButton, False, False, 0)
-                
-                ' Create send to AI button
-                pSendToAIButton = New Button()
-                pSendToAIButton.Label = "Send to AI"
-                pSendToAIButton.TooltipText = "Send Errors to AI assistant for help"
-                pSendToAIButton.Sensitive = False
-                AddHandler pSendToAIButton.Clicked, AddressOf OnSendToAIButtonClicked
-                lHeaderBox.PackStart(pSendToAIButton, False, False, 0)
-                
-                Me.PackStart(lHeaderBox, False, False, 0)
-                
-                ' Create notebook
-                pNotebook = New Notebook()
-                Me.PackStart(pNotebook, True, True, 0)
-                
-                ' Create output tab (still uses TextView)
-                CreateOutputTab()
-                
-                CreateErrorsTab()
-                
-                CreateWarningsTab()
-                
-            Catch ex As Exception
-                Console.WriteLine($"CreateUIWithDataGrid error: {ex.Message}")
-                ' Fallback to original implementation
-                CreateUI()
-            End Try
-        End Sub
+
         
     End Class
 End Namespace

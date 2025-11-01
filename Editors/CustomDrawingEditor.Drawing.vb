@@ -25,6 +25,15 @@ Namespace Editors
         
         Private Shadows Function OnDrawn(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
+                Static bolAlreadyRun as Boolean
+                If Not bolAlreadyRun then
+                    Dim E as New ProjectManagerRequestEventArgs
+                    RaiseEvent ProjectManagerRequested(Me, E)
+                    If E.ProjectManager IsNot Nothing Then 
+                        pSourceFileInfo.ProjectManager = E.ProjectManager
+                        bolAlreadyRun = True
+                    End If
+                End If
                 DrawContent(vArgs.Cr)
                 Return True
                 
@@ -207,36 +216,42 @@ Namespace Editors
                         End If
                     Next
                 Next
+                Dim lCursorColor As Cairo.Color
                 
                 ' Draw cursor if visible
-                If pCursorBlink AndAlso pCursorLine >= lFirstLine AndAlso pCursorLine <= lLastLine Then
-                    If pCursorColumn >= lFirstColumn AndAlso pCursorColumn <= lLastColumn Then
-                        Dim lCursorX As Integer = pLeftPadding + ((pCursorColumn - lFirstColumn) * pCharWidth)
-                        Dim lCursorY As Integer = (pCursorLine - lFirstLine) * pLineHeight + pTopPadding + lTopOffset + 3
-                        
-                        ' Draw cursor line
-                        Dim lCursorColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
-                        Dim lCursorPattern As New Cairo.SolidPattern(lCursorColor.R, lCursorColor.G, lCursorColor.B)
-                        
-                        ' **********************************************
-                        ' CRITICAL: LEAVE MY GODDAMN I BEAM CURSOR ALONE                        
-                        ' **********************************************
-                        vContext.SetSource(lCursorPattern)
-                        vContext.LineWidth = 2.0
-                        vContext.MoveTo(lCursorX, lCursorY + lTopOffset)
-                        vContext.LineTo(lCursorX, lCursorY + pLineHeight + lTopOffset)
-                        vContext.Stroke()
-                        vContext.MoveTo(lCursorX - lBarLengthHalf, lCursorY + lTopOffset)
-                        vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + lTopOffset)
-                        vContext.Stroke()
-                        vContext.MoveTo(lCursorX - lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
-                        vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
-                        vContext.Stroke()
-                        lCursorPattern.Dispose()
-                    End If
+                If pCursorVisible AndAlso pCursorLine >= lFirstLine AndAlso pCursorLine <= lLastLine Then
+                    ' Draw cursor line
+                    lCursorColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
+                Else
+                    ' Draw cursor line
+                    lCursorColor = lBgColor
+                End if
+                Dim lCursorPattern As New Cairo.SolidPattern(lCursorColor.R, lCursorColor.G, lCursorColor.B)
+
+                If pCursorColumn >= lFirstColumn AndAlso pCursorColumn <= lLastColumn Then
+                    Dim lCursorX As Integer = pLeftPadding + ((pCursorColumn - lFirstColumn) * pCharWidth)
+                    Dim lCursorY As Integer = (pCursorLine - lFirstLine) * pLineHeight + pTopPadding + lTopOffset + 2
+                    
+                    
+                    ' **********************************************
+                    ' CRITICAL: LEAVE MY GODDAMN I BEAM CURSOR ALONE                        
+                    ' **********************************************
+                    vContext.SetSource(lCursorPattern)
+                    vContext.LineWidth = 2.0
+                    vContext.MoveTo(lCursorX, lCursorY + lTopOffset)
+                    vContext.LineTo(lCursorX, lCursorY + pLineHeight + lTopOffset)
+                    vContext.Stroke()
+                    vContext.MoveTo(lCursorX - lBarLengthHalf, lCursorY + lTopOffset)
+                    vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + lTopOffset)
+'                    vContext.Stroke()
+                    vContext.MoveTo(lCursorX - lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
+                    vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
+                    vContext.Stroke()
+'                    Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                    lCursorPattern.Dispose()
                 End If
-                
-                ' Clean up
+            
+				            ' Clean up
                 lLayout?.Dispose()
                 
             Catch ex As Exception
@@ -245,15 +260,26 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Handles content changes in the SourceFileInfo
+        ''' Handles ContentChanged events from SourceFileInfo
         ''' </summary>
+        ''' <param name="vSender">The SourceFileInfo that raised the event</param>
+        ''' <param name="vArgs">Event arguments</param>
         ''' <remarks>
-        ''' Triggers a redraw when the underlying data changes
+        ''' This is called after ForceImmediateParsing completes and updates CharacterTokens.
+        ''' It triggers a redraw to show the newly colored syntax.
         ''' </remarks>
-        Private Sub OnSourceFileContentChanged(sender As Object, e As EventArgs)
+        Private Sub OnSourceFileContentChanged(vSender As Object, vArgs As EventArgs)
             Try
-                ' The SourceFileInfo has changed, redraw to show new content
-                pDrawingArea?.QueueDraw()
+                ' Simply queue a redraw when content/rendering changes
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                    Console.WriteLine("OnSourceFileContentChanged: Redraw queued after content change")
+                End If
+                
+                ' Also update line numbers if visible
+                If pLineNumberWidget IsNot Nothing AndAlso pLineNumberWidget.Visible Then
+                    pLineNumberWidget.QueueDraw()
+                End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnSourceFileContentChanged error: {ex.Message}")

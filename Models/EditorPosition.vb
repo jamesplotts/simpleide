@@ -42,6 +42,16 @@ Namespace Models
             Return False
         End Function
         
+        Public Function IsLessThan(vObj as Object) as Boolean
+            If TypeOf vObj Is EditorPosition Then
+                Dim lOther As EditorPosition = DirectCast(vObj, EditorPosition)
+                if Line < lOther.Line then return true
+                if line = lOther.Line AndAlso Column < lOther.Column then return true
+            End If
+            Return False
+        End Function
+        
+        
         ''' <summary>
         ''' Gets hash code for the position
         ''' </summary>

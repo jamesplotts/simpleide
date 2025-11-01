@@ -11,7 +11,7 @@ Partial Public Class MainWindow
     
     ' ===== File Management Operations =====
     
-    ' Note: ReloadFile is already implemented in MainWindow.Editor.vb as an Async Sub
+    ' Note: ReloadF ile is already implemented in MainWindow.Editor.vb as an Async Sub
     
     ''' <summary>
     ''' Show notification when external file change is detected
@@ -49,7 +49,7 @@ Partial Public Class MainWindow
             Select Case lResponse
                 Case CInt(ResponseType.Yes)
                     ' User wants to reload from disk
-                    lTabInfo.Editor.SourceFileInfo.ReloadFile()
+                    lTabInfo.Editor.SourceFileInfo.LoadContent()
                     'ReloadFileFromDisk(lTabInfo)
                     
                 Case CInt(ResponseType.No)
@@ -345,87 +345,30 @@ Partial Public Class MainWindow
         End Try
     End Function
 
-    ''' <summary>
-    ''' Save a file through ProjectManager/SourceFileInfo system
-    ''' </summary>
-    Private Function SaveFile(vTabInfo As TabInfo) As Boolean
-        Try
-            ' Check if we need to save as
-            If String.IsNullOrEmpty(vTabInfo.FilePath) OrElse vTabInfo.FilePath.StartsWith("Untitled") Then
-                Return SaveFileAs(vTabInfo)
-            End If
-            
-            ' Update content in SourceFileInfo from editor
-            If vTabInfo.Editor IsNot Nothing Then
-                ' Get or create SourceFileInfo
-                Dim lSourceFileInfo As SourceFileInfo = Nothing
-                
-                If pProjectManager IsNot Nothing Then
-                    lSourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
-                End If
-                
-                If lSourceFileInfo Is Nothing Then
-                    ' Create new SourceFileInfo if not in ProjectManager
-                    Dim lProjectDir As String = ""
-                    If pProjectManager?.CurrentProjectInfo IsNot Nothing Then
-                        lProjectDir = System.IO.Path.GetDirectoryName(pProjectManager.CurrentProjectInfo.ProjectPath)
-                    Else
-                        lProjectDir = System.IO.Path.GetDirectoryName(vTabInfo.FilePath)
-                    End If
-                    
-                    lSourceFileInfo = New SourceFileInfo(vTabInfo.FilePath, "", lProjectDir)
-                    lSourceFileInfo.Content = vTabInfo.Editor.Text
-                    lSourceFileInfo.TextLines = New List(Of String)(lSourceFileInfo.Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                    If lSourceFileInfo.TextLines.Count = 0 Then
-                        lSourceFileInfo.TextLines.Add("")
-                    End If
-                    lSourceFileInfo.IsLoaded = True
-                    
-                    ' Register with ProjectManager
-                    If pProjectManager IsNot Nothing Then
-                        pProjectManager.RegisterSourceFileInfo(vTabInfo.FilePath, lSourceFileInfo)
-                    End If
-                Else
-                    ' Update existing SourceFileInfo
-                    lSourceFileInfo.Content = vTabInfo.Editor.Text
-                    lSourceFileInfo.TextLines = New List(Of String)(lSourceFileInfo.Content.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None))
-                    If lSourceFileInfo.TextLines.Count = 0 Then
-                        lSourceFileInfo.TextLines.Add("")
-                    End If
-                End If
-                
-                ' Save through SourceFileInfo
-                If lSourceFileInfo.SaveContent() Then
-                    ' Update tab state
-                    vTabInfo.Modified = False
-                    vTabInfo.Editor.IsModified = False
-                    UpdateTabLabel(vTabInfo)
-                    
-                    ' Update LastSaved timestamp
-                    UpdateLastSavedTimestamp(vTabInfo)
-                    
-                    ' Update UI
-                    UpdateWindowTitle()
-                    UpdateStatusBar($"Saved: {System.IO.Path.GetFileName(vTabInfo.FilePath)}")
-                    
-                    ' Mark project as dirty if it's a project file
-                    If vTabInfo.IsProjectFile AndAlso pProjectManager IsNot Nothing Then
-                        pProjectManager.MarkDirty()
-                    End If
-                    
-                    Console.WriteLine($"Saved file: {vTabInfo.FilePath}")
-                    Return True
-                End If
-            End If
-            
-            Return False
-            
-        Catch ex As Exception
-            Console.WriteLine($"SaveFile error: {ex.Message}")
-            ShowError("Save File error", $"Failed To save file: {ex.Message}")
-            Return False
-        End Try
-    End Function
+' Replace: SimpleIDE.MainWindow.SaveFile
+''' <summary>
+''' Save a file through ProjectManager/SourceFileInfo system
+''' </summary>
+Private Function SaveFile(vTabInfo As TabInfo) As Boolean
+    Try
+        ' Save through the editor which will sync states properly
+        Dim lResult As Boolean = vTabInfo.Editor.SaveContent()
+        
+        ' CRITICAL: If save was successful, update TabInfo state
+        If lResult Then
+            vTabInfo.Modified = False
+            UpdateTabLabel(vTabInfo)
+            Console.WriteLine($"SaveFile: Saved and updated tab state for {vTabInfo.FilePath}")
+        End If
+        
+        Return lResult
+        
+    Catch ex As Exception
+        Console.WriteLine($"SaveFile error: {ex.Message}")
+        ShowError("Save File error", $"Failed to save file: {ex.Message}")
+        Return False
+    End Try
+End Function
 
 End Class
      

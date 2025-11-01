@@ -62,11 +62,8 @@ Partial Public Class MainWindow
                 .IsSpecialTab = True  ' Mark as special tab
             }
             
-            ' Create tab label
-            Dim lTabLabel As Box = CreateAssemblySettingsTabLabel()
-            
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lScrolled, lTabLabel)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lScrolled, "Assembly Settings")
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             
@@ -82,43 +79,43 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Creates tab label for assembly settings
-    ''' </summary>
-    Private Function CreateAssemblySettingsTabLabel() As Box
-        Try
-            Dim lBox As New Box(Orientation.Horizontal, 3)
-            
-            ' Icon
-            Dim lIcon As New Image()
-            lIcon.SetFromIconName("document-properties", IconSize.Menu)
-            lBox.PackStart(lIcon, False, False, 0)
-            
-            ' Label
-            Dim lLabel As New Label("Assembly Settings")
-            lBox.PackStart(lLabel, True, True, 0)
-            
-            ' Close button
-            Dim lCloseButton As New Button()
-            lCloseButton.Relief = ReliefStyle.None
-            lCloseButton.FocusOnClick = False
-            
-            Dim lCloseIcon As New Image()
-            lCloseIcon.SetFromIconName("window-close", IconSize.Menu)
-            lCloseButton.Add(lCloseIcon)
-            
-            AddHandler lCloseButton.Clicked, AddressOf OnAssemblySettingsCloseClicked
-            
-            lBox.PackStart(lCloseButton, False, False, 0)
-            
-            lBox.ShowAll()
-            Return lBox
-            
-        Catch ex As Exception
-            Console.WriteLine($"CreateAssemblySettingsTabLabel error: {ex.Message}")
-            Return New Box(Orientation.Horizontal, 0)
-        End Try
-    End Function
+'    ''' <summary>
+'    ''' Creates tab label for assembly settings
+'    ''' </summary>
+'    Private Function CreateAssemblySettingsTabLabel() As Box
+'        Try
+'            Dim lBox As New Box(Orientation.Horizontal, 3)
+'            
+'            ' Icon
+'            Dim lIcon As New Image()
+'            lIcon.SetFromIconName("document-properties", IconSize.Menu)
+'            lBox.PackStart(lIcon, False, False, 0)
+'            
+'            ' Label
+'            Dim lLabel As New Label("Assembly Settings")
+'            lBox.PackStart(lLabel, True, True, 0)
+'            
+'            ' Close button
+'            Dim lCloseButton As New Button()
+'            lCloseButton.Relief = ReliefStyle.None
+'            lCloseButton.FocusOnClick = False
+'            
+'            Dim lCloseIcon As New Image()
+'            lCloseIcon.SetFromIconName("window-close", IconSize.Menu)
+'            lCloseButton.Add(lCloseIcon)
+'            
+'            AddHandler lCloseButton.Clicked, AddressOf OnAssemblySettingsCloseClicked
+'            
+'            lBox.PackStart(lCloseButton, False, False, 0)
+'            
+'            lBox.ShowAll()
+'            Return lBox
+'            
+'        Catch ex As Exception
+'            Console.WriteLine($"CreateAssemblySettingsTabLabel error: {ex.Message}")
+'            Return New Box(Orientation.Horizontal, 0)
+'        End Try
+'    End Function
     
     ''' <summary>
     ''' Handles assembly settings tab close

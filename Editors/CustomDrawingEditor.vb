@@ -44,7 +44,7 @@ Namespace Editors
         Private pIsReadOnly As Boolean = False
         
         ' ===== Cursor State =====
-        Private pCursorLine As Integer = 0
+        Private pCursorLinep As Integer = 0
         Private pCursorColumn As Integer = 0
         Private pDesiredColumn As Integer = 0
         Private pCursorVisible As Boolean = True
@@ -65,15 +65,10 @@ Namespace Editors
         Private pBracketHighlightingEnabled As Boolean = False
         
         ' ===== Display Properties =====
-        Private pFontDescription As Pango.FontDescription
-        Private pTabWidth As Integer = 4
-        Private pUseTabs As Boolean = False
-        Private pShowLineNumbers As Boolean = True
-        Private pWordWrap As Boolean = False
+        'Private pWordWrap As Boolean = False
         Private pLineHeight As Integer = 20
         Private pCharWidth As Integer = 10
         Private pLineNumberWidth As Integer = 60
-        Private pAutoIndent As Boolean = True
         
         ' ===== Layout =====
         Private pLeftPadding As Integer = 5
@@ -140,6 +135,15 @@ Namespace Editors
 
         ' ===== Properties =====
 
+        Public Property SettingsManager() as SettingsManager Implements IEditor.SettingsManager
+            Get
+                return pSettingsManager
+            End Get
+            Set(value as SettingsManager)
+                pSettingsManager = value
+            End Set
+        End Property
+
         ''' <summary>
         ''' Reference to the centralized ProjectManager for parsing operations
         ''' </summary>
@@ -149,6 +153,16 @@ Namespace Editors
             Get
                 Return pSourceFileInfo.TextLines.Count
             End Get
+        End Property
+
+        Private Property pCursorLine() As Integer
+            Get
+                Return pCursorLinep
+            End Get
+            Set(value As Integer) 
+                If value <> pCursorLinep Then pSourceFileInfo.ParseLine(pCursorLinep)
+                pCursorLinep = value
+            End Set
         End Property
 
         Public ReadOnly Property SourceFileInfo As SourceFileInfo Implements IEditor.SourceFileInfo
@@ -245,14 +259,15 @@ Namespace Editors
         
         ' ===== Events =====
 
-        Public Event Modified(vIsModified As Boolean) Implements IEditor.Modified
+        Public Event Modified(vSender as Object, vIsModified As Boolean) Implements IEditor.Modified
         Public Event CursorPositionChanged(vLine As Integer, vColumn As Integer) Implements IEditor.CursorPositionChanged
         Public Event SelectionChanged(vHasSelection As Boolean) Implements IEditor.SelectionChanged
         Public Event TextChanged(o As Object, e As EventArgs) Implements IEditor.TextChanged
         Public Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean) Implements IEditor.UndoRedoStateChanged
         Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
         Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
-
+        Public Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestGotoDefinition
+ 
         ''' <summary>
         ''' Raised when the navigation dropdowns need to be updated due to cursor context change
         ''' </summary>
@@ -286,7 +301,7 @@ Namespace Editors
         ''' <remarks>
         ''' Updated to work with centralized ProjectParser instead of local VBParser
         ''' </remarks>
-        Public Sub New(vSourceFileInfo As SourceFileInfo, vThemeManager As ThemeManager)
+        Public Sub New(vSourceFileInfo As SourceFileInfo, vThemeManager As ThemeManager, vSettingsManager as SettingsManager)
             MyBase.New(Orientation.Vertical, 0)
             If vThemeManager Is Nothing Then Throw New Exception("CustomDrawingEditor.New: Null Object Reference - Parameter vThemeManager Is Nothing")
             Try
@@ -296,13 +311,13 @@ Namespace Editors
                 
                 ' Store the theme manager
                 pThemeManager = vThemeManager    
+                pSettingsManager = vSettingsManager
 
                 ' Initialize theme color cache for rendering
                 InitializeThemeColorCache()
                 
                 ' Subscribe to source file events before initialization
                 If pSourceFileInfo IsNot Nothing Then
-                    AddHandler pSourceFileInfo.ContentChanged, AddressOf OnSourceFileContentChanged
                     AddHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
                     AddHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
                 End If            
@@ -362,8 +377,10 @@ Namespace Editors
                 ' Initialize critical objects first to prevent null references
                 If pSourceFileInfo Is Nothing Then
                     Console.WriteLine("InitializeComponents: WARNING - pSourceFileInfo is Nothing, creating minimal instance")
-                    pSourceFileInfo = New SourceFileInfo("", "", "")
-                    pSourceFileInfo.TextLines.Add("")
+                    pSourceFileInfo = New SourceFileInfo("", "")
+                    
+                    ' Hook up ProjectManagerRequested event for emergency SourceFileInfo
+                    AddHandler pSourceFileInfo.ProjectManagerRequested, AddressOf HandleProjectManagerRequests
                 End If
                 
                 ' Create main grid for layout
@@ -384,60 +401,64 @@ Namespace Editors
                 pDrawingArea.CanFocus = True
                 pDrawingArea.FocusOnClick = True
                 pDrawingArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or 
-                                           EventMask.PointerMotionMask Or EventMask.KeyPressMask Or 
+                                           EventMask.PointerMotionMask Or EventMask.KeyPressMask Or
                                            EventMask.KeyReleaseMask Or EventMask.ScrollMask Or
-                                           EventMask.FocusChangeMask))
+                                           EventMask.ExposureMask))
                 
-                pVScrollbar = New Scrollbar(Gtk.Orientation.Vertical, New Adjustment(0, 0, 1, 1, 1, 1))
-                pHScrollbar = New Scrollbar(Gtk.Orientation.Horizontal, New Adjustment(0, 0, 1, 1, 1, 1))
+                ' Create scrollbars
+                pHScrollbar = New Scrollbar(Orientation.Horizontal, Nothing)
+                pVScrollbar = New Scrollbar(Orientation.Vertical, Nothing)
                 
-                ' Create corner box
-                pCornerBox = New DrawingArea()
-                pCornerBox.WidthRequest = 15  ' Standard scrollbar width
-                pCornerBox.HeightRequest = 15
+                ' Set up adjustments for scrollbars
+                If pHScrollbar.Adjustment Is Nothing Then
+                    pHScrollbar.Adjustment = New Adjustment(0, 0, 100, 1, 10, 10)
+                End If
+                If pVScrollbar.Adjustment Is Nothing Then
+                    pVScrollbar.Adjustment = New Adjustment(0, 0, 100, 1, 10, 10)
+                End If
                 
-                ' Layout in grid:
-                ' [LineNumbers] [DrawingArea] [VScrollbar]
-                ' [Empty]       [HScrollbar]  [Corner]
+                ' Layout grid (2x2)
+                ' [0,0] = LineNumbers | [1,0] = DrawingArea
+                ' [0,1] = Empty       | [1,1] = VScrollbar
+                ' [0,2] = Empty       | [1,2] = HScrollbar
+                
                 If pLineNumberWidget IsNot Nothing Then
                     pMainGrid.Attach(pLineNumberWidget, 0, 0, 1, 1)
+                    pLineNumberWidget.SetSizeRequest(50, -1)
                 End If
+                
                 pMainGrid.Attach(pDrawingArea, 1, 0, 1, 1)
                 pMainGrid.Attach(pVScrollbar, 2, 0, 1, 1)
                 pMainGrid.Attach(pHScrollbar, 1, 1, 1, 1)
-                pMainGrid.Attach(pCornerBox, 2, 1, 1, 1)
                 
-                ' Configure expanding
+                ' Configure grid expansion using Widget methods
                 pDrawingArea.Hexpand = True
                 pDrawingArea.Vexpand = True
+                pHScrollbar.Hexpand = True
+                pVScrollbar.Vexpand = True
                 
-                ' Connect scrollbar handlers
-                AddHandler pVScrollbar.ValueChanged, AddressOf OnVScrollbarValueChanged
-                AddHandler pHScrollbar.ValueChanged, AddressOf OnHScrollbarValueChanged
+                ' Add grid to editor
+                Add(pMainGrid)
                 
-                ' Connect size allocation handlers
+                ' Hook up events
+                AddHandler pDrawingArea.Drawn, AddressOf OnDrawn
+                AddHandler pDrawingArea.ButtonPressEvent, AddressOf OnButtonPress
+                AddHandler pDrawingArea.ButtonReleaseEvent, AddressOf OnButtonRelease
+                AddHandler pDrawingArea.MotionNotifyEvent, AddressOf OnMotionNotify
+                AddHandler pDrawingArea.KeyPressEvent, AddressOf OnKeyPress
+                AddHandler pDrawingArea.KeyReleaseEvent, AddressOf OnKeyRelease
+                AddHandler pDrawingArea.ScrollEvent, AddressOf OnScrollEvent
                 AddHandler pDrawingArea.SizeAllocated, AddressOf OnDrawingAreaSizeAllocated
-                AddHandler pMainGrid.SizeAllocated, AddressOf OnMainGridSizeAllocated
                 AddHandler pDrawingArea.Realized, AddressOf OnDrawingAreaRealized
                 
-                ' Pack grid into main container
-                PackStart(pMainGrid, True, True, 0)
+                ' Scrollbar events
+                AddHandler pHScrollbar.Adjustment.ValueChanged, AddressOf OnHScrollbarValueChanged
+                AddHandler pVScrollbar.Adjustment.ValueChanged, AddressOf OnVScrollbarValueChanged
                 
-                ' Register event handlers
-                RegisterEventHandlers()
-                ShowAll()
-        
-                ' Enable line numbers by default
-                pShowLineNumbers = True
+                ' Focus events
+                AddHandler pDrawingArea.FocusInEvent, AddressOf OnFocusIn
+                AddHandler pDrawingArea.FocusOutEvent, AddressOf OnFocusOut
                 
-                ' Update line number widget after font metrics are set
-                UpdateLineNumberWidget()
-                
-                ' Make line number widget visible
-                If pLineNumberWidget IsNot Nothing Then
-                    pLineNumberWidget.Visible = True
-                End If
-        
                 ' Initialize drag and drop
                 Try
                     InitializeDragDrop()
@@ -451,6 +472,7 @@ Namespace Editors
                 Catch ex As Exception
                     Console.WriteLine($"InitializeComponents: Failed to create cursors: {ex.Message}")
                 End Try
+                
                 pDrawingArea.GrabFocus()
                 OnVScrollbarValueChanged(Nothing, Nothing) 
                 UpdateScrollbars()
@@ -460,6 +482,13 @@ Namespace Editors
                 ' Don't re-throw - let the editor continue with minimal UI
             End Try
         End Sub
+
+							Public 	Sub HandleProjectManagerRequests(sender As Object, e As SourceFileInfo.ProjectManagerRequestEventArgs)
+            ' Check if we have a ProjectManager available from somewhere
+            pSourceFileInfo.ProjectManager = pProjectManager
+            Console.WriteLine("CustomDrawingEditor.InitializeComponents: Emergency SourceFileInfo requested ProjectManager")
+        End Sub
+
         
         ''' <summary>
         ''' Fixed InitializeEditor method to properly size metadata arrays based on actual line count
@@ -467,7 +496,7 @@ Namespace Editors
         Private Sub InitializeEditor()
             Try
                 ' Initialize font
-                pFontDescription = FontDescription.FromString("Monospace 11")
+                'pFontDescription = FontDescription.FromString("Monospace 11")
                 UpdateFontMetrics()
 
                 ' Initialize syntax highlighting with theme colors if available        
@@ -512,7 +541,7 @@ Namespace Editors
 
         
         ''' <summary>
-        ''' Updates the line number widget with current editor state
+        ''' Updates the line number widget with current editor state and theme
         ''' </summary>
         Private Sub UpdateLineNumberWidget()
             Try
@@ -521,22 +550,25 @@ Namespace Editors
                 ' Update font and metrics
                 pLineNumberWidget.UpdateFont(pFontDescription, pLineHeight, pCharWidth)
                 
-                ' Update theme if available
-                If pThemeManager IsNot Nothing Then
-                    Dim lTheme As EditorTheme = GetActiveTheme()
-                    If lTheme IsNot Nothing Then
-                        pLineNumberWidget.UpdateTheme(lTheme)
-                    End If
+                ' CRITICAL: Always update theme colors to match editor
+                Dim lTheme As EditorTheme = GetActiveTheme()
+                If lTheme IsNot Nothing Then
+                    pLineNumberWidget.UpdateTheme(lTheme)
                 End If
                 
                 ' Update width based on line count
                 pLineNumberWidget.UpdateWidth()
                 
+                ' Force redraw to apply changes
+                pLineNumberWidget.QueueDraw()
+                
+                Console.WriteLine($"UpdateLineNumberWidget: Updated with theme '{lTheme?.Name}'")
+                
             Catch ex As Exception
                 Console.WriteLine($"UpdateLineNumberWidget error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub       
+         
         ''' <summary>
         ''' Updates the line number widget width based on the number of lines
         ''' </summary>
@@ -722,36 +754,6 @@ Namespace Editors
         End Function
 
         
-        ' ===== Cursor Blink Timer =====
-        Public Property AutoIndent As Boolean Implements IEditor.AutoIndent
-            Get
-                Return pAutoIndent
-            End Get
-            Set(Value As Boolean)
-                pAutoIndent = Value
-            End Set
-        End Property
-
-        ' Use Tabs instead of inserting Spaces
-        Public Property UseTabs As Boolean Implements IEditor.UseTabs
-            Get
-                Return pUseTabs
-            End Get
-            Set(Value As Boolean)
-                pUseTabs = Value
-            End Set
-        End Property
-        
-        Public Property TabWidth As Integer Implements IEditor.TabWidth
-            Get
-                Return pTabWidth
-            End Get
-            Set(Value As Integer)
-                If Value < 1 OrElse Value > 10 Then Value = 4
-                pTabWidth = Value
-            End Set
-        End Property
-        
         ' ===== Properties =====
         Public Property FilePath As String Implements IEditor.FilePath
             Get
@@ -778,7 +780,7 @@ Namespace Editors
             Set(Value As Boolean)
                 If pIsModified <> Value Then
                     pIsModified = Value
-                    RaiseEvent Modified(pIsModified)
+                    RaiseEvent Modified(me, pIsModified)
                 End If
             End Set
         End Property
@@ -904,17 +906,10 @@ Namespace Editors
             End Get
         End Property
         
-        Public Property WordWrap As Boolean Implements IEditor.WordWrap
+        Public ReadOnly Property WordWrap As Boolean
             Get
-                Return pWordWrap
+                Return pSettingsManager.WordWrap
             End Get
-            Set(Value As Boolean)
-                If pWordWrap <> Value Then
-                    pWordWrap = Value
-                    ' TODO: Implement word wrap
-                    pDrawingArea.QueueDraw()
-                End If
-            End Set
         End Property
         
         Public ReadOnly Property Widget As Widget Implements IEditor.Widget
@@ -959,41 +954,7 @@ Namespace Editors
            End Get
         End Property
 
-        ''' <summary>
-        ''' Sets the file path for this editor (used by EditorFactory)
-        ''' </summary>
-        ''' <param name="vFilePath">The full path to the file this editor represents</param>
-        Public Sub SetFilePath(vFilePath As String) Implements IEditor.SetFilePath
-            Try
-                ' Update the editor's file path
-                pFilePath = vFilePath
-                
-                ' Update the SourceFileInfo if it exists
-                If pSourceFileInfo IsNot Nothing Then
-                    pSourceFileInfo.FilePath = vFilePath
-                    pSourceFileInfo.FileName = System.IO.Path.GetFileName(vFilePath)
-                    pSourceFileInfo.ProjectDirectory = System.IO.Path.GetDirectoryName(vFilePath)
-                    
-                    ' Calculate relative path if we have a project directory
-                    If Not String.IsNullOrEmpty(pSourceFileInfo.ProjectDirectory) Then
-                        Try
-                            pSourceFileInfo.RelativePath = System.IO.Path.GetRelativePath(pSourceFileInfo.ProjectDirectory, vFilePath)
-                        Catch
-                            ' Fallback to filename only if relative path calculation fails
-                            pSourceFileInfo.RelativePath = pSourceFileInfo.FileName
-                        End Try
-                    End If
-                End If
-                
-                Console.WriteLine($"SetFilePath: Updated file path to {vFilePath}")
-                
-                ' CRITICAL: Update scrollbars after any file path change
-                ' This ensures proper scrollbar initialization even if content hasn't loaded yet
-                UpdateScrollbars()
-            Catch ex As Exception
-                Console.WriteLine($"SetFilePath error: {ex.Message}")
-            End Try
-        End Sub
+
 
         ''' <summary>
         ''' Gets whether this editor supports IntelliSense/code completion features
@@ -1119,64 +1080,64 @@ Namespace Editors
 
         ' ===== ProjectManager Helper Methods =====
         
-        ''' <summary>
-        ''' Internal method to apply theme settings without null checks
-        ''' </summary>
-        ''' <param name="vTheme">The theme to apply</param>
-        Private Sub ApplyThemeInternal(vTheme As EditorTheme)
-            Try
-                If vTheme Is Nothing Then Return
-                
-                Console.WriteLine($"ApplyThemeInternal: Applying theme '{vTheme.Name}'")
-                InitializeThemeColorCache()
-                ' Update background colors FIRST
-                pBackgroundColor = vTheme.BackgroundColor
-                pForegroundColor = vTheme.ForegroundColor
-                
-                ' Update line number colors
-                pLineNumberBgColor = vTheme.LineNumberBackgroundColor
-                pLineNumberFgColor = vTheme.LineNumberColor
-                
-                ' Update selection and cursor colors
-                pSelectionColor = vTheme.SelectionColor
-                pCursorColor = vTheme.CursorColor
-                pCurrentLineBgColor = vTheme.CurrentLineColor
-                
-                ' Set find highlight color
-                If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
-                    pFindHighlightColor = vTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
-                Else
-                    pFindHighlightColor = vTheme.SelectionColor
-                End If
-                
-                ' Update syntax colors if available
-                If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
-                    pSyntaxColorSet.UpdateFromTheme(vTheme)
-                    ' Create syntax highlighter with the color set
-                End If
-                
-                ' CRITICAL: Update line number widget theme IMMEDIATELY
-                ' This ensures the line number background updates with the editor background
-                If pLineNumberWidget IsNot Nothing Then
-                    pLineNumberWidget.UpdateTheme(vTheme)
-                    ' Force immediate redraw of line number widget
-                    pLineNumberWidget.QueueDraw()
-                End If
-                
-                ' Apply CSS theme to drawing area for immediate background update
-                ApplyThemeToWidget(vTheme)
-                
-                ' Queue redraw of main drawing area
-                pDrawingArea?.QueueDraw()
-                
-                pThemeApplied = True
-                
-                Console.WriteLine($"ApplyThemeInternal: Applied theme colors immediately")
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyThemeInternal error: {ex.Message}")
-            End Try
-        End Sub
+'        ''' <summary>
+'        ''' Internal method to apply theme settings without null checks
+'        ''' </summary>
+'        ''' <param name="vTheme">The theme to apply</param>
+'        Private Sub ApplyThemeInternal(vTheme As EditorTheme)
+'            Try
+'                If vTheme Is Nothing Then Return
+'                
+'                Console.WriteLine($"ApplyThemeInternal: Applying theme '{vTheme.Name}'")
+'                InitializeThemeColorCache()
+'                ' Update background colors FIRST
+'                pBackgroundColor = vTheme.BackgroundColor
+'                pForegroundColor = vTheme.ForegroundColor
+'                
+'                ' Update line number colors
+'                pLineNumberBgColor = vTheme.LineNumberBackgroundColor
+'                pLineNumberFgColor = vTheme.LineNumberColor
+'                
+'                ' Update selection and cursor colors
+'                pSelectionColor = vTheme.SelectionColor
+'                pCursorColor = vTheme.CursorColor
+'                pCurrentLineBgColor = vTheme.CurrentLineColor
+'                
+'                ' Set find highlight color
+'                If vTheme.SyntaxColors.ContainsKey(SyntaxColorSet.Tags.eSelection) Then
+'                    pFindHighlightColor = vTheme.SyntaxColors(SyntaxColorSet.Tags.eSelection)
+'                Else
+'                    pFindHighlightColor = vTheme.SelectionColor
+'                End If
+'                
+'                ' Update syntax colors if available
+'                If pSyntaxColorSet IsNot Nothing AndAlso vTheme.SyntaxColors IsNot Nothing Then
+'                    pSyntaxColorSet.UpdateFromTheme(vTheme)
+'                    ' Create syntax highlighter with the color set
+'                End If
+'                
+'                ' CRITICAL: Update line number widget theme IMMEDIATELY
+'                ' This ensures the line number background updates with the editor background
+'                If pLineNumberWidget IsNot Nothing Then
+'                    pLineNumberWidget.UpdateTheme(vTheme)
+'                    ' Force immediate redraw of line number widget
+'                    pLineNumberWidget.QueueDraw()
+'                End If
+'                
+'                ' Apply CSS theme to drawing area for immediate background update
+'                ApplyThemeToWidget(vTheme)
+'                
+'                ' Queue redraw of main drawing area
+'                pDrawingArea?.QueueDraw()
+'                
+'                pThemeApplied = True
+'                
+'                Console.WriteLine($"ApplyThemeInternal: Applied theme colors immediately")
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"ApplyThemeInternal error: {ex.Message}")
+'            End Try
+'        End Sub
 
         ''' <summary>
         ''' Called when the editor becomes visible (tab switched to this editor)
@@ -1220,43 +1181,24 @@ Namespace Editors
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Updates character tokens from existing LineMetadata when parse data exists but tokens don't
-        ''' </summary>
-        Private Sub UpdateCharacterTokensFromMetadata()
-            Try
-                If pSourceFileInfo Is Nothing OrElse pSourceFileInfo.LineMetadata Is Nothing Then Return
-                
-                ' Ensure token array exists
-                pSourceFileInfo.EnsureCharacterTokens()
-                
-                ' Update tokens for each line that has metadata
-                For i As Integer = 0 To Math.Min(pSourceFileInfo.TextLines.Count - 1, pSourceFileInfo.LineMetadata.Length - 1)
-                    Dim lMetadata As LineMetadata = pSourceFileInfo.GetLineMetadata(i)
-                    If lMetadata?.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
-                        pSourceFileInfo.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
-                    End If
-                Next
-                
-                Console.WriteLine($"UpdateCharacterTokensFromMetadata: Updated tokens for {pSourceFileInfo.FileName}")
-                
-            Catch ex As Exception
-                Console.WriteLine($"UpdateCharacterTokensFromMetadata error: {ex.Message}")
-            End Try
-        End Sub
+
     
         ''' <summary>
         ''' Handles text lines changed events from SourceFileInfo
         ''' </summary>
         ''' <param name="vSender">The SourceFileInfo that raised the event</param>
         ''' <param name="vArgs">Event arguments containing change details</param>
+        ''' <remarks>
+        ''' CRITICAL FIX: Removed call to EnsureCharacterTokens which was resetting all tokens
+        ''' </remarks>
         Private Sub OnTextLinesChanged(vSender As Object, vArgs As SourceFileInfo.TextLinesChangedEventArgs)
             Try
                 If vArgs Is Nothing Then Return
                 
-                
-                ' Ensure CharacterTokens array is properly sized
-                pSourceFileInfo.EnsureCharacterTokens()
+                ' DON'T call EnsureCharacterTokens - it resets tokens to defaults!
+                ' The text modification methods (InsertTextInLine, DeleteTextInLine) 
+                ' already handle updating the CharacterTokens array properly
+                ' pSourceFileInfo.EnsureCharacterTokens()  ' <-- REMOVED: This was the problem!
                 
                 ' Update UI components
                 UpdateLineNumberWidth()

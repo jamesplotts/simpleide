@@ -373,70 +373,70 @@ Namespace Widgets
             End Try
         End Sub
 
-        ''' <summary>
-        ''' Ensures all project files are loaded before searching
-        ''' </summary>
-        ''' <returns>True if files are loaded and ready, False otherwise</returns>
-        Private Function EnsureFilesLoadedBeforeSearch() As Boolean
-            Try
-                ' Check if we have ProjectManager
-                If pProjectManager Is Nothing Then
-                    Dim lArgs As New ProjectManagerEventArgs()
-                    RaiseEvent OnRequestProjectManager(Me, lArgs)
-                    pProjectManager = lArgs.ProjectManager
-                End If
-                
-                If pProjectManager Is Nothing Then
-                    Console.WriteLine("FindReplacePanel: No ProjectManager available")
-                    Return False
-                End If
-                
-                ' Ensure all files are loaded
-                pStatusLabel.Text = "Loading project files..."
-                Gtk.Application.Invoke(Sub()
-                    While Gtk.Application.EventsPending()
-                        Gtk.Application.RunIteration()
-                    End While
-                End Sub)
-                
-                Dim lLoadedCount As Integer = pProjectManager.EnsureAllFilesLoaded()
-                
-                If lLoadedCount = 0 Then
-                    pStatusLabel.Text = "No project files to search"
-                    Return False
-                End If
-                
-                ' Get statistics
-                Dim lStats = pProjectManager.GetLoadedFileStats()
-                Console.WriteLine($"Files ready for search: {lStats.LoadedFiles}/{lStats.TotalFiles} files, {lStats.TotalLines} total lines")
-                
-                Return lStats.LoadedFiles > 0
-                
-            Catch ex As Exception
-                Console.WriteLine($"EnsureFilesLoadedBeforeSearch error: {ex.Message}")
-                Return False
-            End Try
-        End Function
+'        ''' <summary>
+'        ''' Ensures all project files are loaded before searching
+'        ''' </summary>
+'        ''' <returns>True if files are loaded and ready, False otherwise</returns>
+'        Private Function EnsureFilesLoadedBeforeSearch() As Boolean
+'            Try
+'                ' Check if we have ProjectManager
+'                If pProjectManager Is Nothing Then
+'                    Dim lArgs As New ProjectManagerEventArgs()
+'                    RaiseEvent OnRequestProjectManager(Me, lArgs)
+'                    pProjectManager = lArgs.ProjectManager
+'                End If
+'                
+'                If pProjectManager Is Nothing Then
+'                    Console.WriteLine("FindReplacePanel: No ProjectManager available")
+'                    Return False
+'                End If
+'                
+'                ' Ensure all files are loaded
+'                pStatusLabel.Text = "Loading project files..."
+'                Gtk.Application.Invoke(Sub()
+'                    While Gtk.Application.EventsPending()
+'                        Gtk.Application.RunIteration()
+'                    End While
+'                End Sub)
+'                
+'                Dim lLoadedCount As Integer = pProjectManager.EnsureAllFilesLoaded()
+'                
+'                If lLoadedCount = 0 Then
+'                    pStatusLabel.Text = "No project files to search"
+'                    Return False
+'                End If
+'                
+'                ' Get statistics
+'                Dim lStats = pProjectManager.GetLoadedFileStats()
+'                Console.WriteLine($"Files ready for search: {lStats.LoadedFiles}/{lStats.TotalFiles} files, {lStats.TotalLines} total lines")
+'                
+'                Return lStats.LoadedFiles > 0
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"EnsureFilesLoadedBeforeSearch error: {ex.Message}")
+'                Return False
+'            End Try
+'        End Function
         
-        ''' <summary>
-        ''' Enhanced search that ensures files are loaded first
-        ''' </summary>
-        Private Sub SearchInProjectOptimizedWithPreload()
-            Try
-                ' Ensure files are loaded
-                If Not EnsureFilesLoadedBeforeSearch() Then
-                    pStatusLabel.Text = "Unable to load project files"
-                    Return
-                End If
-                
-                ' Now perform the optimized search
-                SearchInProjectOptimized()
-                
-            Catch ex As Exception
-                Console.WriteLine($"SearchInProjectOptimizedWithPreload error: {ex.Message}")
-                pStatusLabel.Text = "Search error: " & ex.Message
-            End Try
-        End Sub
+'        ''' <summary>
+'        ''' Enhanced search that ensures files are loaded first
+'        ''' </summary>
+'        Private Sub SearchInProjectOptimizedWithPreload()
+'            Try
+'                ' Ensure files are loaded
+'                If Not EnsureFilesLoadedBeforeSearch() Then
+'                    pStatusLabel.Text = "Unable to load project files"
+'                    Return
+'                End If
+'                
+'                ' Now perform the optimized search
+'                SearchInProjectOptimized()
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"SearchInProjectOptimizedWithPreload error: {ex.Message}")
+'                pStatusLabel.Text = "Search error: " & ex.Message
+'            End Try
+'        End Sub
         
     End Class
     

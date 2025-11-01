@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,12 +10,12 @@
     <PlatformTarget></PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.11.0</AssemblyVersion>
-    <FileVersion>1.1.11.0</FileVersion>
+    <AssemblyVersion>1.1.159.0</AssemblyVersion>
+    <FileVersion>1.1.159.0</FileVersion>
     <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.11</Version>
+    <Version>1.1.159</Version>
   </PropertyGroup>
   <PropertyGroup>
     <NoWarn>$(NoWarn);NU1605</NoWarn>
@@ -128,7 +128,6 @@
     <Compile Include="Models/ProjectNodeType.vb" />
     <Compile Include="Models/ScratchpadData.vb" />
     <Compile Include="Models/SourceFileInfo.vb" />
-    <Compile Include="Models/SourceFileInfo.ParseContent.vb" />
     <Compile Include="Models/SyntaxColorSet.vb" />
     <Compile Include="Models/SyntaxToken.vb" />
     <Compile Include="Models/TabInfo.vb" />
@@ -150,14 +149,17 @@
     <Compile Include="Managers/ProjectManager.Extension3.vb" />
     <Compile Include="Managers/ProjectManager.Parser.vb" />
     <Compile Include="Managers/ProjectManager.ReferenceManager.vb" />
-    <Compile Include="Managers/ProjectParser.vb" />
-    <Compile Include="Managers/ProjectParser.XmlDocumentation.vb" />
     <Compile Include="Managers/ReferenceManager.vb" />
     <Compile Include="Managers/ScratchpadManager.vb" />
     <Compile Include="Managers/SettingsManager.vb" />
     <Compile Include="Managers/ThemeManager.vb" />
     <Compile Include="Managers/TODOManager.vb" />
     <Compile Include="Managers/UndoRedoManager.vb" />
+    <!-- Parsers -->
+    <Compile Include="Parsers/FileSyntaxTree.vb" />
+    <Compile Include="Parsers/ProjectSyntaxTree.vb" />
+    <Compile Include="Parsers/RoslynConverter.vb" />
+    <Compile Include="Parsers/ProjectParser.vb" />
     <!-- Utilities -->
     <Compile Include="Utilities/ApplicationSettings.vb" />
     <Compile Include="Utilities/ApplicationVersion.vb" />
@@ -165,7 +167,6 @@
     <Compile Include="Utilities/AssemblyBrowser.vb" />
     <Compile Include="Utilities/BuildEventArgs.vb" />
     <Compile Include="Utilities/CssHelper.vb" />
-    <Compile Include="Utilities/EditorFactory.vb" />
     <Compile Include="Utilities/EnhancedClaudeApiClient.vb" />
     <Compile Include="Utilities/FileOperations.vb" />
     <Compile Include="Utilities/FileSystemWatcher.vb" />
@@ -226,6 +227,14 @@
     <Compile Include="Widgets/ThemeEditor.vb" />
     <Compile Include="Widgets/TODOPanel.vb" />
     <Compile Include="Widgets/ScratchpadPanel.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Animation.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Compatibility.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Drawing.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Events.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Keyboard.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Menus.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.Theme.vb" />
+    <Compile Include="Widgets/CustomDrawNotebook.vb" />
     <!-- Dialogs -->
     <Compile Include="Dialogs/BuildConfigurationDialog.vb" />
     <Compile Include="Dialogs/EnhancedAISettingsDialog.vb" />
@@ -251,8 +260,18 @@
     <Compile Include="Syntax/Token.vb" />
     <Compile Include="Syntax/ParseResults.vb" />
     <Compile Include="Managers/AIManager.vb" />
-    <Compile Include="Managers/ProjectParser.Extension1.vb" />
-    <Compile Include="Models/CharacterToken.vb" /></ItemGroup>
+    <Compile Include="Models/CharacterToken.vb" />
+    <Compile Include="Models/SourceFileInfo.AtomicOperations.vb" />
+    <Compile Include="Models/SourceFileInfo.InternalOperations.vb" />
+    <Compile Include="Models/SourceFileInfo.IO.vb" />
+    <Compile Include="Models/SourceFileInfo.Parsing.vb" />
+    <Compile Include="Models/SourceFileInfo.CaseCorrection.vb" />
+    <Compile Include="Interfaces/ICustomNotebook.vb" />
+    <Compile Include="Models/TabClosingEventArgs.vb" />
+    <Compile Include="MainWindow.Diagnose.vb" />
+    <Compile Include="Widgets/WelcomeTabWidget.vb" />
+    <Compile Include="MainWindow.WindowState.vb" />
+    <Compile Include="Models/DefinitionInfo.vb" /></ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->
     <EmbeddedResource Include="Resources/icon.png" />

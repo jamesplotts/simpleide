@@ -85,15 +85,8 @@ Namespace Widgets
 
         ' ===== IDE Version Auto-Increment Settings =====
         
-        Private pAutoIncrementVersion As Boolean = False
-        Private pIncrementOncePerSession As Boolean = True
-        Private pIncrementOncePerDay As Boolean = False
-        Private pLastVersionIncrement As DateTime = DateTime.MinValue
 
 								Private pAutoIncrementCheck As  CheckButton
-        Private pEveryBuildRadio As RadioButton
-        Private pOncePerSessionRadio As RadioButton
-        Private pOncePerDayRadio As RadioButton
 
         ' Add these as class-level fields
         Private pVersionControls As List(Of Widget)
@@ -261,7 +254,7 @@ Namespace Widgets
         ' ===== Tab Creation Methods =====
         
         ''' <summary>
-        ''' Create the IDE Version settings tab
+        ''' Create the IDE Version settings tab (simplified - auto-increment only)
         ''' </summary>
         Private Function CreateVersionTab() As Widget
             Dim lBox As New Box(Orientation.Vertical, 10)
@@ -290,92 +283,22 @@ Namespace Widgets
             lBox.PackStart(New Separator(Orientation.Horizontal), False, False, 0)
             
             ' Auto-increment enable checkbox
-            '("Enable auto-increment Project version on build")
             pAutoIncrementCheck = New CheckButton("Enable auto-increment IDE version on build")
             pAutoIncrementCheck.Active = pSettingsManager.AutoIncrementVersion
-            pAutoIncrementCheck.TooltipText = "When enabled, the Project version number will be incremented when you build projects"
+            pAutoIncrementCheck.TooltipText = "When enabled, the Project version number will be incremented automatically on every build"
             AddHandler pAutoIncrementCheck.Toggled, Sub()
                 pSettingsManager.AutoIncrementVersion = pAutoIncrementCheck.Active
-                ' Enable/disable other options based on this
-                UpdateVersionOptionsState()
+                OnSettingChanged(Nothing, Nothing)
             End Sub
             lBox.PackStart(pAutoIncrementCheck, False, False, 0)
             
-            ' Increment frequency options
-            Dim lFrequencyLabel As New Label("Increment Frequency:")
-            lFrequencyLabel.Xalign = 0
-            lFrequencyLabel.MarginTop = 10
-            lBox.PackStart(lFrequencyLabel, False, False, 0)
             
-            ' Radio buttons for frequency
-            pEveryBuildRadio = New RadioButton("On every build")
-            pEveryBuildRadio.MarginStart = 20
-            pEveryBuildRadio.Active = Not pSettingsManager.IncrementOncePerSession AndAlso 
-                                      Not pSettingsManager.IncrementOncePerDay
-            
-            pOncePerSessionRadio = New RadioButton(pEveryBuildRadio, "Once per session")
-            pOncePerSessionRadio.MarginStart = 20
-            pOncePerSessionRadio.Active = pSettingsManager.IncrementOncePerSession
-            
-            pOncePerDayRadio = New RadioButton(pEveryBuildRadio, "Once per day")
-            pOncePerDayRadio.MarginStart = 20
-            pOncePerDayRadio.Active = pSettingsManager.IncrementOncePerDay
-            
-            ' Add handlers
-            AddHandler pEveryBuildRadio.Toggled, Sub()
-                If pEveryBuildRadio.Active Then
-                    pSettingsManager.IncrementOncePerSession = False
-                    pSettingsManager.IncrementOncePerDay = False
-                End If
-            End Sub
-            
-            AddHandler pOncePerSessionRadio.Toggled, Sub()
-                If pOncePerSessionRadio.Active Then
-                    pSettingsManager.IncrementOncePerSession = True
-                    pSettingsManager.IncrementOncePerDay = False
-                End If
-            End Sub
-            
-            AddHandler pOncePerDayRadio.Toggled, Sub()
-                If pOncePerDayRadio.Active Then
-                    pSettingsManager.IncrementOncePerSession = False
-                    pSettingsManager.IncrementOncePerDay = True
-                End If
-            End Sub
-            
-            lBox.PackStart(pEveryBuildRadio, False, False, 0)
-            lBox.PackStart(pOncePerSessionRadio, False, False, 0)
-            lBox.PackStart(pOncePerDayRadio, False, False, 0)
-            
-            ' Last increment info
-            If pSettingsManager.LastVersionIncrement > DateTime.MinValue Then
-                Dim lLastIncrementLabel As New Label()
-                lLastIncrementLabel.Markup = $"<small>Last incremented: {pSettingsManager.LastVersionIncrement:yyyy-MM-dd HH:mm:ss}</small>"
-                lLastIncrementLabel.Xalign = 0
-                lLastIncrementLabel.MarginTop = 10
-                lBox.PackStart(lLastIncrementLabel, False, False, 0)
-            End If
-            
-            ' Manual increment button
-            Dim lManualBox As New Box(Orientation.Horizontal, 10)
-            lManualBox.MarginTop = 20
-            
-            Dim lManualButton As New Button("Increment Version Now")
-            lManualButton.TooltipText = "Manually increment the Project version number"
-            AddHandler lManualButton.Clicked, Sub()
-                IncrementVersionManually()
-                ' Update the version label
-                lVersionLabel.Markup = $"<b>{ApplicationVersion.FullVersionString}</b>"
-            End Sub
-            lManualBox.PackStart(lManualButton, False, False, 0)
-            
-            lBox.PackStart(lManualBox, False, False, 0)
-            
-            ' Store controls for enabling/disabling
-            pVersionControls = New List(Of Widget) From {
-                pEveryBuildRadio, pOncePerSessionRadio, pOncePerDayRadio
-            }
-            pAutoIncrementEnableCheck = pAutoIncrementCheck
+            ' Info label about the behavior
+            Dim lInfoLabel As New Label()
+            lInfoLabel.Markup = "<small>The version will increment on every build when enabled.</small>"
+            lInfoLabel.Xalign = 0
+            lInfoLabel.MarginTop = 20
+            lBox.PackStart(lInfoLabel, False, False, 0)
             
             Return lBox
         End Function
@@ -972,12 +895,12 @@ Namespace Widgets
                 pGitEmailEntry.Text = pSettingsManager.GetString("Git.Email", "")
                 pDefaultBranchEntry.Text = pSettingsManager.GetString("Git.DefaultBranch", "main")
                 pAutoFetchCheck.Active = pSettingsManager.GetBoolean("Git.AutoFetch", False)
-                pFetchIntervalSpin.Value = pSettingsManager.GetInteger("Git.FetchInterval", 15)
+                pFetchIntervalSpin.Value = pSettingsManager.GetInteger("Git.FetchInterval", 10)
+                pGitRemoteUrlEntry.Text = pSettingsManager.GetString("Git.RemoteUrl", "")
                 
                 ' Git Credentials
-                pGitRemoteUrlEntry.Text = pSettingsManager.GetString("Git.RemoteUrl", "")
-                Dim lCredType As String = pSettingsManager.GetString("Git.CredentialType", "None")
-                Select Case lCredType
+                Dim lCredentialType As String = pSettingsManager.GetString("Git.CredentialType", "None")
+                Select Case lCredentialType
                     Case "PAT"
                         pGitCredentialTypeCombo.Active = 1
                     Case "OAuth"
@@ -986,11 +909,10 @@ Namespace Widgets
                         pGitCredentialTypeCombo.Active = 0
                 End Select
                 
-                ' Load encrypted token if exists
+                ' Try to decrypt stored token
                 Dim lEncryptedToken As String = pSettingsManager.GetString("Git.Token", "")
                 If Not String.IsNullOrEmpty(lEncryptedToken) Then
                     Try
-                        ' Decrypt the token (simple Base64 for now, should use proper encryption)
                         Dim lBytes() As Byte = Convert.FromBase64String(lEncryptedToken)
                         pGitTokenEntry.Text = System.Text.Encoding.UTF8.GetString(lBytes)
                     Catch
@@ -1001,7 +923,7 @@ Namespace Widgets
                 ' AI
                 pAIEnabledCheck.Active = pSettingsManager.GetBoolean("AI.Enabled", False)
                 pShowArtifactsCheck.Active = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
-                pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", True)
+                pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", False)
                 pMem0EnabledCheck.Active = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
                 
                 ' Advanced
@@ -1025,14 +947,9 @@ Namespace Widgets
                 pCheckUpdatesCheck.Active = pSettingsManager.GetBoolean("Advanced.CheckUpdates", True)
                 pBetaUpdatesCheck.Active = pSettingsManager.GetBoolean("Advanced.BetaUpdates", False)
                 pEnableTelemetryCheck.Active = pSettingsManager.GetBoolean("Advanced.EnableTelemetry", False)
-
-                pAutoIncrementCheck.Active = pSettingsManager.GetBoolean("AutoIncrementVersion", False)
-                pOncePerSessionRadio.Active = pSettingsManager.GetBoolean("IncrementOncePerSession", False)
-                pOncePerDayRadio.Active = pSettingsManager.GetBoolean("IncrementOncePerDay", False)
-                DateTime.TryParse(pSettingsManager.GetString("LastVersionIncrement", ""), pLastVersionIncrement)
-                pEveryBuildRadio.Active = Not pSettingsManager.IncrementOncePerSession AndAlso 
-                                          Not pSettingsManager.IncrementOncePerDay
-
+        
+                ' Version settings (simplified - just the checkbox)
+                pAutoIncrementCheck.Active = pSettingsManager.AutoIncrementVersion
                 
                 ' Update UI states
                 OnAutoSaveToggled(Nothing, Nothing)
@@ -1049,6 +966,7 @@ Namespace Widgets
             End Try
         End Sub
         
+        ' Replace: SimpleIDE.Widgets.PreferencesTab.SaveSettings
         ''' <summary>
         ''' Saves settings to the settings manager
         ''' </summary>
@@ -1056,7 +974,6 @@ Namespace Widgets
             Try
                 ' General
                 pSettingsManager.SetBoolean("General.ShowSplash", pShowSplashCheck.Active)
-                Console.WriteLine("This Far")
                 pSettingsManager.SetBoolean("General.RestoreLayout", pRestoreLayoutCheck.Active)
                 pSettingsManager.SetBoolean("General.AutoSave", pAutoSaveCheck.Active)
                 pSettingsManager.SetInteger("General.AutoSaveInterval", CInt(pAutoSaveIntervalSpin.Value))
@@ -1131,11 +1048,9 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("Advanced.BetaUpdates", pBetaUpdatesCheck.Active)
                 pSettingsManager.SetBoolean("Advanced.EnableTelemetry", pEnableTelemetryCheck.Active)
                 
+                ' Version settings (simplified - just save the checkbox state)
                 pSettingsManager.SetBoolean("AutoIncrementVersion", pAutoIncrementCheck.Active)
-                pSettingsManager.SetBoolean("IncrementOncePerSession", pOncePerSessionRadio.Active)
-                pSettingsManager.SetBoolean("IncrementOncePerDay", pOncePerDayRadio.Active)
-                pSettingsManager.SetString("LastVersionIncrement", pLastVersionIncrement.ToString("yyyy-MM-dd HH:mm:ss"))
-
+                
                 ' Save to disk
                 pSettingsManager.Save()
                 
@@ -1440,8 +1355,6 @@ Namespace Widgets
                     ' Clear cache and update UI
                     ApplicationVersion.ClearCache()
                     
-                    ' Update last increment time
-                    pSettingsManager.LastVersionIncrement = DateTime.Now
                    
                 Else
                     Console.WriteLine("Increment Failed", "Failed To increment Project version")

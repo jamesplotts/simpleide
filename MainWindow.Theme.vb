@@ -68,7 +68,7 @@ Partial Public Class MainWindow
             pThemeEditorTab.TabLabel = lBox
             
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lScrolled, lBox)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lScrolled, "Theme Editor")
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             

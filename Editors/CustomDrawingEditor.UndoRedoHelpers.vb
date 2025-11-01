@@ -109,7 +109,7 @@ Namespace Editors
                 
                 If lStartLine = lEndLine Then
                     ' Single line deletion
-                    pSourceFileInfo.DeleteTextInLine(lStartLine, lStartColumn, lEndColumn)
+                    pSourceFileInfo.DeleteText(lStartLine, lStartColumn, lStartLine, lEndColumn)
                 Else
                     ' Multi-line deletion
                     ' Get text to keep from first and last lines
@@ -120,7 +120,8 @@ Namespace Editors
                     Dim lKeepFromLast As String = If(lEndColumn < lLastLine.Length, lLastLine.Substring(lEndColumn), "")
                     
                     ' Combine the kept portions
-                    pSourceFileInfo.UpdateTextLine(lStartLine, lKeepFromFirst & lKeepFromLast)
+                    pSourceFileInfo.DeleteLine(lStartLine)
+                    pSourceFileInfo.InsertLine(lStartLine, lKeepFromFirst & lKeepFromLast)
                    
                     ' Remove all lines between start and end
                     for i As Integer = lEndLine To lStartLine + 1 Step -1

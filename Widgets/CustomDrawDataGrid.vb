@@ -144,7 +144,7 @@ Namespace Widgets
         Public Property GetCellForegroundColor As GetCellForegroundColorDelegate
         
         ' ===== Events =====
-        Public Event SelectionChanged(vRowIndex As Integer, vColumnIndex As Integer)
+        Public Event SelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
         Public Event RowDoubleClicked(vRowIndex As Integer, vRow As DataGridRow)
         Public Event CellDoubleClicked(vRowIndex As Integer, vColumnIndex As Integer, vValue As Object)
         Public Event ColumnResized(vColumnIndex As Integer, vNewWidth As Integer)

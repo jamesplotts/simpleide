@@ -38,6 +38,7 @@ Namespace Managers
         Public Sub New()
             Try
                 InitializeSettings()
+                LoadVersionSettings()
                 LoadRecentFiles()
                 LoadRecentProjects()
                 pIsInitialized = True
@@ -153,7 +154,6 @@ Namespace Managers
                     Case "GitUserName" : Return GitUserName
                     Case "GitEmail" : Return GitEmail
                     Case "GitDefaultBranch" : Return GitDefaultBranch
-                    Case "LastVersionIncrement" : Return LastVersionIncrement.ToString
                     Case Else
                         ' Generic key-value storage
                         Return GetCustomSetting(vKey, vDefaultValue)
@@ -197,8 +197,6 @@ Namespace Managers
                     Case "HighlightCurrentLine" : Return HighlightCurrentLine
                     Case "AutoIndent" : Return AutoIndent
                     Case "AutoIncrementVersion" : Return AutoIncrementVersion
-                    Case "IncrementOncePerSession" : Return IncrementOncePerSession
-                    Case "IncrementOncePerDay" : Return IncrementOncePerDay
                     Case Else
                         ' Generic boolean setting
                         Dim lStringValue As String = GetCustomSetting(vKey, vDefaultValue.ToString())
@@ -226,6 +224,8 @@ Namespace Managers
                     'Case "BottomPanelHeight" : Return BottomPanelHeight
                     Case "TabWidth" : Return TabWidth
                     Case "CodeSenseDelay" : Return CodeSenseDelay
+                    Case "TabWidth" : Return TabWidth
+                    Case "EditorZoomLevel" : Return EditorZoomLevel
                     Case Else
                         ' Generic integer setting
                         Dim lStringValue As String = GetCustomSetting(vKey, vDefaultValue.ToString())
@@ -275,8 +275,6 @@ Namespace Managers
                     Case "CurrentTheme" : CurrentTheme = vValue
                     Case "BuildConfiguration" : BuildConfiguration = vValue
                     Case "BuildPlatform" : BuildPlatform = vValue
-                    Case "LastVersionIncrement"
-                        DateTime.TryParse(vValue, LastVersionIncrement)
                     Case Else
                         ' Generic key-value storage
                         SetCustomSetting(vKey, vValue)
@@ -302,6 +300,8 @@ Namespace Managers
                     'Case "BottomPanelHeight" : BottomPanelHeight = vValue
                     Case "TabWidth" : TabWidth = vValue
                     Case "CodeSenseDelay" : CodeSenseDelay = vValue
+                    Case "TabWidth" : TabWidth = vValue
+                    Case "EditorZoomLevel" : EditorZoomLevel = vValue
                     Case Else
                         ' Generic setting - store as string
                         SetCustomSetting(vKey, vValue.ToString())
@@ -358,8 +358,6 @@ Namespace Managers
                     Case "ToolbarShowLabels" : ToolbarShowLabels = vValue
                     Case "ToolbarLargeIcons" : ToolbarLargeIcons = vValue
                     Case "AutoIncrementVersion" : AutoIncrementVersion = vValue
-                    Case "IncrementOncePerSession" : IncrementOncePerSession = vValue
-                    Case "IncrementOncePerDay" : IncrementOncePerDay = vValue
                     Case Else
                         ' Generic setting - store as string
                         SetCustomSetting(vKey, vValue.ToString())
@@ -506,6 +504,25 @@ Namespace Managers
                 RaiseEvent SettingsChanged("EditorFont", lOldValue, Value)
             End Set
         End Property
+        
+''' <summary>
+''' Gets or sets the editor zoom level as font size in points
+''' </summary>
+''' <value>Font size in points (6-72)</value>
+''' <remarks>
+''' Centralized zoom level setting used by all text editors for consistent zoom.
+''' Changes trigger SettingsChanged event to notify all editors.
+''' </remarks>
+Public Property EditorZoomLevel As Integer
+    Get
+        Return ApplicationSettings.Instance.EditorZoomLevel
+    End Get
+    Set(Value As Integer)
+        Dim lOldValue As Integer = ApplicationSettings.Instance.EditorZoomLevel
+        ApplicationSettings.Instance.EditorZoomLevel = Value
+        RaiseEvent SettingsChanged("EditorZoomLevel", lOldValue, Value)
+    End Set
+End Property
         
         Public Property TabWidth As Integer
             Get
@@ -1101,52 +1118,91 @@ Namespace Managers
             End Set
         End Property
 
-        ''' <summary>
-        ''' Gets or sets whether to increment IDE version only once per session
-        ''' </summary>
-        Public Property IncrementOncePerSession As Boolean
-            Get
-                Return pIncrementOncePerSession
-            End Get
-            Set(value As Boolean)
-                If pIncrementOncePerSession <> value Then
-                    pIncrementOncePerSession = value
-                    ' If enabling this, disable once per day
-                    If value Then pIncrementOncePerDay = False
-                    SaveSettings()
-                End If
-            End Set
-        End Property
         
         ''' <summary>
-        ''' Gets or sets whether to increment IDE version only once per day
+        ''' Loads version-related settings from persistent storage
         ''' </summary>
-        Public Property IncrementOncePerDay As Boolean
-            Get
-                Return pIncrementOncePerDay
-            End Get
-            Set(value As Boolean)
-                If pIncrementOncePerDay <> value Then
-                    pIncrementOncePerDay = value
-                    ' If enabling this, disable once per session
-                    If value Then pIncrementOncePerSession = False
-                    SaveSettings()
+        Private Sub LoadVersionSettings()
+            Try
+                ' Load auto-increment setting
+                pAutoIncrementVersion = GetBoolean("AutoIncrementVersion", False)
+                
+                ' For backward compatibility, check if old frequency settings exist
+                ' but default to "every build" behavior (no restrictions)
+                pIncrementOncePerSession = False
+                pIncrementOncePerDay = False
+               
+                ' Load last increment time if it exists
+                Dim lLastIncrementString As String = GetString("LastVersionIncrement", "")
+                If Not String.IsNullOrEmpty(lLastIncrementString) Then
+                    DateTime.TryParse(lLastIncrementString, pLastVersionIncrement)
                 End If
-            End Set
-        End Property
-        
+                
+                Console.WriteLine($"Loaded version settings: AutoIncrement={pAutoIncrementVersion}")
+                
+            Catch ex As Exception
+                Console.WriteLine($"LoadVersionSettings error: {ex.Message}")
+                ' Default to safe values
+                pAutoIncrementVersion = False
+                pIncrementOncePerSession = False
+                pIncrementOncePerDay = False
+                pLastVersionIncrement = DateTime.MinValue
+            End Try
+        End Sub   
+
         ''' <summary>
-        ''' Gets or sets the last time the IDE version was incremented
+        ''' Removes a file from the recent files list
         ''' </summary>
-        Public Property LastVersionIncrement As DateTime
-            Get
-                Return pLastVersionIncrement
-            End Get
-            Set(value As DateTime)
-                pLastVersionIncrement = value
-                SaveSettings()
-            End Set
-        End Property
+        ''' <param name="vFilePath">Path of the file to remove</param>
+        Public Sub RemoveRecentFile(vFilePath As String)
+            Try
+                If String.IsNullOrEmpty(vFilePath) Then Return
+                
+                ' Remove the file if it exists in the list
+                If pRecentFiles.Remove(vFilePath) Then
+                    ' Save the updated list
+                    SaveRecentFiles()
+                    RaiseEvent RecentFilesChanged()
+                    Console.WriteLine($"RemoveRecentFile: Removed {vFilePath} from recent files")
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"RemoveRecentFile error: {ex.Message}")
+            End Try
+        End Sub     
+'
+'        ''' <summary>
+'        ''' Gets an integer setting value
+'        ''' </summary>
+'        ''' <param name="vKey">Setting key</param>
+'        ''' <param name="vDefaultValue">Default value if not found</param>
+'        ''' <returns>The integer value</returns>
+'        Public Function GetInteger(vKey As String, vDefaultValue As Integer) As Integer
+'            Try
+'                Dim lValue As String = GetString(vKey, vDefaultValue.ToString())
+'                Dim lResult As Integer
+'                If Integer.TryParse(lValue, lResult) Then
+'                    Return lResult
+'                End If
+'                Return vDefaultValue
+'            Catch ex As Exception
+'                Console.WriteLine($"GetInteger error: {ex.Message}")
+'                Return vDefaultValue
+'            End Try
+'        End Function
+'        
+'        ''' <summary>
+'        ''' Sets an integer setting value
+'        ''' </summary>
+'        ''' <param name="vKey">Setting key</param>
+'        ''' <param name="vValue">Integer value to set</param>
+'        Public Sub SetInteger(vKey As String, vValue As Integer)
+'            Try
+'                SetString(vKey, vValue.ToString())
+'            Catch ex As Exception
+'                Console.WriteLine($"SetInteger error: {ex.Message}")
+'            End Try
+'        End Sub        
         
     End Class
     

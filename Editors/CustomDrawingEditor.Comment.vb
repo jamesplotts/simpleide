@@ -94,10 +94,12 @@ Namespace Editors
                                 ' Remove the apostrophe and the space after it (if present)
                                 If lLine.Length > 1 AndAlso lLine(1) = " " Then
                                     ' Remove apostrophe and one space
-                                    lNewLine = lLine.Substring(2)
+                                    pSourceFileInfo.DeleteCharacter(i, 0)
+                                    pSourceFileInfo.DeleteCharacter(i, 0)
+
                                 Else
                                     ' Remove just the apostrophe
-                                    lNewLine = lLine.Substring(1)
+                                    pSourceFileInfo.DeleteCharacter(i, 0)
                                 End If
                             Else
                                 ' Line doesn't start with comment, leave it unchanged
@@ -106,16 +108,10 @@ Namespace Editors
                         Else
                             ' Add comment to all lines at position 0
                             ' Add apostrophe and space at the very beginning
-                            lNewLine = "' " & lLine
+                            pSourceFileInfo.InsertCharacter(i, 0, "'"c)
+
                         End If
                         
-                        ' Update the line if it changed using SourceFileInfo
-                        If lNewLine <> lLine Then
-                            pSourceFileInfo.UpdateTextLine(i, lNewLine)
-                            
-                            ' Also update local TextLines to keep in sync
-                            TextLines(i) = lNewLine
-                        End If
                     End If
                 Next
                 

@@ -65,7 +65,7 @@ Namespace Editors
                 ' Mark the line we're leaving as changed and fire event
                 If vOldLine >= 0 AndAlso vOldLine < pLineCount Then
                     ' Mark line as changed for async parsing through SourceFileInfo
-                    
+                    pSourceFileInfo.ParseLine(vOldLine)
                     ' Fire LineExited event for capitalization manager (KEEP THIS)
                     RaiseLineExitedEvent(vOldLine)
                     Console.WriteLine($"OnLineChanged: Raised LineExited for line {vOldLine}")

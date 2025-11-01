@@ -49,7 +49,7 @@ Partial Public Class MainWindow
             End If
             
             ' Create new help browser widget
-            lHelpBrowser = New HelpBrowser()
+            lHelpBrowser = New HelpBrowser(pSettingsManager)
             
             ' Navigate to requested content
             If Not String.IsNullOrEmpty(vUrl) Then
@@ -74,10 +74,9 @@ Partial Public Class MainWindow
             
             ' Create tab label with close button
             Dim lTabTitle As String = If(Not String.IsNullOrEmpty(vTopic), $"Help: {vTopic}", "Help")
-            lTabInfo.TabLabel = CreateHelpTabLabel(lHelpTabId, lTabTitle)
             
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lHelpBrowser, lTabInfo.TabLabel)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lHelpBrowser, lTabTitle)
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             

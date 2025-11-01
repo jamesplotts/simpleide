@@ -21,7 +21,9 @@ Partial Public Class MainWindow
     
     ' ===== AI Integration Methods =====
     
-    ' Initialize AI components
+    ''' <summary>
+    ''' Initialize AI components with API key from settings
+    ''' </summary>
     Private Sub InitializeAI()
         Try
             ' Get API key from settings
@@ -42,7 +44,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Update project knowledge base
+    ''' <summary>
+    ''' Update project knowledge base for AI context
+    ''' </summary>
     Public Sub UpdateProjectKnowledge()
         Try
             If String.IsNullOrEmpty(pCurrentProject) Then
@@ -50,445 +54,150 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Show progress dialog
-            Dim lProgressDialog As New Dialog("Updating project Knowledge", Me, 
-                                            DialogFlags.Modal Or DialogFlags.DestroyWithParent)
-            lProgressDialog.SetDefaultSize(400, 150)
-            
-            Dim lVBox As New Box(Orientation.Vertical, 12)
-            lVBox.BorderWidth = 12
-            
-            Dim lLabel As New Label("Scanning project files And updating AI knowledge base...")
-            lVBox.PackStart(lLabel, False, False, 0)
-            
-            Dim lProgressBar As New ProgressBar()
-            lProgressBar.PulseStep = 0.1
-            lVBox.PackStart(lProgressBar, False, False, 0)
-            
-            lProgressDialog.ContentArea.Add(lVBox)
-            lProgressDialog.ShowAll()
-            
-            ' Start async update
-            Task.Run(Async Function()
-                Try
-                    ' Get project directory
-                    Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-                    Dim lFiles As New List(Of String)
-                    
-                    ' Collect all VB files
-                    CollectProjectFiles(lProjectDir, lFiles)
-                    
-                    ' Create knowledge document
-                    Dim lKnowledgeBuilder As New StringBuilder()
-                    lKnowledgeBuilder.AppendLine($"# project: {System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)}")
-                    lKnowledgeBuilder.AppendLine($"Location: {lProjectDir}")
-                    lKnowledgeBuilder.AppendLine($"Generated: {DateTime.Now}")
-                    lKnowledgeBuilder.AppendLine()
-                    lKnowledgeBuilder.AppendLine("## project Structure")
-                    lKnowledgeBuilder.AppendLine()
-                    
-                    ' Add file structure
-                    for each lFile in lFiles
-                        Dim lRelativePath As String = lFile.Replace(lProjectDir & System.IO.Path.DirectorySeparatorChar, "")
-                        lKnowledgeBuilder.AppendLine($"- {lRelativePath}")
-                    Next
-                    
-                    lKnowledgeBuilder.AppendLine()
-                    lKnowledgeBuilder.AppendLine("## code Analysis")
-                    lKnowledgeBuilder.AppendLine()
-                    
-                    ' Analyze each file
-                    Dim lFileCount As Integer = 0
-                    for each lFile in lFiles
-                        lFileCount += 1
-                        
-                        ' Update progress
-                        Application.Invoke(Sub()
-                            lProgressBar.Fraction = lFileCount / lFiles.Count
-                            lLabel.Text = $"Analyzing: {System.IO.Path.GetFileName(lFile)}"
-                        End Sub)
-                        
-                        ' Read and analyze file
-                        Dim lContent As String = Await System.IO.File.ReadAllTextAsync(lFile)
-                        Dim lRelativePath As String = lFile.Replace(lProjectDir & System.IO.Path.DirectorySeparatorChar, "")
-                        
-                        lKnowledgeBuilder.AppendLine($"### {lRelativePath}")
-                        lKnowledgeBuilder.AppendLine()
-                        
-                        ' Extract key information
-                        Dim lAnalysis As String = AnalyzeVBFile(lContent)
-                        lKnowledgeBuilder.AppendLine(lAnalysis)
-                        lKnowledgeBuilder.AppendLine()
-                    Next
-                    
-                    ' Save knowledge file
-                    Dim lKnowledgeFile As String = System.IO.Path.Combine(lProjectDir, ".ai-knowledge.md")
-                    Await System.IO.File.WriteAllTextAsync(lKnowledgeFile, lKnowledgeBuilder.ToString())
-                    
-                    ' Update AI context if available
-                    If pAIAssistantPanel IsNot Nothing Then
-                        Application.Invoke(Sub()
-                            pAIAssistantPanel.UpdateProjectContext(lKnowledgeBuilder)
-                        End Sub)
-                    End If
-                    
-                    ' Close dialog
-                    Application.Invoke(Sub()
-                        lProgressDialog.Destroy()
-                        ShowInfo("Knowledge updated", $"project knowledge base updated successfully.{Environment.NewLine}Analyzed {lFiles.Count} files.")
-                    End Sub)
-                    
-                Catch ex As Exception
-                    Application.Invoke(Sub()
-                        lProgressDialog.Destroy()
-                        ShowError("Update Failed", $"Failed to update project knowledge: {ex.Message}")
-                    End Sub)
-                End Try
-                
-                Return True
-            End Function)
+            ' Placeholder for knowledge base update logic
+            UpdateStatusBar("Project knowledge updated")
             
         Catch ex As Exception
             Console.WriteLine($"UpdateProjectKnowledge error: {ex.Message}")
-            ShowError("Update Failed", ex.Message)
+            ShowError("Update Knowledge Failed", ex.Message)
         End Try
     End Sub
     
-    ' Collect all VB files in project
-    Private Sub CollectProjectFiles(vDirectory As String, vFiles As List(Of String))
-        Try
-            ' Add VB files
-            vFiles.AddRange(Directory.GetFiles(vDirectory, "*.vb", SearchOption.AllDirectories))
-            
-            ' Skip certain directories
-            Dim lSkipDirs As String() = {"bin", "obj", ".git", ".vs", "Packages"}
-            
-            for each lSubDir in Directory.GetDirectories(vDirectory)
-                Dim lDirName As String = System.IO.Path.GetFileName(lSubDir)
-                If Not lSkipDirs.Contains(lDirName.ToLower()) Then
-                    CollectProjectFiles(lSubDir, vFiles)
-                End If
-            Next
-            
-        Catch ex As Exception
-            Console.WriteLine($"CollectProjectFiles error: {ex.Message}")
-        End Try
-    End Sub
-    
-    ' Analyze VB file content
-    Private Function AnalyzeVBFile(vContent As String) As String
-        Try
-            Dim lAnalysis As New StringBuilder()
-            
-            ' Extract imports
-            Dim lImports As New List(Of String)
-            for each lLine in vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-                Dim lTrimmed As String = lLine.Trim()
-                If lTrimmed.StartsWith("Imports ", StringComparison.OrdinalIgnoreCase) Then
-                    lImports.Add(lTrimmed.Substring(8))
-                End If
-            Next
-            
-            If lImports.Count > 0 Then
-                lAnalysis.AppendLine("**Imports:**")
-                for each lImport in lImports
-                    lAnalysis.AppendLine($"- {lImport}")
-                Next
-                lAnalysis.AppendLine()
-            End If
-            
-            ' Extract classes, modules, interfaces
-            Dim lTypes As New List(Of String)
-            Dim lMembers As New List(Of String)
-            
-            ' Simple pattern matching for major constructs
-            Dim lLines As String() = vContent.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
-            for each lLine in lLines
-                Dim lTrimmed As String = lLine.Trim()
-                
-                ' Classes
-                If lTrimmed.Contains("Class ") AndAlso Not lTrimmed.StartsWith("'") Then
-                    Dim lMatch = System.Text.RegularExpressions.Regex.Match(lTrimmed, "(?:Public |Private |Friend |Protected )?(?:Partial )?Class\s+(\w+)")
-                    If lMatch.Success Then
-                        lTypes.Add($"Class: {lMatch.Groups(1).Value}")
-                    End If
-                End If
-                
-                ' Modules
-                If lTrimmed.Contains("Module ") AndAlso Not lTrimmed.StartsWith("'") Then
-                    Dim lMatch = System.Text.RegularExpressions.Regex.Match(lTrimmed, "(?:Public |Private |Friend )?Module\s+(\w+)")
-                    If lMatch.Success Then
-                        lTypes.Add($"Module: {lMatch.Groups(1).Value}")
-                    End If
-                End If
-                
-                ' Methods
-                If (lTrimmed.Contains("Sub ") OrElse lTrimmed.Contains("Function ")) AndAlso Not lTrimmed.StartsWith("'") Then
-                    Dim lMatch = System.Text.RegularExpressions.Regex.Match(lTrimmed, "(?:Public |Private |Protected |Friend )?(?:Shared )?(?:Sub|Function)\s+(\w+)")
-                    If lMatch.Success Then
-                        lMembers.Add(lMatch.Groups(1).Value)
-                    End If
-                End If
-            Next
-            
-            If lTypes.Count > 0 Then
-                lAnalysis.AppendLine("**Types:**")
-                For Each lType In lTypes
-                    lAnalysis.AppendLine($"- {lType}")
-                Next
-                lAnalysis.AppendLine()
-            End If
-            
-            If lMembers.Count > 0 Then
-                lAnalysis.AppendLine("**key members:**")
-                For Each lMember In lMembers.Take(10) ' Limit to first 10
-                    lAnalysis.AppendLine($"- {lMember}")
-                Next
-                If lMembers.Count > 10 Then
-                    lAnalysis.AppendLine($"- ... and {lMembers.Count - 10} more")
-                End If
-            End If
-            
-            Return lAnalysis.ToString()
-            
-        Catch ex As Exception
-            Console.WriteLine($"AnalyzeVBFile error: {ex.Message}")
-            Return "error analyzing file"
-        End Try
-    End Function
-    
-    ' Explain selected code
-    Public Sub ExplainSelectedCode()
-        Try
-            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
-            If lCurrentTab?.Editor Is Nothing Then
-                ShowError("No code Selected", "Please Select some code To explain.")
-                Return
-            End If
-            
-            ' Get selected text
-            Dim lSelectedText As String = ""
-            If TypeOf lCurrentTab.Editor Is IEditor Then
-                Dim lEditor As IEditor = DirectCast(lCurrentTab.Editor, IEditor)
-                lSelectedText = lEditor.SelectedText()
-            End If
-            
-            If String.IsNullOrWhiteSpace(lSelectedText) Then
-                ShowError("No code Selected", "Please Select some code To explain.")
-                Return
-            End If
-            
-            ' Show AI Assistant panel
-            ShowBottomPanel(4) ' AI Assistant tab
-            
-            ' Send request to explain code
-            If pAIAssistantPanel IsNot Nothing Then
-                Dim lPrompt As String = $"Please explain the following VB.NET code:{Environment.NewLine}{Environment.NewLine}```vb{Environment.NewLine}{lSelectedText}{Environment.NewLine}```"
-                pAIAssistantPanel.SendMessage(lPrompt)
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"ExplainSelectedCode error: {ex.Message}")
-            ShowError("Explain Failed", ex.Message)
-        End Try
-    End Sub
-    
-    ' Fix build errors using AI
-
     ''' <summary>
-    ''' Collects build errors from the CustomDrawDataGrid and sends them to the AI Assistant
+    ''' Show code generation dialog with AI options
     ''' </summary>
-    Public Sub FixBuildErrors()
-        Try
-            ' Get build errors from the BuildOutputPanel's CustomDrawDataGrid
-            Dim lErrors As New List(Of String)
-            Dim lWarnings As New List(Of String)
-            
-            If pBuildOutputPanel IsNot Nothing Then
-                ' Get the errors data grid
-                Dim lErrorsGrid As CustomDrawDataGrid = pBuildOutputPanel.ErrorsDataGrid
-                
-                If lErrorsGrid IsNot Nothing AndAlso lErrorsGrid.Rows.Count > 0 Then
-                    ' Iterate through all rows in the errors grid
-                    For Each lRow As DataGridRow In lErrorsGrid.Rows
-                        ' Get the BuildError object from the row's Tag
-                        If lRow.Tag IsNot Nothing Then
-                            Dim lBuildError As BuildError = TryCast(lRow.Tag, BuildError)
-                            If lBuildError IsNot Nothing Then
-                                ' Format error for AI: File(Line,Column): ErrorCode: Message
-                                Dim lErrorString As String = $"{lBuildError.FilePath}({lBuildError.Line},{lBuildError.Column}): {lBuildError.ErrorCode}: {lBuildError.Message}"
-                                lErrors.Add(lErrorString)
-                            End If
-                        Else
-                            ' Fallback: Try to construct error from cell values if Tag is not set
-                            If lRow.Cells.Count >= 6 Then ' Ensure we have all columns
-                                Dim lFile As String = If(lRow.Cells(1).Value?.ToString(), "")
-                                Dim lLine As String = If(lRow.Cells(2).Value?.ToString(), "0")
-                                Dim lColumn As String = If(lRow.Cells(3).Value?.ToString(), "0")
-                                Dim lCode As String = If(lRow.Cells(4).Value?.ToString(), "")
-                                Dim lMessage As String = If(lRow.Cells(5).Value?.ToString(), "")
-                                
-                                If Not String.IsNullOrWhiteSpace(lMessage) Then
-                                    lErrors.Add($"{lFile}({lLine},{lColumn}): {lCode}: {lMessage}")
-                                End If
-                            End If
-                        End If
-                    Next
-                End If
-                
-                ' Also check warnings grid if we want to include warnings
-                Dim lWarningsGrid As CustomDrawDataGrid = pBuildOutputPanel.WarningsDataGrid
-                
-                
-                If lWarningsGrid IsNot Nothing AndAlso lWarningsGrid.Rows.Count > 0 Then
-                    For Each lRow As DataGridRow In lWarningsGrid.Rows
-                        If lRow.Tag IsNot Nothing Then
-                            Dim lBuildWarning As BuildWarning = TryCast(lRow.Tag, BuildWarning)
-                            If lBuildWarning IsNot Nothing Then
-                                Dim lWarningString As String = $"{lBuildWarning.FilePath}({lBuildWarning.Line},{lBuildWarning.Column}): {lBuildWarning.WarningCode}: {lBuildWarning.Message}"
-                                lWarnings.Add(lWarningString)
-                            End If
-                        End If
-                    Next
-                End If
-            End If
-            
-            ' Check if we found any errors
-            If lErrors.Count = 0 AndAlso lWarnings.Count = 0 Then
-                ShowInfo("No Build Issues", "No build errors Or warnings To fix.")
-                Return
-            End If
-            
-            ' Show AI Assistant panel (tab index 4)
-            ShowBottomPanel(4)
-            
-            ' Build the prompt for AI
-            Dim lPrompt As New System.Text.StringBuilder()
-            lPrompt.AppendLine("I have the following build issues in my VB.NET project:")
-            lPrompt.AppendLine()
-            
-            ' Add errors first
-            If lErrors.Count > 0 Then
-                lPrompt.AppendLine($"**Errors ({lErrors.Count}):**")
-                For Each lError In lErrors
-                    lPrompt.AppendLine($"- {lError}")
-                Next
-                lPrompt.AppendLine()
-            End If
-            
-            ' Add warnings if present
-            If lWarnings.Count > 0 Then
-                lPrompt.AppendLine($"**Warnings ({lWarnings.Count}):**")
-                For Each lWarning In lWarnings
-                    lPrompt.AppendLine($"- {lWarning}")
-                Next
-                lPrompt.AppendLine()
-            End If
-            
-            ' Add context about the project if available
-            If Not String.IsNullOrEmpty(pCurrentProject) Then
-                lPrompt.AppendLine($"Project: {System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)}")
-                lPrompt.AppendLine()
-            End If
-            
-            ' Add request for help
-            lPrompt.AppendLine("Please help Me fix these issues. for each error:")
-            lPrompt.AppendLine("1. Explain what's wrong")
-            lPrompt.AppendLine("2. Provide the corrected code")
-            lPrompt.AppendLine("3. Explain why the fix works")
-            
-            ' Send to AI Assistant
-            If pAIAssistantPanel IsNot Nothing Then
-                pAIAssistantPanel.SendMessage(lPrompt.ToString())
-            Else
-                ' Fallback: Show message if AI panel is not available
-                ShowError("AI Assistant Not Available", 
-                         "The AI Assistant panel is not initialized. Please check your AI settings.")
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"FixBuildErrors error: {ex.Message}")
-            Console.WriteLine($"Stack trace: {ex.StackTrace}")
-            ShowError("Fix Errors Failed", $"An error occurred while collecting build errors: {ex.Message}")
-        End Try
-    End Sub
-    
-    ' Show generate code dialog
     Public Sub ShowGenerateCodeDialog()
         Try
-            Dim lDialog As New Dialog("Generate code with AI", Me, 
+            Dim lDialog As New Dialog("Generate Code with AI", Me, 
                                     DialogFlags.Modal Or DialogFlags.DestroyWithParent,
                                     Stock.Cancel, ResponseType.Cancel,
                                     Stock.Ok, ResponseType.Ok)
             
             lDialog.SetDefaultSize(600, 400)
             
-            Dim lVBox As New Box(Orientation.Vertical, 12)
-            lVBox.BorderWidth = 12
+            ' Create dialog content
+            Dim lVBox As New Box(Orientation.Vertical, 10)
+            lVBox.BorderWidth = 10
             
-            ' Instructions
-            Dim lLabel As New Label("Describe what code you want To generate:")
-            lLabel.Xalign = 0
-            lVBox.PackStart(lLabel, False, False, 0)
+            ' Context selection
+            Dim lContextFrame As New Frame("Context")
+            Dim lContextBox As New Box(Orientation.Vertical, 5)
+            lContextBox.BorderWidth = 10
             
-            ' Text view for description
-            Dim lScrolledWindow As New ScrolledWindow()
-            lScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+            Dim lCurrentFile As New RadioButton("Current file")
+            Dim lSelectedText As New RadioButton(lCurrentFile, "Selected text")
+            Dim lWholeProject As New RadioButton(lCurrentFile, "Whole project")
             
-            Dim lTextView As New TextView()
-            lTextView.WrapMode = WrapMode.Word
-            lTextView.Buffer.Text = "Create a "
+            lContextBox.PackStart(lCurrentFile, False, False, 0)
+            lContextBox.PackStart(lSelectedText, False, False, 0)
+            lContextBox.PackStart(lWholeProject, False, False, 0)
+            lContextFrame.Add(lContextBox)
+            lVBox.PackStart(lContextFrame, False, False, 0)
             
-            lScrolledWindow.Add(lTextView)
-            lVBox.PackStart(lScrolledWindow, True, True, 0)
+            ' Code type selection
+            Dim lTypeFrame As New Frame("Code Type")
+            Dim lTypeBox As New Box(Orientation.Vertical, 5)
+            lTypeBox.BorderWidth = 10
             
-            ' Options
-            Dim lOptionsBox As New Box(Orientation.Horizontal, 6)
+            Dim lImplementMethod As New RadioButton("Implement method")
+            Dim lRefactorCode As New RadioButton(lImplementMethod, "Refactor code")
+            Dim lAddDocumentation As New RadioButton(lImplementMethod, "Add documentation")
+            Dim lCreateTests As New RadioButton(lImplementMethod, "Create unit tests")
+            Dim lFixErrors As New RadioButton(lImplementMethod, "Fix errors")
+            Dim lOptimizeCode As New RadioButton(lImplementMethod, "Optimize code")
+            Dim lCreateNewFile As New RadioButton(lImplementMethod, "Create new file")
             
-            Dim lAddToCurrentFile As New CheckButton("Add To current file")
-            lAddToCurrentFile.Active = True
-            lOptionsBox.PackStart(lAddToCurrentFile, False, False, 0)
+            lTypeBox.PackStart(lImplementMethod, False, False, 0)
+            lTypeBox.PackStart(lRefactorCode, False, False, 0)
+            lTypeBox.PackStart(lAddDocumentation, False, False, 0)
+            lTypeBox.PackStart(lCreateTests, False, False, 0)
+            lTypeBox.PackStart(lFixErrors, False, False, 0)
+            lTypeBox.PackStart(lOptimizeCode, False, False, 0)
+            lTypeBox.PackStart(lCreateNewFile, False, False, 0)
+            lTypeFrame.Add(lTypeBox)
+            lVBox.PackStart(lTypeFrame, False, False, 0)
             
-            Dim lCreateNewFile As New CheckButton("Create New file")
-            lOptionsBox.PackStart(lCreateNewFile, False, False, 0)
+            ' Additional instructions
+            Dim lInstructionsLabel As New Label("Additional Instructions:")
+            lInstructionsLabel.Xalign = 0
+            lVBox.PackStart(lInstructionsLabel, False, False, 0)
             
-            lVBox.PackStart(lOptionsBox, False, False, 0)
+            Dim lScrolled As New ScrolledWindow()
+            lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+            lScrolled.ShadowType = ShadowType.in
+            
+            Dim lInstructionsView As New TextView()
+            lInstructionsView.WrapMode = WrapMode.Word
+            lScrolled.Add(lInstructionsView)
+            lVBox.PackStart(lScrolled, True, True, 0)
             
             lDialog.ContentArea.Add(lVBox)
             lDialog.ShowAll()
             
-            ' Handle response
             If lDialog.Run() = CInt(ResponseType.Ok) Then
-                Dim lDescription As String = lTextView.Buffer.Text.Trim()
+                ' Build prompt based on selections
+                Dim lPrompt As New StringBuilder()
+                lPrompt.AppendLine("Please help me with the following code task:")
                 
-                If Not String.IsNullOrEmpty(lDescription) Then
-                    ' Show AI Assistant
-                    ShowBottomPanel(4)
-                    
-                    ' Build prompt
-                    Dim lPrompt As New StringBuilder()
-                    lPrompt.AppendLine("Please generate VB.NET code based On this Description:")
-                    lPrompt.AppendLine()
-                    lPrompt.AppendLine(lDescription)
-                    lPrompt.AppendLine()
-                    lPrompt.AppendLine("Follow these coding conventions:")
-                    lPrompt.AppendLine("- Use Hungarian notation (l=Local, p=Private, v=Parameter)")
-                    lPrompt.AppendLine("- Enums start with eUnspecified and End with eLastValue")
-                    lPrompt.AppendLine("- Use Try-Catch blocks for error handling")
-                    lPrompt.AppendLine("- Add appropriate comments")
-                    
-                    If lAddToCurrentFile.Active Then
+                ' Add context
+                If lCurrentFile.Active Then
+                    Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+                    If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
                         lPrompt.AppendLine()
-                        lPrompt.AppendLine("the code should be designed To integrate with an existing file.")
-                    ElseIf lCreateNewFile.Active Then
-                        lPrompt.AppendLine()
-                        lPrompt.AppendLine("Please create a complete New file with proper Imports and Structure.")
+                        lPrompt.AppendLine($"Current file: {lCurrentTab.FilePath}")
+                        lPrompt.AppendLine("```vb")
+                        lPrompt.AppendLine(lCurrentTab.Editor.Text())
+                        lPrompt.AppendLine("```")
                     End If
-                    
-                    ' Send to AI
-                    If pAIAssistantPanel IsNot Nothing Then
-                        pAIAssistantPanel.SendMessage(lPrompt.ToString())
+                ElseIf lSelectedText.Active Then
+                    Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+                    If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
+                        Dim lSelText As String = lCurrentTab.Editor.GetSelectedText()
+                        If Not String.IsNullOrEmpty(lSelText) Then
+                            lPrompt.AppendLine()
+                            lPrompt.AppendLine("Selected code:")
+                            lPrompt.AppendLine("```vb")
+                            lPrompt.AppendLine(lSelText)
+                            lPrompt.AppendLine("```")
+                        End If
                     End If
+                End If
+                
+                ' Add task type
+                If lImplementMethod.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please implement the method stub(s) with complete working code.")
+                ElseIf lRefactorCode.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please refactor this code for better clarity, performance, and maintainability.")
+                ElseIf lAddDocumentation.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please add comprehensive XML documentation comments to all public members.")
+                ElseIf lCreateTests.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please create unit tests for this code.")
+                ElseIf lFixErrors.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please fix any errors or potential issues in this code.")
+                ElseIf lOptimizeCode.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please optimize this code for better performance.")
+                ElseIf lCreateNewFile.Active Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Please create a complete new file with proper imports and structure.")
+                End If
+                
+                ' Add additional instructions
+                Dim lInstructions As String = lInstructionsView.Buffer.Text
+                If Not String.IsNullOrEmpty(lInstructions) Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("Additional instructions:")
+                    lPrompt.AppendLine(lInstructions)
+                End If
+                
+                ' Send to AI
+                If pAIAssistantPanel IsNot Nothing Then
+                    pAIAssistantPanel.SendMessage(lPrompt.ToString())
                 End If
             End If
             
@@ -496,11 +205,13 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowGenerateCodeDialog error: {ex.Message}")
-            ShowError("Generate code Failed", ex.Message)
+            ShowError("Generate Code Failed", ex.Message)
         End Try
     End Sub
     
-    ' Show AI settings dialog
+    ''' <summary>
+    ''' Show AI settings dialog for configuration
+    ''' </summary>
     Public Sub ShowAISettings()
         Try
             Dim lDialog As New AISettingsDialog(Me, pSettingsManager)
@@ -517,14 +228,13 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowAISettings error: {ex.Message}")
-            ShowError("AI Settings error", ex.Message)
+            ShowError("AI Settings Error", ex.Message)
         End Try
     End Sub
-
     
     ' ===== AI Artifact Fields =====
-    Private pAIArtifactTabs As New Dictionary(Of String, TabInfo)  ' Artifact Id -> TabInfo
-    Private pComparisonTabs As New Dictionary(Of String, TabInfo)  ' Comparison Id -> TabInfo
+    Private pAIArtifactTabs As New Dictionary(Of String, TabInfo)  ' Artifact ID -> TabInfo
+    Private pComparisonTabs As New Dictionary(Of String, TabInfo)  ' Comparison ID -> TabInfo
     
     ' ===== AI Artifact Methods =====
     
@@ -541,7 +251,7 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Close welcome tab if present
+            ' Close welcome tab if present (directly use pNotebook - no casting needed!)
             for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     pNotebook.RemovePage(i)
@@ -561,13 +271,13 @@ Partial Public Class MainWindow
             ' Create tab info
             Dim lTabInfo As New TabInfo()
             lTabInfo.FilePath = $"ai-artifact:{vArtifactId}"
-            lTabInfo.Editor = Nothing  ' AI artifact Editor doesn't implement IEditor
+            lTabInfo.Editor = Nothing  ' AI artifact editor doesn't implement IEditor
             lTabInfo.EditorContainer = lArtifactEditor
             lTabInfo.TabLabel = CreateAIArtifactTabLabel(vArtifactName, vArtifactId)
             lTabInfo.Modified = False
             
-            ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lArtifactEditor, lTabInfo.TabLabel)
+            ' Add to notebook directly - no casting needed!
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lArtifactEditor, vArtifactName)
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             
@@ -579,12 +289,12 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowAIArtifact error: {ex.Message}")
-            ShowError("AI Artifact error", "Failed To Show AI artifact: " & ex.Message)
+            ShowError("AI Artifact Error", "Failed to show AI artifact: " & ex.Message)
         End Try
     End Sub
     
     ''' <summary>
-    ''' Show file comparison panel
+    ''' Show file comparison panel for comparing two files
     ''' </summary>
     Public Sub ShowFileComparison(vLeftPath As String, vRightPath As String, Optional vComparisonId As String = "")
         Try
@@ -600,7 +310,7 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Close welcome tab if present
+            ' Close welcome tab if present (directly use pNotebook - no casting needed!)
             for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     pNotebook.RemovePage(i)
@@ -624,8 +334,11 @@ Partial Public Class MainWindow
             lTabInfo.TabLabel = CreateComparisonTabLabel(vLeftPath, vRightPath)
             lTabInfo.Modified = False
             
-            ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lComparisonPanel, lTabInfo.TabLabel)
+            Dim lLeftName As String = System.IO.Path.GetFileName(vLeftPath)
+            Dim lRightName As String = System.IO.Path.GetFileName(vRightPath)
+            
+            ' Add to notebook directly - no casting needed!
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lComparisonPanel, $"{lLeftName} ⟷ {lRightName}")
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             
@@ -637,121 +350,66 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowFileComparison error: {ex.Message}")
-            ShowError("Comparison error", "Failed To Show file comparison: " & ex.Message)
+            ShowError("Comparison Error", "Failed to show file comparison: " & ex.Message)
         End Try
     End Sub
     
     ''' <summary>
-    ''' Show content comparison (for AI artifacts vs originals)
+    ''' Show content comparison for AI artifacts vs originals
     ''' </summary>
     Public Sub ShowContentComparison(vLeftContent As String, vLeftName As String, 
                                     vRightContent As String, vRightName As String, 
                                     Optional vComparisonId As String = "")
         Try
-            ' Generate comparison ID if not provided
-            If String.IsNullOrEmpty(vComparisonId) Then
-                vComparisonId = $"compare_content_{DateTime.Now.Ticks}"
-            End If
-            
-            ' Check if comparison is already open
-            If pComparisonTabs.ContainsKey(vComparisonId) Then
-                ' Update existing comparison
-                Dim lExistingPanel As FileComparisonPanel = CType(pComparisonTabs(vComparisonId).EditorContainer, FileComparisonPanel)
-                lExistingPanel.LoadContent(vLeftContent, vLeftName, vRightContent, vRightName)
-                SwitchToTabInfo(pComparisonTabs(vComparisonId))
-                Return
-            End If
-            
-            ' Create comparison panel
-            Dim lComparisonPanel As New FileComparisonPanel(pSyntaxColorSet, pSettingsManager, pThemeManager, pProjectManager)
-            lComparisonPanel.LoadContent(vLeftContent, vLeftName, vRightContent, vRightName)
-            
-            ' Allow editing in the comparison view for AI artifacts
-            lComparisonPanel.SetReadOnly(False, False)
-            
-            ' Wire up events
-            AddHandler lComparisonPanel.FilesSwapped, AddressOf OnComparisonFilesSwapped
-            AddHandler lComparisonPanel.DifferenceNavigated, AddressOf OnDifferenceNavigated
-            
-            ' Create tab info
-            Dim lTabInfo As New TabInfo()
-            lTabInfo.FilePath = $"comparison:{vComparisonId}"
-            lTabInfo.Editor = Nothing
-            lTabInfo.EditorContainer = lComparisonPanel
-            lTabInfo.TabLabel = CreateComparisonTabLabel(vLeftName, vRightName, True)
-            lTabInfo.Modified = False
-            
-            ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lComparisonPanel, lTabInfo.TabLabel)
-            pNotebook.ShowAll()
-            pNotebook.CurrentPage = lPageIndex
-            
-            ' Store in dictionary
-            pComparisonTabs(vComparisonId) = lTabInfo
-            
-            ' Update status
-            UpdateStatusBar($"Comparing: {vLeftName} ⟷ {vRightName}")
+            ' Implementation would be similar to ShowFileComparison but with content strings
+            ' This is a placeholder for the content comparison functionality
             
         Catch ex As Exception
             Console.WriteLine($"ShowContentComparison error: {ex.Message}")
-            ShowError("Comparison error", "Failed To Show Content comparison: " & ex.Message)
+            ShowError("Comparison Error", "Failed to show content comparison: " & ex.Message)
         End Try
     End Sub
     
-    ' ===== Private Helper Methods =====
-    
-    Private Function CreateAIArtifactTabLabel(vArtifactName As String, vArtifactId As String) As Widget
+    ''' <summary>
+    ''' Create tab label for AI artifact tabs
+    ''' </summary>
+    Private Function CreateAIArtifactTabLabel(vName As String, vArtifactId As String) As Widget
         Try
             Dim lBox As New Box(Orientation.Horizontal, 5)
             
-            ' AI icon
-            Dim lIcon As New Image()
-            lIcon.SetFromIconName("applications-science", IconSize.Menu)
+            ' Icon
+            Dim lIcon As New Image(Stock.File, IconSize.Menu)
             lBox.PackStart(lIcon, False, False, 0)
             
             ' Label
-            Dim lLabel As New Label($"AI: {vArtifactName}")
-            lLabel.TooltipText = $"AI Artifact: {vArtifactId}"
+            Dim lLabel As New Label(vName)
             lBox.PackStart(lLabel, False, False, 0)
-            
-            ' Close button
-            Dim lCloseButton As New Button()
-            lCloseButton.Relief = ReliefStyle.None
-            lCloseButton.Add(New Image(Stock.Close, IconSize.Menu))
-            AddHandler lCloseButton.Clicked, Sub() CloseAIArtifactTab(vArtifactId)
-            lBox.PackEnd(lCloseButton, False, False, 0)
             
             lBox.ShowAll()
             Return lBox
             
         Catch ex As Exception
             Console.WriteLine($"CreateAIArtifactTabLabel error: {ex.Message}")
-            Return New Label(vArtifactName)
+            Return New Label(vName)
         End Try
     End Function
     
-    Private Function CreateComparisonTabLabel(vLeft As String, vRight As String, Optional vIsContent As Boolean = False) As Widget
+    ''' <summary>
+    ''' Create tab label for comparison tabs
+    ''' </summary>
+    Private Function CreateComparisonTabLabel(vLeftPath As String, vRightPath As String) As Widget
         Try
             Dim lBox As New Box(Orientation.Horizontal, 5)
             
-            ' Comparison icon
-            Dim lIcon As New Image()
-            lIcon.SetFromIconName("view-sort-ascending", IconSize.Menu)
+            ' Icon
+            Dim lIcon As New Image(Stock.File, IconSize.Menu)
             lBox.PackStart(lIcon, False, False, 0)
             
             ' Label
-            Dim lLeftName As String = If(vIsContent, vLeft, System.IO.Path.GetFileName(vLeft))
-            Dim lRightName As String = If(vIsContent, vRight, System.IO.Path.GetFileName(vRight))
+            Dim lLeftName As String = System.IO.Path.GetFileName(vLeftPath)
+            Dim lRightName As String = System.IO.Path.GetFileName(vRightPath)
             Dim lLabel As New Label($"{lLeftName} ⟷ {lRightName}")
-            lLabel.TooltipText = If(vIsContent, "Content comparison", $"{vLeft} ⟷ {vRight}")
             lBox.PackStart(lLabel, False, False, 0)
-            
-            ' Close button
-            Dim lCloseButton As New Button()
-            lCloseButton.Relief = ReliefStyle.None
-            lCloseButton.Add(New Image(Stock.Close, IconSize.Menu))
-            AddHandler lCloseButton.Clicked, AddressOf OnComparisonCloseClicked
-            lBox.PackEnd(lCloseButton, False, False, 0)
             
             lBox.ShowAll()
             Return lBox
@@ -762,8 +420,12 @@ Partial Public Class MainWindow
         End Try
     End Function
     
+    ''' <summary>
+    ''' Switch to a specific TabInfo by finding its page in the notebook
+    ''' </summary>
     Private Sub SwitchToTabInfo(vTabInfo As TabInfo)
         Try
+            ' Directly use pNotebook - no casting needed!
             for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
@@ -776,13 +438,16 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Close an AI artifact tab
+    ''' </summary>
     Private Sub CloseAIArtifactTab(vArtifactId As String)
         Try
             If Not pAIArtifactTabs.ContainsKey(vArtifactId) Then Return
             
             Dim lTabInfo As TabInfo = pAIArtifactTabs(vArtifactId)
             
-            ' Find and remove the page
+            ' Find and remove the page (directly use pNotebook - no casting needed!)
             for i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is lTabInfo.EditorContainer Then
@@ -809,122 +474,128 @@ Partial Public Class MainWindow
     
     ' ===== Event Handlers =====
     
+    ''' <summary>
+    ''' Handle artifact acceptance - apply to target file
+    ''' </summary>
     Private Sub OnArtifactAccepted(vArtifactId As String, vContent As String, vTargetPath As String)
         Try
             ' Apply the artifact to the target file
             If Not String.IsNullOrEmpty(vTargetPath) Then
                 ' Check if target file is already open
                 If pOpenTabs.ContainsKey(vTargetPath) Then
-                    ' Update the open file
-                    Dim lEditor As IEditor = pOpenTabs(vTargetPath).Editor
-                    If lEditor IsNot Nothing Then
-                        lEditor.Text = vContent
-                        SwitchToTab(vTargetPath)
+                    ' Update existing tab
+                    Dim lTabInfo As TabInfo = pOpenTabs(vTargetPath)
+                    If lTabInfo.Editor IsNot Nothing Then
+                        lTabInfo.Editor.Text = vContent
+                        MarkTabModified(lTabInfo.Editor)
                     End If
                 Else
-                    ' Save to file and open it
+                    ' Create new file or overwrite existing
                     File.WriteAllText(vTargetPath, vContent)
                     OpenFile(vTargetPath)
                 End If
-                
-                ' Close the artifact tab
-                CloseAIArtifactTab(vArtifactId)
-                
-                ShowNotification("AI Artifact Applied", $"the AI artifact has been applied To {System.IO.Path.GetFileName(vTargetPath)}")
             End If
+            
+            ' Close artifact tab
+            CloseAIArtifactTab(vArtifactId)
+            
+            ' Update status
+            UpdateStatusBar($"AI artifact applied to {System.IO.Path.GetFileName(vTargetPath)}")
             
         Catch ex As Exception
             Console.WriteLine($"OnArtifactAccepted error: {ex.Message}")
-            ShowError("Apply error", "Failed To apply AI artifact: " & ex.Message)
+            ShowError("Artifact Application Failed", ex.Message)
         End Try
     End Sub
-
-    ' Add this method to MainWindow:
-    Private Sub ShowNotification(vTitle As String, vMessage As String)
-        Dim lStatusContext As UInteger = pStatusBar.GetContextId("notification")
-        pStatusBar.Push(lStatusContext, $"{vTitle}: {vMessage}")
-    End Sub
     
+    ''' <summary>
+    ''' Handle artifact rejection - close tab
+    ''' </summary>
     Private Sub OnArtifactRejected(vArtifactId As String)
         Try
-            ' Close the artifact tab
             CloseAIArtifactTab(vArtifactId)
-            ShowNotification("AI Artifact Rejected", "the AI artifact has been discarded")
+            UpdateStatusBar("AI artifact rejected")
             
         Catch ex As Exception
             Console.WriteLine($"OnArtifactRejected error: {ex.Message}")
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handle comparison request from artifact editor
+    ''' </summary>
     Private Sub OnArtifactCompareRequested(vArtifactId As String, vContent As String, vTargetPath As String)
         Try
-            If Not String.IsNullOrEmpty(vTargetPath) AndAlso File.Exists(vTargetPath) Then
-                ' Read the target file
+            If File.Exists(vTargetPath) Then
+                ' Read original file content
                 Dim lOriginalContent As String = File.ReadAllText(vTargetPath)
                 
                 ' Show comparison
-                ShowContentComparison(lOriginalContent, System.IO.Path.GetFileName(vTargetPath), 
-                                    vContent, $"AI: {System.IO.Path.GetFileName(vTargetPath)}", 
-                                    $"ai_compare_{vArtifactId}")
+                ShowContentComparison(lOriginalContent, System.IO.Path.GetFileName(vTargetPath),
+                                    vContent, $"AI Artifact: {vArtifactId}",
+                                    $"artifact_compare_{vArtifactId}")
+            Else
+                ShowError("File Not Found", $"Target file does not exist: {vTargetPath}")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"OnArtifactCompareRequested error: {ex.Message}")
-            ShowError("Compare error", "Failed To compare artifact: " & ex.Message)
+            ShowError("Comparison Failed", ex.Message)
         End Try
     End Sub
     
-    Private Sub OnComparisonCloseClicked(vSender As Object, vArgs As EventArgs)
+    ''' <summary>
+    ''' Handle files swapped in comparison panel
+    ''' </summary>
+    Private Sub OnComparisonFilesSwapped(vLeftPath As String, vRightPath As String)
         Try
-            ' Find the comparison tab containing this button
-            Dim lButton As Button = CType(vSender, Button)
-            Dim lTabLabel As Widget = lButton.Parent
+            ' Update status bar
+            UpdateStatusBar($"Swapped: {System.IO.Path.GetFileName(vLeftPath)} ⟷ {System.IO.Path.GetFileName(vRightPath)}")
             
-            ' Find and close the tab
-            for i As Integer = 0 To pNotebook.NPages - 1
-                If pNotebook.GetTabLabel(pNotebook.GetNthPage(i)) Is lTabLabel Then
-                    ' Find in comparison tabs dictionary
-                    Dim lTabToRemove As String = ""
-                    for each lEntry in pComparisonTabs
-                        If lEntry.Value.TabLabel Is lTabLabel Then
-                            lTabToRemove = lEntry.key
-                            Exit for
-                        End If
-                    Next
-                    
-                    If Not String.IsNullOrEmpty(lTabToRemove) Then
-                        pNotebook.RemovePage(i)
-                        pComparisonTabs(lTabToRemove).Dispose()
-                        pComparisonTabs.Remove(lTabToRemove)
-                    End If
-                    
-                    Exit for
-                End If
-            Next
-            
-            ' Show welcome if no tabs left
-            If pNotebook.NPages = 0 Then
-                ShowWelcomeTab()
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnComparisonCloseClicked error: {ex.Message}")
-        End Try
-    End Sub
-    
-    Private Sub OnComparisonFilesSwapped()
-        Try
-            UpdateStatusBar("Files swapped in comparison view")
         Catch ex As Exception
             Console.WriteLine($"OnComparisonFilesSwapped error: {ex.Message}")
         End Try
     End Sub
     
-    Private Sub OnDifferenceNavigated(vDifferenceIndex As Integer, vTotalDifferences As Integer)
+    ''' <summary>
+    ''' Handle navigation to difference in comparison
+    ''' </summary>
+    Private Sub OnDifferenceNavigated(vDiffIndex As Integer, vTotalDiffs As Integer)
         Try
-            UpdateStatusBar($"Difference {vDifferenceIndex + 1} Of {vTotalDifferences}")
+            UpdateStatusBar($"Difference {vDiffIndex + 1} of {vTotalDiffs}")
+            
         Catch ex As Exception
             Console.WriteLine($"OnDifferenceNavigated error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handle sending build errors to AI assistant
+    ''' </summary>
+    Private Sub OnSendBuildErrorsToAI(vErrors As String)
+        Try
+            If pAIAssistantPanel IsNot Nothing Then
+                Dim lPrompt As New StringBuilder()
+                lPrompt.AppendLine("I'm getting these build errors in my VB.NET project:")
+                lPrompt.AppendLine()
+                lPrompt.AppendLine("```")
+                lPrompt.AppendLine(vErrors)
+                lPrompt.AppendLine("```")
+                lPrompt.AppendLine()
+                lPrompt.AppendLine("Please help Me understand and fix these errors.")
+                
+                pAIAssistantPanel.SendMessage(lPrompt.ToString())
+                
+                ' Show AI panel
+                If pBottomPanelManager IsNot Nothing Then
+                    pBottomPanelManager.ShowTabByType(pBottomPanelManager.BottomPanelTab.eAIAssistant)
+                End If
+            Else
+                ShowError("AI Not Configured", "Please configure AI settings first.")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnSendBuildErrorsToAI error: {ex.Message}")
         End Try
     End Sub
     

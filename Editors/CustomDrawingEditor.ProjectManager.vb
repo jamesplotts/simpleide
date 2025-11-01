@@ -96,7 +96,40 @@ Namespace Editors
             End Try
         End Function
 
-
+        ''' <summary>
+        ''' Initializes the ProjectManager connection for both editor and SourceFileInfo
+        ''' </summary>
+        ''' <remarks>
+        ''' Should be called during initialization to ensure proper syntax highlighting
+        ''' </remarks>
+        Private Sub InitializeProjectManagerConnection()
+            Try
+                ' First ensure the editor has ProjectManager
+                If Not EnsureProjectManager() Then
+                    Console.WriteLine("InitializeProjectManagerConnection: Failed to get ProjectManager for editor")
+                    Return
+                End If
+                
+                ' Now ensure SourceFileInfo also has it
+                If pSourceFileInfo IsNot Nothing Then
+                    ' Set the ProjectManager directly if we have it
+                    If pProjectManager IsNot Nothing Then
+                        pSourceFileInfo.ProjectManager = pProjectManager
+                        Console.WriteLine("InitializeProjectManagerConnection: Connected SourceFileInfo to ProjectManager")
+                    Else
+                        ' Try through the event mechanism
+                        If pSourceFileInfo.EnsureProjectManagerConnection() Then
+                            Console.WriteLine("InitializeProjectManagerConnection: SourceFileInfo connected via event")
+                        Else
+                            Console.WriteLine("InitializeProjectManagerConnection: Failed to connect SourceFileInfo to ProjectManager")
+                        End If
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"InitializeProjectManagerConnection error: {ex.Message}")
+            End Try
+        End Sub
 
 
         

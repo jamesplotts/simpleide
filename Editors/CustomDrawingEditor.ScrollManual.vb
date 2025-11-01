@@ -326,15 +326,73 @@ Namespace Editors
         
         ' ===== Scroll Event =====
 
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnScrollEvent
+        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OnScrollEvent
         ''' <summary>
-        ''' Handles mouse scroll wheel events
+        ''' Handles mouse scroll wheel events with debug output and Ctrl+zoom support
         ''' </summary>
         Public Shadows Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
+                Console.WriteLine($"OnScrollEvent called: Direction={vArgs.Event.Direction}, State={vArgs.Event.State}")
+                
+                ' Check for Ctrl+Scroll for zoom functionality
+                If (vArgs.Event.State And ModifierType.ControlMask) = ModifierType.ControlMask Then
+                    Console.WriteLine("Ctrl modifier detected!")
+                    
+                    ' Ctrl+Scroll: Zoom in/out via SettingsManager
+                    Select Case vArgs.Event.Direction
+                        Case ScrollDirection.Up
+                            Console.WriteLine("Ctrl+ScrollUp: Calling ZoomIn()")
+                            ZoomIn()
+                            
+                            ' CRITICAL: Force immediate redraw after zoom
+                            Application.Invoke(Sub()
+                                ' Force metrics update immediately
+                                pFontMetrics = Nothing  ' Clear cached metrics
+                                UpdateFontMetrics()
+                                
+                                ' Queue redraws
+                                pDrawingArea?.QueueDraw()
+                                pLineNumberWidget?.QueueDraw()
+                                
+                                ' Process pending events to force immediate redraw
+                                While Application.EventsPending()
+                                    Application.RunIteration(False)
+                                End While
+                            End Sub)
+                            
+                        Case ScrollDirection.Down
+                            Console.WriteLine("Ctrl+ScrollDown: Calling ZoomOut()")
+                            ZoomOut()
+                            
+                            ' CRITICAL: Force immediate redraw after zoom
+                            Application.Invoke(Sub()
+                                ' Force metrics update immediately
+                                pFontMetrics = Nothing  ' Clear cached metrics
+                                UpdateFontMetrics()
+                                
+                                ' Queue redraws
+                                pDrawingArea?.QueueDraw()
+                                pLineNumberWidget?.QueueDraw()
+                                
+                                ' Process pending events to force immediate redraw
+                                While Application.EventsPending()
+                                    Application.RunIteration(False)
+                                End While
+                            End Sub)
+                    End Select
+                    
+                    ' Return True to indicate we handled the event
+                    vArgs.RetVal = True
+                    Return True
+                End If
+                
+                Console.WriteLine("No Ctrl modifier - handling normal scroll")
                 Dim lLines As Integer = SCROLL_WHEEL_LINES
                 
                 ' Check for horizontal scrolling (Shift+Scroll)
-                If (vArgs.Event.State and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                    Console.WriteLine("Shift modifier detected - horizontal scroll")
                     ' Horizontal scroll
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up, ScrollDirection.Left
@@ -343,6 +401,7 @@ Namespace Editors
                             ScrollRight(lLines * pCharWidth)
                     End Select
                 Else
+                    Console.WriteLine("Regular vertical scroll")
                     ' Vertical scroll
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up
@@ -363,42 +422,43 @@ Namespace Editors
                         If lSeat IsNot Nothing Then
                             Dim lPointer As Gdk.Device = lSeat.Pointer
                             If lPointer IsNot Nothing Then
-                                ' Get pointer position
-                                Dim lScreen As Gdk.Screen = Nothing
-                                Dim lX, lY As Integer
-                                Dim lMask As Gdk.ModifierType = Nothing
-                                
-                                pDrawingArea.Window.GetDevicePosition(lPointer, lX, lY, lMask)
-                                
-                                ' The coordinates are already relative to the widget
-                                ' Get the position at current mouse coordinates after scroll
-                                Dim lPos As EditorPosition = GetPositionFromCoordinates(CDbl(lX), CDbl(lY))
-                                
-                                ' Update selection to this position
-                                If pIsStartingNewSelection Then
-                                    ' Creating new selection from drag
-                                    pSelectionEndLine = lPos.Line
-                                    pSelectionEndColumn = lPos.Column
-                                    pHasSelection = True
-                                    pIsStartingNewSelection = False
-                                ElseIf pHasSelection Then
-                                    ' Extending existing selection
-                                    pSelectionEndLine = lPos.Line
-                                    pSelectionEndColumn = lPos.Column
+                                ' Get the window coordinates
+                                Dim lWindow As Gdk.Window = pDrawingArea.Window
+                                If lWindow IsNot Nothing Then
+                                    Dim lX, lY As Integer
+                                    Dim lMask As ModifierType
+                                    lWindow.GetDevicePosition(lPointer, lX, lY, lMask)
+                                    
+                                    ' Update selection to current mouse position
+                                    ' Get the position at current mouse coordinates
+                                    Dim lPos As EditorPosition = GetPositionFromCoordinates(CDbl(lX), CDbl(lY))
+                                    
+                                    ' Update selection end to this position
+                                    If pTextDragAnchorLine >= 0 AndAlso pTextDragAnchorColumn >= 0 Then
+                                        pSelectionStartLine = pTextDragAnchorLine
+                                        pSelectionStartColumn = pTextDragAnchorColumn
+                                        pSelectionEndLine = lPos.Line
+                                        pSelectionEndColumn = lPos.Column
+                                        
+                                        ' Move cursor to current drag position
+                                        SetCursorPosition(lPos.Line, lPos.Column)
+                                        
+                                        ' Queue redraw for selection
+                                        pDrawingArea.QueueDraw()
+                                    End If
                                 End If
-                                
-                                ' Queue redraw for selection
-                                pDrawingArea.QueueDraw()
                             End If
                         End If
                     End If
                 End If
                 
+                ' Return True to indicate we handled the event
                 vArgs.RetVal = True
                 Return True
                 
             Catch ex As Exception
                 Console.WriteLine($"OnScrollEvent error: {ex.Message}")
+                vArgs.RetVal = False
                 Return False
             End Try
         End Function

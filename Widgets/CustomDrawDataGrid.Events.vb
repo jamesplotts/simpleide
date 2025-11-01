@@ -191,8 +191,13 @@ Namespace Widgets
                         End If
                         
                         pSelectedColumnIndex = lColumnIndex
+                        Dim lRow As DataGridRow = Nothing
+                        If lRowIndex >= 0 AndAlso lRowIndex < pRows.Count Then
+                            lRow = pRows(lRowIndex)
+                        End If
+
                         QueueDraw()
-                        RaiseEvent SelectionChanged(lRowIndex, lColumnIndex)
+                        RaiseEvent SelectionChanged(lRowIndex, lColumnIndex, lRow)
                         Return True
                     End If
                 End If
@@ -364,12 +369,17 @@ Namespace Widgets
                 
                 pSelectedRowIndex = vRowIndex
                 pSelectedRows.Clear()
-                
+
+                Dim lRow As DataGridRow = Nothing
+                If pSelectedColumnIndex >= 0 AndAlso pSelectedColumnIndex < pRows.Count Then
+                    lRow = pRows(pSelectedRowIndex)
+                End If
+
                 ' Ensure row is visible
                 EnsureRowVisible(vRowIndex)
                 
                 QueueDraw()
-                RaiseEvent SelectionChanged(vRowIndex, pSelectedColumnIndex)
+                RaiseEvent SelectionChanged(vRowIndex, pSelectedColumnIndex, lRow)
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawDataGrid.SelectRow error: {ex.Message}")

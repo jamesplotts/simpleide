@@ -28,15 +28,15 @@ Namespace Utilities
                 Dim lMessages As New List(Of Object)
                 
                 ' Add conversation history
-                For Each lMsg In vHistory.Take(10) ' Limit history to keep Context window manageable
-                    lMessages.Add(New With {
+                for each lMsg in vHistory.Take(10) ' Limit history to keep Context window manageable
+                    lMessages.Add(New with {
                         .Role = lMsg.Role,
                         .Content = lMsg.Content
                     })
                 Next
                 
                 ' Add current prompt
-                lMessages.Add(New With {
+                lMessages.Add(New with {
                     .Role = "user",
                     .Content = vPrompt
                 })
@@ -45,7 +45,7 @@ Namespace Utilities
                 Dim lSystemPrompt As String = GetSystemPrompt()
                 
                 ' Create request body
-                Dim lRequestBody As New With {
+                Dim lRequestBody As New with {
                     .model = MODEL,
                     .max_tokens = MAX_TOKENS,
                     .messages = lMessages,
@@ -54,7 +54,7 @@ Namespace Utilities
                 }
                 
                 ' Serialize to JSON
-                Dim lJsonOptions As New JsonSerializerOptions() With {
+                Dim lJsonOptions As New JsonSerializerOptions() with {
                     .PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 }
                 Dim lJson As String = JsonSerializer.Serialize(lRequestBody, lJsonOptions)
@@ -105,7 +105,7 @@ Namespace Utilities
                    "1. Hungarian Notation: l=Local, p=Private, v=Parameter, g=Global" & Environment.NewLine & _
                    "2. Enums: Start with eUnspecified, end with eLastValue, Prefix values with 'e'" & Environment.NewLine & _
                    "3. Methods: PascalCase, Events: On[Event] Pattern" & Environment.NewLine & _
-                   "4. GTK# specific: Use System.IO.Path fully qualified, Environment.NewLine not vbNewLine" & Environment.NewLine & _
+                   "4. GTK# specific: Use System.IO.Path fully qualified, Environment.NewLine Not vbNewLine" & Environment.NewLine & _
                    "5. Always use Try-Catch blocks with Console.WriteLine for debugging" & Environment.NewLine & _
                    "6. Comments: Use ' TODO:, ' FIXED:, ' NOTE: prefixes" & Environment.NewLine & _
                    Environment.NewLine & _

@@ -27,21 +27,37 @@ Namespace Editors
         ' ===== IEditor Zoom Method Implementations =====
         
         ''' <summary>
-        ''' Increase the zoom level (font size) of the editor
+        ''' Debug version of ZoomIn with console output
         ''' </summary>
         Public Sub ZoomIn() Implements IEditor.ZoomIn
             Try
+                Console.WriteLine("ZoomIn() called")
+                
+                If pSettingsManager Is Nothing Then
+                    Console.WriteLine("ZoomIn: ERROR - No SettingsManager available")
+                    Return
+                End If
+                
+                ' Get current zoom from settings
+                Dim lCurrentZoom As Integer = pSettingsManager.EditorZoomLevel
+                Console.WriteLine($"ZoomIn: Current zoom level = {lCurrentZoom}pt")
+                
                 ' Calculate new font size
-                Dim lNewSize As Integer = CInt(Math.Round(pCurrentFontSize * ZOOM_FACTOR))
+                Dim lNewSize As Integer = CInt(Math.Round(lCurrentZoom * 1.2))
+                Console.WriteLine($"ZoomIn: Calculated new size = {lNewSize}pt")
                 
                 ' Apply maximum limit
-                If lNewSize > MAX_FONT_SIZE Then
-                    lNewSize = MAX_FONT_SIZE
+                If lNewSize > 72 Then
+                    lNewSize = 72
+                    Console.WriteLine($"ZoomIn: Clamped to maximum = {lNewSize}pt")
                 End If
                 
                 ' Only update if size changed
-                If lNewSize <> pCurrentFontSize Then
-                    ApplyZoomLevel(lNewSize)
+                If lNewSize <> lCurrentZoom Then
+                    Console.WriteLine($"ZoomIn: Updating SettingsManager from {lCurrentZoom}pt to {lNewSize}pt")
+                    pSettingsManager.EditorZoomLevel = lNewSize
+                Else
+                    Console.WriteLine("ZoomIn: No change needed")
                 End If
                 
             Catch ex As Exception
@@ -50,28 +66,43 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Decrease the zoom level (font size) of the editor
+        ''' Debug version of ZoomOut with console output
         ''' </summary>
         Public Sub ZoomOut() Implements IEditor.ZoomOut
             Try
+                Console.WriteLine("ZoomOut() called")
+                
+                If pSettingsManager Is Nothing Then
+                    Console.WriteLine("ZoomOut: ERROR - No SettingsManager available")
+                    Return
+                End If
+                
+                ' Get current zoom from settings
+                Dim lCurrentZoom As Integer = pSettingsManager.EditorZoomLevel
+                Console.WriteLine($"ZoomOut: Current zoom level = {lCurrentZoom}pt")
+                
                 ' Calculate new font size
-                Dim lNewSize As Integer = CInt(Math.Round(pCurrentFontSize / ZOOM_FACTOR))
+                Dim lNewSize As Integer = CInt(Math.Round(lCurrentZoom / 1.2))
+                Console.WriteLine($"ZoomOut: Calculated new size = {lNewSize}pt")
                 
                 ' Apply minimum limit
-                If lNewSize < MIN_FONT_SIZE Then
-                    lNewSize = MIN_FONT_SIZE
+                If lNewSize < 6 Then
+                    lNewSize = 6
+                    Console.WriteLine($"ZoomOut: Clamped to minimum = {lNewSize}pt")
                 End If
                 
                 ' Only update if size changed
-                If lNewSize <> pCurrentFontSize Then
-                    ApplyZoomLevel(lNewSize)
+                If lNewSize <> lCurrentZoom Then
+                    Console.WriteLine($"ZoomOut: Updating SettingsManager from {lCurrentZoom}pt to {lNewSize}pt")
+                    pSettingsManager.EditorZoomLevel = lNewSize
+                Else
+                    Console.WriteLine("ZoomOut: No change needed")
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ZoomOut error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub        
         ''' <summary>
         ''' Reset zoom to default level
         ''' </summary>
@@ -115,7 +146,7 @@ Namespace Editors
                     Dim lNewFontDesc As String = $"{lFontFamily} {vFontSize}"
                     
                     ' Apply the new font
-                    ApplyFont(lNewFontDesc)
+                    pSettingsManager.EditorFont = lNewFontDesc
                     
                     ' Log the zoom change
                     Console.WriteLine($"Zoom applied: {vFontSize}pt (from {pBaseFontSize}pt base)")

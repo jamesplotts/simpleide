@@ -918,11 +918,6 @@ Namespace Managers
         
 
 
-        Public ReadOnly Property SourceFiles() As Dictionary(Of String, SourceFileInfo)
-            Get
-                Return pSourceFiles
-            End Get
-        End Property
     
         ''' <summary>
         ''' Update a specific file's structure (e.g., when edited)
@@ -933,7 +928,7 @@ Namespace Managers
             Try
                 If Not pSourceFiles.ContainsKey(vFilePath) Then
                     ' Create new SourceFileInfo if not exists
-                    Dim lFileInfo As New SourceFileInfo(vFilePath, "", pCurrentProjectInfo.ProjectDirectory)
+                    Dim lFileInfo As New SourceFileInfo(vFilePath, "")
                     pSourceFiles(vFilePath) = lFileInfo
                 End If
                 

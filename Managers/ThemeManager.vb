@@ -533,8 +533,6 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Load theme from file
-        ' Replace: SimpleIDE.Managers.ThemeManager.LoadThemeFromFile
         ''' <summary>
         ''' Load theme from file
         ''' </summary>
@@ -558,21 +556,31 @@ Namespace Managers
                 lTheme.CursorColor = lThemeData.CursorColor
                 
                 ' Load status colors with defaults if missing
-                lTheme.ErrorColor = If(lThemeData.ErrorColor, If(lTheme.IsDarkTheme, "#FF6B6B", "#D32F2F"))
-                lTheme.WarningColor = If(lThemeData.WarningColor, If(lTheme.IsDarkTheme, "#FFB86C", "#F57C00"))
-                lTheme.InfoColor = If(lThemeData.InfoColor, If(lTheme.IsDarkTheme, "#6272A4", "#1976D2"))
-                lTheme.SuccessColor = If(lThemeData.SuccessColor, If(lTheme.IsDarkTheme, "#50FA7B", "#388E3C"))
+                lTheme.ErrorColor = If(lThemeData.ErrorColor, "#F48771")
+                lTheme.WarningColor = If(lThemeData.WarningColor, "#CCA700")
+                lTheme.InfoColor = If(lThemeData.InfoColor, "#75BEFF")
+                lTheme.SuccessColor = If(lThemeData.SuccessColor, "#89D185")
                 
-                lTheme.FontFamily = lThemeData.FontFamily
+                ' Load tab colors (NEW) - may not exist in older theme files
+                lTheme.EditorBackgroundColor = If(lThemeData.EditorBackgroundColor, "")
+                lTheme.TabInactiveColor = If(lThemeData.TabInactiveColor, "")
+                lTheme.TabHoverColor = If(lThemeData.TabHoverColor, "")
+                lTheme.AccentColor = If(lThemeData.AccentColor, "")
+                
+                
+                ' Font settings
+                lTheme.FontFamily = If(lThemeData.FontFamily, "Monospace")
                 lTheme.FontSize = lThemeData.FontSize
-                
-                ' Load syntax colors
+'                 
+                ' Syntax colors
                 If lThemeData.SyntaxColors IsNot Nothing Then
-                    for each kvp in lThemeData.SyntaxColors
-                        Dim lTag As SyntaxColorSet.Tags
-                        If [Enum].TryParse(Of SyntaxColorSet.Tags)(kvp.Key, lTag) Then
-                            lTheme.SyntaxColors(lTag) = kvp.Value
-                        End If
+                    for each lKvp in lThemeData.SyntaxColors
+                        Try
+                            Dim lTag As SyntaxColorSet.Tags = DirectCast([Enum].Parse(GetType(SyntaxColorSet.Tags), lKvp.Key), SyntaxColorSet.Tags)
+                            lTheme.SyntaxColors(lTag) = lKvp.Value
+                        Catch
+                            ' Ignore invalid syntax color tags
+                        End Try
                     Next
                 End If
                 
@@ -933,6 +941,12 @@ Namespace Managers
             Public Property CurrentLineNumberColor As String
             Public Property CursorColor As String
             
+            ' Tab colors (NEW)
+            Public Property EditorBackgroundColor As String
+            Public Property TabInactiveColor As String
+            Public Property TabHoverColor As String
+            Public Property AccentColor As String
+
             ' Status colors
             Public Property ErrorColor As String
             Public Property WarningColor As String

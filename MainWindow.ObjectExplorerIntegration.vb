@@ -374,7 +374,7 @@ Partial Public Class MainWindow
                     lNewPage.ShowAll()
                     
                     ' Call OnPageActivated to ensure proper initialization
-Console.WriteLine($"OnPageActivated called from MainWindow.OnLeftNotebookPageChanged")
+                    Console.WriteLine($"OnPageActivated called from MainWindow.OnLeftNotebookPageChanged")
                     pObjectExplorer.OnPageActivated()
                 End Sub)
             End If

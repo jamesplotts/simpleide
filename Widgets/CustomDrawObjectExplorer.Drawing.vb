@@ -176,27 +176,19 @@ Namespace Widgets
         
         ' ===== Corner Box Drawing =====
         
+        ' Replace: SimpleIDE.Widgets.CustomDrawObjectExplorer.OnCornerBoxDraw
         ''' <summary>
-        ''' Draws the corner box grip handle
+        ''' Draws the corner box using theme-aware styling
         ''' </summary>
         Private Function OnCornerBoxDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
                 Dim lContext As Cairo.Context = vArgs.Cr
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
                 
-                ' Draw background matching scrollbar style
-                lContext.SetSourceRGB(0.9, 0.9, 0.9)
-                lContext.Rectangle(0, 0, pCornerBox.AllocatedWidth, pCornerBox.AllocatedHeight)
-                lContext.Fill()
-                
-                ' Draw grip lines
-                lContext.SetSourceRGB(0.6, 0.6, 0.6)
-                lContext.LineWidth = 1
-                
-                for i As Integer = 4 To 12 Step 3
-                    lContext.MoveTo(i, pCornerBox.AllocatedHeight - 4)
-                    lContext.LineTo(pCornerBox.AllocatedWidth - 4, i)
-                    lContext.Stroke()
-                Next
+                ' Draw background matching theme line number background color (same as Project Explorer)
+                Dim lBgColor As Cairo.Color = HexToCairoColor(lTheme.LineNumberBackgroundColor)
+                lContext.SetSourceRGB(lBgColor.R, lBgColor.G, lBgColor.B)
+                lContext.Paint()
                 
                 Return True
                 
@@ -659,7 +651,7 @@ Namespace Widgets
                     Case CodeNodeType.eField
                         lColor = If(lIsDark, HexToCairoColor("#51CF66"), HexToCairoColor("#2B8A3E"))  ' Green for fields
                         
-                    Case CodeNodeType.eConstant
+                    Case CodeNodeType.eConst
                         lColor = If(lIsDark, HexToCairoColor("#FFB700"), HexToCairoColor("#FF8500"))  ' Orange for constants
                         
                     Case CodeNodeType.eEvent

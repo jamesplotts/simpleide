@@ -47,6 +47,13 @@ Namespace Managers
         Private pThemeManager As ThemeManager
 
 
+
+        Public ReadOnly Property SourceFiles() As Dictionary(Of String, SourceFileInfo)
+            Get
+                Return pSourceFiles
+            End Get
+        End Property
+
         
         ''' <summary>
         ''' Dictionary of all source files in the project, keyed by full path
@@ -316,37 +323,47 @@ Namespace Managers
         End Function
         
         ' Close current project
-        Public Sub CloseProject()
-            Try
-                If Not pIsProjectOpen Then Return
-                
-                ' Save any pending changes
-                If pIsDirty Then
-                    SaveProjectMetadata()
-                End If
-                
-                ' Stop file watcher
-                If pProjectWatcher IsNot Nothing Then
-                    pProjectWatcher.EnableRaisingEvents = False
-                    pProjectWatcher.Dispose()
-                    pProjectWatcher = Nothing
-                End If
-                
-                ' Clear project info
-                pCurrentProjectInfo = Nothing
-                pProjectMetadata = Nothing
-                pProjectReferences = Nothing
-                pReferenceManager = Nothing
-                pIsProjectOpen = False
-                pIsDirty = False
-                
-                ' Raise event
-                RaiseEvent ProjectClosed()
-                
-            Catch ex As Exception
-                Console.WriteLine($"ProjectManager.CloseProject error: {ex.Message}")
-            End Try
-        End Sub
+' Replace: SimpleIDE.Managers.ProjectManager.CloseProject
+' Close current project
+Public Sub CloseProject()
+    Try
+        If Not pIsProjectOpen Then Return
+        
+        ' Save any pending changes
+        If pIsDirty Then
+            SaveProjectMetadata()
+        End If
+        
+        ' Stop file watcher
+        If pProjectWatcher IsNot Nothing Then
+            pProjectWatcher.EnableRaisingEvents = False
+            pProjectWatcher.Dispose()
+            pProjectWatcher = Nothing
+        End If
+        
+        ' IMPORTANT: Clean up all SourceFileInfo event handlers
+        If pSourceFiles IsNot Nothing Then
+            For Each lKvp In pSourceFiles
+                UnwireSourceFileInfoEvents(lKvp.Value)
+            Next
+            pSourceFiles.Clear()
+        End If
+        
+        ' Clear project info
+        pCurrentProjectInfo = Nothing
+        pProjectMetadata = Nothing
+        pProjectReferences = Nothing
+        pReferenceManager = Nothing
+        pIsProjectOpen = False
+        pIsDirty = False
+        
+        ' Raise event
+        RaiseEvent ProjectClosed()
+        
+    Catch ex As Exception
+        Console.WriteLine($"ProjectManager.CloseProject error: {ex.Message}")
+    End Try
+End Sub
         
         ' Get current project info
         Public Function GetProjectInfo(vProjectPath As String) As ProjectInfo
@@ -402,14 +419,13 @@ Namespace Managers
         
         ' ===== File Operations =====
         
-        ' Replace: SimpleIDE.Managers.ProjectManager.AddFileToProject
         ''' <summary>
         ''' Add a file to the project with specified item type
         ''' </summary>
         ''' <param name="vFilePath">Full path to the file</param>
         ''' <param name="vItemType">Item type (e.g., "Compile", "Content", "None")</param>
         ''' <returns>True if successfully added, False otherwise</returns>
-        Public Function AddFileToProject(vFilePath As String, vItemType As String) As Boolean
+        Public Function AddFileToProject(vFilePath As String, Optional vItemType As String = "Compile") As Boolean
             Try
                 If Not pIsProjectOpen Then Return False
                 
@@ -454,6 +470,34 @@ Namespace Managers
                 ' Update project info
                 If vItemType = "Compile" Then
                     pCurrentProjectInfo.CompileItems.Add(lRelativePath)
+                    
+                    ' CRITICAL: Create SourceFileInfo for the newly added file
+                    If Not pSourceFiles.ContainsKey(vFilePath) Then
+                        Console.WriteLine($"Creating SourceFileInfo for newly added file: {vFilePath}")
+                        
+                        ' Create new SourceFileInfo
+                        Dim lSourceInfo As New SourceFileInfo(vFilePath, "")
+                        
+                        ' Load content if file exists
+                        If File.Exists(vFilePath) Then
+                            lSourceInfo.LoadContent()
+                        End If
+                        
+                        ' Set project context
+                        lSourceInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                        lSourceInfo.ProjectManager = Me
+                        
+                        ' Wire up events
+                        WireSourceFileInfoEvents(lSourceInfo)
+                        
+                        ' Add to collection
+                        pSourceFiles(vFilePath) = lSourceInfo
+                        
+                        ' Parse the file if it has content
+                        If lSourceInfo.IsLoaded Then
+                            ParseFile(lSourceInfo)
+                        End If
+                    End If
                 End If
                 
                 ' Mark as dirty
@@ -932,11 +976,6 @@ Namespace Managers
                 pDisposed = True
             End If
         End Sub
-        
-        Public Sub Dispose() Implements IDisposable.Dispose
-            Dispose(True)
-            GC.SuppressFinalize(Me)
-        End Sub
 
         
         ''' <summary>
@@ -1386,7 +1425,7 @@ Namespace Managers
                     Return 24
                 Case CodeNodeType.eField
                     Return 25
-                Case CodeNodeType.eConstant
+                Case CodeNodeType.eConst
                     Return 26
                 Case CodeNodeType.eOperator
                     Return 27
@@ -1434,7 +1473,56 @@ Namespace Managers
             End Try
         End Function
 
-    End Class
+
+        
+'        Public Sub Dispose() Implements IDisposable.Dispose
+'            Dispose(True)
+'            GC.SuppressFinalize(Me)
+'        End Sub
+
+''' <summary>
+''' Disposes of the ProjectManager and cleans up resources
+''' </summary>
+Public Sub Dispose() Implements IDisposable.Dispose
+    Try
+        ' Close project if open
+        If pIsProjectOpen Then
+            CloseProject()
+        End If
+        
+        ' Clean up any remaining source files
+        If pSourceFiles IsNot Nothing Then
+            For Each lKvp In pSourceFiles
+                UnwireSourceFileInfoEvents(lKvp.Value)
+            Next
+            pSourceFiles.Clear()
+            pSourceFiles = Nothing
+        End If
+        
+        ' Dispose of file watcher if still exists
+        If pProjectWatcher IsNot Nothing Then
+            pProjectWatcher.EnableRaisingEvents = False
+            pProjectWatcher.Dispose()
+            pProjectWatcher = Nothing
+        End If
+        
+        ' Clear references
+        pCurrentProjectInfo = Nothing
+        pProjectMetadata = Nothing
+        pProjectReferences = Nothing
+        pReferenceManager = Nothing
+        pProjectSyntaxTree = Nothing
+        pRootNode = Nothing
+        pThemeManager = Nothing
+        
+        Console.WriteLine("ProjectManager: Disposed")
+        
+    Catch ex As Exception
+        Console.WriteLine($"ProjectManager.Dispose error: {ex.Message}")
+    End Try
+End Sub
+
+    End Class ' ProjectManager
     
     ' Project metadata stored separately from project file
     Public Class ProjectMetadata

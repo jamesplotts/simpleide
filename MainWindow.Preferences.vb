@@ -53,10 +53,9 @@ Partial Public Class MainWindow
             ' AddHandler pPreferencesTab.SettingsChanged, AddressOf OnPreferencesSettingsChanged
             
             ' Create tab label with close button
-            Dim lTabLabel As Box = CreatePreferencesTabLabel()
             
             ' Add to notebook
-            pPreferencesTabIndex = pNotebook.AppendPage(pPreferencesTab, lTabLabel)
+            pPreferencesTabIndex = pNotebook.AppendPage(pPreferencesTab, "Preferences")
             
             ' Show all and switch to the new tab
             pNotebook.ShowAll()
@@ -186,9 +185,6 @@ Partial Public Class MainWindow
         Try
             Console.WriteLine("Applying preferences changes to IDE...")
             
-            ' ===== Apply Editor Settings to All Open Editors =====
-            ApplyEditorSettingsToAllTabs()
-            
             ' ===== Apply Theme Changes =====
             ApplyThemeChanges()
             
@@ -215,87 +211,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Applies editor settings to all open editor tabs
-    ''' </summary>
-    Private Sub ApplyEditorSettingsToAllTabs()
-        Try
-            ' Get settings from SettingsManager
-            Dim lFont As String = pSettingsManager.EditorFont
-            Dim lTabWidth As Integer = pSettingsManager.TabWidth
-            Dim lUseTabs As Boolean = pSettingsManager.UseTabs
-            Dim lShowLineNumbers As Boolean = pSettingsManager.ShowLineNumbers
-            Dim lHighlightCurrentLine As Boolean = pSettingsManager.HighlightCurrentLine
-            Dim lWordWrap As Boolean = pSettingsManager.WordWrap
-            Dim lAutoIndent As Boolean = pSettingsManager.AutoIndent
-            Dim lShowWhitespace As Boolean = pSettingsManager.GetBoolean("Editor.ShowWhitespace", False)
-            Dim lShowEndOfLine As Boolean = pSettingsManager.GetBoolean("Editor.ShowEndOfLine", False)
-            
-            ' Apply to all open editors
-            For Each lTabEntry In pOpenTabs
-                Dim lTabInfo As TabInfo = lTabEntry.Value
-                
-                ' Skip non-editor tabs (like preferences, theme editor, etc.)
-                If lTabInfo.Editor Is Nothing Then Continue For
-                
-                ' Apply settings based on editor type
-                If TypeOf lTabInfo.Editor Is CustomDrawingEditor Then
-                    Dim lEditor As CustomDrawingEditor = DirectCast(lTabInfo.Editor, CustomDrawingEditor)
-                    
-                    ' Apply font
-                    If Not String.IsNullOrEmpty(lFont) Then
-                        lEditor.ApplyFont(lFont)
-                    End If
-                    
-                    ' Apply tab settings
-                    lEditor.SetTabWidth(lTabWidth)
-                    lEditor.SetUseTabs(lUseTabs)
-                    
-                    ' Apply display settings
-                    lEditor.SetShowLineNumbers(lShowLineNumbers)
-                    lEditor.SetHighlightCurrentLine(lHighlightCurrentLine)
-                    lEditor.SetWordWrap(lWordWrap)
-                    lEditor.SetAutoIndent(lAutoIndent)
-                    lEditor.SetShowWhitespace(lShowWhitespace)
-                    
-                    ' Note: SetShowEndOfLine might not exist yet, check if method exists
-                    Try
-                        ' lEditor.SetShowEndOfLine(lShowEndOfLine)
-                    Catch
-                        ' Method might not exist yet
-                    End Try
-                    
-                    ' Force redraw to apply changes
-                    lEditor.QueueDraw()
-                    
-                ElseIf TypeOf lTabInfo.Editor Is IEditor Then
-                    ' Generic IEditor interface - apply what we can
-                    Dim lEditor As IEditor = lTabInfo.Editor
-                    
-                    ' Apply font if supported
-                    Try
-                        lEditor.ApplyFont(lFont)
-                    Catch
-                        ' Editor might not support font changes
-                    End Try
-                    
-                    ' Apply tab settings if supported
-                    Try
-                        lEditor.TabWidth = lTabWidth
-                        lEditor.UseTabs = lUseTabs
-                        lEditor.AutoIndent = lAutoIndent
-                    Catch
-                        ' Editor might not support these properties
-                    End Try
-                End If
-            Next
-            
-            Console.WriteLine("Editor settings applied to all tabs")
-            
-        Catch ex As Exception
-            Console.WriteLine($"ApplyEditorSettingsToAllTabs error: {ex.Message}")
-        End Try
-    End Sub
     
     ''' <summary>
     ''' Applies theme changes to all components

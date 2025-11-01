@@ -4,6 +4,7 @@ Imports System
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
+Imports SimpleIDE.Syntax
 
 Namespace Editors
     
@@ -179,7 +180,7 @@ Namespace Editors
             End Try
         End Sub
         
-        Private Sub ShowLineNumberContextMenu(vX As Double, vY As Double)
+        Public Sub ShowLineNumberContextMenu(vX As Double, vY As Double)
             Try
                 pLastRightClickX = vX
                 pLastRightClickY = vY
@@ -348,27 +349,78 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Handles the Go to Definition context menu item click
+        ''' </summary>
+        ''' <param name="vSender">The menu item that was clicked</param>
+        ''' <param name="vArgs">Event arguments</param>
+        ''' <remarks>
+        ''' Extracts the word at the cursor position and raises the RequestGotoDefinition event
+        ''' </remarks>
         Private Sub OnContextMenuGoToDefinition(vSender As Object, vArgs As EventArgs)
             Try
+                Console.WriteLine("OnContextMenuGoToDefinition: Started")
+                
+                ' First try to get selected text
                 Dim lSelectedText As String = GetSelectedText()
+                Dim lWord As String = ""
+                Dim lColumnNumber As Integer = 0
+                
                 If Not String.IsNullOrWhiteSpace(lSelectedText) Then
-                    ' TODO: Implement Go To Definition functionality
-                    ' This would integrate with the project manager to find symbol definitions
-                    Console.WriteLine($"Go To Definition requested for: {lSelectedText.Trim()}")
+                    ' Use the selected text as the word
+                    lWord = lSelectedText.Trim()
+                    lColumnNumber = Math.Min(pSelectionStartColumn, pSelectionEndColumn)
+                    Console.WriteLine($"OnContextMenuGoToDefinition: Using selected text '{lWord}'")
+                Else
+                    ' No selection, get the word at cursor position
+                    Console.WriteLine($"OnContextMenuGoToDefinition: No selection, getting word at cursor {pCursorLinep}:{pCursorColumn}")
                     
-                    ' For now, show a placeholder message
-                    Dim lDialog As New MessageDialog(
-                        Nothing,
-                        DialogFlags.Modal,
-                        MessageType.Info,
-                        ButtonsType.Ok,
-                        $"Go To Definition for '{lSelectedText.Trim()}' is not yet implemented.")
-                    lDialog.Run()
-                    lDialog.Destroy()
+                    ' Check if we have a valid line
+                    If pCursorLinep >= 0 AndAlso pCursorLinep < TextLines.Count Then
+                        Dim lLine As String = TextLines(pCursorLinep)
+                        
+                        ' Use tokenizer to find the word at cursor
+                        Dim lTokenizer As New VBTokenizer()
+                        Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(lLine)
+                        
+                        ' Find the token at cursor position
+                        For Each lToken In lTokens
+                            If pCursorColumn >= lToken.StartColumn AndAlso pCursorColumn <= lToken.EndColumn Then
+                                ' Check if it's an identifier token
+                                If lToken.Type = TokenType.eIdentifier OrElse 
+                                   lToken.Type = TokenType.eKeyword OrElse
+                                   lToken.Type = TokenType.eType Then
+                                    lWord = lToken.Text
+                                    lColumnNumber = lToken.StartColumn
+                                    Console.WriteLine($"OnContextMenuGoToDefinition: Found word '{lWord}' at column {lColumnNumber}")
+                                    Exit For
+                                End If
+                            End If
+                        Next
+                    End If
                 End If
+                
+                ' Check if we found a word
+                If String.IsNullOrWhiteSpace(lWord) Then
+                    Console.WriteLine("OnContextMenuGoToDefinition: No word found at cursor position")
+                    Return
+                End If
+                
+                ' Create event arguments
+                Dim lEventArgs As New GoToDefinitionEventArgs()
+                lEventArgs.FilePath = pSourceFileInfo.FilePath
+                lEventArgs.LineNumber = pCursorLinep
+                lEventArgs.ColumnNumber = lColumnNumber
+                lEventArgs.Word = lWord
+                
+                Console.WriteLine($"OnContextMenuGoToDefinition: Raising event for word '{lWord}' at {lEventArgs.FilePath}:{lEventArgs.LineNumber}:{lEventArgs.ColumnNumber}")
+                
+                ' Raise the event
+                RaiseEvent RequestGotoDefinition(Me, lEventArgs)
                 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuGoToDefinition error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub
         
@@ -619,6 +671,42 @@ Namespace Editors
             End Try
         End Sub
         
+        
+    End Class
+
+    
+    ''' <summary>
+    ''' Event arguments for Go to Definition requests
+    ''' </summary>
+    ''' <remarks>
+    ''' Contains information about the word and location where Go to Definition was requested
+    ''' </remarks>
+    Public Class GotoDefinitionEventArgs
+        Inherits EventArgs
+        
+        ''' <summary>
+        ''' Gets or sets the file path where the request originated
+        ''' </summary>
+        ''' <value>Full path to the source file</value>
+        Public Property FilePath As String
+        
+        ''' <summary>
+        ''' Gets or sets the line number where the word is located (0-based)
+        ''' </summary>
+        ''' <value>0-based line index</value>
+        Public Property LineNumber As Integer
+        
+        ''' <summary>
+        ''' Gets or sets the column position where the word starts (0-based)
+        ''' </summary>
+        ''' <value>0-based column index</value>
+        Public Property ColumnNumber As Integer
+        
+        ''' <summary>
+        ''' Gets or sets the word/symbol for which definition is requested
+        ''' </summary>
+        ''' <value>The text of the symbol to find</value>
+        Public Property Word As String
         
     End Class
     

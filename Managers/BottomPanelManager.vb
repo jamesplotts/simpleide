@@ -10,7 +10,7 @@ Namespace Managers
     Public Class BottomPanelManager
         
         ' Private fields
-        Private pNotebook As Notebook
+        Private pNotebook As CustomDrawNotebook
         Private pCurrentHeight As Integer = 200
         Private pSettingsManager As SettingsManager
         Private pIsVisible As Boolean = False
@@ -31,7 +31,7 @@ Namespace Managers
         Public Event PanelClosed()
         Public Event FindResultSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event TodoSelected(vTodo As TODOItem)
-        Public Event BuildErrorSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
+        Public Event BuildErrorWarningSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event SendErrorsToAI(vErrorsText As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         Public Event HelpTitleChanged(vTitle As String)
@@ -123,34 +123,65 @@ Namespace Managers
             Initialize()
         End Sub
         
-        ' Initialize the bottom panel
+        ''' <summary>
+        ''' Initialize the bottom panel with CustomDrawNotebook
+        ''' </summary>
         Public Sub Initialize()
             Try
-                ' Create notebook
-                pNotebook = New Notebook()
-                pNotebook.Scrollable = True
-                pNotebook.EnablePopup = True
+                Console.WriteLine("BottomPanelManager.Initialize: Starting")
                 
-                ' Create tabs
+                ' Create CustomDrawNotebook instead of regular Notebook
+                pNotebook = New CustomDrawNotebook()
+                
+                ' Configure the CustomDrawNotebook
+                Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                lCustomNotebook.ShowHidePanelButton = True ' Bottom panel needs hide button
+                lCustomNotebook.ShowDropdownButton = False   ' No dropdown needed - all tabs fit
+                lCustomNotebook.ShowScrollButtons = False    ' No scroll buttons needed - all tabs fit
+                lCustomNotebook.ShowTabCloseButtons = True   ' CHANGED: Show close buttons on tabs
+        
+                ' Set theme if available
+                If pThemeManager IsNot Nothing Then
+                    lCustomNotebook.SetThemeManager(pThemeManager)
+                End If
+                
+                ' Wire up CustomDrawNotebook specific events
+                AddHandler lCustomNotebook.CurrentTabChanged, AddressOf OnTabSwitched
+                AddHandler lCustomNotebook.HidePanelRequested, AddressOf OnHidePanelRequested
+                AddHandler lCustomNotebook.TabClosing, AddressOf OnTabClosing
+                
+                ' Create tabs using CustomDrawNotebook's AppendPage with icons
+                Console.WriteLine("  Creating Build Output tab")
                 CreateBuildOutputTab()
+                Console.WriteLine("  Creating Find Results tab")
                 CreateFindResultsTab()
+                Console.WriteLine("  Creating Todo List tab")
                 CreateTodoListTab()
+                Console.WriteLine("  Creating AI Assistant tab")
                 CreateAIAssistantTab()
+                Console.WriteLine("  Creating Help Viewer tab")
                 CreateHelpViewerTab()
+                Console.WriteLine("  Creating Git tab")
                 CreateGitTab()
+                Console.WriteLine("  Creating Console tab")
                 CreateConsoleTab()
                 
-                ' Handle tab switching
-                AddHandler pNotebook.SwitchPage, AddressOf OnTabSwitched
-                
                 InitializeEscapeKeyHandling()
-
-                ' Load initial settings
-                'LoadSettings()
-
-                ' Initially hide the panel
+        
+                ' CRITICAL: Show all tabs to ensure they're visible
+                lCustomNotebook.ShowAll()
+                
+                ' Set the first tab as active
+                If lCustomNotebook.NPages > 0 Then
+                    Console.WriteLine($"  Setting tab 0 as current")
+                    lCustomNotebook.CurrentPage = 0
+                End If
+                
+                ' Initially hide the panel (will be shown when needed)
                 pNotebook.Visible = False
                 pIsVisible = False
+                
+                Console.WriteLine($"BottomPanelManager.Initialize: Completed with {lCustomNotebook.NPages} tabs")
                 
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.Initialize error: {ex.Message}")
@@ -212,46 +243,53 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create Build Output tab
+        ' Replace: SimpleIDE.Managers.BottomPanelManager.CreateBuildOutputTab
+        ''' <summary>
+        ''' Creates the Build Output tab with the BuildOutputPanel
+        ''' </summary>
         Private Sub CreateBuildOutputTab()
             Try
-                pBuildOutputPanel = New BuildOutputPanel()
+                Console.WriteLine("CreateBuildOutputTab: Starting")
                 
-                ' Set theme manager if available
+                ' Create the BuildOutputPanel
+                pBuildOutputPanel = New BuildOutputPanel(pThemeManager)
+                
+                ' Wire up events
+                AddHandler pBuildOutputPanel.ErrorSelected, AddressOf OnErrorWarningSelected
+                AddHandler pBuildOutputPanel.WarningSelected, AddressOf OnErrorWarningSelected
+                AddHandler pBuildOutputPanel.SendErrorsToAI, AddressOf OnSendErrorsToAI
+                
+                ' Set theme if available
                 If pThemeManager IsNot Nothing Then
                     pBuildOutputPanel.SetThemeManager(pThemeManager)
                 End If
                 
-                ' Connect events - FIXED: Use proper delegate syntax
-                AddHandler pBuildOutputPanel.ErrorSelected, 
-                    Sub(vPath As String, vLine As Integer, vCol As Integer)
-                        RaiseEvent BuildErrorSelected(vPath, vLine, vCol)
-                    End Sub
-        
-                AddHandler pBuildOutputPanel.ErrorDoubleClicked, 
-                    Sub(vError As BuildError)
-                        RaiseEvent ErrorDoubleClicked(vError)
-                    End Sub
+                ' Add to notebook using CustomDrawNotebook's AppendPage with icon
+                If TypeOf pNotebook Is CustomDrawNotebook Then
+                    Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                    Dim lIndex As Integer = lCustomNotebook.AppendPage(pBuildOutputPanel, "Build Output", "build")
+                    Console.WriteLine($"  Build Output tab added at index {lIndex}")
+                    
+                    ' Ensure the panel is visible
+                    pBuildOutputPanel.ShowAll()
+                Else
+                    pNotebook.AppendPage(pBuildOutputPanel, "Build Output")
+                End If
                 
-                AddHandler pBuildOutputPanel.SendErrorsToAI, 
-                    Sub(vErrors As String)
-                        RaiseEvent SendErrorsToAI(vErrors)
-                    End Sub
-                
-                AddHandler pBuildOutputPanel.CloseRequested, 
-                    Sub()
-                        HidePanel()
-                    End Sub
-                
-                ' Create tab with close button
-                Dim lTabLabel As Box = CreateTabLabel("Build output", 0)
-                pNotebook.AppendPage(pBuildOutputPanel, lTabLabel)
+                Console.WriteLine("CreateBuildOutputTab: Completed")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateBuildOutputTab error: {ex.Message}")
             End Try
+        End Sub 
+
+        Private Sub OnErrorWarningSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
+            RaiseEvent BuildErrorWarningSelected(vFilePath, vLine, vColumn)
         End Sub
 
+        Private Sub OnSendErrorsToAI(vErrorsText As String)
+            RaiseEvent SendErrorsToAI(vErrorsText)
+        End Sub
         
         Private Function CreateTabLabel(vLabelText As String, vModified As Boolean) As Widget
             Try
@@ -439,46 +477,38 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create TODO List tab
+        ''' <summary>
+        ''' Creates the TODO list tab with icon
+        ''' </summary>
         Private Sub CreateTodoListTab()
             Try
                 pTodoPanel = New TodoPanel()
                 
-                ' Connect events - FIXED: Use proper delegate syntax
                 AddHandler pTodoPanel.TodoSelected, 
                     Sub(vTodo As TODOItem)
                         RaiseEvent TodoSelected(vTodo)
                     End Sub
                 
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("TODO List", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                
-                pNotebook.AppendPage(pTodoPanel, lTabLabel)
+                ' Add to notebook with icon
+                pNotebook.AppendPage(pTodoPanel, "TODO List", "list-checks")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateTodoListTab error: {ex.Message}")
             End Try
         End Sub
         
-        ' Create AI Assistant tab
+        ''' <summary>
+        ''' Creates the AI Assistant tab with icon
+        ''' </summary>
         Private Sub CreateAIAssistantTab()
             Try
-                ' FIXED: Get API key from settings manager
                 Dim lApiKey As String = If(pSettingsManager IsNot Nothing, 
                     pSettingsManager.GetString("AI.ApiKey", ""), "")
                     
-                pAIAssistantPanel = New AIAssistantPanel(lApiKey)
-                
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("AI Assistant", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                
-                pNotebook.AppendPage(pAIAssistantPanel, lTabLabel)
+                pAIAssistantPanel = New AIAssistantPanel(lApiKey)    
+                            
+                ' Add to notebook with icon
+                pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "bot")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateAIAssistantTab error: {ex.Message}")
@@ -511,27 +541,26 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create Help Viewer tab
+        ''' <summary>
+        ''' Creates the Help Viewer tab with icon
+        ''' </summary>
         Private Sub CreateHelpViewerTab()
             Try
-                Console.WriteLine($"CreateHelpViewerTab Called")
                 pHelpViewerPanel = New HelpViewerPanel()
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("Help", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                    
-                ' Add event handlers
-                AddHandler pHelpViewerPanel.TitleChanged, AddressOf OnHelpTitleChanged
-
-                pNotebook.AppendPage(pHelpViewerPanel, lTabLabel)
+                
+                AddHandler pHelpViewerPanel.TitleChanged,
+                    Sub(vTitle As String)
+                        OnHelpTitleChanged(vTitle)
+                    End Sub
+                
+                ' Add to notebook with icon
+                pNotebook.AppendPage(pHelpViewerPanel, "Help", "help-circle")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateHelpViewerTab error: {ex.Message}")
             End Try
-        End Sub
-        
+        End Sub      
+          
         ' Update help title - PUBLIC METHOD
         Public Sub UpdateHelpTitle(vTitle As String)
             Try
@@ -548,19 +577,16 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create Git tab
+        ''' <summary>
+        ''' Creates the Git tab with icon
+        ''' </summary>
         Private Sub CreateGitTab()
             Try
                 pGitPanel = New GitPanel()
                 
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("git", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
+                ' Add to notebook with icon
+                pNotebook.AppendPage(pGitPanel, "Git", "git-branch")
                 
-                pNotebook.AppendPage(pGitPanel, lTabLabel)
-               
             Catch ex As Exception
                 Console.WriteLine($"CreateGitTab error: {ex.Message}")
             End Try
@@ -578,36 +604,28 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create Console tab
+        ''' <summary>
+        ''' Creates the Console tab with icon
+        ''' </summary>
         Private Sub CreateConsoleTab()
             Try
-                Dim lScrolled As New ScrolledWindow()
-                lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+                Dim lScrolledWindow As New ScrolledWindow()
+                lScrolledWindow.VscrollbarPolicy = PolicyType.Automatic
+                lScrolledWindow.HscrollbarPolicy = PolicyType.Never
                 
                 pConsoleTextView = New TextView()
                 pConsoleTextView.Editable = False
+                pConsoleTextView.CursorVisible = False
                 pConsoleTextView.WrapMode = WrapMode.Word
                 
-                ' Apply font settings
-                If pSettingsManager IsNot Nothing Then
-                    Dim lFontDesc As String = pSettingsManager.EditorFont
-                    ' FIXED: Use correct CssHelper method
-                    If Not String.IsNullOrEmpty(lFontDesc) Then
-                        Dim lCss As String = CssHelper.GenerateTextViewFontCss(lFontDesc)
-                        CssHelper.ApplyCssToWidget(pConsoleTextView, lCss, 
-                            CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-                    End If
-                End If
+                ' Apply monospace font
+                Dim lFontDesc As Pango.FontDescription = Pango.FontDescription.FromString("Monospace 10")
+                pConsoleTextView.OverrideFont(lFontDesc)
                 
-                lScrolled.Add(pConsoleTextView)
+                lScrolledWindow.Add(pConsoleTextView)
                 
-                ' Create tab with close button - FIXED: Pass delegate properly
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("Console", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                
-                pNotebook.AppendPage(lScrolled, lTabLabel)
+                ' Add to notebook with icon
+                pNotebook.AppendPage(lScrolledWindow, "Console", "terminal")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateConsoleTab error: {ex.Message}")
@@ -665,57 +683,46 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Create tab with close button helper - FIXED: Changed parameter type
-        Private Function CreateTabWithCloseButton(vLabelText As String, vCloseAction As System.Action) As Widget
-            Try
-                Dim lBox As New Box(Orientation.Horizontal, 4)
-                
-                ' Title label
-                Dim lLabel As New Label(vLabelText)
-                lBox.PackStart(lLabel, True, True, 0)
-                
-                ' Close button
-                Dim lCloseButton As New Button()
-                lCloseButton.Relief = ReliefStyle.None
-                lCloseButton.FocusOnClick = False
-                
-                ' Create close icon
-                Dim lCloseIcon As New Image()
-                lCloseIcon.IconName = "window-close"
-                lCloseIcon.IconSize = CInt(IconSize.Menu)
-                lCloseButton.Add(lCloseIcon)
-                
-                ' Make button smaller
-                lCloseButton.SetSizeRequest(18, 18)
-                
-                ' Connect close action - FIXED: Call the delegate directly
-                AddHandler lCloseButton.Clicked, 
-                    Sub(sender, e) 
-                        vCloseAction.Invoke()
-                    End Sub
-                    
-                lBox.PackStart(lCloseButton, False, False, 0)
-                
-                lBox.ShowAll()
-                Return lBox
-                
-            Catch ex As Exception
-                Console.WriteLine($"CreateTabWithCloseButton error: {ex.Message}")
-                Return New Label(vLabelText)
-            End Try
-        End Function
+
 
         Public Sub ShowConsole()
             ShowTab(6)
         End Sub
         
-        ' Show specific tab
+        ''' <summary>
+        ''' Show specific tab by index
+        ''' </summary>
+        ''' <param name="vTabIndex">Index of the tab to show</param>
         Public Sub ShowTab(vTabIndex As Integer)
             Try
+                Console.WriteLine($"ShowTab called with index: {vTabIndex}")
+                
                 If vTabIndex >= 0 AndAlso vTabIndex < pNotebook.NPages Then
+                    ' First make sure the panel is visible
+                    If Not pIsVisible Then
+                        Show()
+                    End If
+                    
+                    ' Set the current page
                     pNotebook.CurrentPage = vTabIndex
+                    
+                    ' For CustomDrawNotebook, set the tab without triggering scroll
+                    If TypeOf pNotebook Is CustomDrawNotebook Then
+                        Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                        
+                        ' Use False for vEnsureVisible to prevent scrolling
+                        ' The tabs should already be at scroll position 0 from UpdateTabBounds
+                        lCustomNotebook.SetCurrentTab(vTabIndex, False)
+                    End If
+                    
+                    ' Make sure the panel is visible
                     IsVisible = True
+                    
+                    Console.WriteLine($"ShowTab: Switched to tab {vTabIndex}")
+                Else
+                    Console.WriteLine($"ShowTab: Invalid tab index {vTabIndex} (NPages={pNotebook.NPages})")
                 End If
+                
             Catch ex As Exception
                 Console.WriteLine($"ShowTab error: {ex.Message}")
             End Try
@@ -945,58 +952,6 @@ Namespace Managers
             Return -1
         End Function
         
-'        Public Sub UpdateBuildTabLabel(vErrorCount As Integer, vWarningCount As Integer)
-'            Try
-'                If pBuildOutputPanel IsNot Nothing AndAlso pNotebook IsNot Nothing Then
-'                    Dim lPageNum As Integer = pNotebook.PageNum(pBuildOutputPanel)
-'                    If lPageNum >= 0 Then
-'                        Dim lText As String
-'                        If vErrorCount > 0 OrElse vWarningCount > 0 Then
-'                            lText = $"Build Output ({vErrorCount} errors, {vWarningCount} warnings)"
-'                        Else
-'                            lText = "Build Output"
-'                        End If
-'                        pNotebook.SetTabLabelText(pBuildOutputPanel, lText)
-'                    End If
-'                End If
-'            Catch ex As Exception
-'                Console.WriteLine($"UpdateBuildTabLabel error: {ex.Message}")
-'            End Try
-'        End Sub
-
-        ' Update Build Output tab label with error/warning counts without losing close button
-        Public Sub UpdateBuildTabLabel(vErrorCount As Integer, vWarningCount As Integer)
-            Try
-                If pBuildOutputPanel IsNot Nothing AndAlso pNotebook IsNot Nothing Then
-                    Dim lPageNum As Integer = pNotebook.PageNum(pBuildOutputPanel)
-                    If lPageNum >= 0 Then
-                        ' Get the current tab label widget (should be a Box)
-                        Dim lTabWidget As Widget = pNotebook.GetTabLabel(pBuildOutputPanel)
-                        
-                        If TypeOf lTabWidget Is Box Then
-                            Dim lBox As Box = CType(lTabWidget, Box)
-                            
-                            ' Find the Label within the Box
-                            for each lChild As Widget in lBox.Children
-                                If TypeOf lChild Is Label Then
-                                    Dim lLabel As Label = CType(lChild, Label)
-                                    
-                                    ' Update just the text
-                                    If vErrorCount > 0 OrElse vWarningCount > 0 Then
-                                        lLabel.Text = $"Build output ({vErrorCount} Errors, {vWarningCount} Warnings)"
-                                    Else
-                                        lLabel.Text = "Build output"
-                                    End If
-                                    Exit for
-                                End If
-                            Next
-                        End If
-                    End If
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"UpdateBuildTabLabel error: {ex.Message}")
-            End Try
-        End Sub
 
         ' Toggle output panel visibility
         Public Sub ToggleOutputPanel()
@@ -1035,13 +990,12 @@ Namespace Managers
         End Sub
 
         ''' <summary>
-        ''' Creates the Find Results tab with a close button
+        ''' Creates the find results tab with icon
         ''' </summary>
         Private Sub CreateFindResultsTab()
             Try
                 pFindPanel = New FindReplacePanel()
                 
-                ' Connect events - FIXED: Use proper delegate syntax
                 AddHandler pFindPanel.ResultSelected, 
                     Sub(vPath As String, vLine As Integer, vCol As Integer)
                         RaiseEvent FindResultSelected(vPath, vLine, vCol)
@@ -1052,13 +1006,9 @@ Namespace Managers
                         HidePanel()
                     End Sub
                 
-                ' Create tab with close button (matching other tabs)
-                Dim lTabLabel As Widget = CreateTabWithCloseButton("Find/Replace", 
-                    Sub() 
-                        HidePanel()
-                    End Sub)
-                
-                pNotebook.AppendPage(pFindPanel, lTabLabel)
+                ' Add to notebook with icon
+                Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                lCustomNotebook.AppendPage(pFindPanel, "Find/Replace", "search")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateFindResultsTab error: {ex.Message}")
@@ -1100,9 +1050,18 @@ Namespace Managers
             Try
                 pThemeManager = vThemeManager
                 
+                ' Pass to the CustomDrawNotebook
+                If pNotebook IsNot Nothing AndAlso TypeOf pNotebook Is CustomDrawNotebook Then
+                    DirectCast(pNotebook, CustomDrawNotebook).SetThemeManager(vThemeManager)
+                End If
+                
                 ' Pass to BuildOutputPanel if it exists
                 If pBuildOutputPanel IsNot Nothing Then
                     pBuildOutputPanel.SetThemeManager(vThemeManager)
+                End If
+                
+                If pGitPanel IsNot Nothing Then
+                    pGitPanel.SetThemeManager(vThemeManager)
                 End If
                 
                 ' Pass to other panels that might need it
@@ -1112,6 +1071,86 @@ Namespace Managers
                 Console.WriteLine($"BottomPanelManager.SetThemeManager error: {ex.Message}")
             End Try
         End Sub
+        
+        ''' <summary>
+        ''' Handles the hide panel request from CustomDrawNotebook
+        ''' </summary>
+        Private Sub OnHidePanelRequested()
+            Try
+                HidePanel()
+                Console.WriteLine("Bottom panel hide requested from CustomDrawNotebook")
+            Catch ex As Exception
+                Console.WriteLine($"OnHidePanelRequested error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles tab switching in CustomDrawNotebook
+        ''' </summary>
+        ''' <param name="vOldIndex">Previous tab index</param>
+        ''' <param name="vNewIndex">New tab index</param>
+        Private Sub OnTabSwitched(vOldIndex As Integer, vNewIndex As Integer)
+            Try
+                Console.WriteLine($"Bottom panel tab switched from {vOldIndex} to {vNewIndex}")
+                RaiseEvent TabChanged(vNewIndex)
+                
+                ' Special handling for specific tabs
+                Select Case vNewIndex
+                    Case 0 ' Build Output
+                        ' Focus on the output text view if available
+                        If pBuildOutputPanel IsNot Nothing Then
+                            ' Switch to output sub-tab within BuildOutputPanel
+                            pBuildOutputPanel.SwitchToOutputTab()
+                        End If
+                        
+                    Case 6 ' Console
+                        ' Auto-scroll to bottom when switching to console
+                        If pConsoleTextView IsNot Nothing Then
+                            Dim lBuffer As TextBuffer = pConsoleTextView.Buffer
+                            Dim lEndIter As TextIter = lBuffer.EndIter
+                            pConsoleTextView.ScrollToIter(lEndIter, 0, False, 0, 0)
+                        End If
+                End Select
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnTabSwitched error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Handles tab closing requests from CustomDrawNotebook
+        ''' </summary>
+        ''' <param name="vSender">The CustomDrawNotebook raising the event</param>
+        ''' <param name="vArgs">Event arguments containing tab information</param>
+        Private Sub OnTabClosing(vSender As Object, vArgs As TabClosingEventArgs)
+            Try
+                Console.WriteLine($"BottomPanelManager.OnTabClosing: Tab '{vArgs.TabLabel}' at index {vArgs.TabIndex} close button clicked")
+                
+                ' For the bottom panel, we want to hide the entire panel instead of removing individual tabs
+                ' So we mark the event as handled and hide the panel
+                vArgs.Handled = True  ' Tell CustomDrawNotebook we handled it - don't remove the tab
+                vArgs.Cancel = False  ' We're not canceling, just handling it differently
+                
+                ' Hide the entire bottom panel
+                HidePanel()
+                
+                ' Raise the PanelClosed event so MainWindow knows the panel was closed
+                RaiseEvent PanelClosed()
+                
+                Console.WriteLine("BottomPanelManager: Hiding panel via tab close button")
+                
+            Catch ex As Exception
+                Console.WriteLine($"BottomPanelManager.OnTabClosing error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Gets the underlying notebook widget
+        ''' </summary>
+        ''' <returns>The CustomDrawNotebook instance</returns>
+        Public Function GetNotebook() As CustomDrawNotebook
+            Return pNotebook
+        End Function
 
     End Class
 

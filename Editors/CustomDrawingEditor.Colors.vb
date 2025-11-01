@@ -20,16 +20,16 @@ Namespace Editors
         ' ===== Color Properties for Theming =====
         ' These are used by the Drawing and Settings partial classes
         
-        Private pBackgroundColor As String = "#1E1E1E"
-        Private pForegroundColor As String = "#D4D4D4"
-        Private pLineNumberBgColor As String = "#2D2D30"
-        Private pLineNumberFgColor As String = "#858585"
-        Private pSelectionColor As String = "#264F78"
-        Private pCursorColor As String = "#AEAFAD"
-        Private pCurrentLineBgColor As String = "#2A2A2A"
+        'Private pBackgroundColor As String = "#1E1E1E"
+        'Private pForegroundColor As String = "#D4D4D4"
+        'Private pLineNumberBgColor As String = "#2D2D30"
+        'Private pLineNumberFgColor As String = "#858585"
+        'Private pSelectionColor As String = "#264F78"
+        'Private pCursorColor As String = "#AEAFAD"
+        'Private pCurrentLineBgColor As String = "#2A2A2A"
         Private pFindHighlightColor As String = "#515C6A"
-        Private pHighlightCurrentLine As Boolean = True
-        Private pShowWhitespace As Boolean = False
+        'Private pHighlightCurrentLine As Boolean = True
+        'Private pShowWhitespace As Boolean = False
         Private pShowEndOfLine As Boolean = False
         Private pCurrentLineColor As String = "#D4D4D4"
         

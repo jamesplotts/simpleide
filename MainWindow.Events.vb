@@ -9,8 +9,10 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 
 Partial Public Class MainWindow
+
     
     ' ===== Window Events =====
+    
     Public Shadows Sub OnDeleteEvent(vSender As Object, vArgs As DeleteEventArgs)
         Try
             ' Check for unsaved changes
@@ -21,6 +23,20 @@ Partial Public Class MainWindow
             
             ' Save window state
             SaveWindowState()
+            
+            ' Save the current left panel width before closing - use lowercase key
+            If pMainHPaned IsNot Nothing AndAlso pSettingsManager IsNot Nothing Then
+                Dim lCurrentWidth As Integer = pMainHPaned.Position
+                If lCurrentWidth > 0 Then
+                    Console.WriteLine($"OnDeleteEvent: Saving final left panel width: {lCurrentWidth}")
+                    pSettingsManager.SetInteger("leftpanelwidth", lCurrentWidth)
+                End If
+            End If
+            
+            ' Force save all settings to disk
+            If pSettingsManager IsNot Nothing Then
+                pSettingsManager.SaveSettings()
+            End If
             
             ' Close application
             Application.Quit()
@@ -707,6 +723,131 @@ Partial Public Class MainWindow
             ShowVBNetHelp()
         Catch ex As Exception
             Console.WriteLine($"OnShowDotNetHelp error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Ensures all notebooks are properly initialized and visible
+    ''' </summary>
+    ''' <remarks>
+    ''' Called after window is realized to fix any notebook visibility issues
+    ''' </remarks>
+    Private Sub EnsureNotebooksReady()
+        Try
+            Console.WriteLine("=== EnsureNotebooksReady Starting ===")
+            
+            ' Fix main notebook (editor tabs)
+            If TypeOf pNotebook Is CustomDrawNotebook Then
+                Dim lMainNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                
+                Console.WriteLine($"Main notebook: {lMainNotebook.NPages} pages")
+                
+                ' Force refresh to ensure events are enabled
+                lMainNotebook.ForceRefresh()
+                
+                ' Show all to ensure visibility
+                lMainNotebook.ShowAll()
+                
+                ' Diagnose state for debugging
+                Console.WriteLine("Main notebook state:")
+                lMainNotebook.DiagnoseNotebookState()
+                
+                ' Ensure Welcome tab is visible if it's the only tab
+                If lMainNotebook.NPages = 1 Then
+                    Dim lTabLabel As String = lMainNotebook.GetTabLabel(0)
+                    If lTabLabel = "Welcome" Then
+                        Console.WriteLine("Ensuring Welcome tab Is active")
+                        lMainNotebook.CurrentPage = 0
+                        
+                        ' Force the widget to be visible
+                        Dim lWidget As Widget = lMainNotebook.GetNthPage(0)
+                        If lWidget IsNot Nothing Then
+                            lWidget.ShowAll()
+                            lWidget.Visible = True
+                        End If
+                    End If
+                ElseIf lMainNotebook.NPages = 0 Then
+                    ' No tabs at all - show welcome
+                    Console.WriteLine("No tabs in main notebook - showing Welcome")
+                    ShowWelcomeTab()
+                End If
+            End If
+            
+            ' Fix left notebook (project/object explorers)
+            If TypeOf pLeftNotebook Is CustomDrawNotebook Then
+                Dim lLeftNotebook As CustomDrawNotebook = DirectCast(pLeftNotebook, CustomDrawNotebook)
+                
+                Console.WriteLine($"Left notebook: {lLeftNotebook.NPages} pages")
+                
+                ' Force refresh to ensure events are enabled
+                lLeftNotebook.ForceRefresh()
+                
+                ' Show all to ensure visibility
+                lLeftNotebook.ShowAll()
+                
+                ' Diagnose state for debugging
+                Console.WriteLine("Left notebook state:")
+                lLeftNotebook.DiagnoseNotebookState()
+                
+                ' Ensure Project tab is active by default
+                If lLeftNotebook.NPages > 0 Then
+                    Console.WriteLine("Setting Project tab As active")
+                    lLeftNotebook.CurrentPage = 0
+                    
+                    ' Force the widget to be visible
+                    Dim lWidget As Widget = lLeftNotebook.GetNthPage(0)
+                    If lWidget IsNot Nothing Then
+                        lWidget.ShowAll()
+                        lWidget.Visible = True
+                    End If
+                End If
+            End If
+            
+            ' Fix bottom panel notebook
+            If pBottomPanelManager IsNot Nothing Then
+                Dim lBottomNotebook As CustomDrawNotebook = TryCast(pBottomPanelManager.GetNotebook(), CustomDrawNotebook)
+                If lBottomNotebook IsNot Nothing Then
+                    Console.WriteLine($"Bottom notebook: {lBottomNotebook.NPages} pages")
+                    
+                    ' Force refresh
+                    lBottomNotebook.ForceRefresh()
+                    
+                    ' Show all tabs (panel itself may be hidden)
+                    lBottomNotebook.ShowAll()
+                    
+                    ' Diagnose state
+                    Console.WriteLine("Bottom notebook state:")
+                    lBottomNotebook.DiagnoseNotebookState()
+                    
+                    ' Ensure first tab is active
+                    If lBottomNotebook.NPages > 0 Then
+                        lBottomNotebook.CurrentPage = 0
+                    End If
+                End If
+            End If
+            
+            Console.WriteLine("=== EnsureNotebooksReady Complete ===")
+            
+        Catch ex As Exception
+            Console.WriteLine($"EnsureNotebooksReady error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Hook this to window Realized event to fix notebook issues
+    ''' </summary>
+    Private Sub OnWindowRealizedForNotebooks(vSender As Object, vArgs As EventArgs)
+        Try
+            Console.WriteLine("Window realized - ensuring notebooks are ready")
+            
+            ' Use idle handler to let GTK complete initialization
+            GLib.Idle.Add(Function()
+                EnsureNotebooksReady()
+                Return False ' Run only once
+            End Function)
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnWindowRealizedForNotebooks error: {ex.Message}")
         End Try
     End Sub
     

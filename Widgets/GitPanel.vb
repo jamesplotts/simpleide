@@ -5,13 +5,16 @@ Imports System.Collections.Generic
 Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
+Imports SimpleIDE.Managers
+
 
 Namespace Widgets
     Public Class GitPanel
         Inherits Box
         
         ' Private fields
-        Private pNotebook As Notebook
+        Private pNotebook As CustomDrawNotebook
+        Private pThemeManager As ThemeManager
         Private pProjectRoot As String
         Private pStatusTreeView As TreeView
         Private pStatusStore As ListStore
@@ -105,20 +108,20 @@ Namespace Widgets
             PackStart(lToolbar, False, False, 0)
             
             ' Create notebook for tabs
-            pNotebook = New Notebook()
-            pNotebook.TabPos = PositionType.Top
+            pNotebook = New CustomDrawNotebook()
+            'pNotebook.TabPos = PositionType.Top
             
             ' Create Changes tab
             Dim lChangesPage As Widget = CreateChangesPage()
-            pNotebook.AppendPage(lChangesPage, New Label("Changes"))
+            pNotebook.AppendPage(lChangesPage, "Changes")
             
             ' Create History tab
             Dim lHistoryPage As Widget = CreateHistoryPage()
-            pNotebook.AppendPage(lHistoryPage, New Label("History"))
+            pNotebook.AppendPage(lHistoryPage, "History")
             
             ' Create Diff tab
             Dim lDiffPage As Widget = CreateDiffPage()
-            pNotebook.AppendPage(lDiffPage, New Label("Diff"))
+            pNotebook.AppendPage(lDiffPage, "Diff")
             
             PackStart(pNotebook, True, True, 0)
             
@@ -164,6 +167,14 @@ Namespace Widgets
             
             Return lToolbar
         End Function
+        
+         Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                pThemeManager = vThemeManager
+                pNotebook.SetThemeManager(vThemeManager)
+            Catch
+            End Try
+        End Sub
         
         Private Function CreateChangesPage() As Widget
             Dim lVPaned As New Paned(Orientation.Vertical)

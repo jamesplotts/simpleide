@@ -21,7 +21,6 @@ Namespace Widgets
         Private pFindNextButton As Button
         Private pFindPreviousButton As Button
         Private pCloseButton As Button
-        Private pRefreshButton As Button
         Private pCaseSensitiveCheck As CheckButton
         Private pWholeWordCheck As CheckButton
         Private pRegexCheck As CheckButton
@@ -33,6 +32,12 @@ Namespace Widgets
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
         Private pCurrentTab As TabInfo
+        
+        ''' <summary>
+        ''' QuickFind button positioned to the left of Find label
+        ''' </summary>
+        Private pQuickFindButton As Button
+        
         
         ' Search state
         Private pProjectRoot As String
@@ -310,19 +315,36 @@ Namespace Widgets
         End Sub
 
 
+        ''' <summary>
+        ''' Creates search controls with QuickFind button to the left of Find label
+        ''' </summary>
         Private Function CreateSearchControls() As Widget
             Dim lMainBox As New Box(Orientation.Vertical, 5)
             
-            ' First row: Find entry and buttons
+            ' First row: QuickFind button, Find entry and buttons
             Dim lFindBox As New Box(Orientation.Horizontal, 5)
             
+            ' NEW: QuickFind button to the LEFT of Find label
+            pQuickFindButton = New Button()
+            pQuickFindButton.TooltipText = "Quick Find (Ctrl+F)"
+            pQuickFindButton.Relief = ReliefStyle.None
+            
+            ' Create icon for QuickFind button - use search icon
+            Dim lQuickFindImage As New Image()
+            lQuickFindImage.SetFromIconName("edit-find", IconSize.SmallToolbar)
+            pQuickFindButton.Add(lQuickFindImage)
+            
+            ' Pack QuickFind button FIRST (leftmost)
+            lFindBox.PackStart(pQuickFindButton, False, False, 0)
+            
+            ' Now add the Find label
             Dim lFindLabel As New Label("Find:")
             lFindLabel.SetSizeRequest(80, -1)
             lFindLabel.Xalign = 0
             lFindBox.PackStart(lFindLabel, False, False, 0)
             
             pFindEntry = New Entry()
-            pFindEntry.PlaceholderText = "Enter search Text..."
+            pFindEntry.PlaceholderText = "Enter search text..."
             lFindBox.PackStart(pFindEntry, True, True, 0)
             
             pFindButton = New Button("Find All")
@@ -338,25 +360,28 @@ Namespace Widgets
             ' Second row: Replace entry and buttons
             Dim lReplaceBox As New Box(Orientation.Horizontal, 5)
             
+            ' Add spacer to align with Find row (width of QuickFind button + spacing)
+            Dim lSpacer As New Label("")
+            lSpacer.SetSizeRequest(28, -1)  ' Approximate width of QuickFind button
+            lReplaceBox.PackStart(lSpacer, False, False, 0)
+            
             Dim lReplaceLabel As New Label("Replace:")
             lReplaceLabel.SetSizeRequest(80, -1)
             lReplaceLabel.Xalign = 0
             lReplaceBox.PackStart(lReplaceLabel, False, False, 0)
             
             pReplaceEntry = New Entry()
-            pReplaceEntry.PlaceholderText = "Enter replacement Text..."
+            pReplaceEntry.PlaceholderText = "Enter replacement text..."
             lReplaceBox.PackStart(pReplaceEntry, True, True, 0)
             
             pReplaceButton = New Button("Replace")
             pReplaceAllButton = New Button("Replace All")
             pCancelButton = New Button("Cancel")
-            pRefreshButton = New Button("Refresh")
             pCloseButton = New Button("Close")
             
             lReplaceBox.PackStart(pReplaceButton, False, False, 0)
             lReplaceBox.PackStart(pReplaceAllButton, False, False, 0)
             lReplaceBox.PackStart(pCancelButton, False, False, 0)
-            lReplaceBox.PackStart(pRefreshButton, False, False, 0)
             lReplaceBox.PackStart(pCloseButton, False, False, 0)
             
             lMainBox.PackStart(lReplaceBox, False, False, 0)
@@ -364,6 +389,37 @@ Namespace Widgets
             Return lMainBox
         End Function
 
+        ''' <summary>
+        ''' Handles QuickFind button click - focuses search entry and selects all text
+        ''' </summary>
+        Private Sub OnQuickFindClicked(vSender As Object, vE As EventArgs)
+            Try
+                PerformQuickFind
+            Catch ex As Exception
+                Console.WriteLine($"OnQuickFindClicked error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Sets up the QuickFind button to respond to keyboard shortcuts from MainWindow
+        ''' </summary>
+        ''' <remarks>
+        ''' This allows MainWindow to trigger the QuickFind button when Ctrl+F is pressed
+        ''' </remarks>
+        Public Sub TriggerQuickFind()
+            Try
+                ' Simulate clicking the QuickFind button
+                If pQuickFindButton IsNot Nothing Then
+                    OnQuickFindClicked(pQuickFindButton, EventArgs.Empty)
+                Else
+                    ' Fallback to just focusing the search entry
+                    FocusSearchEntry()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"TriggerQuickFind error: {ex.Message}")
+            End Try
+        End Sub
+        
         Private Function CreateOptionsControls() As Widget
             Dim lOptionsBox As New Box(Orientation.Horizontal, 10)
             
@@ -464,48 +520,43 @@ Namespace Widgets
             End Try
         End Function
         
+        ' Replace: SimpleIDE.FindReplacePanel.ConnectEvents
         ''' <summary>
-        ''' Connects event handlers for the FindReplacePanel
+        ''' Connects all event handlers including the new QuickFind button
         ''' </summary>
         Private Sub ConnectEvents()
             Try
-                ' Entry events - Connect Activated for Enter key
+                ' Find entry events
+                AddHandler pFindEntry.Changed, AddressOf OnFindEntryChanged
                 AddHandler pFindEntry.Activated, AddressOf OnFindEntryActivated
                 AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
-                AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnReplaceEntryKeyPress
+                
+                ' Replace entry events
                 AddHandler pReplaceEntry.Activated, AddressOf OnReplaceEntryActivated
                 
-                ' Entry change events for live updates
-                AddHandler pFindEntry.Changed, AddressOf OnFindEntryChanged
-                
-                ' Button events - Updated to use optimized handlers
-                AddHandler pFindButton.Clicked, AddressOf OnFind  ' Will now use ExecuteSearchOptimized
+                ' Button events
+                AddHandler pFindButton.Clicked, AddressOf OnFind
                 AddHandler pFindNextButton.Clicked, AddressOf OnFindNext
                 AddHandler pFindPreviousButton.Clicked, AddressOf OnFindPrevious
                 AddHandler pReplaceButton.Clicked, AddressOf OnReplace
                 AddHandler pReplaceAllButton.Clicked, AddressOf OnReplaceAll
-                AddHandler pCancelButton.Clicked, AddressOf OnCancelOptimized  ' Use optimized cancel
-                AddHandler pRefreshButton.Clicked, AddressOf OnRefresh
                 AddHandler pCloseButton.Clicked, AddressOf OnClose
+                AddHandler pQuickFindButton.Clicked, AddressOf OnQuickFindClicked
                 
-                ' Results selection - FIXED: Add both single-click and double-click handling
-                ' Single-click selection
-                AddHandler pResultsView.CursorChanged, AddressOf OnResultsCursorChanged
-                ' Double-click or Enter activation
-                AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
-                
-                ' Radio button changes - ENABLE for auto-search on scope change
-                AddHandler pInFileRadio.Toggled, AddressOf OnScopeChanged
-                AddHandler pInProjectRadio.Toggled, AddressOf OnScopeChanged
-                
-                ' Options changes - auto-search when options change
+                ' Options events
                 AddHandler pCaseSensitiveCheck.Toggled, AddressOf OnOptionsChanged
                 AddHandler pWholeWordCheck.Toggled, AddressOf OnOptionsChanged
                 AddHandler pRegexCheck.Toggled, AddressOf OnOptionsChanged
                 
-                ' Context menu and keyboard
-                AddHandler pResultsView.ButtonPressEvent, AddressOf OnResultsButtonPress
-                AddHandler pResultsView.KeyPressEvent, AddressOf OnResultsKeyPress
+                ' Scope radio button events
+                AddHandler pInFileRadio.Toggled, AddressOf OnScopeChanged
+                AddHandler pInProjectRadio.Toggled, AddressOf OnScopeChanged
+                
+                ' Results view events - single click navigation
+                AddHandler pResultsView.CursorChanged, AddressOf OnResultsCursorChanged
+                
+                ' FIXED: Double-click on results should call OnResultActivated, not OnFindEntryActivated
+                AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
                 
             Catch ex As Exception
                 Console.WriteLine($"ConnectEvents error: {ex.Message}")
@@ -546,6 +597,9 @@ Namespace Widgets
 
         ' ===== Search Implementation =====
         
+        ''' <summary>
+        ''' Executes search without caching - always fresh from source
+        ''' </summary>
         Private Sub ExecuteSearch()
             Try
                 If String.IsNullOrEmpty(pFindEntry.Text) Then
@@ -553,8 +607,8 @@ Namespace Widgets
                     Return
                 End If
                 
-                ' Save search options
-                pLastSearchOptions = New SearchOptions with {
+                ' Save search options (but NOT results)
+                pLastSearchOptions = New SearchOptions With {
                     .SearchText = pFindEntry.Text,
                     .ReplaceText = pReplaceEntry.Text,
                     .MatchCase = pCaseSensitiveCheck.Active,
@@ -563,17 +617,27 @@ Namespace Widgets
                     .Scope = If(pInProjectRadio.Active, SearchScope.eProject, SearchScope.eCurrentFile)
                 }
                 
-                ' Clear previous results
+                ' ALWAYS clear previous results - no caching
                 pResultsStore.Clear()
                 pSearchResults.Clear()
                 pCurrentMatches = Nothing
-                pCurrentMatchIndex = -1
+                ' Don't reset pCurrentMatchIndex here to maintain position
                 
+                ' Perform fresh search
                 If pInFileRadio.Active Then
                     SearchInCurrentFile()
                 Else
-                    SearchInProject()
+                    ' Use optimized in-memory search if available
+                    If pProjectManager IsNot Nothing Then
+                        SearchInProjectOptimized()
+                    Else
+                        SearchInProject()
+                    End If
                 End If
+                
+                ' Update UI with fresh results
+                PopulateResults()
+                UpdateButtonStates()
                 
             Catch ex As Exception
                 Console.WriteLine($"ExecuteSearch error: {ex.Message}")
@@ -1215,6 +1279,47 @@ Namespace Widgets
                 Return False
             End Try
         End Function
+        
+        Private Sub PerformQuickFind()
+            Try
+                Console.WriteLine("FindReplacePanel.PerformQuickFind: Starting quick find from clipboard operation")
+                
+                ' Get clipboard text
+                Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
+                Dim lClipboardText As String = lClipboard.WaitForText()
+                
+                If String.IsNullOrEmpty(lClipboardText) Then
+                    Console.WriteLine("FindReplacePanel.PerformQuickFind: Clipboard Is empty")
+                    Return
+                End If
+                
+                Console.WriteLine($"FindReplacePanel.PerformQuickFind: Got clipboard text: {lClipboardText.Substring(0, Math.Min(50, lClipboardText.Length))}...")
+                
+                
+                
+                
+                ' Set the clipboard text into the Find field
+                Console.WriteLine("FindReplacePanel.PerformQuickFind: Setting search text from clipboard")
+                SetSearchText(lClipboardText)
+                
+                ' Set search scope to Entire Project for better results
+                Console.WriteLine("FindReplacePanel.PerformQuickFind: Setting search scope To Entire Project")
+                SetSearchScope(FindReplacePanel.SearchScope.eProject)
+                
+                ' Focus the find panel (without selecting text since we want to keep what we just set)
+                FocusSearchEntryNoSelect()
+                
+                ' Execute Find All operation
+                Console.WriteLine("FindReplacePanel.PerformQuickFind: Executing Find All")
+                OnFind(Nothing, Nothing)
+                
+                Console.WriteLine("FindReplacePanel.PerformQuickFind: Quick find from clipboard completed successfully")
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindReplacePanel.PerformQuickFind error: {ex.Message}")
+            End Try
+        End Sub
+
         
     End Class
 

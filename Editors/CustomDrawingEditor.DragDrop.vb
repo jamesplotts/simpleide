@@ -324,22 +324,44 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Performs a drag move operation with proper undo recording
+        ''' Performs a drag-drop move operation using atomic operations
         ''' </summary>
+        ''' <param name="vSourceStartLine">Start line of source text</param>
+        ''' <param name="vSourceStartColumn">Start column of source text</param>
+        ''' <param name="vSourceEndLine">End line of source text</param>
+        ''' <param name="vSourceEndColumn">End column of source text</param>
+        ''' <param name="vTargetLine">Target line for insertion</param>
+        ''' <param name="vTargetColumn">Target column for insertion</param>
+        ''' <param name="vText">Text being moved</param>
         ''' <remarks>
-        ''' Updated to use SourceFileInfo for text manipulation and request async parsing
+        ''' Refactored to use atomic DeleteText and InsertText operations
         ''' </remarks>
-        Private Sub PerformDragMove(vSourceStartLine As Integer, vSourceStartColumn As Integer,
-                                   vSourceEndLine As Integer, vSourceEndColumn As Integer,
-                                   vTargetLine As Integer, vTargetColumn As Integer,
-                                   vText As String)
+        Public Sub PerformDragDropMove(vSourceStartLine As Integer, vSourceStartColumn As Integer,
+                                       vSourceEndLine As Integer, vSourceEndColumn As Integer,
+                                       vTargetLine As Integer, vTargetColumn As Integer,
+                                       vText As String)
             Try
-                Console.WriteLine($"Move from ({vSourceStartLine},{vSourceStartColumn})-({vSourceEndLine},{vSourceEndColumn}) to ({vTargetLine},{vTargetColumn})")
-                 Dim lLines() As String
-                ' Ensure SourceFileInfo is available
-                If pSourceFileInfo Is Nothing Then
-                    Console.WriteLine("PerformDragMove: No SourceFileInfo available")
-                    Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+                
+                ' Calculate adjusted target position (if target is after source, it shifts)
+                Dim lAdjustedTargetLine As Integer = vTargetLine
+                Dim lAdjustedTargetColumn As Integer = vTargetColumn
+                
+                If vTargetLine > vSourceEndLine OrElse 
+                   (vTargetLine = vSourceEndLine AndAlso vTargetColumn > vSourceEndColumn) Then
+                    ' Target is after source, adjust for deletion
+                    If vSourceStartLine = vSourceEndLine Then
+                        ' Single line deletion
+                        If vTargetLine = vSourceStartLine Then
+                            lAdjustedTargetColumn -= (vSourceEndColumn - vSourceStartColumn)
+                        End If
+                    Else
+                        ' Multi-line deletion
+                        lAdjustedTargetLine -= (vSourceEndLine - vSourceStartLine)
+                        If vTargetLine = vSourceEndLine Then
+                            lAdjustedTargetColumn = vTargetColumn - vSourceEndColumn + vSourceStartColumn
+                        End If
+                    End If
                 End If
                 
                 ' Begin undo group
@@ -347,120 +369,60 @@ Namespace Editors
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                ' Calculate adjusted target position after source deletion
-                Dim lAdjustedTargetLine As Integer = vTargetLine
-                Dim lAdjustedTargetColumn As Integer = vTargetColumn
+                ' Delete from source using atomic operation
+                pSourceFileInfo.DeleteText(vSourceStartLine, vSourceStartColumn,
+                                          vSourceEndLine, vSourceEndColumn)
                 
-                If vTargetLine > vSourceEndLine Then
-                    ' Target is after source, adjust for deletion
-                    lAdjustedTargetLine -= (vSourceEndLine - vSourceStartLine)
-                ElseIf vTargetLine = vSourceEndLine AndAlso vTargetColumn > vSourceEndColumn Then
-                    ' Target is on same line after source
-                    If vSourceStartLine = vSourceEndLine Then
-                        lAdjustedTargetColumn -= (vSourceEndColumn - vSourceStartColumn)
-                    End If
-                End If
+                ' Insert at target using atomic operation
+                pSourceFileInfo.InsertText(lAdjustedTargetLine, lAdjustedTargetColumn, vText)
                 
-                ' Delete from source using SourceFileInfo
-                If vSourceStartLine = vSourceEndLine Then
-                    ' Single line deletion
-                    pSourceFileInfo.DeleteTextInLine(vSourceStartLine, vSourceStartColumn, vSourceEndColumn)
+                ' Calculate final cursor position
+                Dim lNewCursorPos As EditorPosition
+                If vText.Contains(Environment.NewLine) Then
+                    Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
+                    lNewCursorPos = New EditorPosition(lAdjustedTargetLine + lLines.Length - 1,
+                                                      lLines(lLines.Length - 1).Length)
                 Else
-                    ' Multi-line deletion
-                    ' Get text to keep from first and last lines
-                    Dim lFirstLine As String = pSourceFileInfo.TextLines(vSourceStartLine)
-                    Dim lLastLine As String = pSourceFileInfo.TextLines(vSourceEndLine)
-                    Dim lKeepFromFirst As String = If(vSourceStartColumn > 0, lFirstLine.Substring(0, vSourceStartColumn), "")
-                    Dim lKeepFromLast As String = If(vSourceEndColumn < lLastLine.Length, lLastLine.Substring(vSourceEndColumn), "")
-                    
-                    ' Update first line with combined text
-                    pSourceFileInfo.UpdateTextLine(vSourceStartLine, lKeepFromFirst & lKeepFromLast)
-                    
-                    ' Delete intermediate lines
-                    for i As Integer = vSourceEndLine To vSourceStartLine + 1 Step -1
-                        pSourceFileInfo.DeleteLine(i)
-                    Next
+                    lNewCursorPos = New EditorPosition(lAdjustedTargetLine, 
+                                                      lAdjustedTargetColumn + vText.Length)
                 End If
                 
-                
-                ' Move cursor to adjusted target
-                SetCursorPosition(lAdjustedTargetLine, lAdjustedTargetColumn)
-                
-                ' Insert at target using SourceFileInfo
-                If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
-                    ' Multi-line insertion
-                    pSourceFileInfo.InsertMultiLineText(lAdjustedTargetLine, lAdjustedTargetColumn, vText)
-                    
-                    ' Mark all affected lines as changed
-                    lLines = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
-                Else
-                    ' Single line insertion
-                    pSourceFileInfo.InsertTextInLine(lAdjustedTargetLine, lAdjustedTargetColumn, vText)
-                End If
-                
-                
-                ' Calculate final cursor position after insertion
-                lLines = vText.Split({Environment.NewLine}, StringSplitOptions.None)
-                Dim lNewCursorLine As Integer
-                Dim lNewCursorColumn As Integer
-                
-                If lLines.Length = 1 Then
-                    lNewCursorLine = lAdjustedTargetLine
-                    lNewCursorColumn = lAdjustedTargetColumn + vText.Length
-                Else
-                    lNewCursorLine = lAdjustedTargetLine + lLines.Length - 1
-                    lNewCursorColumn = lLines(lLines.Length - 1).Length
-                End If
-                
-                ' Record the drag-drop operation for undo with the new cursor position
+                ' End undo group and record
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.RecordDragDrop(
                         New EditorPosition(vSourceStartLine, vSourceStartColumn),
                         New EditorPosition(vSourceEndLine, vSourceEndColumn),
                         New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn),
-                        vText,
-                        New EditorPosition(lNewCursorLine, lNewCursorColumn)
-                    )
-                End If
-                
-                ' Select the moved text
-                If lLines.Length = 1 Then
-                    SetSelection(New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn),
-                               New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn + vText.Length))
-                Else
-                    Dim lEndLine As Integer = lAdjustedTargetLine + lLines.Length - 1
-                    Dim lEndColumn As Integer = lLines(lLines.Length - 1).Length
-                    SetSelection(New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn),
-                               New EditorPosition(lEndLine, lEndColumn))
-                End If
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
+                        vText, lNewCursorPos)
                     pUndoRedoManager.EndUserAction()
                 End If
                 
-                ' Request async parsing
-                pSourceFileInfo.RequestAsyncParse()
+                ' Set cursor and selection
+                SetCursorPosition(lNewCursorPos.Line, lNewCursorPos.Column)
                 
-                ' Mark as modified
+                ' Select the moved text
+                If vText.Contains(Environment.NewLine) Then
+                    Dim lLines() As String = vText.Split({Environment.NewLine}, StringSplitOptions.None)
+                    SetSelection(New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn),
+                                New EditorPosition(lAdjustedTargetLine + lLines.Length - 1,
+                                                  lLines(lLines.Length - 1).Length))
+                Else
+                    SetSelection(New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn),
+                                New EditorPosition(lAdjustedTargetLine, lAdjustedTargetColumn + vText.Length))
+                End If
+                
+                ' Update state
                 IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
-                ' Queue redraw
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
                 pDrawingArea?.QueueDraw()
                 
-                Console.WriteLine("Move operation completed")
-                
             Catch ex As Exception
-                Console.WriteLine($"PerformDragMove error: {ex.Message}")
-                
-                ' Try to end undo group on error
-                If pUndoRedoManager IsNot Nothing Then
-                    Try
-                        pUndoRedoManager.EndUserAction()
-                    Catch
-                        ' Ignore
-                    End Try
-                End If
+                Console.WriteLine($"PerformDragDropMove error: {ex.Message}")
             End Try
         End Sub
         
@@ -491,7 +453,7 @@ Namespace Editors
                 ' Insert the text using SourceFileInfo
                 If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
                     ' Multi-line insertion
-                    pSourceFileInfo.InsertMultiLineText(vTargetLine, vTargetColumn, vText)
+                    pSourceFileInfo.InsertText(vTargetLine, vTargetColumn, vText)
                     
                     ' Mark all affected lines as changed
                     Dim lLines() As String = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
@@ -504,7 +466,7 @@ Namespace Editors
                                New EditorPosition(lEndLine, lEndColumn))
                 Else
                     ' Single line insertion
-                    pSourceFileInfo.InsertTextInLine(vTargetLine, vTargetColumn, vText)
+                    pSourceFileInfo.InsertText(vTargetLine, vTargetColumn, vText)
                     
                     ' Select the inserted text
                     SetSelection(New EditorPosition(vTargetLine, vTargetColumn),
@@ -579,10 +541,10 @@ Namespace Editors
                 
                 ' Use the stored drag coordinates from when the drag started
                 If pDragStartLine >= 0 AndAlso pDragEndLine >= 0 Then
-                    ' Call the full version with the stored source coordinates
-                    PerformDragMove(pDragStartLine, pDragStartColumn, 
-                                  pDragEndLine, pDragEndColumn,
-                                  vTargetLine, vTargetColumn, vText)
+                    ' Call PerformDragDropMove with the stored source coordinates
+                    PerformDragDropMove(pDragStartLine, pDragStartColumn, 
+                                      pDragEndLine, pDragEndColumn,
+                                      vTargetLine, vTargetColumn, vText)
                 Else
                     ' No valid source coordinates, just do a copy instead
                     Console.WriteLine("Warning: No valid source coordinates for drag move, performing copy instead")

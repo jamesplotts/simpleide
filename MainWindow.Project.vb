@@ -5,6 +5,7 @@ Imports System.IO
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Dialogs
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
     
@@ -302,35 +303,9 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-'    ' Load project with enhanced error handling
-'    Private Sub LoadProjectEnhanced(vProjectFile As String)
-'        Try
-'            If Not File.Exists(vProjectFile) Then
-'                ShowError("Project Not Found", $"Project file not found: {vProjectFile}")
-'                Return
-'            End If
-'            
-'            ' Set current project
-'            pCurrentProject = vProjectFile
-'            
-'            ' Load project in project explorer
-'            pProjectExplorer.LoadProject(vProjectFile)
-'            
-'            ' Update window title
-'            UpdateWindowTitle()
-'            
-'            ' Add to recent projects
-'            pSettingsManager.AddRecentProject(vProjectFile)
-'            
-'            ShowInfo("Project Loaded", $"Project loaded: {System.IO.Path.GetFileNameWithoutExtension(vProjectFile)}")
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"LoadProjectEnhanced error: {ex.Message}")
-'            ShowError("Load project error", ex.Message)
-'        End Try
-'    End Sub
-    
-    ' Update window title based on current project
+    ''' <summary>
+    ''' Updates the window title to show project, current file, and their modified states
+    ''' </summary>
     Private Sub UpdateWindowTitle()
         Try
             Dim lTitle As String = ApplicationVersion.Title
@@ -343,7 +318,14 @@ Partial Public Class MainWindow
             ' Add project name if loaded
             If Not String.IsNullOrEmpty(pCurrentProject) Then
                 Dim lProjectName As String = System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)
-                lTitle &= $" - {lProjectName}"
+                
+                ' FIXED: Show project dirty state (asterisk if ANY file in project is modified)
+                Dim lHasModifiedFiles As Boolean = HasModifiedFiles()
+                If lHasModifiedFiles Then
+                    lTitle &= $" - *{lProjectName}"
+                Else
+                    lTitle &= $" - {lProjectName}"
+                End If
                 
                 ' Add project version if available
                 Try
@@ -357,9 +339,20 @@ Partial Public Class MainWindow
                 End Try
             End If
             
-            ' Add dirty indicator if needed
-            If pProjectManager?.IsDirty = True Then
-                lTitle = $"*{lTitle}"
+            ' Add current file name and its modified state
+            Dim lCurrentTabInfo As TabInfo = GetCurrentTabInfo()
+            If lCurrentTabInfo IsNot Nothing AndAlso Not String.IsNullOrEmpty(lCurrentTabInfo.FilePath) Then
+                Dim lFileName As String = System.IO.Path.GetFileName(lCurrentTabInfo.FilePath)
+                
+                ' Add separator between project and file
+                lTitle &= " - "
+                
+                ' Add asterisk if current file is modified
+                If lCurrentTabInfo.Modified Then
+                    lTitle &= $"*{lFileName}"
+                Else
+                    lTitle &= lFileName
+                End If
             End If
             
             Title = lTitle

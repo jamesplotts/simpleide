@@ -13,6 +13,7 @@ Partial Public Class MainWindow
     Private pLastKeyEventTime As DateTime = DateTime.MinValue
     Private pLastKeyEventKey As Gdk.Key = Gdk.Key.VoidSymbol
     
+    ' Replace: SimpleIDE.MainWindow.SetupKeyboardShortcuts
     ''' <summary>
     ''' Setup keyboard handling - simplified without accelerators
     ''' </summary>
@@ -22,7 +23,11 @@ Partial Public Class MainWindow
             
             ' Connect the main window keyboard handler
             AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
-            
+
+#If DEBUG
+            ' ADD: Connect the diagnostic keyboard handler
+            AddHandler Me.KeyPressEvent, AddressOf OnKeyPressForDiagnostics
+#End If            
             Console.WriteLine("Keyboard handling setup complete")
             
         Catch ex As Exception
@@ -404,17 +409,36 @@ Partial Public Class MainWindow
             If pMainHPaned.Position > 0 Then
                 ' Save current position and hide
                 pLastLeftPanelWidth = pMainHPaned.Position
+                
+                ' Temporarily remove size request to allow position = 0
+                If pLeftNotebook IsNot Nothing Then
+                    pLeftNotebook.SetSizeRequest(-1, -1)
+                End If
+                
                 pMainHPaned.Position = 0
+                Console.WriteLine($"Hidden left panel, saved width: {pLastLeftPanelWidth}")
             Else
-                ' Restore previous position
-                pMainHPaned.Position = If(pLastLeftPanelWidth > 0, pLastLeftPanelWidth, 250)
+                ' Restore size request FIRST
+                If pLeftNotebook IsNot Nothing Then
+                    pLeftNotebook.SetSizeRequest(LEFT_PANEL_MINIMUM_WIDTH, -1)
+                    pLeftNotebook.ShowAll() ' Ensure it's visible
+                End If
+                
+                ' Then restore position
+                Dim lRestoreWidth As Integer = If(pLastLeftPanelWidth > 0, pLastLeftPanelWidth, LEFT_PANEL_MINIMUM_WIDTH)
+                
+                ' Ensure it meets minimum
+                If lRestoreWidth < LEFT_PANEL_MINIMUM_WIDTH Then
+                    lRestoreWidth = LEFT_PANEL_MINIMUM_WIDTH
+                End If
+                
+                pMainHPaned.Position = lRestoreWidth
+                Console.WriteLine($"Shown left panel at width: {lRestoreWidth}")
             End If
         Catch ex As Exception
             Console.WriteLine($"ToggleProjectExplorer error: {ex.Message}")
         End Try
     End Sub
-    
-    Private pLastLeftPanelWidth As Integer = 250
     
     Private Sub ShowQuickFix()
         Console.WriteLine("Quick Fix - Not yet implemented")
@@ -630,7 +654,7 @@ Partial Public Class MainWindow
         lText.AppendLine()
         
         lText.AppendLine("Note: Ctrl+Y is the traditional VB 'Cut Line' command,")
-        lText.AppendLine("      not Redo. Use Ctrl+R or Ctrl+Shift+Z for Redo.")
+        lText.AppendLine("      Not Redo. Use Ctrl+R Or Ctrl+Shift+Z for Redo.")
         
         Return lText.ToString()
     End Function

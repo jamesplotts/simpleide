@@ -320,7 +320,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     {CodeNodeType.eFunction, 31},
                     {CodeNodeType.eEvent, 40},
                     {CodeNodeType.eField, 50},
-                    {CodeNodeType.eConstant, 51},
+                    {CodeNodeType.eConst, 51},
                     {CodeNodeType.eOperator, 60}
                 }
                 
@@ -499,7 +499,7 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                         End If
                         
                     ' Fields and constants - check visibility or ShowPrivateMembers
-                    Case CodeNodeType.eField, CodeNodeType.eConstant, CodeNodeType.eConst
+                    Case CodeNodeType.eField, CodeNodeType.eConst
                         ' FIXED: If ShowPrivateMembers is true, show all fields
                         If pShowPrivateMembers Then
                             Return True

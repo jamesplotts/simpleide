@@ -31,6 +31,8 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnToggleComment error: {ex.Message}")
         End Try
     End Sub
+
+
     
     ' Find start of line containing position
     Private Function FindLineStart(vContent As String, vPosition As Integer) As Integer

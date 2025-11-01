@@ -19,7 +19,7 @@ Namespace Dialogs
         
         ' ===== Private Fields =====
         Private pSettingsManager As SettingsManager
-        Private pNotebook As Notebook
+        Private pNotebook As CustomDrawNotebook
         
         ' Claude API tab controls
         Private pClaudeApiKeyEntry As Entry
@@ -100,18 +100,26 @@ Namespace Dialogs
         End Sub
         
         ' ===== UI Building =====
+        ' Replace: SimpleIDE.Dialogs.EnhancedAISettingsDialog.BuildUI
         Private Sub BuildUI()
             Try
-                ' Create notebook for tabs
-                pNotebook = New Notebook()
-                pNotebook.BorderWidth = 5
+                ' Create notebook for tabs - Use CustomDrawNotebook instead of standard Notebook
+                pNotebook = New CustomDrawNotebook()
                 
-                ' Add tabs
-                pNotebook.AppendPage(CreateClaudeApiTab(), New Label("Claude API"))
-                pNotebook.AppendPage(CreateMem0Tab(), New Label("Mem0 Memory"))
-                pNotebook.AppendPage(CreateArtifactTab(), New Label("Artifacts"))
-                pNotebook.AppendPage(CreateContextTab(), New Label("Context"))
-                pNotebook.AppendPage(CreateFeaturesTab(), New Label("Features"))
+                ' Configure the CustomDrawNotebook
+                Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                lCustomNotebook.ShowHidePanelButton = False  ' Dialog doesn't need hide button
+                lCustomNotebook.ShowDropdownButton = False    ' Dialog doesn't need dropdown
+                lCustomNotebook.ShowScrollButtons = False     ' Usually not needed for dialogs
+                lCustomNotebook.ShowTabCloseButtons = False   ' Dialog tabs shouldn't be closeable
+                lCustomNotebook.BorderWidth = 5
+                
+                ' Add tabs using string labels
+                pNotebook.AppendPage(CreateClaudeApiTab(), "Claude API")
+                pNotebook.AppendPage(CreateMem0Tab(), "Mem0 Memory")
+                pNotebook.AppendPage(CreateArtifactTab(), "Artifacts")
+                pNotebook.AppendPage(CreateContextTab(), "Context")
+                pNotebook.AppendPage(CreateFeaturesTab(), "Features")
                 
                 ' Add to dialog
                 ContentArea.PackStart(pNotebook, True, True, 0)
@@ -820,7 +828,7 @@ Namespace Dialogs
         Private Sub ShowError(vTitle As String, vMessage As String)
             Dim lDialog As New MessageDialog(Me,
                                            DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                                           MessageType.Error,
+                                           MessageType.error,
                                            ButtonsType.Ok,
                                            vMessage)
             lDialog.Title = vTitle

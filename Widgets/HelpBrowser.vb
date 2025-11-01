@@ -2,6 +2,7 @@
 Imports Gtk
 Imports WebKit
 Imports System.Diagnostics
+Imports SimpleIDE.Managers
 
 Namespace Widgets
     
@@ -12,14 +13,22 @@ Namespace Widgets
         Private pWebView As WebView
         Private pUrlBar As Entry
         Private pSearchEntry As Entry
-        Private pBackButton As Button
-        Private pForwardButton As Button
-        Private pRefreshButton As Button
-        Private pHomeButton As Button
-        Private pExternalButton As Button
+        Private pBackButton As ToolButton
+        Private pForwardButton As ToolButton
+        Private pRefreshButton As ToolButton
+        Private pHomeButton As ToolButton
+        Private pExternalButton As ToolButton
         Private pProgressBar As ProgressBar
         Private pStatusLabel As Label
         
+        ' ===== Theme Support Fields =====
+        Private pThemeButton As ToggleButton
+        Private pUseDarkTheme As Boolean = False
+        Private pSettingsManager As SettingsManager
+        Private pCurrentHtmlContent As String = ""
+        Private pCurrentBaseUri As String = ""
+        Private pIsInternalContent As Boolean = False     
+           
         ' Constants
         Private Const HOME_HTML As String = "<!DOCTYPE html>
 <html>
@@ -232,16 +241,36 @@ Namespace Widgets
     </div>
 </body>
 </html>"
+
+        ' Properties
+        Public ReadOnly Property WebView As WebView
+            Get
+                Return pWebView
+            End Get
+        End Property
+        
+        Public ReadOnly Property CurrentUrl As String
+            Get
+                Return If(pWebView?.Uri, "")
+            End Get
+        End Property
+        
+        Public ReadOnly Property IsLoading As Boolean
+            Get
+                Return pWebView IsNot Nothing AndAlso pWebView.IsLoading
+            End Get
+        End Property
+
         
         ' Events
         Public Event NavigationCompleted(vUrl As String)
         Public Event LoadingStateChanged(vIsLoading As Boolean)
         
-        Public Sub New()
+        Public Sub New(vSettingsManager as SettingsManager)
             MyBase.New(Orientation.Vertical, 0)
-            
+            pSettingsManager = vSettingsManager
             Try
-                BuildUI()
+                BuildUIWithTheme()
                 ConnectEvents()
                 
                 ' Load home page
@@ -251,53 +280,205 @@ Namespace Widgets
             End Try
         End Sub
         
-        Private Sub BuildUI()
+'        Private Sub BuildUI()
+'            Try
+'                ' Create main toolbar
+'                Dim lToolbar As New Toolbar()
+'                lToolbar.ToolbarStyle = ToolbarStyle.Icons
+'                lToolbar.IconSize = IconSize.Menu
+'                
+'                ' Navigation buttons
+'                pBackButton = New ToolButton()
+'                pBackButton.IconWidget = Image.NewFromIconName("go-previous", IconSize.Menu)
+'                pBackButton.TooltipText = "Go back"
+'                'pBackButton.Relief = ReliefStyle.None
+'                
+'                pForwardButton = New ToolButton()
+'                pForwardButton.IconWidget = Image.NewFromIconName("go-next", IconSize.Menu)
+'                pForwardButton.TooltipText = "Go forward"
+''                pForwardButton.Relief = ReliefStyle.None
+'                
+'                pRefreshButton = New ToolButton()
+'                pRefreshButton.IconWidget = Image.NewFromIconName("view-Refresh", IconSize.Menu)
+'                pRefreshButton.TooltipText = "Refresh"
+'                'pRefreshButton.Relief = ReliefStyle.None
+'                
+'                pHomeButton = New ToolButton()
+'                pHomeButton.IconWidget = Image.NewFromIconName("go-home", IconSize.Menu)
+'                pHomeButton.TooltipText = "Home"
+'                'pHomeButton.Relief = ReliefStyle.None
+'                
+'                pExternalButton = New Button()
+'                pExternalButton.Image = Image.NewFromIconName("applications-internet", IconSize.Menu)
+'                pExternalButton.TooltipText = "Open in external browser"
+'                pExternalButton.Relief = ReliefStyle.None
+'                
+'                ' URL bar
+'                pUrlBar = New Entry()
+'                pUrlBar.WidthRequest = 400
+'                pUrlBar.PlaceholderText = "Enter Url or topic..."
+'                
+'                ' Search entry
+'                Dim lSearchLabel As New Label("Search:")
+'                lSearchLabel.MarginStart = 10
+'                
+'                pSearchEntry = New Entry()
+'                pSearchEntry.WidthRequest = 200
+'                pSearchEntry.PlaceholderText = "Search documentation..."
+'                
+'                ' Add items to toolbar
+'                Dim lBackItem As New ToolItem()
+'                lBackItem.Add(pBackButton)
+'                lToolbar.Add(lBackItem)
+'                
+'                Dim lForwardItem As New ToolItem()
+'                lForwardItem.Add(pForwardButton)
+'                lToolbar.Add(lForwardItem)
+'                
+'                Dim lRefreshItem As New ToolItem()
+'                lRefreshItem.Add(pRefreshButton)
+'                lToolbar.Add(lRefreshItem)
+'                
+'                Dim lHomeItem As New ToolItem()
+'                lHomeItem.Add(pHomeButton)
+'                lToolbar.Add(lHomeItem)
+'                
+'                Dim lExternalItem As New ToolItem()
+'                lExternalItem.Add(pExternalButton)
+'                lToolbar.Add(lExternalItem)
+'                
+'                lToolbar.Add(New SeparatorToolItem())
+'                
+'                ' URL bar tool item
+'                Dim lUrlItem As New ToolItem()
+'                lUrlItem.Add(pUrlBar)
+'                lUrlItem.Expand = True
+'                lToolbar.Add(lUrlItem)
+'                
+'                lToolbar.Add(New SeparatorToolItem())
+'                
+'                ' Search items
+'                Dim lSearchLabelItem As New ToolItem()
+'                lSearchLabelItem.Add(lSearchLabel)
+'                lToolbar.Add(lSearchLabelItem)
+'                
+'                Dim lSearchItem As New ToolItem()
+'                lSearchItem.Add(pSearchEntry)
+'                lToolbar.Add(lSearchItem)
+'                
+'                ' Pack toolbar
+'                PackStart(lToolbar, False, False, 0)
+'                
+'                ' Create WebView
+'                pWebView = New WebView()
+'                
+'                ' Create scrolled window for WebView
+'                Dim lScrolled As New ScrolledWindow()
+'                lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+'                lScrolled.Add(pWebView)
+'                
+'                ' Pack scrolled window
+'                PackStart(lScrolled, True, True, 0)
+'                
+'                ' Status bar
+'                Dim lStatusBox As New Box(Orientation.Horizontal, 5)
+'                lStatusBox.BorderWidth = 2
+'                
+'                pProgressBar = New ProgressBar()
+'                pProgressBar.WidthRequest = 100
+'                pProgressBar.Visible = False
+'                lStatusBox.PackStart(pProgressBar, False, False, 0)
+'                
+'                pStatusLabel = New Label("Ready")
+'                pStatusLabel.Halign = Align.Start
+'                lStatusBox.PackStart(pStatusLabel, True, True, 0)
+'                
+'                PackEnd(lStatusBox, False, False, 0)
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"HelpBrowser.BuildUI: error: {ex.Message}")
+'            End Try
+'        End Sub
+        
+        Private Sub ConnectEvents()
             Try
-                ' Create main toolbar
+                ' Button events
+                AddHandler pBackButton.Clicked, AddressOf OnBackClicked
+                AddHandler pForwardButton.Clicked, AddressOf OnForwardClicked
+                AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
+                AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
+                AddHandler pExternalButton.Clicked, AddressOf OnExternalClicked
+                
+                ' URL bar events
+                AddHandler pUrlBar.Activated, AddressOf OnUrlActivated
+                
+                ' Search events
+                AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
+                
+                ' WebView events
+                AddHandler pWebView.LoadChanged, AddressOf OnLoadChanged
+                AddHandler pWebView.LoadFailed, AddressOf OnLoadFailed
+                AddHandler pWebView.DecidePolicy, AddressOf OnDecidePolicy
+                
+                ' Monitor property changes for progress and title
+                ' FIXED: Use a timer to poll for changes instead of NotifySignal
+                Dim lTimer As UInteger = GLib.Timeout.Add(100, Function()
+                    Try
+                        If pWebView.EstimatedLoadProgress > 0 AndAlso pWebView.EstimatedLoadProgress < 1.0 Then
+                            OnLoadProgressChanged()
+                        End If
+                        
+                        If Not String.IsNullOrEmpty(pWebView.Title) AndAlso pStatusLabel.Text <> pWebView.Title Then
+                            OnTitleChanged()
+                        End If
+                    Catch ex As Exception
+                        Console.WriteLine($"HelpBrowser Progress timer error: {ex.Message}")
+                    End Try
+                    Return True ' Continue timer
+                End Function)
+                
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.ConnectEvents: error: {ex.Message}")
+            End Try
+        End Sub
+        
+       
+        ''' <summary>
+        ''' Enhanced BuildUI method with theme toggle button
+        ''' </summary>
+        Private Sub BuildUIWithTheme()
+            Try
+                Orientation = Orientation.Vertical
+                Spacing = 0
+                
+                ' Toolbar
                 Dim lToolbar As New Toolbar()
                 lToolbar.ToolbarStyle = ToolbarStyle.Icons
-                lToolbar.IconSize = IconSize.Menu
                 
                 ' Navigation buttons
-                pBackButton = New Button()
-                pBackButton.Image = Image.NewFromIconName("go-previous", IconSize.Menu)
+                pBackButton = New toolButton(Nothing, "Back")
+                pBackButton.IconWidget = Image.NewFromIconName("go-previous", IconSize.SmallToolbar)
                 pBackButton.TooltipText = "Go back"
-                pBackButton.Relief = ReliefStyle.None
+                pBackButton.Sensitive = False
                 
-                pForwardButton = New Button()
-                pForwardButton.Image = Image.NewFromIconName("go-next", IconSize.Menu)
+                pForwardButton = New ToolButton(Nothing, "Forward")
+                pForwardButton.IconWidget = Image.NewFromIconName("go-next", IconSize.SmallToolbar)
                 pForwardButton.TooltipText = "Go forward"
-                pForwardButton.Relief = ReliefStyle.None
+                pForwardButton.Sensitive = False
                 
-                pRefreshButton = New Button()
-                pRefreshButton.Image = Image.NewFromIconName("view-Refresh", IconSize.Menu)
-                pRefreshButton.TooltipText = "Refresh"
-                pRefreshButton.Relief = ReliefStyle.None
+                pRefreshButton = New ToolButton(Nothing, "Refresh")
+                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
+                pRefreshButton.TooltipText = "Refresh page"
                 
-                pHomeButton = New Button()
-                pHomeButton.Image = Image.NewFromIconName("go-home", IconSize.Menu)
-                pHomeButton.TooltipText = "Home"
-                pHomeButton.Relief = ReliefStyle.None
+                pHomeButton = New ToolButton(Nothing, "Home")
+                pHomeButton.IconWidget = Image.NewFromIconName("go-home", IconSize.SmallToolbar)
+                pHomeButton.TooltipText = "Go to home page"
                 
-                pExternalButton = New Button()
-                pExternalButton.Image = Image.NewFromIconName("applications-internet", IconSize.Menu)
+                pExternalButton = New ToolButton(Nothing, "External")
+                pExternalButton.IconWidget = Image.NewFromIconName("web-browser", IconSize.SmallToolbar)
                 pExternalButton.TooltipText = "Open in external browser"
-                pExternalButton.Relief = ReliefStyle.None
                 
-                ' URL bar
-                pUrlBar = New Entry()
-                pUrlBar.WidthRequest = 400
-                pUrlBar.PlaceholderText = "Enter Url or topic..."
-                
-                ' Search entry
-                Dim lSearchLabel As New Label("Search:")
-                lSearchLabel.MarginStart = 10
-                
-                pSearchEntry = New Entry()
-                pSearchEntry.WidthRequest = 200
-                pSearchEntry.PlaceholderText = "Search documentation..."
-                
-                ' Add items to toolbar
+                ' Add navigation buttons
                 Dim lBackItem As New ToolItem()
                 lBackItem.Add(pBackButton)
                 lToolbar.Add(lBackItem)
@@ -319,6 +500,33 @@ Namespace Widgets
                 lToolbar.Add(lExternalItem)
                 
                 lToolbar.Add(New SeparatorToolItem())
+                
+                ' THEME TOGGLE BUTTON
+                pThemeButton = New ToggleButton()
+                pThemeButton.Label = "🌙"  ' Moon icon for dark mode
+                pThemeButton.TooltipText = "Toggle dark mode"
+                pThemeButton.Active = pUseDarkTheme
+                AddHandler pThemeButton.Toggled, AddressOf OnThemeToggled
+                
+                Dim lThemeItem As New ToolItem()
+                lThemeItem.Add(pThemeButton)
+                lToolbar.Add(lThemeItem)
+                
+                lToolbar.Add(New SeparatorToolItem())
+                
+                ' URL bar
+                pUrlBar = New Entry()
+                pUrlBar.PlaceholderText = "Enter URL or search term..."
+                pUrlBar.WidthRequest = 400
+                
+                ' Search box
+                Dim lSearchLabel As New Label("Search:")
+                lSearchLabel.MarginStart = 5
+                lSearchLabel.MarginEnd = 5
+                
+                pSearchEntry = New Entry()
+                pSearchEntry.PlaceholderText = "Search documentation..."
+                pSearchEntry.WidthRequest = 200
                 
                 ' URL bar tool item
                 Dim lUrlItem As New ToolItem()
@@ -366,52 +574,18 @@ Namespace Widgets
                 
                 PackEnd(lStatusBox, False, False, 0)
                 
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.BuildUI: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub ConnectEvents()
-            Try
-                ' Button events
-                AddHandler pBackButton.Clicked, AddressOf OnBackClicked
-                AddHandler pForwardButton.Clicked, AddressOf OnForwardClicked
-                AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
-                AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
-                AddHandler pExternalButton.Clicked, AddressOf OnExternalClicked
-                
-                ' URL bar events
-                AddHandler pUrlBar.Activated, AddressOf OnUrlActivated
-                
-                ' Search events
-                AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
-                
-                ' WebView events
-                AddHandler pWebView.LoadChanged, AddressOf OnLoadChanged
-                AddHandler pWebView.LoadFailed, AddressOf OnLoadFailed
-                AddHandler pWebView.DecidePolicy, AddressOf OnDecidePolicy
-                
-                ' Monitor property changes for progress and title
-                ' FIXED: Use a timer to poll for changes instead of NotifySignal
-                Dim lTimer As UInteger = GLib.Timeout.Add(100, Function()
-                    Try
-                        If pWebView.EstimatedLoadProgress > 0 AndAlso pWebView.EstimatedLoadProgress < 1.0 Then
-                            OnLoadProgressChanged()
-                        End If
-                        
-                        If Not String.IsNullOrEmpty(pWebView.Title) AndAlso pStatusLabel.Text <> pWebView.Title Then
-                            OnTitleChanged()
-                        End If
-                    Catch ex As Exception
-                        Console.WriteLine($"HelpBrowser Progress timer error: {ex.Message}")
-                    End Try
-                    Return True ' Continue timer
-                End Function)
+                If pSettingsManager IsNot Nothing Then
+                    pUseDarkTheme = pSettingsManager.GetBooleanSetting("HelpBrowserDarkMode", False)
+                    If pThemeButton IsNot Nothing Then
+                        pThemeButton.Active = pUseDarkTheme
+                    End If
+                End If
+
                 
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.ConnectEvents: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.BuildUIWithTheme error: {ex.Message}")
             End Try
-        End Sub
+        End Sub            
         
         ' Event handlers
         Private Sub OnBackClicked(sender As Object, e As EventArgs)
@@ -587,13 +761,18 @@ Namespace Widgets
         End Sub
         
         ' Public methods
+        
+        ''' <summary>
+        ''' Override NavigateToUrl to track internal vs external content
+        ''' </summary>
         Public Sub NavigateToUrl(vUrl As String)
             Try
+                pIsInternalContent = False  ' External URLs don't get themed
                 If Not String.IsNullOrEmpty(vUrl) Then
                     pWebView.LoadUri(vUrl)
                 End If
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.NavigateToUrl: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.NavigateToUrl error: {ex.Message}")
             End Try
         End Sub
         
@@ -634,25 +813,159 @@ Namespace Widgets
                 Console.WriteLine($"HelpBrowser.NavigateToTopic: error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Handles theme toggle button click
+        ''' </summary>
+        Private Sub OnThemeToggled(vSender As Object, vArgs As EventArgs)
+            Try
+                pUseDarkTheme = pThemeButton.Active
+                
+                ' Update button label
+                pThemeButton.Label = If(pUseDarkTheme, "☀️", "🌙")
+                
+                ' Save preference using existing SetBoolean method
+                If pSettingsManager IsNot Nothing Then
+                    pSettingsManager.SetBoolean("HelpBrowserDarkMode", pUseDarkTheme)
+                End If
+                
+                ' Reload current content with new theme if it's internal content
+                If pIsInternalContent AndAlso Not String.IsNullOrEmpty(pCurrentHtmlContent) Then
+                    LoadHtmlWithTheme(pCurrentHtmlContent, pCurrentBaseUri)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"OnThemeToggled error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Enhanced LoadHtml that stores content for theme switching
+        ''' </summary>
+        Public Sub LoadHtml(vHtml As String, Optional vBaseUri As String = "")
+            pCurrentHtmlContent = vHtml
+            pCurrentBaseUri = vBaseUri
+            pIsInternalContent = True
+            LoadHtmlWithTheme(vHtml, vBaseUri)
+        End Sub
         
-        ' Properties
-        Public ReadOnly Property WebView As WebView
-            Get
-                Return pWebView
-            End Get
-        End Property
+        ''' <summary>
+        ''' Loads HTML with theme applied
+        ''' </summary>
+        Private Sub LoadHtmlWithTheme(vHtml As String, vBaseUri As String)
+            Try
+                Dim lThemedHtml As String = ApplyThemeToHtml(vHtml)
+                pWebView.LoadHtml(lThemedHtml, vBaseUri)
+            Catch ex As Exception
+                Console.WriteLine($"LoadHtmlWithTheme error: {ex.Message}")
+                pWebView.LoadHtml(vHtml, vBaseUri)
+            End Try
+        End Sub
         
-        Public ReadOnly Property CurrentUrl As String
-            Get
-                Return If(pWebView?.Uri, "")
-            End Get
-        End Property
+        ''' <summary>
+        ''' Applies dark theme to HTML content by injecting CSS
+        ''' </summary>
+        Private Function ApplyThemeToHtml(vHtml As String) As String
+            If Not pUseDarkTheme Then
+                Return vHtml  ' Return original for light theme
+            End If
+            
+            ' Dark theme CSS to inject
+            Dim lDarkThemeCss As String = "
+<style id='dark-theme-override'>
+    /* Dark theme overrides */
+    body {
+        background: #1e1e1e !important;
+        color: #d4d4d4 !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #569cd6 !important;
+    }
+    
+    h1 {
+        border-bottom-color: #569cd6 !important;
+    }
+    
+    h2 {
+        background: #2d2d30 !important;
+        border-left-color: #569cd6 !important;
+    }
+    
+    table {
+        background: #252526 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+    }
+    
+    th {
+        background: #007acc !important;
+        color: #ffffff !important;
+    }
+    
+    td {
+        border-bottom-color: #3e3e42 !important;
+    }
+    
+    tr:hover {
+        background: #2d2d30 !important;
+    }
+    
+    .shortcut {
+        background: #569cd6 !important;
+        color: #1e1e1e !important;
+    }
+    
+    .description {
+        color: #cccccc !important;
+    }
+    
+    .note {
+        background: #2d2d30 !important;
+        border-color: #569cd6 !important;
+        color: #d4d4d4 !important;
+    }
+    
+    a {
+        color: #569cd6 !important;
+    }
+    
+    a:hover {
+        color: #9cdcfe !important;
+    }
+    
+    code {
+        background: #2d2d30 !important;
+        color: #ce9178 !important;
+        border-color: #3e3e42 !important;
+    }
+    
+    pre {
+        background: #252526 !important;
+        color: #d4d4d4 !important;
+        border-color: #3e3e42 !important;
+    }
+</style>
+"
+            
+            ' Insert the dark theme CSS before </head> tag
+            Dim lHeadEndIndex As Integer = vHtml.IndexOf("</head>", StringComparison.OrdinalIgnoreCase)
+            If lHeadEndIndex > 0 Then
+                Return vHtml.Insert(lHeadEndIndex, lDarkThemeCss)
+            Else
+                ' No head tag, try to insert after <html>
+                Dim lHtmlIndex As Integer = vHtml.IndexOf("<html", StringComparison.OrdinalIgnoreCase)
+                If lHtmlIndex >= 0 Then
+                    Dim lHtmlEndIndex As Integer = vHtml.IndexOf(">", lHtmlIndex)
+                    If lHtmlEndIndex > 0 Then
+                        Return vHtml.Insert(lHtmlEndIndex + 1, "<head>" & lDarkThemeCss & "</head>")
+                    End If
+                End If
+            End If
+            
+            ' Fallback: just prepend the CSS
+            Return lDarkThemeCss & vHtml
+        End Function
         
-        Public ReadOnly Property IsLoading As Boolean
-            Get
-                Return pWebView IsNot Nothing AndAlso pWebView.IsLoading
-            End Get
-        End Property
         
     End Class
     

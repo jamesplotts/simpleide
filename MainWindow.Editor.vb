@@ -25,16 +25,26 @@ Partial Public Class MainWindow
     ' ===== Public Methods =====
     
     ''' <summary>
-    ''' Opens a file with full project and Object Explorer integration
-    ''' </summary>
+    ''' Opens a file with full project and Object Explorer integrationas
+    ' Replace: SimpleIDE.MainWindow.OpenFile
     Public Sub OpenFile(vFilePath As String)
         Try
+            Console.WriteLine($"===== OpenFile called with: {vFilePath} =====")
+            Console.WriteLine($"  pOpenTabs.Count = {pOpenTabs.Count}")
+            
+            ' Debug: List all open tabs
+            for each lKey in pOpenTabs.Keys
+                Console.WriteLine($"  Open tab: {lKey}")
+            Next
+            
             ' Check if file is already open
             If pOpenTabs.ContainsKey(vFilePath) Then
+                Console.WriteLine($"  File IS in pOpenTabs, switching to existing tab")
                 SwitchToTab(vFilePath)
                 Return
             End If
-    
+            
+            Console.WriteLine($"  File NOT in pOpenTabs, creating new tab")
             Console.WriteLine($"OpenFile: Opening {vFilePath}")
             
             ' Get or create SourceFileInfo through ProjectManager
@@ -52,7 +62,7 @@ Partial Public Class MainWindow
                 End If
             Else
                 Console.WriteLine($"OpenFile: WARNING - No ProjectManager, creating standalone SourceFileInfo")
-                lSourceFileInfo = New SourceFileInfo(vFilePath, "", "")
+                lSourceFileInfo = New SourceFileInfo(vFilePath, "")
                 lIsNewFile = True
             End If
             
@@ -61,8 +71,6 @@ Partial Public Class MainWindow
                 Console.WriteLine($"OpenFile: Loading content for {vFilePath}")
                 lSourceFileInfo.LoadContent()
             End If
-            
-            lSourceFileInfo.IsLoaded = True
             
             ' Update status
             UpdateStatusBar($"Loading: {System.IO.Path.GetFileName(vFilePath)}")
@@ -80,20 +88,21 @@ Partial Public Class MainWindow
                     UpdateObjectExplorerForActiveTab()
                 End If
             End If            
-
+    
             Console.WriteLine($"OpenFile: Completed for {vFilePath}")
+            Console.WriteLine($"===== OpenFile finished =====")
             
         Catch ex As Exception
             Console.WriteLine($"OpenFile error: {ex.Message}")
             Console.WriteLine($"Stack: {ex.StackTrace}")
             ShowError("Open File Error", ex.Message)
         End Try
-    End Sub
+    End Sub    
     
     Public Sub OnNewFile(vSender As Object, vArgs As EventArgs)
         Try
             Dim lFileName As String = GetNextUntitledFileName()
-            Dim lSourceFileInfo As New SourceFileInfo(lFileName, "", "")
+            Dim lSourceFileInfo As New SourceFileInfo(lFileName, "")
             CreateNewTab(lFileName, lSourceFileInfo, False)
             
         Catch ex As Exception
@@ -318,7 +327,7 @@ Partial Public Class MainWindow
                 lTabInfo.NavigationDropdowns = Nothing ' No navigation for images
             Else
                 ' Create code editor
-                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo, pThemeManager)
+                Dim lEditor As New CustomDrawingEditor(vSourceFileInfo, pThemeManager, pSettingsManager)
             
                 ' Set the theme manager
                 If pThemeManager IsNot Nothing Then
@@ -365,7 +374,7 @@ Partial Public Class MainWindow
             lTabInfo.TabLabel = CreateTabLabel(vFilePath, lTabInfo.Modified)
             
             ' Add to notebook
-            pNotebook.AppendPage(lTabInfo.EditorContainer, lTabInfo.TabLabel)
+            pNotebook.AppendPage(lTabInfo.EditorContainer, System.IO.Path.GetFileName(vFilePath))
             pNotebook.ShowAll()
             
             ' Add to open tabs dictionary
@@ -417,6 +426,7 @@ Partial Public Class MainWindow
             
             ' ProjectManager request event
             AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+            AddHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
             
             ' Navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
@@ -448,10 +458,10 @@ Partial Public Class MainWindow
             
             ' Find the tab info for this editor to clean up navigation
             Dim lTabInfo As TabInfo = Nothing
-            For Each lTabEntry In pOpenTabs
+            for each lTabEntry in pOpenTabs
                 If lTabEntry.Value.Editor Is vEditor Then
                     lTabInfo = lTabEntry.Value
-                    Exit For
+                    Exit for
                 End If
             Next
             
@@ -473,6 +483,8 @@ Partial Public Class MainWindow
             ' Unhook ProjectManager request event (if applicable)
             RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             
+            RemoveHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
+            
             ' Unhook navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
@@ -486,15 +498,15 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Close a specific tab with proper cleanup, SourceFileInfo reload, and Object Explorer integration
-    ''' </summary>
-    ''' <remarks>
-    ''' This unified method handles unsaved changes, reloading files when discarded, and updating the Object Explorer.
-    ''' </remarks>
+    
+    
+    ' Replace: SimpleIDE.MainWindow.CloseTab
     Private Sub CloseTab(vTabInfo As TabInfo)
         Try
             If vTabInfo Is Nothing Then Return
+            
+            Console.WriteLine($"===== CloseTab called for: {vTabInfo.FilePath} =====")
+            Console.WriteLine($"  pOpenTabs.Count before = {pOpenTabs.Count}")
             
             ' Check for unsaved changes
             If vTabInfo.Modified Then
@@ -503,90 +515,104 @@ Partial Public Class MainWindow
                     DialogFlags.Modal,
                     MessageType.Question,
                     ButtonsType.None,
-                    $"The file '{vTabInfo.Editor.DisplayName}' has unsaved changes.{Environment.NewLine}Do you want to save before closing?"
+                    $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)} before closing?"
                 )
-                
-                lDialog.AddButton("Save", ResponseType.Yes)
                 lDialog.AddButton("Don't Save", ResponseType.No)
                 lDialog.AddButton("Cancel", ResponseType.Cancel)
+                lDialog.AddButton("Save", ResponseType.Yes)
+                lDialog.DefaultResponse = ResponseType.Yes
                 
-                Dim lResponse As Integer = lDialog.Run()
+                Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
                 lDialog.Destroy()
                 
                 Select Case lResponse
-                    Case CInt(ResponseType.Yes)
+                    Case ResponseType.Yes
                         ' Save the file
                         If Not SaveFile(vTabInfo) Then
-                            Return ' Cancel close if save fails
+                            ' Save failed, abort close
+                            Console.WriteLine("  Save failed, aborting close")
+                            Return
                         End If
-                        
-                    Case CInt(ResponseType.No)
-                        ' CRITICAL: Reload SourceFileInfo from disk when discarding changes
-                        ' This prevents the in-memory SourceFileInfo from retaining modified content
-                        If pProjectManager IsNot Nothing AndAlso Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
-                            Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
-                            If lSourceFileInfo IsNot Nothing Then
-                                Console.WriteLine($"Discarding changes - reloading {vTabInfo.FilePath} from disk")
-                                
-                                ' Use the new ReloadFile method to properly reset all state
-                                If Not lSourceFileInfo.ReloadFile() Then
-                                    Console.WriteLine($"Warning: Failed to reload file from disk: {vTabInfo.FilePath}")
-                                    ' Even if reload fails (file deleted), continue closing the tab
-                                    ' The ReloadFile method will have cleared the content appropriately
-                                End If
-                            End If
-                        ElseIf Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
-                            ' No ProjectManager but we have a file path - log warning
-                            Console.WriteLine($"Warning: No ProjectManager available to reload {vTabInfo.FilePath}")
-                        End If
-                        
-                    Case CInt(ResponseType.Cancel)
-                        Return ' Cancel the close operation
+                    Case ResponseType.Cancel
+                        ' User cancelled, abort close
+                        Console.WriteLine("  User cancelled, aborting close")
+                        Return
+                    Case ResponseType.No
+                        ' Continue without saving
+                        Console.WriteLine("  Closing without saving")
                 End Select
             End If
-    
-            ' Unhook all editor events (including Object Explorer events)
-            If vTabInfo.Editor IsNot Nothing Then
-                UnhookAllEditorEvents(vTabInfo.Editor)
-            End If
             
-            ' Update Object Explorer for the new active tab (or clear if no tabs left)
-            UpdateObjectExplorerForActiveTab()
-            
-            ' Find and remove the page from notebook
-            for i As Integer = 0 To pNotebook.NPages - 1
+            ' Remove from notebook
+            Console.WriteLine($"  Removing from notebook...")
+            For i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
+                    Console.WriteLine($"    Found at index {i}, removing")
                     pNotebook.RemovePage(i)
-                    Exit for
+                    Exit For
                 End If
             Next
             
             ' Remove from open tabs dictionary
-            pOpenTabs.Remove(vTabInfo.FilePath)
+            Console.WriteLine($"  Removing from pOpenTabs dictionary...")
+            If pOpenTabs.ContainsKey(vTabInfo.FilePath) Then
+                pOpenTabs.Remove(vTabInfo.FilePath)
+                Console.WriteLine($"    Removed {vTabInfo.FilePath}")
+            Else
+                Console.WriteLine($"    WARNING: {vTabInfo.FilePath} was Not in pOpenTabs!")
+            End If
             
-            ' Dispose the tab info
+            Console.WriteLine($"  pOpenTabs.Count after = {pOpenTabs.Count}")
+            
+            ' Debug: List remaining open tabs
+            For Each lKey In pOpenTabs.Keys
+                Console.WriteLine($"    Still open: {lKey}")
+            Next
+            
+            ' CRITICAL: Dispose the TabInfo which will dispose the editor
+            Console.WriteLine($"  Disposing TabInfo...")
             vTabInfo.Dispose()
-    
+            
             ' Update UI elements
             UpdateWindowTitle()
             UpdateStatusBar("")
             UpdateToolbarButtons()
             
-            ' Show welcome screen if no tabs left
-            If pNotebook.NPages = 0 Then
+            ' CRITICAL FIX: Check tab count AFTER removing from notebook
+            ' For CustomDrawNotebook, we need to check the actual page count
+            Dim lRemainingTabs As Integer = pNotebook.NPages
+            Console.WriteLine($"  Remaining tabs in notebook: {lRemainingTabs}")
+            
+            ' Also check if there are any non-Welcome tabs remaining
+            Dim lHasNonWelcomeTabs As Boolean = False
+            For i As Integer = 0 To pNotebook.NPages - 1
+                If Not IsWelcomeTab(i) Then
+                    lHasNonWelcomeTabs = True
+                    Exit For
+                End If
+            Next
+            
+            ' Show welcome screen if no tabs left or only Welcome tab remains
+            If lRemainingTabs = 0 OrElse Not lHasNonWelcomeTabs Then
+                Console.WriteLine("  No tabs left, showing Welcome tab")
+                ' Close any existing Welcome tab first to avoid duplicates
+                CloseWelcomeTab()
                 ShowWelcomeTab()
+                
                 ' Clear Object Explorer when no tabs are open
                 If pObjectExplorer IsNot Nothing Then
                     pObjectExplorer.ClearStructure()
                 End If
             End If
             
+            Console.WriteLine($"===== CloseTab finished =====")
+            
         Catch ex As Exception
             Console.WriteLine($"CloseTab error: {ex.Message}")
+            Console.WriteLine($"Stack: {ex.StackTrace}")
         End Try
     End Sub
-
 
     
     Private Sub CloseAllTabs()
@@ -607,52 +633,65 @@ Partial Public Class MainWindow
     ' ===== File Operations =====
 
     
-    Private Function SaveFileAs(vTabInfo As TabInfo) As Boolean
-        Try
-            ' Use the existing method from FileOperations
-            Dim lDialog As FileChooserDialog = FileOperations.CreateSaveAsDialog(Me)
+' Replace: SimpleIDE.MainWindow.SaveFileAs
+Private Function SaveFileAs(vTabInfo As TabInfo) As Boolean
+    Try
+        ' Use the existing method from FileOperations
+        Dim lDialog As FileChooserDialog = FileOperations.CreateSaveAsDialog(Me)
+        
+        ' Set initial filename
+        If Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
+            lDialog.CurrentName = System.IO.Path.GetFileName(vTabInfo.FilePath)
+        End If
+        
+        Dim lResult As Boolean = False
+        
+        If lDialog.Run() = CInt(ResponseType.Accept) Then
+            ' Store old path
+            Dim lOldPath As String = vTabInfo.FilePath
             
-            ' Set initial filename
-            If Not String.IsNullOrEmpty(vTabInfo.FilePath) Then
-                lDialog.CurrentName = System.IO.Path.GetFileName(vTabInfo.FilePath)
+            ' Update file path in TabInfo
+            vTabInfo.FilePath = lDialog.Filename
+            
+            ' CRITICAL: Update the SourceFileInfo's file path too
+            If vTabInfo.Editor.SourceFileInfo IsNot Nothing Then
+                vTabInfo.Editor.SourceFileInfo.FilePath = lDialog.Filename
+                Console.WriteLine($"SaveFileAs: Updated SourceFileInfo path To {lDialog.Filename}")
             End If
             
-            Dim lResult As Boolean = False
-            
-            If lDialog.Run() = CInt(ResponseType.Accept) Then
-                ' Store old path
-                Dim lOldPath As String = vTabInfo.FilePath
+            ' Save file (this will now save to the new path and sync states)
+            If SaveFile(vTabInfo) Then
+                ' Update open tabs dictionary
+                If lOldPath <> vTabInfo.FilePath Then
+                    pOpenTabs.Remove(lOldPath)
+                    pOpenTabs(vTabInfo.FilePath) = vTabInfo
+                End If
                 
-                ' Update file path
-                vTabInfo.FilePath = lDialog.Filename
+                ' Update tab label to show new filename
+                UpdateTabLabel(vTabInfo)
                 
-                ' Save file
-                If SaveFile(vTabInfo) Then
-                    ' Update open tabs dictionary
-                    If lOldPath <> vTabInfo.FilePath Then
-                        pOpenTabs.Remove(lOldPath)
-                        pOpenTabs(vTabInfo.FilePath) = vTabInfo
-                    End If
-                    
-                    ' Update UI
-                    UpdateWindowTitle()
-                    
-                    lResult = True
-                Else
-                    ' Restore old path on failure
-                    vTabInfo.FilePath = lOldPath
+                ' Update UI
+                UpdateWindowTitle()
+                
+                lResult = True
+            Else
+                ' Restore old paths on failure
+                vTabInfo.FilePath = lOldPath
+                If vTabInfo.Editor.SourceFileInfo IsNot Nothing Then
+                    vTabInfo.Editor.SourceFileInfo.FilePath = lOldPath
                 End If
             End If
-            
-            lDialog.Destroy()
-            Return lResult
-            
-        Catch ex As Exception
-            Console.WriteLine($"SaveFileAs error: {ex.Message}")
-            ShowError("Save As error", ex.Message)
-            Return False
-        End Try
-    End Function
+        End If
+        
+        lDialog.Destroy()
+        Return lResult
+        
+    Catch ex As Exception
+        Console.WriteLine($"SaveFileAs error: {ex.Message}")
+        ShowError("Save As error", ex.Message)
+        Return False
+    End Try
+End Function
     
     Private Function SaveAllFiles() As Boolean
         Try
@@ -768,10 +807,8 @@ Partial Public Class MainWindow
                 Return False
             End If
             
-            Dim lTabLabel As Widget = pNotebook.GetTabLabel(pNotebook.GetNthPage(vPageIndex))
-            If TypeOf lTabLabel Is Label Then
-                Return DirectCast(lTabLabel, Label).Text = "Welcome"
-            End If
+            Dim lTabLabel As String = pNotebook.GetTabLabel(vPageIndex)
+            Return (lTabLabel = "Welcome")
             
             Return False
         Catch ex As Exception
@@ -812,12 +849,16 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Updates the tab label text and CustomDrawNotebook's red dot indicator
+    ''' </summary>
+    ''' <param name="vTabInfo">The TabInfo for the tab to update</param>
     Private Sub UpdateTabLabel(vTabInfo As TabInfo)
         Try
-            ' Find the label in the tab
+            ' Update the label text (asterisk before filename)
             If vTabInfo.TabLabel.GetType() Is GetType(Box) Then
                 Dim lBox As Box = CType(vTabInfo.TabLabel, Box)
-                for each lChild As Widget in lBox.Children
+                For Each lChild As Widget In lBox.Children
                     If lChild.GetType() Is GetType(Label) Then
                         Dim lLabel As Label = CType(lChild, Label)
                         Dim lFileName As String = System.IO.Path.GetFileName(vTabInfo.FilePath)
@@ -826,7 +867,7 @@ Partial Public Class MainWindow
                         Else
                             lLabel.Text = lFileName
                         End If
-                        Exit for
+                        Exit For
                     End If
                 Next
             ElseIf vTabInfo.TabLabel.GetType() Is GetType(Label) Then
@@ -839,6 +880,29 @@ Partial Public Class MainWindow
                     lLabel.Text = lFileName
                 End If
             End If
+            
+            ' FIXED: Update the CustomDrawNotebook's red dot indicator (visual modified indicator)
+            ' This is separate from the asterisk in the text label
+            If TypeOf pNotebook Is CustomDrawNotebook Then
+                Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                
+                ' Find the tab index by comparing the EditorContainer widget
+                For i As Integer = 0 To lCustomNotebook.NPages - 1
+                    Dim lPage As Widget = lCustomNotebook.GetNthPage(i)
+                    If lPage Is vTabInfo.EditorContainer Then
+                        ' Update the red dot indicator in the CustomDrawNotebook
+                        lCustomNotebook.SetTabModified(i, vTabInfo.Modified)
+                        Console.WriteLine($"UpdateTabLabel: Updated red dot for tab {i} To {vTabInfo.Modified} for {vTabInfo.FilePath}")
+                        Exit For
+                    End If
+                Next
+            End If
+            
+            ' FIXED: Update project dirty state whenever a tab's modified state changes
+            UpdateProjectDirtyState()
+            
+            ' Update window title to reflect both project and file states
+            UpdateWindowTitle()
             
         Catch ex As Exception
             Console.WriteLine($"UpdateTabLabel error: {ex.Message}")
@@ -977,9 +1041,9 @@ Partial Public Class MainWindow
     ''' 5. Navigation dropdowns update (Step 5)
     ''' 6. Editor focus management
     ''' </remarks>
-    Private Sub OnNotebookSwitchPage(vSender As Object, vArgs As SwitchPageArgs)
+    Private Sub OnLeftPanelNotebookSwitchPage(vOldIndex As Integer, vNewIndex As Integer)
         Try
-            Console.WriteLine($"OnNotebookSwitchPage: Switching to page {vArgs.PageNum}")
+            Console.WriteLine($"OnNotebookSwitchPage: Switching To page {vNewIndex}")
             
             ' ===== 1. Basic UI Updates =====
             UpdateWindowTitle()
@@ -989,11 +1053,11 @@ Partial Public Class MainWindow
             ' ===== 2. Get Current Tab Info =====
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
-                Console.WriteLine("OnNotebookSwitchPage: No current tab or editor found")
+                Console.WriteLine("OnNotebookSwitchPage: No current tab Or editor found")
                 Return
             End If
             
-            Console.WriteLine($"OnNotebookSwitchPage: Switching to {lCurrentTab.FilePath}")
+            Console.WriteLine($"OnNotebookSwitchPage: Switching To {lCurrentTab.FilePath}")
             
             ' ===== 3. Object Explorer Integration =====
             ' Update Object Explorer for new active editor
@@ -1042,7 +1106,7 @@ Partial Public Class MainWindow
             Dim lFileName As String = System.IO.Path.GetFileName(lCurrentTab.FilePath)
             UpdateStatusBar($"Ready - {lFileName}")
             
-            Console.WriteLine($"OnNotebookSwitchPage: Successfully completed tab switch to {lFileName}")
+            Console.WriteLine($"OnNotebookSwitchPage: Successfully completed tab switch To {lFileName}")
             
         Catch ex As Exception
             Console.WriteLine($"OnNotebookSwitchPage error: {ex.Message}")
@@ -1058,10 +1122,36 @@ Partial Public Class MainWindow
     End Sub
 
 
-    Private Sub OnEditorModified(vIsModified As Boolean)
+    ''' <summary>
+    ''' Handles the Modified event from an editor
+    ''' </summary>
+    ''' <param name="vIsModified">True if the editor content has been modified</param>
+    Private Sub OnEditorModified(sender as Object, vIsModified As Boolean)
         Try
-            ' Find the editor that sent this event and mark tab as modified
-            UpdateStatusBar("")
+            ' Find the editor that raised the event
+            Dim lSender As IEditor = TryCast(sender, IEditor)
+            If lSender Is Nothing Then Return
+            
+            ' Find the corresponding TabInfo
+            For Each lTabEntry In pOpenTabs
+                Dim lTabInfo As TabInfo = lTabEntry.Value
+                If lTabInfo.Editor Is lSender Then
+                    ' Update the TabInfo's modified state
+                    lTabInfo.Modified = vIsModified
+                    
+                    ' Update the tab label (which now also updates CustomDrawNotebook)
+                    UpdateTabLabel(lTabInfo)
+                    
+                    ' FIXED: Update the project's dirty state based on all files
+                    UpdateProjectDirtyState()
+                    
+                    ' Update window title (now shows both project and file states)
+                    UpdateWindowTitle()
+                    
+                    Console.WriteLine($"OnEditorModified: Updated tab for {lTabInfo.FilePath}, Modified = {vIsModified}")
+                    Exit For
+                End If
+            Next
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorModified error: {ex.Message}")
@@ -1111,7 +1201,7 @@ Partial Public Class MainWindow
                 UpdateToolbarButtons()
                 
                 ' Show status
-                UpdateStatusBar("Line cut to clipboard")
+                UpdateStatusBar("Line cut To clipboard")
             Else
                 ' For other editor types, try to implement basic cut line functionality
                 ' using the IEditor interface methods
@@ -1128,12 +1218,12 @@ Partial Public Class MainWindow
                 
                 ' Update toolbar and status
                 UpdateToolbarButtons()
-                UpdateStatusBar("Line cut to clipboard")
+                UpdateStatusBar("Line cut To clipboard")
             End If
             
         Catch ex As Exception
             Console.WriteLine($"OnCutLine error: {ex.Message}")
-            ShowError("Cut Line Error", $"Failed to cut line: {ex.Message}")
+            ShowError("Cut Line error", $"Failed To cut line: {ex.Message}")
         End Try
     End Sub
        
@@ -1150,7 +1240,7 @@ Partial Public Class MainWindow
     Private Sub HookupNavigationEvents(vTabInfo As TabInfo)
         Try
             If vTabInfo?.Editor Is Nothing OrElse vTabInfo.NavigationDropdowns Is Nothing Then
-                Console.WriteLine("HookupNavigationEvents: Missing editor or navigation dropdowns")
+                Console.WriteLine("HookupNavigationEvents: Missing editor Or navigation dropdowns")
                 Return
             End If
             
@@ -1255,5 +1345,259 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnEditorNavigationUpdateRequested error: {ex.Message}")
         End Try
     End Sub
+    
+    ' Replace: SimpleIDE.MainWindow.OnCustomNotebookTabClosed
+    ''' <summary>
+    ''' Handles the TabClosed event from CustomDrawNotebook
+    ''' </summary>
+    ''' <param name="vIndex">Index of the closed tab</param>
+    Private Sub OnCustomNotebookTabClosed(vIndex As Integer)
+        Try
+            Console.WriteLine($"OnCustomNotebookTabClosed: Tab at index {vIndex} was closed")
+            
+            ' CRITICAL FIX: We need to find and remove the TabInfo from pOpenTabs
+            ' The CustomDrawNotebook has already removed the widget from the notebook,
+            ' but we need to clean up our tracking dictionaries
+            
+            ' Find the TabInfo that was at this index
+            Dim lTabInfoToRemove As TabInfo = Nothing
+            Dim lKeyToRemove As String = Nothing
+            
+            ' Search through all open tabs (including special ones like scratchpad, help, etc.)
+            For Each lKvp In pOpenTabs
+                Dim lKey As String = lKvp.Key
+                Dim lTabInfo As TabInfo = lKvp.Value
+                
+                ' Check if this TabInfo's widget is still in the notebook
+                Dim lFoundInNotebook As Boolean = False
+                For i As Integer = 0 To pNotebook.NPages - 1
+                    Dim lPage As Widget = pNotebook.GetNthPage(i)
+                    If lPage Is lTabInfo.EditorContainer Then
+                        lFoundInNotebook = True
+                        Exit For
+                    End If
+                Next
+                
+                ' If not found in notebook, this is the one that was closed
+                If Not lFoundInNotebook Then
+                    lTabInfoToRemove = lTabInfo
+                    lKeyToRemove = lKey
+                    Console.WriteLine($"  Found closed tab: {lKey}")
+                    Exit For
+                End If
+            Next
+            
+            ' Handle special cleanup based on tab type
+            If lTabInfoToRemove IsNot Nothing AndAlso lKeyToRemove IsNot Nothing Then
+                ' Check if it's a scratchpad tab
+                If lKeyToRemove.StartsWith("scratchpad:") Then
+                    ' Extract the tab ID
+                    Dim lTabId As String = lKeyToRemove.Replace("scratchpad:", "")
+                    
+                    ' Force save and remove from scratchpad panels
+                    If pScratchpadPanels.ContainsKey(lTabId) Then
+                        pScratchpadPanels(lTabId).ForceSave()
+                        pScratchpadPanels.Remove(lTabId)
+                        Console.WriteLine($"  Saved and removed scratchpad panel: {lTabId}")
+                    End If
+                    
+                    ' Update scratchpad button tooltip
+                    UpdateScratchpadButtonTooltip(False)
+                End If
+                
+                ' Check if it's a help tab
+                If lKeyToRemove.StartsWith("help:") Then
+                    ' Extract the help tab ID
+                    Dim lHelpTabId As String = lKeyToRemove.Replace("help:", "")
+                    
+                    ' Remove from help tabs dictionary if it exists
+                    If pHelpTabs IsNot Nothing AndAlso pHelpTabs.ContainsKey(lHelpTabId) Then
+                        pHelpTabs.Remove(lHelpTabId)
+                        Console.WriteLine($"  Removed help tab: {lHelpTabId}")
+                    End If
+                End If
+                
+                ' Check if it's an AI artifact tab
+                If lKeyToRemove.StartsWith("ai-artifact:") Then
+                    ' Extract the artifact ID
+                    Dim lArtifactId As String = lKeyToRemove.Replace("ai-artifact:", "")
+                    
+                    ' Remove from AI artifact tabs dictionary if it exists
+                    If pAIArtifactTabs IsNot Nothing AndAlso pAIArtifactTabs.ContainsKey(lArtifactId) Then
+                        pAIArtifactTabs.Remove(lArtifactId)
+                        Console.WriteLine($"  Removed AI artifact tab: {lArtifactId}")
+                    End If
+                End If
+                
+                ' Remove from pOpenTabs dictionary
+                pOpenTabs.Remove(lKeyToRemove)
+                Console.WriteLine($"  Removed {lKeyToRemove} from pOpenTabs")
+                Console.WriteLine($"  pOpenTabs.Count = {pOpenTabs.Count}")
+                
+                ' Unhook all editor events (if it has an editor)
+                If lTabInfoToRemove.Editor IsNot Nothing Then
+                    UnhookAllEditorEvents(lTabInfoToRemove.Editor)
+                End If
+                
+                ' Dispose the TabInfo
+                lTabInfoToRemove.Dispose()
+                
+                ' Update UI
+                UpdateWindowTitle()
+                UpdateStatusBar("")
+                UpdateToolbarButtons()
+                
+                ' Update Object Explorer for regular file tabs
+                If Not lKeyToRemove.Contains(":") Then ' Regular file path doesn't contain ":"
+                    UpdateObjectExplorerForActiveTab()
+                End If
+            Else
+                Console.WriteLine("  WARNING: Could Not find TabInfo for closed tab!")
+            End If
+            
+            ' Check if all tabs are now closed
+            If TypeOf pNotebook Is CustomDrawNotebook Then
+                Dim lNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                
+                ' Check if notebook is now empty
+                If lNotebook.NPages = 0 Then
+                    Console.WriteLine("CustomDrawNotebook Is now empty - showing Welcome tab")
+                    ShowWelcomeTab()
+                    
+                    ' Clear Object Explorer
+                    If pObjectExplorer IsNot Nothing Then
+                        pObjectExplorer.ClearStructure()
+                    End If
+                End If
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnCustomNotebookTabClosed error: {ex.Message}")
+            Console.WriteLine($"Stack: {ex.StackTrace}")
+        End Try
+    End Sub    
+    
+    ''' <summary>
+    ''' Wire up CustomDrawNotebook events
+    ''' </summary>
+    Private Sub WireCustomNotebookEvents()
+        Try
+            If TypeOf pNotebook Is CustomDrawNotebook Then
+                Dim lNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                
+                ' Wire up the TabClosed event
+                AddHandler lNotebook.TabClosed, AddressOf OnCustomNotebookTabClosed
+                
+                ' Wire up other events as needed
+                AddHandler lNotebook.TabModifiedChanged, AddressOf OnCustomNotebookTabModifiedChanged
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"WireCustomNotebookEvents error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles tab modified state changes from CustomDrawNotebook
+    ''' </summary>
+    Private Sub OnCustomNotebookTabModifiedChanged(vIndex As Integer, vModified As Boolean)
+        Try
+            ' Update window title if this is the current tab
+            If vIndex = pNotebook.CurrentPage Then
+                UpdateWindowTitle()
+            End If
+            
+            ' Update toolbar buttons
+            UpdateToolbarButtons()
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnCustomNotebookTabModifiedChanged error: {ex.Message}")
+        End Try
+    End Sub    
+
+    ''' <summary>
+    ''' Handles the RequestGotoDefinition event from CustomDrawingEditor instances
+    ''' </summary>
+    ''' <param name="vSender">The CustomDrawingEditor that raised the event</param>
+    ''' <param name="vArgs">Event arguments containing word and location information</param>
+    ''' <remarks>
+    ''' This method searches for the definition of the word across all project files,
+    ''' opens the file containing the definition, and navigates to the exact location
+    ''' </remarks>
+    Private Sub OnRequestGotoDefinition(vSender As Object, vArgs As GoToDefinitionEventArgs)
+        Try
+            Console.WriteLine($"OnRequestGotoDefinition: Word='{vArgs.Word}' at {vArgs.FilePath}:{vArgs.LineNumber}:{vArgs.ColumnNumber}")
+            
+            ' Validate input
+            If String.IsNullOrWhiteSpace(vArgs.Word) Then
+                Console.WriteLine("OnRequestGotoDefinition: No word specified")
+                UpdateStatusBar("No symbol selected for Go to Definition")
+                Return
+            End If
+            
+            ' Check if we have a project manager
+            If pProjectManager Is Nothing Then
+                Console.WriteLine("OnRequestGotoDefinition: No ProjectManager available")
+                UpdateStatusBar($"Go to Definition: No project open")
+                Return
+            End If
+            
+            ' Call the ProjectManager to find the definition
+            Dim lDefinitionInfo As DefinitionInfo = pProjectManager.FindDefinition(vArgs.Word, vArgs.FilePath, vArgs.LineNumber, vArgs.ColumnNumber)
+            
+            If lDefinitionInfo Is Nothing Then
+                Console.WriteLine($"OnRequestGotoDefinition: Definition not found for '{vArgs.Word}'")
+                UpdateStatusBar($"Definition Of '{vArgs.Word}' not found")
+                Return
+            End If
+            
+            Console.WriteLine($"OnRequestGotoDefinition: Found definition in {lDefinitionInfo.FilePath} at line {lDefinitionInfo.Line}")
+            
+            ' Check if the file is already open
+            Dim lTargetFilePath As String = lDefinitionInfo.FilePath
+            Dim lIsAlreadyOpen As Boolean = pOpenTabs.ContainsKey(lTargetFilePath)
+            
+            If lIsAlreadyOpen Then
+                Console.WriteLine($"OnRequestGotoDefinition: File already open, switching to tab")
+                ' Switch to the existing tab
+                SwitchToTab(lTargetFilePath)
+            Else
+                Console.WriteLine($"OnRequestGotoDefinition: Opening file {lTargetFilePath}")
+                ' Open the file
+                OpenFile(lTargetFilePath)
+            End If
+            
+            ' Navigate to the definition location
+            Dim lTabInfo As TabInfo = Nothing
+            If pOpenTabs.TryGetValue(lTargetFilePath, lTabInfo) Then
+                If lTabInfo.Editor IsNot Nothing Then
+                    ' Create EditorPosition for navigation
+                    Dim lPosition As New EditorPosition(lDefinitionInfo.Line, lDefinitionInfo.Column)
+                    
+                    Console.WriteLine($"OnRequestGotoDefinition: Navigating to position {lPosition}")
+                    
+                    ' Navigate to the position
+                    lTabInfo.Editor.GoToPosition(lPosition)
+                    
+                    ' Focus the editor
+                    lTabInfo.Editor.Widget.GrabFocus()
+                    
+                    ' Update status bar
+                    Dim lFileName As String = System.IO.Path.GetFileName(lTargetFilePath)
+                    UpdateStatusBar($"Navigated to definition of '{vArgs.Word}' in {lFileName} at line {lDefinitionInfo.Line + 1}")
+                Else
+                    Console.WriteLine("OnRequestGotoDefinition: Editor Not found in tab")
+                End If
+            Else
+                Console.WriteLine($"OnRequestGotoDefinition: Could Not find tab for {lTargetFilePath}")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnRequestGotoDefinition error: {ex.Message}")
+            Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            UpdateStatusBar($"error navigating To definition: {ex.Message}")
+        End Try
+    End Sub
+
         
 End Class

@@ -13,10 +13,10 @@ Imports SimpleIDE.Interfaces
 
 Partial Public Class MainWindow
     
-    ' ===== Build System Integration =====
+    ' =x==== Build System Integration =====
     
     ''' <summary>
-    ''' Event raised when build completes
+    ''' Event raised when build comp letes
     ''' </summary>
     Public Event BuildCompleted(vSuccess As Boolean)
     
@@ -264,8 +264,6 @@ Partial Public Class MainWindow
                 If lVersionManager.SetVersion(lNewVersion) Then
                     Console.WriteLine($"Project version incremented from {lCurrentVersion} to {lNewVersion}")
                     
-                    ' Record the increment time
-                    pSettingsManager.LastVersionIncrement = DateTime.Now
                     
                     ' Clear cached version so UI updates
                     ApplicationVersion.ClearCache()
@@ -295,19 +293,8 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Function ShouldIncrementVersion(vCurrentVersion As Version) As Boolean
         Try
-            ' Option 1: Only increment once per session
-            If pSettingsManager.IncrementOncePerSession Then
-                Return Not pVersionIncrementedThisSession
-            End If
-            
-            ' Option 2: Only increment once per day
-            If pSettingsManager.IncrementOncePerDay Then
-                Dim lLastIncrement As DateTime = pSettingsManager.LastVersionIncrement
-                Return lLastIncrement.Date < DateTime.Today
-            End If
-            
-            ' Option 3: Increment on every build (default)
-            Return True
+            ' Increment on every build (default)
+            Return pSettingsManager.AutoIncrementVersion
             
         Catch ex As Exception
             Console.WriteLine($"ShouldIncrementVersion error: {ex.Message}")
@@ -786,6 +773,47 @@ Partial Public Class MainWindow
             Return True
         End Try
     End Function
+    
+    ''' <summary>
+    ''' Updates the project's dirty state based on all open files
+    ''' </summary>
+    ''' <remarks>
+    ''' The project is dirty if ANY file has unsaved changes.
+    ''' The project is clean only when ALL files are saved.
+    ''' </remarks>
+    Private Sub UpdateProjectDirtyState()
+        Try
+            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                Return
+            End If
+            
+            ' Check if any files are modified
+            Dim lHasModifiedFiles As Boolean = HasModifiedFiles()
+            
+            ' Update the project manager's dirty state
+            If lHasModifiedFiles Then
+                ' Mark project as dirty if any file is modified
+                If Not pProjectManager.IsDirty Then
+                    pProjectManager.MarkDirty()
+                    Console.WriteLine("UpdateProjectDirtyState: Project marked as dirty (files have unsaved changes)")
+                End If
+            Else
+                ' Mark project as clean if all files are saved
+                If pProjectManager.IsDirty Then
+                    ' Note: We may need to add a MarkClean method to ProjectManager
+                    ' For now, we'll set IsDirty through reflection or add the method
+                    Console.WriteLine("UpdateProjectDirtyState: All files saved, project should be clean")
+                    ' TODO: Add pProjectManager.MarkClean() method
+                End If
+            End If
+            
+            ' Update window title to reflect the project state
+            UpdateWindowTitle()
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateProjectDirtyState error: {ex.Message}")
+        End Try
+    End Sub
     
     ' Add: SimpleIDE.MainWindow.HasBuildOutput
     ' To: MainWindow.Build.vb

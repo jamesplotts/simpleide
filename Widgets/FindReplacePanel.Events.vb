@@ -113,42 +113,62 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Always performs a fresh search when navigating to next result
+        ''' </summary>
         Private Sub OnFindNext(vSender As Object, vE As EventArgs)
             Try
-                If pCurrentMatches Is Nothing OrElse pCurrentMatches.Count = 0 Then
-                    ' No results - perform search first
-                    ExecuteSearch()
+                ' Always perform fresh search
+                ExecuteSearch()
+                
+                If pSearchResults.Count = 0 Then
+                    UpdateStatus("No matches found")
                     Return
                 End If
                 
                 ' Move to next match
-                pCurrentMatchIndex += 1
-                If pCurrentMatchIndex >= pCurrentMatches.Count Then
-                    pCurrentMatchIndex = 0  ' Wrap around
+                If pCurrentMatchIndex < 0 Then
+                    pCurrentMatchIndex = 0
+                Else
+                    pCurrentMatchIndex += 1
+                    If pCurrentMatchIndex >= pSearchResults.Count Then
+                        pCurrentMatchIndex = 0  ' Wrap around
+                    End If
                 End If
                 
                 NavigateToMatch(pCurrentMatchIndex)
+                UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
                 
             Catch ex As Exception
                 Console.WriteLine($"OnFindNext error: {ex.Message}")
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Always performs a fresh search when navigating to previous result
+        ''' </summary>
         Private Sub OnFindPrevious(vSender As Object, vE As EventArgs)
             Try
-                If pCurrentMatches Is Nothing OrElse pCurrentMatches.Count = 0 Then
-                    ' No results - perform search first
-                    ExecuteSearch()
+                ' Always perform fresh search
+                ExecuteSearch()
+                
+                If pSearchResults.Count = 0 Then
+                    UpdateStatus("No matches found")
                     Return
                 End If
                 
                 ' Move to previous match
-                pCurrentMatchIndex -= 1
                 If pCurrentMatchIndex < 0 Then
-                    pCurrentMatchIndex = pCurrentMatches.Count - 1  ' Wrap around
+                    pCurrentMatchIndex = pSearchResults.Count - 1
+                Else
+                    pCurrentMatchIndex -= 1
+                    If pCurrentMatchIndex < 0 Then
+                        pCurrentMatchIndex = pSearchResults.Count - 1  ' Wrap around
+                    End If
                 End If
                 
                 NavigateToMatch(pCurrentMatchIndex)
+                UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
                 
             Catch ex As Exception
                 Console.WriteLine($"OnFindPrevious error: {ex.Message}")
@@ -377,7 +397,6 @@ Namespace Widgets
             pFindPreviousButton.Sensitive = lHasText
             pReplaceButton.Sensitive = lHasText
             pReplaceAllButton.Sensitive = lHasText
-            pRefreshButton.Sensitive = (pSearchResults.Count > 0)  ' NEW: Enable refresh when results exist
         End Sub  
         
         Private Sub UpdateStatus(vMessage As String)
@@ -385,35 +404,35 @@ Namespace Widgets
             Console.WriteLine($"Find/Replace: {vMessage}")
         End Sub
 
-        ' Core Search Logic
-        Private Sub ExecuteSearchAndNavigate()
-            Try
-                If pCurrentTab Is Nothing Then
-                    UpdateStatus("No active editor tab")
-                    Return
-                End If
-                
-                ' Clear previous results and modified file tracking
-                pResultsStore.Clear()
-                pSearchResults.Clear()
-                pCurrentResultIndex = -1
-                pModifiedFiles.Clear()  ' NEW: Clear stale tracking
-                
-                ' Search in current file
-                ExecuteSearch()
-                
-                ' Navigate to first result if found
-                If pSearchResults.Count > 0 Then
-                    NavigateToResult(0)
-                Else
-                    UpdateStatus($"'{pFindEntry.Text}' not found")
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"error executing search: {ex.Message}")
-                UpdateStatus($"Search error: {ex.Message}")
-            End Try
-        End Sub
+'        ' Core Search Logic
+'        Private Sub ExecuteSeaxrchAndNavigate()
+'            Try
+'                If pCurrentTab Is Nothing Then
+'                    UpdateStatus("No active editor tab")
+'                    Return
+'                End If
+'                
+'                ' Clear previous results and modified file tracking
+'                pResultsStore.Clear()
+'                pSearchResults.Clear()
+'                pCurrentResultIndex = -1
+'                pModifiedFiles.Clear()  ' NEW: Clear stale tracking
+'                
+'                ' Search in current file
+'                ExecuteSearch()
+'                
+'                ' Navigate to first result if found
+'                If pSearchResults.Count > 0 Then
+'                    NavigateToResult(0)
+'                Else
+'                    UpdateStatus($"'{pFindEntry.Text}' not found")
+'                End If
+'                
+'            Catch ex As Exception
+'                Console.WriteLine($"error executing search: {ex.Message}")
+'                UpdateStatus($"Search error: {ex.Message}")
+'            End Try
+'        End Sub
 
         ' Perform search in current file
         Private Sub PerformFileSearch(vOptions As SearchOptions)
@@ -527,14 +546,6 @@ Namespace Widgets
                 ' Get current position (live if available)
                 Dim lCurrentPos = lResult.LineNumber()
                 
-                ' Warn if result is stale
-                'If lResult.IsStale Then
-                   ' UpdateStatus($"⚠ Result may be outdated - Line {lCurrentPos.Line}, Column {lCurrentPos.Column}")
-                'Else
-                   '' Dim lTrackingStatus = If(lResult.IsLiveTracked(), "📍", "")
-                   ' UpdateStatus($"{lTrackingStatus}Result {vIndex + 1} Of {pSearchResults.Count} - Line {lCurrentPos.Line}, Column {lCurrentPos.Column}")
-                'End If
-                
                 ' Raise event to navigate to result
                 RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
                 
@@ -561,10 +572,8 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Handles single-click selection in the results tree view for immediate navigation
+        ''' Handles single-click selection in the results - always verifies result is current
         ''' </summary>
-        ''' <param name="vSender">The sender of the event</param>
-        ''' <param name="vArgs">Event arguments</param>
         Private Sub OnResultsCursorChanged(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lSelection As TreeSelection = pResultsView.Selection
@@ -574,43 +583,43 @@ Namespace Widgets
                 If lSelection.GetSelected(lModel, lIter) Then
                     ' Get result details from tree
                     Dim lFileName As String = CStr(lModel.GetValue(lIter, 0))
-                    Dim lLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
-                    Dim lColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
+                    Dim lOldLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
+                    Dim lOldColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
                     Dim lMatchText As String = CStr(lModel.GetValue(lIter, 4))
                     
-                    ' Find the corresponding FindResult
-                    Dim lResult As FindResult = Nothing
-                    for each lRes in pSearchResults
-                        If lRes.LineNumber = lLineNumber AndAlso 
-                           lRes.ColumnNumber = lColumnNumber AndAlso
-                           System.IO.Path.GetFileName(lRes.FilePath) = lFileName Then
-                            lResult = lRes
-                            Exit for
+                    ' Always re-search to find current position
+                    Dim lFilePath As String = ""
+                    For Each lRes In pSearchResults
+                        If System.IO.Path.GetFileName(lRes.FilePath) = lFileName Then
+                            lFilePath = lRes.FilePath
+                            Exit For
                         End If
                     Next
                     
-                    If lResult IsNot Nothing Then
-                        ' Verify the result is still valid
-                        If Not VerifyResultStillValid(lResult) Then
-                            ' Result is stale - show warning and offer to refresh
-                            UpdateStatus($"⚠ Result outdated (text changed). Click Refresh to update results.")
-                            
-                            ' Try to find the text nearby
-                            Dim lNewLocation As FindResult = FindNearbyMatch(lResult)
-                            If lNewLocation IsNot Nothing Then
-                                ' Navigate to the new location
-                                RaiseEvent ResultSelected(lNewLocation.FilePath, lNewLocation.LineNumber, lNewLocation.ColumnNumber)
-                                UpdateStatus($"Found match at new location: Line {lNewLocation.LineNumber}")
-                            Else
-                                ' Can't find it - prompt to refresh
-                                UpdateStatus($"⚠ Match not found at Line {lLineNumber}. Click Find to refresh all results.")
+                    If Not String.IsNullOrEmpty(lFilePath) Then
+                        ' Perform fresh search in this specific file
+                        Dim lFreshResults As List(Of FindResult) = SearchInFile(lFilePath)
+                        
+                        ' Find the closest match to the old position
+                        Dim lBestMatch As FindResult = Nothing
+                        Dim lMinDistance As Integer = Integer.MaxValue
+                        
+                        For Each lResult In lFreshResults
+                            If lResult.MatchText = lMatchText Then
+                                Dim lDistance As Integer = Math.Abs(lResult.LineNumber - lOldLineNumber)
+                                If lDistance < lMinDistance Then
+                                    lMinDistance = lDistance
+                                    lBestMatch = lResult
+                                End If
                             End If
+                        Next
+                        
+                        If lBestMatch IsNot Nothing Then
+                            ' Navigate to the fresh location
+                            RaiseEvent ResultSelected(lBestMatch.FilePath, lBestMatch.LineNumber, lBestMatch.ColumnNumber)
+                            UpdateStatus($"Navigated to Line {lBestMatch.LineNumber}, Column {lBestMatch.ColumnNumber}")
                         Else
-                            ' Result is valid - navigate normally
-                            RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
-                            
-                            Dim lIndex As Integer = pSearchResults.IndexOf(lResult) + 1
-                            UpdateStatus($"Result {lIndex} of {pSearchResults.Count} - Line {lResult.LineNumber}, Column {lResult.ColumnNumber}")
+                            UpdateStatus($"Match '{lMatchText}' no longer found in file")
                         End If
                     End If
                 End If
@@ -619,6 +628,7 @@ Namespace Widgets
                 Console.WriteLine($"OnResultsCursorChanged error: {ex.Message}")
             End Try
         End Sub
+        
         
         Private Function VerifyResultStillValid(vResult As FindResult) As Boolean
             Try
@@ -760,16 +770,27 @@ Namespace Widgets
                     ' Update status to show results are stale
                     UpdateStatus($"⚠ {lStaleCount} results may be outdated (file edited). Click Refresh to update.")
                     
-                    ' Change refresh button appearance to indicate action needed
-                    If pRefreshButton IsNot Nothing Then
-                        pRefreshButton.Relief = ReliefStyle.Normal  ' Make it more prominent
-                    End If
                 End If
                 
             Catch ex As Exception
                 Console.WriteLine($"MarkResultsAsStale error: {ex.Message}")
             End Try
         End Sub
+        
+        ''' <summary>
+        ''' Automatically refreshes search results when panel gains focus
+        ''' </summary>
+        Public Sub AutoRefreshOnFocus()
+            Try
+                ' If we have previous search text, automatically refresh
+                If Not String.IsNullOrEmpty(pFindEntry.Text) AndAlso pSearchResults.Count > 0 Then
+                    Console.WriteLine("FindReplacePanel: Auto-refreshing results on focus")
+                    ExecuteSearch()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"AutoRefreshOnFocus error: {ex.Message}")
+            End Try
+        End Sub        
         
     End Class
 

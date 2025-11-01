@@ -54,46 +54,43 @@ Namespace Managers
             End Try
         End Function
         
-        ''' <summary>
-        ''' Creates an empty SourceFileInfo for a new file
-        ''' </summary>
-        ''' <param name="vFileName">Name or path of the file to create</param>
-        ''' <returns>The created SourceFileInfo or Nothing on error</returns>
-        Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo
-            Try
-                ' Create path for new file
-                Dim lFilePath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, vFileName)
-                
-                ' Create new SourceFileInfo
-                Dim lFileInfo As New SourceFileInfo(lFilePath, "", pCurrentProjectInfo.ProjectDirectory)
-                
-                ' Set default content
-                lFileInfo.Content = $"' {vFileName}" & Environment.NewLine & _
-                                   $"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}" & Environment.NewLine & _
-                                   Environment.NewLine & _
-                                   "Imports System" & Environment.NewLine & _
-                                   Environment.NewLine & _
-                                   "Namespace " & pCurrentProjectInfo.GetEffectiveRootNamespace() & Environment.NewLine & _
-                                   Environment.NewLine & _
-                                   "End Namespace"
-                                   
-                lFileInfo.IsLoaded = True
-                
-                ' Set project root namespace
-                lFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                
-                ' Add to source files collection
-                If Not pSourceFiles.ContainsKey(lFilePath) Then
-                    pSourceFiles(lFilePath) = lFileInfo
-                End If
-                
-                Return lFileInfo
-                
-            Catch ex As Exception
-                Console.WriteLine($"CreateEmptyFile error: {ex.Message}")
-                Return Nothing
-            End Try
-        End Function
+' Replace: SimpleIDE.Managers.ProjectManager.CreateEmptyFile
+Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo
+    Try
+        ' Create path for new file
+        Dim lFilePath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, vFileName)
+        
+        ' Create new SourceFileInfo
+        Dim lFileInfo As New SourceFileInfo(lFilePath, $"' {vFileName}" & Environment.NewLine & _
+                           Environment.NewLine & _
+                           "Imports System" & Environment.NewLine & _
+                           Environment.NewLine & _
+                           $"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}" & Environment.NewLine & _
+                           Environment.NewLine & _
+                           "Namespace " & pCurrentProjectInfo.GetEffectiveRootNamespace() & Environment.NewLine & _
+                           Environment.NewLine & _
+                           "End Namespace")
+                           
+        
+        ' Set project root namespace
+        lFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+        lFileInfo.ProjectManager = Me
+        
+        ' IMPORTANT: Wire up events for the new SourceFileInfo
+        WireSourceFileInfoEvents(lFileInfo)
+
+        ' Add to source files collection
+        If Not pSourceFiles.ContainsKey(lFilePath) Then
+            pSourceFiles(lFilePath) = lFileInfo
+        End If
+        
+        Return lFileInfo
+        
+    Catch ex As Exception
+        Console.WriteLine($"CreateEmptyFile error: {ex.Message}")
+        Return Nothing
+    End Try
+End Function
         
         ' Fixed LoadProjectWithDocuments - removed pCodeParser initialization
         Public Function LoadProjectWithDocuments(vProjectPath As String) As Boolean
@@ -223,11 +220,11 @@ Namespace Managers
                         for each lChild in lNode.Children
                             Console.WriteLine($"      Merging child: {lChild.Name} ({lChild.NodeType})")
                             ' Use the RelativePath property that we added to SourceFileInfo
-                            MergeNodeIntoProjectFixed(lChild, vRootNamespace, vFileInfo.RelativePath)
+                            MergeNodeIntoProjectFixed(lChild, vRootNamespace, GetRelativePath(vFileInfo))
                         Next
                     Else
                         ' This is a regular node - merge it
-                        MergeNodeIntoProjectFixed(lNode, vRootNamespace, vFileInfo.RelativePath)
+                        MergeNodeIntoProjectFixed(lNode, vRootNamespace, GetRelativePath(vFileInfo))
                     End If
                 Next
                 
@@ -236,6 +233,10 @@ Namespace Managers
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub
+
+        Public Function GetRelativePath(vFileInfo As SourceFileInfo) As String
+            Return vFileInfo.FilePath.Substring(CurrentProjectPath.Length).TrimStart(Path.DirectorySeparatorChar)
+        End Function
 
         ''' <summary>
         ''' Create a DocumentModel for a file
@@ -338,25 +339,29 @@ Namespace Managers
         End Function
         
         ' In ProjectManager
-        Public Function SaveFile(vSourceFile As SourceFileInfo) As Boolean
-            Try
-                If vSourceFile Is Nothing Then Return False
-                
-                ' Save the file
-                If vSourceFile.SaveContent() Then
-                    ' Raise event for UI updates
-                    RaiseEvent FileSaved(vSourceFile.FilePath)
-                    
-                    Return True
-                End If
-                
-                Return False
-                
-            Catch ex As Exception
-                Console.WriteLine($"ProjectManager.SaveFile error: {ex.Message}")
-                Return False
-            End Try
-        End Function
+' Replace: SimpleIDE.Managers.ProjectManager.SaveFile
+' In ProjectManager
+Public Function SaveFile(vSourceFile As SourceFileInfo) As Boolean
+    Try
+        If vSourceFile Is Nothing Then Return False
+        
+        ' Save the file (this sets SourceFileInfo.IsModified = False)
+        If vSourceFile.SaveContent() Then
+            ' Raise event for UI updates
+            ' This should trigger MainWindow to update any open tabs for this file
+            RaiseEvent FileSaved(vSourceFile.FilePath)
+            
+            Console.WriteLine($"ProjectManager.SaveFile: Saved {vSourceFile.FilePath}")
+            Return True
+        End If
+        
+        Return False
+        
+    Catch ex As Exception
+        Console.WriteLine($"ProjectManager.SaveFile error: {ex.Message}")
+        Return False
+    End Try
+End Function
  
         ''' <summary>
         ''' Diagnostic method to print the actual structure of a namespace

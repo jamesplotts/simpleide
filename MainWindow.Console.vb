@@ -8,6 +8,8 @@ Imports System
 
 Partial Public Class MainWindow
     
+    ' Clear csonsole using BottomPanelManager
+
 
     ' Clear console using BottomPanelManager
     Public Sub ClearConsole()

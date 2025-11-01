@@ -39,16 +39,75 @@ Partial Public Class MainWindow
             ' AI menu
             CreateAIMenu()
             
+        #If DEBUG Then
+            ' Debug menu (NEW - for diagnostic options)
+            CreateDebugMenu()
+            AddObjectExplorerDebugMenuItem
+        #End If
+
             ' Help menu
             CreateHelpMenu()
-        #If DEBUG Then
-            AddObjectExplorerDebugMenuItem()
-        #End If
             
         Catch ex As Exception
             Console.WriteLine($"CreateMenuBar error: {ex.Message}")
         End Try
     End Sub
+    
+#If DEBUG Then    
+    ''' <summary>
+    ''' Creates the Debug menu with diagnostic options
+    ''' </summary>
+    Private Sub CreateDebugMenu()
+        Try
+            Dim lDebugMenu As New Menu()
+            Dim lDebugMenuItem As New MenuItem("_Debug")
+            lDebugMenuItem.Submenu = lDebugMenu
+            
+            ' Diagnose Left Panel
+            Dim lDiagnoseLeftPanel As New MenuItem("Diagnose Left Panel")
+            AddHandler lDiagnoseLeftPanel.Activated, Sub() DiagnoseLeftPanelVisibility()
+            lDebugMenu.Append(lDiagnoseLeftPanel)
+            
+            ' Force Show Left Panel
+            Dim lForceShowLeft As New MenuItem("Force Show Left Panel")
+            AddHandler lForceShowLeft.Activated, Sub() ForceShowLeftPanel()
+            lDebugMenu.Append(lForceShowLeft)
+            
+            ' Separator
+            lDebugMenu.Append(New SeparatorMenuItem())
+            
+'            ' Refresh Explorers
+'            Dim lRefreshExplorers As New MenuItem("Refresh Explorers")
+'            AddHandler lRefreshExplorers.Activated, Sub() RefreshExplorers()
+'            lDebugMenu.Append(lRefreshExplorers)
+'            
+'            ' Fix Empty Left Panel
+'            Dim lFixEmptyPanel As New MenuItem("Fix Empty Left Panel")
+'            AddHandler lFixEmptyPanel.Activated, Sub() FixEmptyLeftPanel()
+'            lDebugMenu.Append(lFixEmptyPanel)
+            
+            ' Separator
+            lDebugMenu.Append(New SeparatorMenuItem())
+            
+            ' Ensure Notebooks Ready
+            Dim lEnsureNotebooks As New MenuItem("Ensure Notebooks Ready")
+            AddHandler lEnsureNotebooks.Activated, Sub() EnsureNotebooksReady()
+            lDebugMenu.Append(lEnsureNotebooks)
+            
+            Dim lDiagnosticItem As New MenuItem("Export Syntax Tree Diagnostic")
+            AddHandler lDiagnosticItem.Activated, AddressOf OnExportSyntaxTreeDiagnostic            
+            lDebugMenu.Append(lDiagnosticItem)
+            
+             ' Add to menu bar (before Help menu)
+            pMenuBar.Append(lDebugMenuItem)
+            
+            Console.WriteLine("Debug menu created with diagnostic options")
+            
+        Catch ex As Exception
+            Console.WriteLine($"CreateDebugMenu error: {ex.Message}")
+        End Try
+    End Sub  
+#End If      
     
     ' Helper method to create a menu item with icon
     Private Function CreateMenuItemWithIcon(vLabel As String, vIconName As String) As MenuItem
@@ -255,119 +314,119 @@ Partial Public Class MainWindow
         ' TODO: Implement UpdateMenuStates
     End Sub
     
-Private Sub CreateViewMenu()
-    Try
-        Dim lViewMenu As New Menu()
-        Dim lViewMenuItem As New MenuItem("_View")
-        lViewMenuItem.Submenu = lViewMenu
-        pMenuBar.Append(lViewMenuItem)
-        
-        ' Project Explorer
-        Dim lProjectExp As New CheckMenuItem("_Project Explorer")
-        lProjectExp.Active = True
-        AddHandler lProjectExp.Toggled, AddressOf OnToggleProjectExplorer
-        lViewMenu.Append(lProjectExp)
-        
-        ' Output
-        Dim lOutput As New CheckMenuItem("_Output")
-        AddHandler lOutput.Toggled, AddressOf OnToggleOutput
-        lViewMenu.Append(lOutput)
-        
-        ' Error List
-        Dim lErrorList As New CheckMenuItem("_Error List")
-        AddHandler lErrorList.Toggled, AddressOf OnToggleErrorList
-        lViewMenu.Append(lErrorList)
-        
-        ' TODO List
-        Dim lTodoList As New CheckMenuItem("_TODO List")
-        ' TODO: AddHandler lTodoList.Toggled, AddressOf ToggleTodoList
-        lViewMenu.Append(lTodoList)
-        
-        ' AI Assistant
-        Dim lAIAssistant As New CheckMenuItem("_AI Assistant")
-        ' TODO: AddHandler lAIAssistant.Toggled, AddressOf OnToggleAIAssistant
-        lViewMenu.Append(lAIAssistant)
-
-        AddScratchpadMenuItem(lViewMenu)
-
-
-        lViewMenu.Append(New SeparatorMenuItem())
-        
-        ' Toolbar submenu
-        Dim lToolbar As New MenuItem("_Toolbar")
-        Dim lToolbarMenu As New Menu()
-        lToolbar.Submenu = lToolbarMenu
-        lViewMenu.Append(lToolbar)
-        
-        ' Show/Hide Toolbar
-        Dim lShowToolbar As New CheckMenuItem("_Show Toolbar")
-        lShowToolbar.Active = pSettingsManager.ShowToolbar
-        AddHandler lShowToolbar.Toggled, AddressOf OnToggleToolbar
-        lToolbarMenu.Append(lShowToolbar)
-        
-        lToolbarMenu.Append(New SeparatorMenuItem())
-        
-        ' Show Labels
-        Dim lShowLabels As New CheckMenuItem("Show _Labels")
-        lShowLabels.Active = pSettingsManager.ToolbarShowLabels
-        AddHandler lShowLabels.Toggled, AddressOf OnToggleToolbarLabels
-        lToolbarMenu.Append(lShowLabels)
-        
-        ' Button Size submenu
-        Dim lButtonSize As New MenuItem("Button _Size")
-        Dim lButtonSizeMenu As New Menu()
-        lButtonSize.Submenu = lButtonSizeMenu
-        lToolbarMenu.Append(lButtonSize)
-        
-        ' Large buttons radio
-        Dim lLargeButtons As New RadioMenuItem("_Large")
-        lLargeButtons.Active = pSettingsManager.ToolbarLargeIcons
-        AddHandler lLargeButtons.Toggled, AddressOf OnToolbarLargeButtons
-        lButtonSizeMenu.Append(lLargeButtons)
-        
-        ' Small buttons radio (use same group as large)
-        Dim lSmallButtons As New RadioMenuItem(lLargeButtons, "_Small")
-        lSmallButtons.Active = Not pSettingsManager.ToolbarLargeIcons
-        AddHandler lSmallButtons.Toggled, AddressOf OnToolbarSmallButtons
-        lButtonSizeMenu.Append(lSmallButtons)
-        
-        lViewMenu.Append(New SeparatorMenuItem())
-        
-        ' Full Screen
-        Dim lFullScreen As New CheckMenuItem("_Full Screen")
-        AddHandler lFullScreen.Toggled, AddressOf OnToggleFullScreen
-        lViewMenu.Append(lFullScreen)
-        
-        lViewMenu.Append(New SeparatorMenuItem())
-        
-        ' Theme submenu
-        Dim lTheme As New MenuItem("T_hemes")
-        pThemeMenu = New Menu()
-        lTheme.Submenu = pThemeMenu
-        UpdateThemeMenu()
-        lViewMenu.Append(lTheme)
-        
-        lViewMenu.Append(New SeparatorMenuItem())
-        
-        ' Zoom In
-        Dim lZoomIn As MenuItem = CreateMenuItemWithIcon("Zoom _In", "zoom-in")
-        ' TODO: AddHandler lZoomIn.Activated, AddressOf OnZoomIn
-        lViewMenu.Append(lZoomIn)
-        
-        ' Zoom Out
-        Dim lZoomOut As MenuItem = CreateMenuItemWithIcon("Zoom _Out", "zoom-out")
-        ' TODO: AddHandler lZoomOut.Activated, AddressOf OnZoomOut
-        lViewMenu.Append(lZoomOut)
-        
-        ' Reset Zoom
-        Dim lZoomReset As New MenuItem("_Reset Zoom")
-        ' TODO: AddHandler lZoomReset.Activated, AddressOf OnZoomReset
-        lViewMenu.Append(lZoomReset)
-        
-    Catch ex As Exception
-        Console.WriteLine($"CreateViewMenu error: {ex.Message}")
-    End Try
-End Sub
+    Private Sub CreateViewMenu()
+        Try
+            Dim lViewMenu As New Menu()
+            Dim lViewMenuItem As New MenuItem("_View")
+            lViewMenuItem.Submenu = lViewMenu
+            pMenuBar.Append(lViewMenuItem)
+            
+            ' Project Explorer
+            Dim lProjectExp As New CheckMenuItem("_Project Explorer")
+            lProjectExp.Active = True
+            AddHandler lProjectExp.Toggled, AddressOf OnToggleProjectExplorer
+            lViewMenu.Append(lProjectExp)
+            
+            ' Output
+            Dim lOutput As New CheckMenuItem("_Output")
+            AddHandler lOutput.Toggled, AddressOf OnToggleOutput
+            lViewMenu.Append(lOutput)
+            
+            ' Error List
+            Dim lErrorList As New CheckMenuItem("_Error List")
+            AddHandler lErrorList.Toggled, AddressOf OnToggleErrorList
+            lViewMenu.Append(lErrorList)
+            
+            ' TODO List
+            Dim lTodoList As New CheckMenuItem("_TODO List")
+            ' TODO: AddHandler lTodoList.Toggled, AddressOf ToggleTodoList
+            lViewMenu.Append(lTodoList)
+            
+            ' AI Assistant
+            Dim lAIAssistant As New CheckMenuItem("_AI Assistant")
+            ' TODO: AddHandler lAIAssistant.Toggled, AddressOf OnToggleAIAssistant
+            lViewMenu.Append(lAIAssistant)
+    
+            AddScratchpadMenuItem(lViewMenu)
+    
+    
+            lViewMenu.Append(New SeparatorMenuItem())
+            
+            ' Toolbar submenu
+            Dim lToolbar As New MenuItem("_Toolbar")
+            Dim lToolbarMenu As New Menu()
+            lToolbar.Submenu = lToolbarMenu
+            lViewMenu.Append(lToolbar)
+            
+            ' Show/Hide Toolbar
+            Dim lShowToolbar As New CheckMenuItem("_Show Toolbar")
+            lShowToolbar.Active = pSettingsManager.ShowToolbar
+            AddHandler lShowToolbar.Toggled, AddressOf OnToggleToolbar
+            lToolbarMenu.Append(lShowToolbar)
+            
+            lToolbarMenu.Append(New SeparatorMenuItem())
+            
+            ' Show Labels
+            Dim lShowLabels As New CheckMenuItem("Show _Labels")
+            lShowLabels.Active = pSettingsManager.ToolbarShowLabels
+            AddHandler lShowLabels.Toggled, AddressOf OnToggleToolbarLabels
+            lToolbarMenu.Append(lShowLabels)
+            
+            ' Button Size submenu
+            Dim lButtonSize As New MenuItem("Button _Size")
+            Dim lButtonSizeMenu As New Menu()
+            lButtonSize.Submenu = lButtonSizeMenu
+            lToolbarMenu.Append(lButtonSize)
+            
+            ' Large buttons radio
+            Dim lLargeButtons As New RadioMenuItem("_Large")
+            lLargeButtons.Active = pSettingsManager.ToolbarLargeIcons
+            AddHandler lLargeButtons.Toggled, AddressOf OnToolbarLargeButtons
+            lButtonSizeMenu.Append(lLargeButtons)
+            
+            ' Small buttons radio (use same group as large)
+            Dim lSmallButtons As New RadioMenuItem(lLargeButtons, "_Small")
+            lSmallButtons.Active = Not pSettingsManager.ToolbarLargeIcons
+            AddHandler lSmallButtons.Toggled, AddressOf OnToolbarSmallButtons
+            lButtonSizeMenu.Append(lSmallButtons)
+            
+            lViewMenu.Append(New SeparatorMenuItem())
+            
+            ' Full Screen
+            Dim lFullScreen As New CheckMenuItem("_Full Screen")
+            AddHandler lFullScreen.Toggled, AddressOf OnToggleFullScreen
+            lViewMenu.Append(lFullScreen)
+            
+            lViewMenu.Append(New SeparatorMenuItem())
+            
+            ' Theme submenu
+            Dim lTheme As New MenuItem("T_hemes")
+            pThemeMenu = New Menu()
+            lTheme.Submenu = pThemeMenu
+            UpdateThemeMenu()
+            lViewMenu.Append(lTheme)
+            
+            lViewMenu.Append(New SeparatorMenuItem())
+            
+            ' Zoom In
+            Dim lZoomIn As MenuItem = CreateMenuItemWithIcon("Zoom _In", "zoom-in")
+            ' TODO: AddHandler lZoomIn.Activated, AddressOf OnZoomIn
+            lViewMenu.Append(lZoomIn)
+            
+            ' Zoom Out
+            Dim lZoomOut As MenuItem = CreateMenuItemWithIcon("Zoom _Out", "zoom-out")
+            ' TODO: AddHandler lZoomOut.Activated, AddressOf OnZoomOut
+            lViewMenu.Append(lZoomOut)
+            
+            ' Reset Zoom
+            Dim lZoomReset As New MenuItem("_Reset Zoom")
+            ' TODO: AddHandler lZoomReset.Activated, AddressOf OnZoomReset
+            lViewMenu.Append(lZoomReset)
+            
+        Catch ex As Exception
+            Console.WriteLine($"CreateViewMenu error: {ex.Message}")
+        End Try
+    End Sub
     
     Private Sub CreateProjectMenu()
         Try
@@ -849,243 +908,238 @@ End Sub
         End Try
     End Sub
 
-        ' Add: SimpleIDE.MainWindow.AddObjectExplorerDebugMenuItem
-        ' To: MainWindow.MenuBar.vb
-        ''' <summary>
-        ''' Adds a debug menu item for Object Explorer diagnostics
-        ''' </summary>
-        Private Sub AddObjectExplorerDebugMenuItem()
-            Try
-                ' Find or create Debug menu
-                Dim lDebugMenu As Menu = Nothing
-                Dim lMenuBar As MenuBar = pMenuBar
-                
-                ' Look for existing Debug menu
-                for each lItem in lMenuBar.Children
-                    If TypeOf lItem Is MenuItem Then
-                        Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
-                        If lMenuItem.Label = "_Debug" Then
-                            lDebugMenu = DirectCast(lMenuItem.Submenu, Menu)
-                            Exit for
+#If DEBUG Then
+    ' Add: SimpleIDE.MainWindow.AddObjectExplorerDebugMenuItem
+    ' To: MainWindow.MenuBar.vb
+    ''' <summary>
+    ''' Adds a debug menu item for Object Explorer diagnostics
+    ''' </summary>
+    Private Sub AddObjectExplorerDebugMenuItem()
+        Try
+            ' Find or create Debug menu
+            Dim lDebugMenu As Menu = Nothing
+            Dim lMenuBar As MenuBar = pMenuBar
+            
+            ' Look for existing Debug menu
+            for each lItem in lMenuBar.Children
+                If TypeOf lItem Is MenuItem Then
+                    Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
+                    If lMenuItem.Label = "_Debug" Then
+                        lDebugMenu = DirectCast(lMenuItem.Submenu, Menu)
+                        Exit for
+                    End If
+                End If
+            Next
+            
+            ' Create Debug menu if it doesn't exist
+            If lDebugMenu Is Nothing Then
+                Dim lDebugMenuItem As New MenuItem("_Debug")
+                lDebugMenu = New Menu()
+                lDebugMenuItem.Submenu = lDebugMenu
+                lMenuBar.Add(lDebugMenuItem)
+            End If
+            
+            ' Add separator if menu has items
+            If lDebugMenu.Children.Length > 0 Then
+                lDebugMenu.Add(New SeparatorMenuItem())
+            End If
+            
+            ' Add Object Explorer debug items
+            Dim lOEDebugItem As New MenuItem("Object Explorer - Debug Parser Output")
+            AddHandler lOEDebugItem.Activated, Sub()
+                Try
+                    If pObjectExplorer IsNot Nothing Then
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            lExplorer.DebugProjectParserOutput()
                         End If
                     End If
-                Next
-                
-                ' Create Debug menu if it doesn't exist
-                If lDebugMenu Is Nothing Then
-                    Dim lDebugMenuItem As New MenuItem("_Debug")
-                    lDebugMenu = New Menu()
-                    lDebugMenuItem.Submenu = lDebugMenu
-                    lMenuBar.Add(lDebugMenuItem)
-                End If
-                
-                ' Add separator if menu has items
-                If lDebugMenu.Children.Length > 0 Then
-                    lDebugMenu.Add(New SeparatorMenuItem())
-                End If
-                
-                ' Add Object Explorer debug items
-                Dim lOEDebugItem As New MenuItem("Object Explorer - Debug Parser Output")
-                AddHandler lOEDebugItem.Activated, Sub()
-                    Try
-                        If pObjectExplorer IsNot Nothing Then
-                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                                lExplorer.DebugProjectParserOutput()
-                            End If
+                Catch ex As Exception
+                    Console.WriteLine($"Debug Parser Output error: {ex.Message}")
+                End Try
+            End Sub
+            lDebugMenu.Add(lOEDebugItem)
+            
+            Dim lOETreeDebugItem As New MenuItem("Object Explorer - Debug Visual Tree")
+            AddHandler lOETreeDebugItem.Activated, Sub()
+                Try
+                    If pObjectExplorer IsNot Nothing Then
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            lExplorer.DiagnoseTreeViewStatus()
                         End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Debug Parser Output error: {ex.Message}")
-                    End Try
-                End Sub
-                lDebugMenu.Add(lOEDebugItem)
-                
-                Dim lOETreeDebugItem As New MenuItem("Object Explorer - Debug Visual Tree")
-                AddHandler lOETreeDebugItem.Activated, Sub()
-                    Try
-                        If pObjectExplorer IsNot Nothing Then
-                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                                lExplorer.DiagnoseTreeViewStatus()
-                            End If
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"Debug Visual Tree error: {ex.Message}")
+                End Try
+            End Sub
+            lDebugMenu.Add(lOETreeDebugItem)
+            
+            Dim lOERebuildItem As New MenuItem("Object Explorer - Force Rebuild")
+            AddHandler lOERebuildItem.Activated, Sub()
+                Try
+                    If pObjectExplorer IsNot Nothing Then
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            lExplorer.RebuildVisualTree()
+                            lExplorer.ForceCompleteRefresh()
                         End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Debug Visual Tree error: {ex.Message}")
-                    End Try
-                End Sub
-                lDebugMenu.Add(lOETreeDebugItem)
-                
-                Dim lOERebuildItem As New MenuItem("Object Explorer - Force Rebuild")
-                AddHandler lOERebuildItem.Activated, Sub()
-                    Try
-                        If pObjectExplorer IsNot Nothing Then
-                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                                lExplorer.RebuildVisualTree()
-                                lExplorer.ForceCompleteRefresh()
-                            End If
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"Force Rebuild error: {ex.Message}")
+                End Try
+            End Sub
+            lDebugMenu.Add(lOERebuildItem)
+            
+            Dim lOEExpandNamespacesItem As New MenuItem("Object Explorer - Force Expand Namespaces")
+            AddHandler lOEExpandNamespacesItem.Activated, Sub()
+                Try
+                    If pObjectExplorer IsNot Nothing Then
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            lExplorer.ForceExpandNamespaces()
                         End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Force Rebuild error: {ex.Message}")
-                    End Try
-                End Sub
-                lDebugMenu.Add(lOERebuildItem)
-                
-                Dim lOEExpandNamespacesItem As New MenuItem("Object Explorer - Force Expand Namespaces")
-                AddHandler lOEExpandNamespacesItem.Activated, Sub()
-                    Try
-                        If pObjectExplorer IsNot Nothing Then
-                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                                lExplorer.ForceExpandNamespaces()
-                            End If
-                        End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Force Expand Namespaces error: {ex.Message}")
-                    End Try
-                End Sub
-                lDebugMenu.Add(lOEExpandNamespacesItem)
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"Force Expand Namespaces error: {ex.Message}")
+                End Try
+            End Sub
+            lDebugMenu.Add(lOEExpandNamespacesItem)
 
-                Dim lOEDebugBuildItem As New MenuItem("Object Explorer - Debug Build Process")
-                AddHandler lOEDebugBuildItem.Activated, Sub()
-                    Try
-                        If pObjectExplorer IsNot Nothing Then
-                            If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                                Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                                lExplorer.DebugBuildVisualNodes()
-                            End If
+            Dim lOEDebugBuildItem As New MenuItem("Object Explorer - Debug Build Process")
+            AddHandler lOEDebugBuildItem.Activated, Sub()
+                Try
+                    If pObjectExplorer IsNot Nothing Then
+                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
+                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
+                            lExplorer.DebugBuildVisualNodes()
                         End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Debug Build Process error: {ex.Message}")
-                    End Try
-                End Sub
-                lDebugMenu.Add(lOEDebugBuildItem)
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"Debug Build Process error: {ex.Message}")
+                End Try
+            End Sub
+            lDebugMenu.Add(lOEDebugBuildItem)
 
-                ' Show all menu items
-                lMenuBar.ShowAll()
-                
-                Console.WriteLine("Object Explorer debug menu items added")
-                
-            Catch ex As Exception
-                Console.WriteLine($"AddObjectExplorerDebugMenuItem error: {ex.Message}")
-            End Try
-        End Sub
+            ' Show all menu items
+            lMenuBar.ShowAll()
+            
+            Console.WriteLine("Object Explorer debug menu items added")
+            
+        Catch ex As Exception
+            Console.WriteLine($"AddObjectExplorerDebugMenuItem error: {ex.Message}")
+        End Try
+    End Sub
 
-        ''' <summary>
-        ''' Handles the Revert to Saved menu action
-        ''' </summary>
-        Private Sub OnRevertToSaved(vSender As Object, vArgs As EventArgs)
-            Try
-                ' Get current tab
-                Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
-                If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
-                    ShowInfo("Revert to Saved", "No file is currently open.")
-                    Return
-                End If
-                
-                ' Check if file has a saved version
-                If String.IsNullOrEmpty(lCurrentTab.FilePath) OrElse lCurrentTab.FilePath.StartsWith("Untitled") Then
-                    ShowInfo("Revert to Saved", "This file has never been saved.")
-                    Return
-                End If
-                
-                ' Check if file exists on disk
-                If Not System.IO.File.Exists(lCurrentTab.FilePath) Then
-                    ShowError("Revert to Saved", "The file no longer exists on disk.")
-                    Return
-                End If
-                
-                ' Check if there are actually changes to revert
-                If Not lCurrentTab.Modified Then
-                    ShowInfo("Revert to Saved", "No changes to revert.")
-                    Return
-                End If
-                
-                ' Confirm with user
-                Dim lDialog As New MessageDialog(
-                    Me,
-                    DialogFlags.Modal,
-                    MessageType.Warning,
-                    ButtonsType.None,
-                    $"Are you sure you want to revert '{System.IO.Path.GetFileName(lCurrentTab.FilePath)}' to the last saved version?{Environment.NewLine}{Environment.NewLine}All unsaved changes will be lost."
-                )
-                
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                lDialog.AddButton("Revert", ResponseType.Yes)
-                
-                Dim lResponse As Integer = lDialog.Run()
-                lDialog.Destroy()
-                
-                If lResponse <> CInt(ResponseType.Yes) Then
-                    Return
-                End If
-                
-                ' Get SourceFileInfo and reload it
-                If pProjectManager IsNot Nothing Then
-                    Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lCurrentTab.FilePath)
-                    If lSourceFileInfo IsNot Nothing Then
-                        Console.WriteLine($"Reverting {lCurrentTab.FilePath} To saved version")
-                        
-                        ' Use ReloadFile to reload from disk
-                        If lSourceFileInfo.ReloadFile() Then
-                            ' Update editor with reloaded content
-                            If TypeOf lCurrentTab.Editor Is CustomDrawingEditor Then
-                                Dim lEditor As CustomDrawingEditor = DirectCast(lCurrentTab.Editor, CustomDrawingEditor)
-                                
-                                ' Set the reloaded content in the editor
-                                lEditor.SetText(lSourceFileInfo.GetAllText())
-                                
-                                ' Clear modified flag
-                                lCurrentTab.Modified = False
-                                lEditor.IsModified = False
-                                
-                                ' Update tab label to remove the asterisk
-                                UpdateTabLabel(lCurrentTab)
-                                
-                                ' Update status bar
-                                UpdateStatusBar($"Reverted: {System.IO.Path.GetFileName(lCurrentTab.FilePath)}")
-                                
-                                ' Request re-parsing if needed
-                                If lSourceFileInfo.NeedsParsing Then
-                                    pProjectManager.ParseFile(lSourceFileInfo)
-                                End If
+    ''' <summary>
+    ''' Handles the Revert to Saved menu action
+    ''' </summary>
+    Private Sub OnRevertToSaved(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Get current tab
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                ShowInfo("Revert to Saved", "No file is currently open.")
+                Return
+            End If
+            
+            ' Check if file has a saved version
+            If String.IsNullOrEmpty(lCurrentTab.FilePath) OrElse lCurrentTab.FilePath.StartsWith("Untitled") Then
+                ShowInfo("Revert to Saved", "This file has never been saved.")
+                Return
+            End If
+            
+            ' Check if file exists on disk
+            If Not System.IO.File.Exists(lCurrentTab.FilePath) Then
+                ShowError("Revert to Saved", "The file no longer exists on disk.")
+                Return
+            End If
+            
+            ' Check if there are actually changes to revert
+            If Not lCurrentTab.Modified Then
+                ShowInfo("Revert to Saved", "No changes to revert.")
+                Return
+            End If
+            
+            ' Confirm with user
+            Dim lDialog As New MessageDialog(
+                Me,
+                DialogFlags.Modal,
+                MessageType.Warning,
+                ButtonsType.None,
+                $"Are you sure you want to revert '{System.IO.Path.GetFileName(lCurrentTab.FilePath)}' to the last saved version?{Environment.NewLine}{Environment.NewLine}All unsaved changes will be lost."
+            )
+            
+            lDialog.AddButton("Cancel", ResponseType.Cancel)
+            lDialog.AddButton("Revert", ResponseType.Yes)
+            
+            Dim lResponse As Integer = lDialog.Run()
+            lDialog.Destroy()
+            
+            If lResponse <> CInt(ResponseType.Yes) Then
+                Return
+            End If
+            
+            ' Get SourceFileInfo and reload it
+            If pProjectManager IsNot Nothing Then
+                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lCurrentTab.FilePath)
+                If lSourceFileInfo IsNot Nothing Then
+                    Console.WriteLine($"Reverting {lCurrentTab.FilePath} To saved version")
+                    
+                    ' Use ReloadFile to reload from disk
+                    If lSourceFileInfo.LoadContent() Then
+                        ' Update editor with reloaded content
+                        If TypeOf lCurrentTab.Editor Is CustomDrawingEditor Then
+                            
+                            ' Update tab label to remove the asterisk
+                            UpdateTabLabel(lCurrentTab)
+                            
+                            ' Update status bar
+                            UpdateStatusBar($"Reverted: {System.IO.Path.GetFileName(lCurrentTab.FilePath)}")
+                            
+                            ' Request re-parsing if needed
+                            If lSourceFileInfo.NeedsParsing Then
+                                pProjectManager.ParseFile(lSourceFileInfo)
                             End If
-                        Else
-                            ShowError("Revert Failed", "Failed To reload the file from disk.")
                         End If
                     Else
-                        ShowError("Revert Failed", "Could Not find the file information.")
+                        ShowError("Revert Failed", "Failed To reload the file from disk.")
                     End If
                 Else
-                    ShowError("Revert Failed", "Project manager Is Not available.")
+                    ShowError("Revert Failed", "Could Not find the file information.")
                 End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnRevertToSaved error: {ex.Message}")
-                ShowError("Revert error", $"An error occurred While reverting: {ex.Message}")
-            End Try
-        End Sub
+            Else
+                ShowError("Revert Failed", "Project manager Is Not available.")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnRevertToSaved error: {ex.Message}")
+            ShowError("Revert error", $"An error occurred While reverting: {ex.Message}")
+        End Try
+    End Sub
 
-        ''' <summary>
-        ''' Adds the Revert to Saved menu item to the File menu
-        ''' </summary>
-        ''' <param name="vFileMenu">The File menu to add the item to</param>
-        ''' <remarks>
-        ''' Call this in CreateFileMenu after the Save All menu item
-        ''' </remarks>
-        Private Sub AddRevertToSavedMenuItem(vFileMenu As Menu)
-            Try
-                ' Add separator if needed
-                vFileMenu.Append(New SeparatorMenuItem())
-                
-                ' Create Revert to Saved menu item
-                Dim lRevertToSaved As MenuItem = CreateMenuItemWithIcon("_Revert To Saved", "document-revert")
-                AddHandler lRevertToSaved.Activated, AddressOf OnRevertToSaved
-                vFileMenu.Append(lRevertToSaved)
-                
-            Catch ex As Exception
-                Console.WriteLine($"AddRevertToSavedMenuItem error: {ex.Message}")
-            End Try
-        End Sub
+    ''' <summary>
+    ''' Adds the Revert to Saved menu item to the File menu
+    ''' </summary>
+    ''' <param name="vFileMenu">The File menu to add the item to</param>
+    ''' <remarks>
+    ''' Call this in CreateFileMenu after the Save All menu item
+    ''' </remarks>
+    Private Sub AddRevertToSavedMenuItem(vFileMenu As Menu)
+        Try
+            ' Add separator if needed
+            vFileMenu.Append(New SeparatorMenuItem())
+            
+            ' Create Revert to Saved menu item
+            Dim lRevertToSaved As MenuItem = CreateMenuItemWithIcon("_Revert To Saved", "document-revert")
+            AddHandler lRevertToSaved.Activated, AddressOf OnRevertToSaved
+            vFileMenu.Append(lRevertToSaved)
+            
+        Catch ex As Exception
+            Console.WriteLine($"AddRevertToSavedMenuItem error: {ex.Message}")
+        End Try
+    End Sub
+#End If
+
     
 End Class

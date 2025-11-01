@@ -169,6 +169,24 @@ Namespace Utilities
                 SetValue("LeftPanelWidth", Value)
             End Set
         End Property
+        
+        ''' <summary>
+''' Gets or sets the editor zoom level as font size in points
+''' </summary>
+''' <value>Font size in points (6-72)</value>
+''' <remarks>
+''' Default is 11pt. Used by all text editors for consistent zoom level.
+''' </remarks>
+Public Property EditorZoomLevel As Integer
+    Get
+        Return GetValue("EditorZoomLevel", 11)
+    End Get
+    Set(Value As Integer)
+        ' Clamp to valid range
+        Dim lClampedValue As Integer = Math.Max(6, Math.Min(72, Value))
+        SetValue("EditorZoomLevel", lClampedValue)
+    End Set
+End Property
 '         
 '         Public Property BottomPanelHeight As Integer
 '             Get

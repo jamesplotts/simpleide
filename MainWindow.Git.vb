@@ -622,40 +622,8 @@ Partial Public Class MainWindow
                     Return
                 End If
             End If
-            
-            ' Get SourceFileInfo and reload
-            If pProjectManager IsNot Nothing Then
-                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vTabInfo.FilePath)
-                If lSourceFileInfo IsNot Nothing Then
-                    ' Use ReloadFile for proper state management
-                    If lSourceFileInfo.ReloadFile() Then
-                        ' Update editor
-                        If vTabInfo.Editor IsNot Nothing Then
-                            If TypeOf vTabInfo.Editor Is CustomDrawingEditor Then
-                                Dim lEditor As CustomDrawingEditor = DirectCast(vTabInfo.Editor, CustomDrawingEditor)
-                                
-                                ' Update content
-                                lEditor.SetText(lSourceFileInfo.GetAllText())
-                                
-                                ' Clear modified flags
-                                vTabInfo.Modified = False
-                                lEditor.IsModified = False
-                                
-                                ' Update UI
-                                UpdateTabLabel(vTabInfo)
-                                
-                                ' Update last saved timestamp
-                                UpdateLastSavedTimestamp(vTabInfo)
-                                
-                                ' Request re-parsing
-                                If lSourceFileInfo.NeedsParsing Then
-                                    pProjectManager.ParseFile(lSourceFileInfo)
-                                End If
-                            End If
-                        End If
-                    End If
-                End If
-            End If
+
+            vTabInfo.Editor.SourceFileInfo.LoadContent()
             
         Catch ex As Exception
             Console.WriteLine($"ReloadFileAfterGitOperation error: {ex.Message}")

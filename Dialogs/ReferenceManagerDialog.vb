@@ -7,6 +7,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports System.Linq
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Dialogs
     
@@ -14,10 +15,10 @@ Namespace Dialogs
         Inherits Dialog
         
         ' Private fields
-        Private pNotebook As Notebook
+        Private pNotebook As CustomDrawNotebook
         
         ' Public properties
-        Public ReadOnly Property Notebook As Notebook
+        Public ReadOnly Property Notebook As CustomDrawNotebook
             Get
                 Return pNotebook
             End Get
@@ -102,14 +103,21 @@ Namespace Dialogs
                 ' Create main vbox
                 Dim lVBox As New Box(Orientation.Vertical, 5)
                 
-                ' Create notebook
-                pNotebook = New Notebook()
-                pNotebook.BorderWidth = 5
+                ' Create notebook - Use CustomDrawNotebook instead of standard Notebook
+                pNotebook = New CustomDrawNotebook()
                 
-                ' Add tabs
-                pNotebook.AppendPage(CreateAssembliesTab(), New Label("Assemblies"))
-                pNotebook.AppendPage(CreateNuGetTab(), New Label("NuGet Packages"))
-                pNotebook.AppendPage(CreateProjectsTab(), New Label("Projects"))
+                ' Configure the CustomDrawNotebook
+                Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
+                lCustomNotebook.ShowHidePanelButton = False  ' Dialog doesn't need hide button
+                lCustomNotebook.ShowDropdownButton = False    ' Dialog doesn't need dropdown
+                lCustomNotebook.ShowScrollButtons = False     ' Usually not needed for dialogs
+                lCustomNotebook.ShowTabCloseButtons = False   ' Dialog tabs shouldn't be closeable
+                lCustomNotebook.BorderWidth = 5
+                
+                ' Add tabs using string labels
+                pNotebook.AppendPage(CreateAssembliesTab(), "Assemblies")
+                pNotebook.AppendPage(CreateNuGetTab(), "NuGet Packages")
+                pNotebook.AppendPage(CreateProjectsTab(), "Projects")
                 
                 lVBox.PackStart(pNotebook, True, True, 0)
                 

@@ -18,32 +18,10 @@ Namespace Editors
 
         Public Property Text As String Implements IEditor.Text
             Get
-                Return pSourceFileInfo.GetAllText()
+                Return String.Join(Environment.NewLine, pSourceFileInfo.TextLines)
             End Get
-            Set(Value As String)
-                Try
-                    pSourceFileInfo.SetAllText(Value)
-                    
-                    ' Reset cursor and selection
-                    pCursorLine = 0
-                    pCursorColumn = 0
-                    pSelectionActive = False
-                    
-                    ' Mark as modified
-                    IsModified = True
-                    
-                    ' Trigger events
-                    RaiseEvent TextChanged(Me, New EventArgs)
-                    RaiseEvent CursorPositionChanged(pCursorLine, pCursorColumn)
-                    
-                    ' Queue redraw
-                    pDrawingArea?.QueueDraw()
-
-                    UpdateScrollbars()
-                    
-                Catch ex As Exception
-                    Console.WriteLine($"Text.Set error: {ex.Message}")
-                End Try
+            Set(value As String)
+                ReplaceAllText(value)
             End Set
         End Property
         
@@ -59,29 +37,49 @@ Namespace Editors
             End Get
         End Property
 
+        ''' <summary>
+        ''' Deletes text in the specified range using atomic operation
+        ''' </summary>
+        ''' <param name="vStartPosition">Start position of range</param>
+        ''' <param name="vEndPosition">End position of range</param>
+        ''' <remarks>
+        ''' Refactored to use atomic DeleteText method
+        ''' </remarks>
         Public Sub DeleteRange(vStartPosition As EditorPosition, vEndPosition As EditorPosition) Implements IEditor.DeleteRange
             Try
-                If pIsReadOnly Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+                
+                ' Normalize positions
+                EditorPosition.Normalize(vStartPosition, vEndPosition)
+                
+                ' Validate positions
                 If vStartPosition.Line < 0 OrElse vStartPosition.Line >= pLineCount Then Return
                 If vEndPosition.Line < 0 OrElse vEndPosition.Line >= pLineCount Then Return
                 
-                ' Begin undo group
+                ' Get text being deleted for undo
+                Dim lDeletedText As String = GetTextInRange(vStartPosition.Line, vStartPosition.Column, vEndPosition.Line, vEndPosition.Column)
+                
+                ' Record for undo
                 If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
+                    pUndoRedoManager.RecordDeleteText(vStartPosition, vEndPosition, lDeletedText, vStartPosition)
                 End If
                 
-                ' Set selection to the range
-                SetSelection(vStartPosition, vEndPosition)
+                ' Use atomic DeleteText
+                pSourceFileInfo.DeleteText(vStartPosition.Line, vStartPosition.Column, 
+                                          vEndPosition.Line, vEndPosition.Column)
                 
-                ' Delete the selection
-                If pHasSelection Then
-                    DeleteSelection()
-                End If
+                ' Set cursor to deletion point
+                SetCursorPosition(vStartPosition.Line, vStartPosition.Column)
                 
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteRange error: {ex.Message}")
@@ -89,54 +87,77 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Replaces text in the specified range with new text using EditorPosition parameters
+        ''' Replaces text in a range with new text using atomic operations
         ''' </summary>
-        ''' <param name="vStartPosition">The start position of the text to replace</param>
-        ''' <param name="vEndPosition">The end position of the text to replace</param>
-        ''' <param name="vNewText">The new text to insert in place of the selected range</param>
-        Public Sub ReplaceText(vStartPosition As EditorPosition, vEndPosition As EditorPosition, vNewText As String) Implements IEditor.ReplaceText
+        ''' <param name="vStartPosition">Start of range to replace</param>
+        ''' <param name="vEndPosition">End of range to replace</param>
+        ''' <param name="vNewText">Text to insert</param>
+        ''' <remarks>
+        ''' Refactored to use atomic DeleteText followed by InsertText
+        ''' </remarks>
+        Public Sub ReplaceText(vStartPosition As EditorPosition, vEndPosition As EditorPosition, 
+                              vNewText As String) Implements IEditor.ReplaceText
             Try
-                If pIsReadOnly Then Return
-                If vStartPosition.Line < 0 OrElse vStartPosition.Line >= pLineCount Then Return
-                If vEndPosition.Line < 0 OrElse vEndPosition.Line >= pLineCount Then Return
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
-                ' Normalize positions to ensure start comes before end
-                Dim lStartPos As EditorPosition = vStartPosition
-                Dim lEndPos As EditorPosition = vEndPosition
+                ' Normalize positions
+                EditorPosition.Normalize(vStartPosition, vEndPosition)
                 
-                If lStartPos.Line > lEndPos.Line OrElse 
-                   (lStartPos.Line = lEndPos.Line AndAlso lStartPos.Column > lEndPos.Column) Then
-                    ' Swap positions
-                    Dim lTemp As EditorPosition = lStartPos
-                    lStartPos = lEndPos
-                    lEndPos = lTemp
-                End If
+                ' Get old text for undo
+                Dim lOldText As String = GetTextInRange(vStartPosition.Line, vStartPosition.Column, vEndPosition.Line, vEndPosition.Column)
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.BeginUserAction()
                 End If
                 
-                ' Delete the range first
-                DeleteRange(lStartPos, lEndPos)
+                ' Delete existing text using atomic operation
+                pSourceFileInfo.DeleteText(vStartPosition.Line, vStartPosition.Column,
+                                          vEndPosition.Line, vEndPosition.Column)
                 
-                ' Insert new text at the start position
-                InsertTextAtPosition(lStartPos, vNewText)
+                ' Insert new text using atomic operation (if not empty)
+                If Not String.IsNullOrEmpty(vNewText) Then
+                    pSourceFileInfo.InsertText(vStartPosition.Line, vStartPosition.Column, vNewText)
+                End If
                 
-                ' End undo group
+                ' Calculate new cursor position
+                Dim lNewCursorPos As EditorPosition
+                If String.IsNullOrEmpty(vNewText) Then
+                    lNewCursorPos = vStartPosition
+                ElseIf vNewText.Contains(Environment.NewLine) Then
+                    Dim lLines() As String = vNewText.Split({Environment.NewLine}, StringSplitOptions.None)
+                    lNewCursorPos = New EditorPosition(vStartPosition.Line + lLines.Length - 1,
+                                                      lLines(lLines.Length - 1).Length)
+                Else
+                    lNewCursorPos = New EditorPosition(vStartPosition.Line, 
+                                                      vStartPosition.Column + vNewText.Length)
+                End If
+                
+                ' End undo group and record
                 If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordReplaceText(vStartPosition, vEndPosition, 
+                                                      lOldText, vNewText, lNewCursorPos)
                     pUndoRedoManager.EndUserAction()
                 End If
                 
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
+                ' Set cursor to end of inserted text
+                SetCursorPosition(lNewCursorPos.Line, lNewCursorPos.Column)
                 
-                ' Schedule parsing if the change spans multiple lines or is significant
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                
+                ' Update UI
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
                 
             Catch ex As Exception
                 Console.WriteLine($"ReplaceText error: {ex.Message}")
             End Try
         End Sub
+
         
         ''' <summary>
         ''' Replaces the entire document text with the specified text
@@ -150,15 +171,16 @@ Namespace Editors
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.BeginUserAction()
                 End If
-                
+                Dim lLastLine As Integer = pSourceFileInfo.TextLines.Count - 1
                 ' Update the Text property which will handle all the necessary updates
-                Text = vText
-                
-                ' Reset cursor position to start of document
-                SetCursorPosition(0, 0)
+                pSourceFileInfo.DeleteText(0, 0, lLastLine, pSourceFileInfo.TextLines(lLastLine).Length - 1)
+                pSourceFileinfo.InsertText(0, 0, vText)
                 
                 ' Clear any selection
                 ClearSelection()
+                
+                ' Reset cursor position to start of document
+                SetCursorPosition(0, 0)
                 
                 ' End undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -219,16 +241,11 @@ Namespace Editors
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
                 
-                ' Get current line
-                Dim lLine As String = TextLines(vLine)
-                
-                ' Add indentation (4 spaces or tab based on settings)
-                Dim lIndent As String = If(pUseTabs, vbTab, New String(" "c, pTabWidth))
-                TextLines(vLine) = lIndent & lLine
+                pSourceFileInfo.InsertText(vLine, 0, "    ")
 
                 ' If cursor is on this line, adjust cursor position
                 If pCursorLine = vLine Then
-                    pCursorColumn += lIndent.Length
+                    pCursorColumn += 4
                 End If
                 
             Catch ex As Exception
@@ -282,231 +299,426 @@ Namespace Editors
         
         ' ===== Updated Public Interface Methods (REPLACE EXISTING) =====
         
-        ''' <summary>
-        ''' Indents a single line at the specified position
-        ''' </summary>
-        ''' <param name="vLine">Line number to indent (0-based)</param>
-        Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
-            Try
-                If pIsReadOnly Then Return
-                If vLine < 0 OrElse vLine >= pLineCount Then Return
-                
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                ' Call the private implementation
-                IndentLinePrivate(vLine)
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"IndentLine error: {ex.Message}")
-            End Try
-        End Sub
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentLine
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentLine
+''' <summary>
+''' Indents a line by inserting tabs/spaces at the beginning
+''' </summary>
+''' <param name="vLine">Line to indent (0-based)</param>
+''' <remarks>
+''' Uses atomic InsertText operation for proper metadata updates
+''' </remarks>
+Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
+    Try
+        If vLine < 0 OrElse vLine >= pLineCount Then Return
+        If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
         
-        ''' <summary>
-        ''' Outdents (removes indentation from) a single line
-        ''' </summary>
-        ''' <param name="vLine">Line number to outdent (0-based)</param>
-        Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
-            Try
-                If pIsReadOnly Then Return
-                If vLine < 0 OrElse vLine >= pLineCount Then Return
-                
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                ' Call the private implementation
-                OutdentLinePrivate(vLine)
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"OutdentLine error: {ex.Message}")
-            End Try
-        End Sub
+        Console.WriteLine($"IndentLine: Line {vLine}")
+        
+        ' Ensure we have settings
+        'EnsureSettingsManager()
+        
+        ' Get indent string (tab or spaces based on settings)
+        Dim lIndentString As String = vbTab
+        Dim lIndentLength As Integer = 1
+        
+        If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.UseTabs Then
+            Dim lTabWidth As Integer = pSettingsManager.TabWidth
+            If lTabWidth <= 0 Then lTabWidth = 4 ' Default to 4 if not set
+            lIndentString = New String(" "c, lTabWidth)
+            lIndentLength = lTabWidth
+            Console.WriteLine($"IndentLine: Using {lTabWidth} spaces")
+        Else
+            Console.WriteLine("IndentLine: Using tab")
+        End If
+        
+        ' Record for undo
+        If pUndoRedoManager IsNot Nothing Then
+            Dim lStartPos As New EditorPosition(vLine, 0)
+            Dim lEndPos As New EditorPosition(vLine, lIndentLength)
+            pUndoRedoManager.RecordInsertText(lStartPos, lIndentString, lEndPos)
+        End If
+        
+        ' Use atomic InsertText at beginning of line
+        pSourceFileInfo.InsertText(vLine, 0, lIndentString)
+        
+        ' Adjust cursor if on this line
+        If pCursorLine = vLine Then
+            SetCursorPosition(pCursorLine, pCursorColumn + lIndentLength)
+            Console.WriteLine($"IndentLine: Cursor adjusted to column {pCursorColumn}")
+        End If
+        
+        ' Update state
+        IsModified = True
+        RaiseEvent TextChanged(Me, EventArgs.Empty)
+        
+        ' Update UI
+        pDrawingArea?.QueueDraw()
+        
+        Console.WriteLine("IndentLine: Completed")
+        
+    Catch ex As Exception
+        Console.WriteLine($"IndentLine error: {ex.Message}")
+    End Try
+End Sub
+        
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentLine
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentLine
+''' <summary>
+''' Outdents a line by removing leading tabs/spaces
+''' </summary>
+''' <param name="vLine">Line to outdent (0-based)</param>
+''' <remarks>
+''' Uses atomic DeleteText operation for proper metadata updates
+''' </remarks>
+Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
+    Try
+        If vLine < 0 OrElse vLine >= pLineCount Then Return
+        If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+        
+        Dim lLine As String = pSourceFileInfo.TextLines(vLine)
+        If String.IsNullOrEmpty(lLine) Then Return
+        
+        Console.WriteLine($"OutdentLine: Line {vLine}, content='{lLine}'")
+        
+        ' Ensure we have settings
+        'EnsureSettingsManager()
+        
+        ' Determine how much to outdent
+        Dim lCharsToRemove As Integer = 0
+        Dim lTabWidth As Integer = 4 ' Default
+        
+        If pSettingsManager IsNot Nothing Then
+            lTabWidth = pSettingsManager.TabWidth
+            If lTabWidth <= 0 Then lTabWidth = 4
+        End If
+        
+        If lLine.StartsWith(vbTab) Then
+            ' Remove one tab
+            lCharsToRemove = 1
+            Console.WriteLine("OutdentLine: Removing one tab")
+        ElseIf lLine.StartsWith(" ") Then
+            ' Remove up to TabWidth spaces
+            While lCharsToRemove < lLine.Length AndAlso 
+                  lCharsToRemove < lTabWidth AndAlso 
+                  lLine(lCharsToRemove) = " "c
+                lCharsToRemove += 1
+            End While
+            Console.WriteLine($"OutdentLine: Removing {lCharsToRemove} spaces")
+        End If
+        
+        If lCharsToRemove > 0 Then
+            ' Get text being removed for undo
+            Dim lRemovedText As String = lLine.Substring(0, lCharsToRemove)
+            
+            ' Record for undo
+            If pUndoRedoManager IsNot Nothing Then
+                Dim lStartPos As New EditorPosition(vLine, 0)
+                Dim lEndPos As New EditorPosition(vLine, lCharsToRemove)
+                pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lRemovedText, lStartPos)
+            End If
+            
+            ' Use atomic DeleteText
+            pSourceFileInfo.DeleteText(vLine, 0, vLine, lCharsToRemove)
+            
+            ' Adjust cursor if on this line
+            If pCursorLine = vLine AndAlso pCursorColumn > 0 Then
+                SetCursorPosition(pCursorLine, Math.Max(0, pCursorColumn - lCharsToRemove))
+                Console.WriteLine($"OutdentLine: Cursor adjusted To column {pCursorColumn}")
+            End If
+            
+            ' Update state
+            IsModified = True
+            RaiseEvent TextChanged(Me, EventArgs.Empty)
+            
+            ' Update UI
+            pDrawingArea?.QueueDraw()
+            
+            Console.WriteLine("OutdentLine: Completed")
+        Else
+            Console.WriteLine("OutdentLine: Nothing To remove")
+        End If
+        
+    Catch ex As Exception
+        Console.WriteLine($"OutdentLine error: {ex.Message}")
+    End Try
+End Sub
         
         ' ===== Updated Selection Methods (REPLACE EXISTING) =====
         
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
-        ''' <summary>
-        ''' Indents the selected lines or current line
-        ''' </summary>
-        ''' <remarks>
-        ''' When selection ends at column 0 of a line, that line is excluded from indentation
-        ''' to match standard editor behavior
-        ''' </remarks>
-        Public Sub IndentSelection() Implements IEditor.IndentSelection
-            Try
-                If pIsReadOnly Then Return
-                
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                ' Check both selection flags for compatibility
-                If pSelectionActive OrElse pHasSelection Then
-                    ' Get selection bounds
-                    Dim lStartLine As Integer = Math.Min(pSelectionStartLine, pSelectionEndLine)
-                    Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
-                    
-                    ' CRITICAL FIX: If selection ends at column 0 of a line, don't include that line
-                    ' This matches standard editor behavior where selecting to the beginning of a line
-                    ' doesn't include that line in the operation
-                    If pSelectionEndColumn = 0 AndAlso pSelectionEndLine <> pSelectionStartLine Then
-                        lEndLine = lEndLine - 1
-                    End If
-                    
-                    ' Validate bounds
-                    lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
-                    lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
-                    
-                    ' Store original cursor position relative to line start
-                    Dim lCursorWasAtColumn As Integer = pCursorColumn
-                    Dim lCursorWasAtLine As Integer = pCursorLine
-                    
-                    ' Indent each line in selection
-                    for i As Integer = lStartLine To lEndLine
-                        IndentLinePrivate(i)
-                    Next
-                    
-                    ' Adjust selection to include the indentation
-                    ' After indenting, select from start of first line to end of last line
-                    SetSelection(New EditorPosition(lStartLine, 0), 
-                                New EditorPosition(lEndLine, TextLines(lEndLine).Length))
-                    
-                    ' If cursor was at column 0 of the line after the selection, keep it there
-                    If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then
-                        SetCursorPosition(lCursorWasAtLine, 0)
-                    End If
-                Else
-                    ' No selection - indent current line
-                    Dim lOldColumn As Integer = pCursorColumn
-                    IndentLinePrivate(pCursorLine)
-                    
-                    ' Adjust cursor position to maintain relative position
-                    Dim lIndentSize As Integer = If(pUseTabs, 1, pTabWidth)
-                    SetCursorPosition(pCursorLine, lOldColumn + lIndentSize)
-                End If
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"IndentSelection error: {ex.Message}")
-            End Try
-        End Sub
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.IndentSelection
+''' <summary>
+''' Indents all lines in the current selection
+''' </summary>
+''' <remarks>
+''' Uses atomic operations for each line to ensure proper metadata updates
+''' </remarks>
+Public Sub IndentSelection() Implements IEditor.IndentSelection
+    Try
+        If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
         
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentSelection
-        ''' <summary>
-        ''' Outdents the selected lines or current line
-        ''' </summary>
-        ''' <remarks>
-        ''' When selection ends at column 0 of a line, that line is excluded from outdenting
-        ''' to match standard editor behavior
-        ''' </remarks>
-        Public Sub OutdentSelection() Implements IEditor.OutdentSelection
+        Console.WriteLine("IndentSelection: Starting")
+        
+        Dim lStartLine As Integer
+        Dim lEndLine As Integer
+        
+        If pHasSelection Then
+            ' Get selection bounds
+            Dim lStart As EditorPosition = GetSelectionStart()
+            Dim lEnd As EditorPosition = GetSelectionEnd()
+            lStartLine = lStart.Line
+            lEndLine = lEnd.Line
+            Console.WriteLine($"IndentSelection: Selection from line {lStartLine} To {lEndLine}")
+        Else
+            ' Just indent current line
+            lStartLine = pCursorLine
+            lEndLine = pCursorLine
+            Console.WriteLine($"IndentSelection: Single line {lStartLine}")
+        End If
+        
+        ' Validate line bounds
+        lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
+        lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
+        
+        ' Get indent string (tab or spaces based on settings)
+        Dim lIndentLength As Integer = pSettingsManager.TabWidth
+        Console.WriteLine("IndentSelection: TabWidth in SettinsManager = " + lIndentLength.ToString)
+        Dim lIndentString As String  = New String(" "c, lIndentLength)
+        
+        If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.UseTabs Then
+            Dim lTabWidth As Integer = pSettingsManager.TabWidth
+            If lTabWidth <= 0 Then lTabWidth = 4 ' Default to 4 if not set
+            lIndentString = New String(" "c, lTabWidth)
+            lIndentLength = lTabWidth
+            Console.WriteLine($"IndentSelection: Using {lTabWidth} spaces for indent")
+        End If
+        
+        ' Begin undo group
+        If pUndoRedoManager IsNot Nothing Then
+            pUndoRedoManager.BeginUserAction()
+        End If
+        
+        ' Indent each line using atomic operations
+        Dim lLinesIndented As Integer = 0
+        For i As Integer = lStartLine To lEndLine
+            If i < pSourceFileInfo.TextLines.Count Then
+                Console.WriteLine($"IndentSelection: Indenting line {i}")
+                
+                ' Use atomic InsertText at beginning of line
+                pSourceFileInfo.InsertText(i, 0, lIndentString)
+                lLinesIndented += 1
+            End If
+        Next
+        
+        Console.WriteLine($"IndentSelection: Indented {lLinesIndented} lines")
+        
+        ' End undo group
+        If pUndoRedoManager IsNot Nothing Then
+            pUndoRedoManager.EndUserAction()
+        End If
+        
+        ' Adjust cursor position if it's on an indented line
+        If pCursorLine >= lStartLine AndAlso pCursorLine <= lEndLine Then
+            SetCursorPosition(pCursorLine, pCursorColumn + lIndentLength)
+            Console.WriteLine($"IndentSelection: Cursor moved To ({pCursorLine},{pCursorColumn})")
+        End If
+        
+        ' Maintain and adjust selection if we had one
+        If pHasSelection Then
+            ' After indenting, the selection should still cover the same lines
+            ' but columns need to be adjusted
+            pSelectionStartLine = lStartLine
+            pSelectionStartColumn = 0
+            pSelectionEndLine = lEndLine
+            
+            ' Get the length of the last line after indenting
+            If lEndLine < pSourceFileInfo.TextLines.Count Then
+                pSelectionEndColumn = pSourceFileInfo.TextLines(lEndLine).Length
+            Else
+                pSelectionEndColumn = 0
+            End If
+            
+            ' Ensure selection flags are set
+            pSelectionActive = True
+            pHasSelection = True
+            
+            Console.WriteLine($"IndentSelection: Selection adjusted To ({pSelectionStartLine},{pSelectionStartColumn}) - ({pSelectionEndLine},{pSelectionEndColumn})")
+        End If
+        
+        ' Update state
+        IsModified = True
+        RaiseEvent TextChanged(Me, EventArgs.Empty)
+        
+        ' Update UI
+        UpdateLineNumberWidth()
+        UpdateScrollbars()
+        EnsureCursorVisible()
+        pDrawingArea?.QueueDraw()
+        
+        Console.WriteLine("IndentSelection: Completed")
+        
+    Catch ex As Exception
+        Console.WriteLine($"IndentSelection error: {ex.Message}")
+        Console.WriteLine($"  Stack: {ex.StackTrace}")
+        
+        ' Ensure undo group is ended even on error
+        If pUndoRedoManager IsNot Nothing Then
             Try
-                If pIsReadOnly Then Return
-                
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
-                
-                ' Check if there's a selection (using same check as IndentSelection)
-                If pSelectionActive OrElse pHasSelection Then
-                    ' Get selection bounds
-                    Dim lStartLine As Integer = Math.Min(pSelectionStartLine, pSelectionEndLine)
-                    Dim lEndLine As Integer = Math.Max(pSelectionStartLine, pSelectionEndLine)
-                    
-                    ' CRITICAL FIX: If selection ends at column 0 of a line, don't include that line
-                    ' This matches standard editor behavior where selecting to the beginning of a line
-                    ' doesn't include that line in the operation
-                    If pSelectionEndColumn = 0 AndAlso pSelectionEndLine <> pSelectionStartLine Then
-                        lEndLine = lEndLine - 1
-                    End If
-                    
-                    ' Validate bounds
-                    lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
-                    lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
-                    
-                    ' Store original cursor position
-                    Dim lCursorWasAtColumn As Integer = pCursorColumn
-                    Dim lCursorWasAtLine As Integer = pCursorLine
-                    
-                    ' Outdent each line in selection
-                    for i As Integer = lStartLine To lEndLine
-                        OutdentLinePrivate(i)
-                    Next
-                    
-                    ' Adjust selection to full lines after outdenting
-                    SetSelection(New EditorPosition(lStartLine, 0), 
-                                New EditorPosition(lEndLine, TextLines(lEndLine).Length))
-                    
-                    ' If cursor was at column 0 of the line after the selection, keep it there
-                    If pSelectionEndColumn = 0 AndAlso lCursorWasAtLine > lEndLine Then
-                        SetCursorPosition(lCursorWasAtLine, 0)
-                    End If
-                Else
-                    ' No selection - outdent current line
-                    OutdentLinePrivate(pCursorLine)
-                    
-                    ' Adjust cursor position if it was in the removed indentation
-                    If pCursorColumn > 0 AndAlso pCursorColumn <= GetLineIndentation(pCursorLine).Length Then
-                        ' Move cursor to start of text after outdenting
-                        Dim lNewIndent As String = GetLineIndentation(pCursorLine)
-                        SetCursorPosition(pCursorLine, lNewIndent.Length)
-                    End If
-                End If
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
-                
-                IsModified = True
-                RaiseEvent TextChanged(Me, New EventArgs)
-                
-                ' Queue redraw
-                pDrawingArea?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"OutdentSelection error: {ex.Message}")
+                pUndoRedoManager.EndUserAction()
+            Catch
+                ' Ignore errors ending undo group
             End Try
-        End Sub
+        End If
+    End Try
+End Sub
+        
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentSelection
+' Replace: SimpleIDE.Editors.CustomDrawingEditor.OutdentSelection
+''' <summary>
+''' Outdents all lines in the current selection
+''' </summary>
+''' <remarks>
+''' Uses atomic operations for each line to ensure proper metadata updates
+''' </remarks>
+Public Sub OutdentSelection() Implements IEditor.OutdentSelection
+    Try
+        If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+        
+        Console.WriteLine("OutdentSelection: Starting")
+        
+        Dim lStartLine As Integer
+        Dim lEndLine As Integer
+        
+        If pHasSelection Then
+            ' Get selection bounds
+            Dim lStart As EditorPosition = GetSelectionStart()
+            Dim lEnd As EditorPosition = GetSelectionEnd()
+            lStartLine = lStart.Line
+            lEndLine = lEnd.Line
+            Console.WriteLine($"OutdentSelection: Selection from line {lStartLine} To {lEndLine}")
+        Else
+            ' Just outdent current line
+            lStartLine = pCursorLine
+            lEndLine = pCursorLine
+            Console.WriteLine($"OutdentSelection: Single line {lStartLine}")
+        End If
+        
+        ' Validate line bounds
+        lStartLine = Math.Max(0, Math.Min(lStartLine, pLineCount - 1))
+        lEndLine = Math.Max(0, Math.Min(lEndLine, pLineCount - 1))
+        
+        ' Ensure we have settings
+        'EnsureSettingsManager()
+        
+        Dim lTabWidth As Integer = 4 ' Default
+        If pSettingsManager IsNot Nothing Then
+            lTabWidth = pSettingsManager.TabWidth
+            If lTabWidth <= 0 Then lTabWidth = 4
+        End If
+        
+        Console.WriteLine($"OutdentSelection: Using tab width Of {lTabWidth}")
+        
+        ' Begin undo group
+        If pUndoRedoManager IsNot Nothing Then
+            pUndoRedoManager.BeginUserAction()
+        End If
+        
+        ' Track total characters removed from each line for cursor adjustment
+        Dim lRemovedPerLine As New Dictionary(Of Integer, Integer)
+        Dim lLinesOutdented As Integer = 0
+        
+        ' Outdent each line using atomic operations
+        For i As Integer = lStartLine To lEndLine
+            If i < pSourceFileInfo.TextLines.Count Then
+                Dim lLine As String = pSourceFileInfo.TextLines(i)
+                Dim lCharsToRemove As Integer = 0
+                
+                ' Determine how much to outdent
+                If lLine.StartsWith(vbTab) Then
+                    lCharsToRemove = 1
+                    Console.WriteLine($"OutdentSelection: Line {i} - removing tab")
+                ElseIf lLine.StartsWith(" ") Then
+                    While lCharsToRemove < lLine.Length AndAlso 
+                          lCharsToRemove < lTabWidth AndAlso 
+                          lLine(lCharsToRemove) = " "c
+                        lCharsToRemove += 1
+                    End While
+                    Console.WriteLine($"OutdentSelection: Line {i} - removing {lCharsToRemove} spaces")
+                End If
+                
+                If lCharsToRemove > 0 Then
+                    ' Use atomic DeleteText
+                    pSourceFileInfo.DeleteText(i, 0, i, lCharsToRemove)
+                    lRemovedPerLine(i) = lCharsToRemove
+                    lLinesOutdented += 1
+                End If
+            End If
+        Next
+        
+        Console.WriteLine($"OutdentSelection: Outdented {lLinesOutdented} lines")
+        
+        ' End undo group
+        If pUndoRedoManager IsNot Nothing Then
+            pUndoRedoManager.EndUserAction()
+        End If
+        
+        ' Adjust cursor if on an outdented line
+        If lRemovedPerLine.ContainsKey(pCursorLine) Then
+            Dim lRemoved As Integer = lRemovedPerLine(pCursorLine)
+            If pCursorColumn > 0 Then
+                SetCursorPosition(pCursorLine, Math.Max(0, pCursorColumn - lRemoved))
+                Console.WriteLine($"OutdentSelection: Cursor adjusted To column {pCursorColumn}")
+            End If
+        End If
+        
+        ' Maintain selection if we had one
+        If pHasSelection Then
+            ' After outdenting, the selection should still cover the same lines
+            pSelectionStartLine = lStartLine
+            pSelectionStartColumn = 0
+            pSelectionEndLine = lEndLine
+            
+            ' Get the length of the last line after outdenting
+            If lEndLine < pSourceFileInfo.TextLines.Count Then
+                pSelectionEndColumn = pSourceFileInfo.TextLines(lEndLine).Length
+            Else
+                pSelectionEndColumn = 0
+            End If
+            
+            ' Ensure selection flags are set
+            pSelectionActive = True
+            pHasSelection = True
+            
+            Console.WriteLine($"OutdentSelection: Selection adjusted To ({pSelectionStartLine},{pSelectionStartColumn}) - ({pSelectionEndLine},{pSelectionEndColumn})")
+        End If
+        
+        ' Update state
+        IsModified = True
+        RaiseEvent TextChanged(Me, EventArgs.Empty)
+        
+        ' Update UI
+        UpdateLineNumberWidth()
+        UpdateScrollbars()
+        EnsureCursorVisible()
+        pDrawingArea?.QueueDraw()
+        
+        Console.WriteLine("OutdentSelection: Completed")
+        
+    Catch ex As Exception
+        Console.WriteLine($"OutdentSelection error: {ex.Message}")
+        Console.WriteLine($"  Stack: {ex.StackTrace}")
+        
+        ' Ensure undo group is ended even on error
+        If pUndoRedoManager IsNot Nothing Then
+            Try
+                pUndoRedoManager.EndUserAction()
+            Catch
+                ' Ignore errors ending undo group
+            End Try
+        End If
+    End Try
+End Sub
         
     End Class
     

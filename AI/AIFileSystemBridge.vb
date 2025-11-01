@@ -3,7 +3,7 @@ Imports System
 Imports System.Collections.Generic
 Imports System.IO
 Imports System.Xml
-Imports System.Text
+Imports System.Text 
 Imports SimpleIDE.Utilities.ProjectFileParser
 
 Namespace Utilities

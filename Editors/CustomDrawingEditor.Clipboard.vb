@@ -21,27 +21,43 @@ Namespace Editors
         Public Sub Cut() Implements IEditor.Cut
             Try
                 If Not pHasSelection OrElse pIsReadOnly Then Return
+                If pSourceFileInfo Is Nothing Then Return
                 
-                ' Begin undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
+                ' Get selection bounds
+                Dim lStart As EditorPosition = GetSelectionStart()
+                Dim lEnd As EditorPosition = GetSelectionEnd()
+                
+                ' Get selected text for clipboard
+                Dim lSelectedText As String = GetSelectedText()
                 
                 ' Copy to clipboard
-                Copy()
+                Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Atom.Intern("CLIPBOARD", False))
+                lClipboard.Text = lSelectedText
                 
-                ' Delete selected text
-                DeleteSelection()
+                ' Delete the selection using atomic operation
+                pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
                 
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
+                ' Set cursor to deletion point
+                SetCursorPosition(lStart.Line, lStart.Column)
+                ClearSelection()
+                
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
             Catch ex As Exception
                 Console.WriteLine($"Cut error: {ex.Message}")
             End Try
         End Sub
+
+        Private Function GetSelectionStart() As EditorPosition
+            Return New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+        End Function
+
+        Private Function GetSelectionEnd() As EditorPosition
+            If pSelectionActive Then Return New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+            Return GetSelectionStart()
+        End Function
+
         
         ''' <summary>
         ''' Copies the selected text to the clipboard
@@ -66,15 +82,19 @@ Namespace Editors
             End Try
         End Sub
         
-        
         ''' <summary>
         ''' Handles clipboard text when received - automatically selects pasted text
         ''' </summary>
         ''' <param name="vClipboard">The clipboard source</param>
         ''' <param name="vText">The text to paste</param>
+        ''' <remarks>
+        ''' FIXED: Ensures proper metadata update and redraw for multi-line pastes
+        ''' </remarks>
         Private Sub OnClipboardTextReceived(vClipboard As Clipboard, vText As String)
             Try
-                If String.IsNullOrEmpty(vText) OrElse pIsReadOnly Then Return
+                If String.IsNullOrEmpty(vText) OrElse pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+                
+                Console.WriteLine($"OnClipboardTextReceived: Pasting {vText.Length} characters")
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -89,45 +109,76 @@ Namespace Editors
                     ' Get normalized selection bounds - this is where paste will happen after deletion
                     Dim lStartPos As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
                     Dim lEndPos As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
-                    NormalizeSelection(lStartPos, lEndPos)
                     
-                    ' Store where the text will be inserted (at selection start)
+                    If lEndPos.IsLessThan( lStartPos ) Then
+                        ' Swap if selection is backwards
+                        Dim lTemp As EditorPosition = lStartPos
+                        lStartPos = lEndPos
+                        lEndPos = lTemp
+                    End If
+                    
                     lPasteStartLine = lStartPos.Line
                     lPasteStartColumn = lStartPos.Column
                     
-                    ' Delete the selection - this will set cursor to selection start
+                    ' Delete selection first
                     DeleteSelection()
-                    
-                    ' Verify cursor is at expected position
-                    If pCursorLine <> lPasteStartLine OrElse pCursorColumn <> lPasteStartColumn Then
-                        Console.WriteLine($"WARNING: Cursor position mismatch after DeleteSelection")
-                        Console.WriteLine($"  Expected: ({lPasteStartLine},{lPasteStartColumn})")
-                        Console.WriteLine($"  Actual: ({pCursorLine},{pCursorColumn})")
-                        ' Force cursor to correct position
-                        SetCursorPosition(lPasteStartLine, lPasteStartColumn)
-                    End If
                 Else
-                    ' No selection - paste at current cursor position
+                    ' Paste at cursor position
                     lPasteStartLine = pCursorLine
                     lPasteStartColumn = pCursorColumn
                 End If
                 
-                ' Use InsertTextDirect for better performance and correct cursor positioning
-                InsertTextDirect(vText)
+                ' Calculate where paste will end
+                Dim lLines() As String = vText.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None)
+                Dim lPasteEndLine As Integer = lPasteStartLine
+                Dim lPasteEndColumn As Integer = lPasteStartColumn
                 
-                ' After InsertTextDirect, cursor should be at the end of inserted text
-                Dim lPasteEndLine As Integer = pCursorLine
-                Dim lPasteEndColumn As Integer = pCursorColumn
+                If lLines.Length = 1 Then
+                    ' Single line paste - end column is start + text length
+                    lPasteEndColumn = lPasteStartColumn + vText.Length
+                Else
+                    ' Multi-line paste
+                    lPasteEndLine = lPasteStartLine + lLines.Length - 1
+                    lPasteEndColumn = lLines(lLines.Length - 1).Length
+                    
+                    ' If we're inserting in the middle of a line, account for text after insertion point
+                    If lPasteStartLine < pLineCount Then
+                        Dim lOriginalLine As String = pSourceFileInfo.TextLines(lPasteStartLine)
+                        If lPasteStartColumn < lOriginalLine.Length Then
+                            ' Text after cursor will be moved to last pasted line
+                            ' The InsertText method handles this correctly
+                        End If
+                    End If
+                End If 
+                
+                ' Use atomic InsertText for the paste operation 
+                ' This will properly update metadata and character tokens
+                pSourceFileInfo.InsertText(lPasteStartLine, lPasteStartColumn, vText)
+                
+                ' CRITICAL FIX: For multi-line pastes, ensure immediate visual update
+                If lLines.Length > 1 Then
+                    Console.WriteLine($"OnClipboardTextReceived: Multi-line paste detected ({lLines.Length} lines)")
+                    
+                    ' Force immediate parsing for visual feedback
+                    pSourceFileInfo.ForceImmediateParsing(lPasteStartLine, lPasteEndLine)
+                    
+                    ' Explicitly queue a redraw to show the updated coloring
+                    If pDrawingArea IsNot Nothing Then
+                        pDrawingArea.QueueDraw()
+                        Console.WriteLine($"OnClipboardTextReceived: Queued redraw for lines {lPasteStartLine} to {lPasteEndLine}")
+                    End If
+                End If
+                
+                ' Move cursor to end of pasted text
+                SetCursorPosition(lPasteEndLine, lPasteEndColumn)
                 
                 ' End undo group
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.EndUserAction()
                 End If
                 
-                EnsurePasteColoring(lPasteStartLine, lPasteEndLine, vText.Length)
-                
-                ' CRITICAL: Automatically select the pasted text
-                Console.WriteLine($"Paste: Selecting from ({lPasteStartLine},{lPasteStartColumn}) to ({lPasteEndLine},{lPasteEndColumn})")
+                ' Automatically select the pasted text
+                Console.WriteLine($"OnClipboardTextReceived: Selecting pasted text from ({lPasteStartLine},{lPasteStartColumn}) to ({lPasteEndLine},{lPasteEndColumn})")
                 
                 ' Set the selection to cover the pasted text
                 pSelectionStartLine = lPasteStartLine
@@ -137,17 +188,19 @@ Namespace Editors
                 pSelectionActive = True
                 pHasSelection = True
                 
-                ' Ensure cursor stays at the end of the pasted text
-                SetCursorPosition(lPasteEndLine, lPasteEndColumn)
+                ' Ensure cursor is visible
+                EnsureCursorVisible()
                 
-                ' Raise selection changed event
-                RaiseEvent SelectionChanged(True)
+                ' Queue final redraw to show selection and updated text
+                If pDrawingArea IsNot Nothing Then
+                    pDrawingArea.QueueDraw()
+                End If
                 
-                ' Queue redraw to show the selection
-                pDrawingArea?.QueueDraw()
+                ' Mark as modified
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
-                ' Ensure the editor has focus
-                GrabFocus()
+                Console.WriteLine($"OnClipboardTextReceived: Paste operation completed")
                 
             Catch ex As Exception
                 Console.WriteLine($"OnClipboardTextReceived error: {ex.Message}")
@@ -171,112 +224,49 @@ Namespace Editors
         ' ===== Selection Deletion =====
 
         ''' <summary>
-        ''' Deletes the currently selected text
+        ''' Deletes the current selection using atomic operation
         ''' </summary>
         ''' <remarks>
-        ''' This method preserves all UndoRedoManager functionality while using
-        ''' SourceFileInfo for text manipulation and requesting async parsing.
-        ''' It handles both single-line and multi-line deletions.
+        ''' Refactored to use atomic DeleteText method
         ''' </remarks>
-        Private Sub DeleteSelection() Implements IEditor.DeleteSelection
+        Public Sub DeleteSelection() Implements IEditor.DeleteSelection
             Try
-                If Not pHasSelection OrElse pIsReadOnly Then Return
-                If pSourceFileInfo Is Nothing Then Return
+                If Not pHasSelection OrElse pSourceFileInfo Is Nothing OrElse pIsReadOnly Then Return
                 
-                ' Get normalized selection bounds using EditorPosition
-                Dim lStartPos As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
-                Dim lEndPos As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+                ' Get selection bounds
+                Dim lStart As EditorPosition = GetSelectionStart()
+                Dim lEnd As EditorPosition = GetSelectionEnd()
                 
-                ' Normalize to ensure start comes before end
-                NormalizeSelection(lStartPos, lEndPos)
-                
-                ' Extract the normalized coordinates
-                Dim lStartLine As Integer = lStartPos.Line
-                Dim lStartCol As Integer = lStartPos.Column
-                Dim lEndLine As Integer = lEndPos.Line
-                Dim lEndCol As Integer = lEndPos.Column
-                
-                ' Get the selected text for undo recording
+                ' Get the selected text for undo
                 Dim lSelectedText As String = GetSelectedText()
                 
-                ' Record the deletion for undo (if not already in an undo/redo operation)
-                If pUndoRedoManager IsNot Nothing AndAlso Not pUndoRedoManager.IsUndoingOrRedoing Then
-                    ' Cursor will be at start of selection after deletion
-                    Dim lNewCursorPos As New EditorPosition(lStartLine, lStartCol)
-                    pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lSelectedText, lNewCursorPos)
+                ' Record for undo
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordDeleteText(lStart, lEnd, lSelectedText, lStart)
                 End If
                 
-                ' Perform the deletion based on whether it's single or multi-line
-                If lStartLine = lEndLine Then
-                    ' Single line deletion
-                    pSourceFileInfo.DeleteTextInLine(lStartLine, lStartCol, lEndCol)
-                    
-                    
-                Else
-                    ' Multi-line deletion - more complex
-                    
-                    ' Get text to keep from first and last lines
-                    Dim lFirstLine As String = pSourceFileInfo.TextLines(lStartLine)
-                    Dim lLastLine As String = pSourceFileInfo.TextLines(lEndLine)
-                    
-                    ' Calculate what remains after deletion
-                    Dim lKeepFromFirst As String = If(lStartCol > 0, lFirstLine.Substring(0, Math.Min(lStartCol, lFirstLine.Length)), "")
-                    Dim lKeepFromLast As String = If(lEndCol < lLastLine.Length, lLastLine.Substring(lEndCol), "")
-                    
-                    ' Combine the kept portions into the first line
-                    Dim lCombinedLine As String = lKeepFromFirst & lKeepFromLast
-                    pSourceFileInfo.TextLines(lStartLine) = lCombinedLine
-                    
-                    
-                    ' Delete all the lines between start and end (working backwards to maintain indices)
-                    Dim lLinesToDelete As Integer = lEndLine - lStartLine
-                    If lLinesToDelete > 0 Then
-                        for i As Integer = lEndLine To lStartLine + 1 Step -1
-                            pSourceFileInfo.DeleteLine(i)
-                        Next
-                    End If
-                    
-                End If
+                ' Use atomic DeleteText
+                pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
                 
-                ' Set cursor to start of where deletion occurred
-                SetCursorPosition(lStartLine, lStartCol)
+                ' Set cursor to deletion point
+                SetCursorPosition(lStart.Line, lStart.Column)
+                ClearSelection()
                 
-                ' Clear selection state
-                pHasSelection = False
-                pSelectionActive = False
-                pSelectionStartLine = -1
-                pSelectionStartColumn = -1
-                pSelectionEndLine = -1
-                pSelectionEndColumn = -1
+                ' Update state
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
-                ' Mark document as modified
-                pIsModified = True
-                
-                ' Request async parse for the affected area
-                pSourceFileInfo.RequestAsyncParse()
-                
-                ' Update UI elements
+                ' Update UI
                 UpdateLineNumberWidth()
                 UpdateScrollbars()
-                
-                ' Raise events
-                RaiseEvent TextChanged(Me, New EventArgs)
-                RaiseEvent SelectionChanged(False)
-                
-                ' Trigger any additional text modification handlers
-                OnTextModified()
-                
-                ' Queue redraw - colors will update when parse completes
+                EnsureCursorVisible()
                 pDrawingArea?.QueueDraw()
-                
-                Console.WriteLine($"DeleteSelection: Deleted from ({lStartLine},{lStartCol}) to ({lEndLine},{lEndCol})")
                 
             Catch ex As Exception
                 Console.WriteLine($"DeleteSelection error: {ex.Message}")
-                Console.WriteLine($"  Stack: {ex.StackTrace}")
             End Try
         End Sub
-        
+  
         ''' <summary>
         ''' Helper method to delete text within a single line (if needed separately)
         ''' </summary>
@@ -295,7 +285,7 @@ Namespace Editors
                 
                 ' Delete through SourceFileInfo
                 If vEndColumn > vStartColumn Then
-                    pSourceFileInfo.DeleteTextInLine(vLine, vStartColumn, vEndColumn)
+                    pSourceFileInfo.DeleteText(vLine, vStartColumn, vLine, vEndColumn)
                 End If
                 
             Catch ex As Exception
@@ -331,7 +321,7 @@ Namespace Editors
                 
                 ' Remove all lines between start and end (working backwards)
                 for i As Integer = vEndLine To vStartLine + 1 Step -1
-                    pSourceFileInfo.DeleteLine(i)
+                    pSourceFileInfo.DeleteText(i, 0, i, pSourceFileInfo.TextLines(i).Length)
                 Next
                 
                 ' Ensure we always have at least one line
@@ -636,7 +626,6 @@ Namespace Editors
             End Try
         End Function
         
-        ' Replace: SimpleIDE.Editors.CustomDrawingEditor.EnsurePasteColoring
         ''' <summary>
         ''' Ensures proper syntax coloring after paste operations
         ''' </summary>
@@ -646,12 +635,24 @@ Namespace Editors
         ''' <remarks>
         ''' This method delegates to SourceFileInfo for the actual parsing and coloring work.
         ''' It handles scheduling and UI updates while SourceFileInfo handles the parsing logic.
+        ''' FIXED: Added explicit QueueDraw after ForceImmediateParsing to ensure redraw happens.
         ''' </remarks>
         Private Sub EnsurePasteColoring(vStartLine As Integer, vEndLine As Integer, vTextLength As Integer)
             Try
                 ' Small pastes will be handled by normal async parsing
                 If vTextLength < 100 AndAlso (vEndLine - vStartLine) < 3 Then
-                    ' Small paste - let normal async parse handle it
+                    ' Small paste - let normal async parse handle it  
+                    ' But still force immediate parsing for better UX
+                    Console.WriteLine($"EnsurePasteColoring: Small paste, Using immediate parsing")
+                    If pSourceFileInfo IsNot Nothing Then
+                        pSourceFileInfo.ForceImmediateParsing(vStartLine, vEndLine)
+                        
+                        ' CRITICAL: Explicitly queue redraw after parsing
+                        If pDrawingArea IsNot Nothing Then
+                            pDrawingArea.QueueDraw()
+                            Console.WriteLine("EnsurePasteColoring: Redraw queued after small paste parsing")
+                        End If
+                    End If
                     Return
                 End If
                 
@@ -669,8 +670,11 @@ Namespace Editors
                     ' Let SourceFileInfo handle all the parsing and coloring internally
                     pSourceFileInfo.ForceImmediateParsing(vStartLine, vEndLine)
                     
-                    ' Queue redraw to show the colored text
-                    pDrawingArea?.QueueDraw()
+                    ' CRITICAL: Explicitly queue redraw to show the colored text
+                    If pDrawingArea IsNot Nothing Then
+                        pDrawingArea.QueueDraw()
+                        Console.WriteLine("EnsurePasteColoring: Redraw queued after medium paste parsing")
+                    End If
                     
                     ' Also request async parse for full document context
                     pSourceFileInfo.RequestAsyncParse()
@@ -687,14 +691,19 @@ Namespace Editors
                     If lVisibleEnd >= lVisibleStart Then
                         Console.WriteLine($"EnsurePasteColoring: Immediate parse for visible lines {lVisibleStart} To {lVisibleEnd}")
                         pSourceFileInfo.ForceImmediateParsing(lVisibleStart, lVisibleEnd)
-                        pDrawingArea?.QueueDraw()
+                        
+                        ' CRITICAL: Explicitly queue redraw
+                        If pDrawingArea IsNot Nothing Then
+                            pDrawingArea.QueueDraw()
+                            Console.WriteLine("EnsurePasteColoring: Redraw queued after visible portion parsing")
+                        End If
                     End If
                     
                     ' Request async parse for the full document
                     pSourceFileInfo.RequestAsyncParse()
                     
                     ' Schedule parsing for non-visible portions
-                    Task.Run(Async Function() As Task(Of Task)
+                    Task.Run(Async Function() As Task
                         Try
                             ' Parse lines before visible area if needed
                             If vStartLine < lVisibleStart Then
@@ -728,7 +737,7 @@ Namespace Editors
                             Console.WriteLine($"EnsurePasteColoring task error: {ex.Message}")
                         End Try
                         
-                        Return Task.CompletedTask
+                        'Return Task.CompletedTask
                     End Function)
                 End If
                 
