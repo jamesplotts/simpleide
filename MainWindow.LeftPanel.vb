@@ -63,6 +63,29 @@ Partial Public Class MainWindow
             AddHandler pObjectExplorer.NodeDoubleClicked, AddressOf OnObjectExplorerNodeDoubleClicked
             AddHandler pObjectExplorer.CloseRequested, AddressOf OnObjectExplorerCloseRequested
             
+            ' CRITICAL: Initialize Object Explorer with ProjectManager for parsing integration
+            If pProjectManager IsNot Nothing Then
+                Console.WriteLine("  Initializing Object Explorer with ProjectManager")
+                
+                ' DEBUG: Write detailed debug info
+                Try
+                    Dim lDebugPath As String = "/home/jamesp/Projects/VbIDE/object_explorer_init_detailed.txt"
+                    Using lWriter As New System.IO.StreamWriter(lDebugPath, False)
+                        lWriter.WriteLine($"InitializeWithProjectManager called at {DateTime.Now}")
+                        lWriter.WriteLine($"ProjectManager exists: {pProjectManager IsNot Nothing}")
+                        lWriter.WriteLine($"ObjectExplorer exists: {pObjectExplorer IsNot Nothing}")
+                        lWriter.WriteLine()
+                        lWriter.WriteLine("Calling InitializeWithProjectManager...")
+                    End Using
+                Catch ex As Exception
+                    Console.WriteLine($"Debug write error: {ex.Message}")
+                End Try
+                
+                pObjectExplorer.InitializeWithProjectManager(pProjectManager)
+            Else
+                Console.WriteLine("  WARNING: ProjectManager not available for Object Explorer")
+            End If
+            
             Console.WriteLine("  Adding Object Explorer tab")
             Dim lObjectIndex As Integer = lCustomNotebook.AppendPage(pObjectExplorer, "Objects", "file-code")
             Console.WriteLine($"  Object Explorer added at index {lObjectIndex}")

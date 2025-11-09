@@ -39,6 +39,39 @@ Namespace Models
         Public Property ProjectRootNamespace As String = ""
         Public ProjectManager As ProjectManager
 
+        ''' <summary>
+        ''' Gets or sets the complete text content of the file
+        ''' </summary>
+        ''' <value>The entire file content as a single string</value>
+        Public Property TextContent As String
+            Get
+                If pTextLines IsNot Nothing Then
+                    Return String.Join(Environment.NewLine, pTextLines)
+                End If
+                Return ""
+            End Get
+            Set(value As String)
+                If value IsNot Nothing Then
+                    pTextLines = New List(Of String)(value.Split({Environment.NewLine, vbLf, vbCr}, StringSplitOptions.None))
+                    pIsModified = True
+                    pNeedsParsing = True
+                End If
+            End Set
+        End Property
+        
+        ''' <summary>
+        ''' Gets or sets the character colors array for each line
+        ''' </summary>
+        ''' <value>Jagged array where each element is a byte array for a line</value>
+        Public Property CharacterColors As Byte()()
+            Get
+                Return pCharacterTokens
+            End Get
+            Set(value As Byte()())
+                pCharacterTokens = value
+            End Set
+        End Property
+
         ' Demo Mode is used when you want to display a fictional file's content without having any file IO.
         Public IsDemoMode As Boolean = False
         Public IsVirtualFile As Boolean = False

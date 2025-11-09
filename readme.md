@@ -128,6 +128,47 @@ SimpleIDE -n MyApp -t Console
 SimpleIDE --help
 ```
 
+### Test Mode for Diagnostics (For Claude/AI Assistants)
+
+**IMPORTANT FOR CLAUDE**: The IDE has a special test mode that allows running it headlessly with automatic exit for diagnostic purposes. This is particularly useful when debugging parsing issues or checking project loading without a display.
+
+```bash
+# Run in test mode with xvfb (virtual display) - exits after 3 seconds by default
+xvfb-run -a dotnet run -- --test-mode
+
+# Run with custom delay (in milliseconds)
+xvfb-run -a dotnet run -- --test-mode --test-delay 5000
+
+# Test with a specific project
+xvfb-run -a dotnet run -- --test-mode --project /path/to/project.vbproj
+
+# Build and test
+cd /home/jamesp/Projects/VbIDE
+dotnet build
+xvfb-run -a dotnet run -- --test-mode --test-delay 3000
+```
+
+**What Test Mode Does:**
+- Starts the IDE with a virtual display (no GUI needed)
+- Automatically loads the project (auto-detects or uses --project flag)
+- Outputs all parsing and loading diagnostics to console
+- Shows which files are being parsed and any errors
+- Exits automatically after the specified delay
+- Useful for checking if Object Explorer population is working
+- Helps diagnose Roslyn parser initialization issues
+
+**Prerequisites for Test Mode:**
+- xvfb must be installed: `sudo apt-get install xvfb`
+- The IDE must be built first: `dotnet build`
+
+**Example Output:**
+The test mode will show:
+- Project loading progress
+- File parsing status for all source files  
+- Parser initialization errors
+- Object Explorer population status
+- Any runtime exceptions during startup
+
 ### Keyboard Shortcuts
 
 #### File Operations

@@ -233,15 +233,15 @@ Namespace Managers
                 ' Initialize parser if needed
                 InitializeParser()
                 
-                ' Parse the project
-                pProjectSyntaxTree = pProjectParser.ParseProject()
+                ' Parse the project - ParseProject() now uses the ProjectManager's current project
+                Dim lParseResult As Boolean = pProjectParser.ParseProject()
                 
                 If pProjectParser IsNot Nothing Then
-                    pParseErrors = pProjectParser.GetParseErrors()
+                    pParseErrors = pProjectParser.ParseErrors
                 End If
                 
-                pLastParseTime = DateTime.Now
-                
+                pLastParseTime = DateTime.Now     
+           
                 ' Check if we actually got a valid tree
                 If pProjectSyntaxTree IsNot Nothing Then
                     Console.WriteLine($"ProjectManager: ParseProject returned tree with root: {pProjectSyntaxTree.Name}")
@@ -332,7 +332,7 @@ Namespace Managers
                 Dim lFailedFiles As New List(Of String)()
                 
                 ' Load each file
-                For Each lFilePath In lSourceFilePaths
+                for each lFilePath in lSourceFilePaths
                     Try
                         ' Check if already loaded
                         Dim lSourceFile As SourceFileInfo = Nothing
@@ -341,7 +341,7 @@ Namespace Managers
                             lSourceFile = pSourceFiles(lFilePath)
                             If lSourceFile.IsLoaded Then
                                 lSuccessCount += 1
-                                Continue For
+                                Continue for
                             End If
                         Else
                             ' Create new SourceFileInfo
@@ -373,7 +373,7 @@ Namespace Managers
                 
                 If lFailedFiles.Count > 0 Then
                     Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
-                    For Each lFile In lFailedFiles
+                    for each lFile in lFailedFiles
                         Console.WriteLine($"  - {Path.GetFileName(lFile)}")
                     Next
                 End If
@@ -411,9 +411,9 @@ Namespace Managers
                     System.Threading.Thread.Sleep(1) ' Brief yield to allow UI thread to process
                 Next
                 
-                ' Now do the actual parsing
-                Return pProjectParser.ParseProject()
-                
+                ' Now do the actual parsing - ParseProject() uses current project
+                Return If(pProjectParser.ParseProject(), pProjectSyntaxTree, Nothing)        
+        
             Catch ex As Exception
                 Console.WriteLine($"ParseProjectWithProgress error: {ex.Message}")
                 Return Nothing
@@ -528,7 +528,7 @@ Private Function LoadAllSourceFiles() As Boolean
         Dim lFailedFiles As New List(Of String)()
         
         ' Load each file
-        For Each lFilePath In lSourceFilePaths
+        for each lFilePath in lSourceFilePaths
             Try
                 ' Check if already loaded
                 Dim lSourceFile As SourceFileInfo = Nothing
@@ -537,7 +537,7 @@ Private Function LoadAllSourceFiles() As Boolean
                     lSourceFile = pSourceFiles(lFilePath)
                     If lSourceFile.IsLoaded Then
                         lSuccessCount += 1
-                        Continue For
+                        Continue for
                     End If
                 Else
                     ' Create new SourceFileInfo
@@ -569,7 +569,7 @@ Private Function LoadAllSourceFiles() As Boolean
         
         If lFailedFiles.Count > 0 Then
             Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
-            For Each lFile In lFailedFiles
+            for each lFile in lFailedFiles
                 Console.WriteLine($"  - {Path.GetFileName(lFile)}")
             Next
         End If
@@ -819,14 +819,27 @@ End Function
                 
                 ' Parse overall structure for SyntaxNode tree
                 If Parser IsNot Nothing Then
-                    Dim lFullResult As Object = Parser.ParseContent(vFile.Content, RootNamespace, vFile.FilePath)
-                    If TypeOf lFullResult Is ParseResult Then
-                        Dim lFullParseResult As ParseResult = DirectCast(lFullResult, ParseResult)
-                        lResult.RootNode = lFullParseResult.RootNode
-                        lResult.Errors = lFullParseResult.Errors
+                    ' ParseContent only takes 2 parameters: content and filepath
+                    Dim lSyntaxNode As SyntaxNode = Parser.ParseContent(vFile.TextContent, vFile.FilePath)
+                    If lSyntaxNode IsNot Nothing Then
+                        lResult.RootNode = lSyntaxNode
+                        
+                        ' Extract class/method names etc. from the syntax tree
+                        If lSyntaxNode.Children IsNot Nothing Then
+                            for each lChild in lSyntaxNode.Children
+                                Select Case lChild.NodeType
+                                    Case CodeNodeType.eClass
+                                        lResult.ClassNames.Add(lChild.Name)
+                                    Case CodeNodeType.eMethod, CodeNodeType.eFunction
+                                        lResult.MethodNames.Add(lChild.Name)
+                                    Case CodeNodeType.eProperty
+                                        lResult.PropertyNames.Add(lChild.Name)
+                                End Select
+                            Next
+                        End If
                     End If
-                End If
-                
+                End If         
+       
                 'Console.WriteLine($"ParseFileContent: Parsed {lLineCount} lines for {vFile.FileName}")
                 Return lResult
                 

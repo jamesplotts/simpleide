@@ -43,6 +43,32 @@ Namespace Managers
         ''' Last build result
         ''' </summary>
         Public Property LastBuildSucceeded As Boolean = False
+
+        ''' <summary>
+        ''' Gets or sets the assembly name for this project
+        ''' </summary>
+        Public Property AssemblyName As String = ""
+        
+        ''' <summary>
+        ''' Creates a new ProjectInfo instance with the specified parameters
+        ''' </summary>
+        ''' <param name="vProjectPath">Full path to the project file</param>
+        ''' <param name="vProjectName">Name of the project</param>
+        ''' <returns>A new ProjectInfo instance</returns>
+        Public Shared Function Create(vProjectPath As String, vProjectName As String) As ProjectInfo
+            Try
+                Dim lInfo As New ProjectInfo()
+                lInfo.ProjectPath = vProjectPath
+                lInfo.ProjectName = vProjectName
+                lInfo.ProjectDirectory = System.IO.Path.GetDirectoryName(vProjectPath)
+                lInfo.AssemblyName = vProjectName ' Default assembly name to project name
+                Return lInfo
+                
+            Catch ex As Exception
+                Console.WriteLine($"ProjectInfo.Create error: {ex.Message}")
+                Return New ProjectInfo()
+            End Try
+        End Function
         
         ' ===== Constructor =====
         
@@ -64,7 +90,7 @@ Namespace Managers
                 Me.PackageReferences = vParsedInfo.PackageReferences
                 
                 ' Initialize source files from compile items
-                For Each lItem In Me.CompileItems
+                for each lItem in Me.CompileItems
                     Me.SourceFiles.Add(System.IO.Path.Combine(Me.ProjectDirectory, lItem))
                 Next
             End If

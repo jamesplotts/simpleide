@@ -37,6 +37,42 @@ Partial Public Class MainWindow
             pStatusBar.Pop(lStatusContext)
             pStatusBar.Push(lStatusContext, $"Loading project: {System.IO.Path.GetFileName(vProjectPath)}")
             
+            ' DEBUG: Write detailed info when project loads
+            Try
+                Dim lDebugPath As String = "/home/jamesp/Projects/VbIDE/project_loaded_detailed.txt"
+                Using lWriter As New System.IO.StreamWriter(lDebugPath, False)
+                    lWriter.WriteLine($"Project loaded: {vProjectPath} at {DateTime.Now}")
+                    lWriter.WriteLine($"ProjectManager.IsProjectOpen: {pProjectManager.IsProjectOpen}")
+                    lWriter.WriteLine($"ProjectManager.ProjectFile: {pProjectManager.ProjectFile}")
+                    lWriter.WriteLine()
+                    
+                    lWriter.WriteLine("Attempting to get project syntax tree...")
+                    Dim lTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
+                    
+                    If lTree IsNot Nothing Then
+                        lWriter.WriteLine($"SUCCESS: Got tree '{lTree.Name}' ({lTree.NodeType})")
+                        lWriter.WriteLine($"Tree has {lTree.Children.Count} children:")
+                        For i As Integer = 0 To Math.Min(9, lTree.Children.Count - 1)
+                            Dim lChild As SyntaxNode = lTree.Children(i)
+                            lWriter.WriteLine($"  [{i}] {lChild.Name} ({lChild.NodeType}) - {lChild.Children.Count} children")
+                        Next
+                        
+                        lWriter.WriteLine()
+                        lWriter.WriteLine("Calling LoadProjectStructure on ObjectExplorer...")
+                        If pObjectExplorer IsNot Nothing Then
+                            pObjectExplorer.LoadProjectStructure(lTree)
+                            lWriter.WriteLine("LoadProjectStructure called successfully")
+                        Else
+                            lWriter.WriteLine("ERROR: pObjectExplorer is Nothing!")
+                        End If
+                    Else
+                        lWriter.WriteLine("FAILED: GetProjectSyntaxTree returned Nothing")
+                    End If
+                End Using
+            Catch ex As Exception
+                Console.WriteLine($"Debug write error: {ex.Message}")
+            End Try
+            
         Catch ex As Exception
             Console.WriteLine($"OnProjectManagerProjectLoaded error: {ex.Message}")
         End Try

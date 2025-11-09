@@ -509,11 +509,26 @@ Namespace Managers
                         ' Load the file
                         Console.WriteLine($"  Loading: {lRelativePath}")
                         Dim lNewSourceFile As New SourceFileInfo(lFullPath, "")
-
                         
-                        ' Add or update in dictionary
-                        pSourceFiles(lFullPath) = lNewSourceFile
-                        lLoadedCount += 1
+                        ' Actually load the content from disk
+                        If lNewSourceFile.LoadContent() Then
+                            ' Set project context
+                            lNewSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                            lNewSourceFile.ProjectManager = Me
+                            
+                            ' Wire up events
+                            WireSourceFileInfoEvents(lNewSourceFile)
+                            
+                            ' Parse the file to build its syntax tree
+                            Console.WriteLine($"  Parsing: {lRelativePath}")
+                            ParseFile(lNewSourceFile)
+                            
+                            ' Add or update in dictionary
+                            pSourceFiles(lFullPath) = lNewSourceFile
+                            lLoadedCount += 1
+                        Else
+                            Console.WriteLine($"  Failed to load content: {lRelativePath}")
+                        End If
                         
                     Catch ex As Exception
                         Console.WriteLine($"  Error loading {lRelativePath}: {ex.Message}")
@@ -927,23 +942,16 @@ Namespace Managers
                 
                 Console.WriteLine($"ProjectManager.ParseFile: {vFile.FileName}")
                 
-                ' Parse the file content
-                Dim lParseResult As Object = Parser.ParseContent(vFile.Content, RootNamespace, vFile.FilePath)
+                ' Parse the file content - ParseContent only takes 2 parameters: content and filepath
+                Dim lParseResult As SyntaxNode = Parser.ParseContent(vFile.TextContent, vFile.FilePath)
                 
                 ' Update the SourceFileInfo with parse results
                 If lParseResult IsNot Nothing Then
-                        
-                    ' Extract the SyntaxNode tree from ParseResult
-                    If lParseResult.RootNode IsNot Nothing Then
-                        vFile.SyntaxTree = lParseResult.RootNode
-                    End If
-                        
+                    vFile.SyntaxTree = lParseResult
+                    vFile.ParseResult = lParseResult
+                    
+                    ' Generate metadata from the parse result
                     vFile.GenerateMetadata()
-                        
-                    ' Extract any errors
-                    If lParseResult.Errors IsNot Nothing Then
-                        vFile.ParseErrors = lParseResult.Errors
-                    End If
                     
                     vFile.NeedsParsing = False
                     vFile.LastParsed = DateTime.Now
@@ -953,7 +961,6 @@ Namespace Managers
                     
                     Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
                     Return vFile.SyntaxTree IsNot Nothing
-                        
                 End If
                 
                 Return False
@@ -966,8 +973,8 @@ Namespace Managers
                     vFile.ParseErrors = New List(Of ParseError)()
                 End If
                 
-                vFile.ParseErrors.Add(New ParseError with {
-                    .Message = $"Parse error: {ex.Message}",
+                vFile.ParseErrors.Add(New ParseError() with {
+                    .Message = ex.Message,
                     .Line = 0,
                     .Column = 0,
                     .Severity = ParseErrorSeverity.eError
@@ -1096,12 +1103,12 @@ Namespace Managers
                 
                 ' Search through all source files
                 Console.WriteLine("FindDefinition: Searching project-wide")
-                For Each lFileEntry In pSourceFiles
+                for each lFileEntry in pSourceFiles
                     Dim lFilePath As String = lFileEntry.Key
                     Dim lFileInfo As SourceFileInfo = lFileEntry.Value
                     
                     ' Skip the current file (already searched)
-                    If lFilePath = vCurrentFilePath Then Continue For
+                    If lFilePath = vCurrentFilePath Then Continue for
                     
                     ' Try syntax tree search
                     If lFileInfo.SyntaxTree IsNot Nothing Then
@@ -1340,7 +1347,7 @@ Namespace Managers
                     End If
                 End If
                 
-                Console.WriteLine($"ExportSyntaxTreeDiagnostic: Writing to {vFilePath}")
+                Console.WriteLine($"ExportSyntaxTreeDiagnostic: Writing To {vFilePath}")
                 
                 Dim lBuilder As New System.Text.StringBuilder()
                 
@@ -1400,7 +1407,7 @@ Namespace Managers
                 
                 lBuilder.AppendLine()
                 lBuilder.AppendLine("================================================================================")
-                lBuilder.AppendLine("PROJECT-WIDE SYNTAX TREE STRUCTURE:")
+                lBuilder.AppendLine("PROJECT-WIDE SYNTAX TREE Structure:")
                 lBuilder.AppendLine("================================================================================")
                 lBuilder.AppendLine()
                 
@@ -1442,7 +1449,7 @@ Namespace Managers
                     For Each lDup In lDuplicates
                         If lDup.Value.Count > 1 Then
                             lBuilder.AppendLine($"  '{lDup.Key}' appears {lDup.Value.Count} times:")
-                            For Each lNode In lDup.Value
+                            for each lNode in lDup.Value
                                 Dim lFileInfo As String = GetNodeFileInfo(lNode)
                                 lBuilder.AppendLine($"    - {lNode.NodeType} at line {lNode.StartLine}, IsPartial={lNode.IsPartial} {lFileInfo}")
                             Next
@@ -1510,7 +1517,7 @@ Namespace Managers
                 
                 ' Add attributes if requested
                 If vIncludeAttributes AndAlso vNode.Attributes IsNot Nothing AndAlso vNode.Attributes.Count > 0 Then
-                    For Each lAttr In vNode.Attributes
+                    for each lAttr in vNode.Attributes
                         vBuilder.AppendLine($"{lIndentStr}  @{lAttr.Key}: {lAttr.Value}")
                     Next
                 End If
@@ -1527,7 +1534,7 @@ Namespace Managers
                 If vNode.Parameters.Count > 0 Then
                     vBuilder.Append($"{lIndentStr}  Parameters: ")
                     Dim lParams As New List(Of String)()
-                    For Each lParam In vNode.Parameters
+                    for each lParam in vNode.Parameters
                         lParams.Add($"{lParam.Name}: {lParam.ParameterType}")
                     Next
                     vBuilder.AppendLine(String.Join(", ", lParams))
@@ -1535,7 +1542,7 @@ Namespace Managers
                 
                 ' Process children
                 If vNode.Children.Count > 0 Then
-                    For Each lChild In vNode.Children
+                    for each lChild in vNode.Children
                         DumpNodeRecursiveDetailed(lChild, vBuilder, vIndent + 1, vIncludeAttributes)
                     Next
                 End If
@@ -1559,7 +1566,7 @@ Namespace Managers
                 vCounts(vNode.NodeType) += 1
                 
                 ' Count children
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     CountNodeTypes(lChild, vCounts)
                 Next
                 
@@ -1586,7 +1593,7 @@ Namespace Managers
                 End If
                 
                 ' Check children
-                For Each lChild In vNode.Children
+                for each lChild in vNode.Children
                     CheckForDuplicateNodes(lChild, vDuplicates)
                 Next
                 

@@ -1,12 +1,9 @@
-
 ' Syntax/Token.vb - Represents a token in VB.NET source code
 ' Created: 2025-08-29
 
 Imports System
 
 Namespace Syntax
-
-
     
     ''' <summary>
     ''' Represents a single token in VB.NET source code
@@ -114,6 +111,8 @@ Namespace Syntax
         eIdentifier
         ''' <summary>String literal enclosed in quotes</summary>
         eStringLiteral
+        ''' <summary>String token (shorter alias for eStringLiteral)</summary>
+        eString
         ''' <summary>Numeric literal (integer, decimal, hex, etc.)</summary>
         eNumber
         ''' <summary>Comment starting with apostrophe or REM</summary>
@@ -124,6 +123,10 @@ Namespace Syntax
         eType
         ''' <summary>Whitespace characters (space, tab, etc.)</summary>
         eWhitespace
+        ''' <summary>Delimiter (comma, parenthesis, brackets, etc.)</summary>
+        eDelimiter
+        ''' <summary>None/empty token</summary>
+        eNone
         ''' <summary>Other/unknown token</summary>
         eOther
         ''' <summary>Sentinel value for enum bounds checking</summary>

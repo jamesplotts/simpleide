@@ -396,6 +396,8 @@ Module Program
         Dim lNewProjectType As String = "GTK"
         Dim lSafeMode As Boolean = False
         Dim lResetSettings As Boolean = False
+        Dim lTestMode As Boolean = False
+        Dim lTestDelay As Integer = 5000 ' Default 5 seconds
         
         ' Process arguments
         Dim i As Integer = 0
@@ -442,6 +444,24 @@ Module Program
                 Case "--reset-settings"
                     lResetSettings = True
                     Console.WriteLine("Settings will be reset to defaults")
+                    
+                Case "--test-mode"
+                    lTestMode = True
+                    Console.WriteLine("Running in test mode - will exit automatically")
+                    
+                Case "--test-delay"
+                    If i + 1 < vArgs.Length Then
+                        i += 1
+                        If Integer.TryParse(vArgs(i), lTestDelay) Then
+                            Console.WriteLine($"Test mode delay set to {lTestDelay}ms")
+                        Else
+                            Console.WriteLine($"Invalid delay value: {vArgs(i)}, using default 5000ms")
+                            lTestDelay = 5000
+                        End If
+                    Else
+                        Console.WriteLine("Error: --test-delay requires a value in milliseconds")
+                        Return
+                    End If
                     
                 Case "--project", "-p"
                     If i + 1 < vArgs.Length Then
@@ -596,6 +616,32 @@ Module Program
                     End If
                 End If
                 
+                ' Set up test mode exit if requested
+                If lTestMode Then
+                    Console.WriteLine($"Test mode: Scheduling exit in {lTestDelay}ms")
+                    Console.WriteLine("============================================")
+                    Console.WriteLine("Test Mode Output:")
+                    Console.WriteLine("============================================")
+                    
+                    ' Schedule application exit after the delay
+                    GLib.Timeout.Add(CUInt(lTestDelay), Function()
+                        Console.WriteLine("============================================")
+                        Console.WriteLine($"Test mode: Exiting after {lTestDelay}ms")
+                        Console.WriteLine("============================================")
+                        
+                        ' Properly close the application
+                        Try
+                            lMainWindow.Close()
+                            Application.Quit()
+                        Catch ex As Exception
+                            Console.WriteLine($"Error during test mode exit: {ex.Message}")
+                            Environment.Exit(0)
+                        End Try
+                        
+                        Return False ' Remove timeout
+                    End Function)
+                End If
+                
             Catch ex As Exception
                 Console.WriteLine($"Window restoration error: {ex.Message}")
             End Try
@@ -743,6 +789,8 @@ Module Program
         Console.WriteLine("      --safe-mode         Start without loading extensions or custom settings")
         Console.WriteLine("      --reset-settings    Reset all settings to defaults")
         Console.WriteLine("      --clean             Clean all build artifacts in current directory")
+        Console.WriteLine("      --test-mode         Run in test mode and exit automatically")
+        Console.WriteLine("      --test-delay MS     Set test mode exit delay in milliseconds (default: 5000)")
         Console.WriteLine()
         Console.WriteLine("AI Integration Options:")
         Console.WriteLine("      --export-context    Export project context for AI analysis")

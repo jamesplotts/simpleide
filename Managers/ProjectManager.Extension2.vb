@@ -47,12 +47,246 @@ Namespace Managers
         ' Add method to get project syntax tree
         Public Function GetProjectSyntaxTree() As SyntaxNode
             Try
+                Console.WriteLine($"DEBUG: GetProjectSyntaxTree called")
+                Console.WriteLine($"  pProjectSyntaxTree is {If(pProjectSyntaxTree Is Nothing, "Nothing", "NOT Nothing")}")
+                
+                ' If we don't have a project syntax tree but we have source files, build it
+                If pProjectSyntaxTree Is Nothing AndAlso pSourceFiles IsNot Nothing AndAlso pSourceFiles.Count > 0 Then
+                    Console.WriteLine($"  Building project syntax tree from {pSourceFiles.Count} source files...")
+                    BuildProjectSyntaxTree()
+                End If
+                
+                If pProjectSyntaxTree IsNot Nothing Then
+                    Console.WriteLine($"  Returning tree with {pProjectSyntaxTree.Children.Count} root children")
+                Else
+                    Console.WriteLine($"  Returning Nothing - tree could not be built")
+                End If
+                
                 Return pProjectSyntaxTree
             Catch ex As Exception
                 Console.WriteLine($"GetProjectSyntaxTree error: {ex.Message}")
                 Return Nothing
             End Try
         End Function
+        
+        ''' <summary>
+        ''' Build the complete project syntax tree from all loaded source files
+        ''' </summary>
+        Public Sub BuildProjectSyntaxTree()
+            Try
+                Console.WriteLine($"BuildProjectSyntaxTree: Starting with {pSourceFiles.Count} files")
+                
+                ' Create root document node
+                pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, If(pCurrentProjectInfo?.ProjectName, "Project"))
+                
+                ' Get root namespace name
+                Dim lRootNamespaceName As String = "SimpleIDE"
+                If pCurrentProjectInfo IsNot Nothing Then
+                    lRootNamespaceName = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                End If
+                
+                Console.WriteLine($"  Using root namespace: {lRootNamespaceName}")
+                
+                ' Create root namespace node
+                Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
+                lRootNamespace.IsImplicit = True
+                pProjectSyntaxTree.AddChild(lRootNamespace)
+                
+                ' Dictionary to track namespace nodes for merging
+                Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
+                lNamespaceNodes(lRootNamespaceName) = lRootNamespace
+                
+                ' Process each source file
+                Dim lFileCount As Integer = 0
+                For Each lKvp In pSourceFiles
+                    Dim lFileInfo As SourceFileInfo = lKvp.Value
+                    
+                    If lFileInfo.SyntaxTree IsNot Nothing Then
+                        lFileCount += 1
+                        Console.WriteLine($"  Processing file {lFileCount}: {lFileInfo.FileName}")
+                        
+                        ' Merge file's syntax tree into project tree
+                        MergeFileIntoProjectTree(lFileInfo, lRootNamespace, lNamespaceNodes)
+                    Else
+                        Console.WriteLine($"  Skipping {lFileInfo.FileName} - no syntax tree")
+                    End If
+                Next
+                
+                ' Sort the entire tree
+                Console.WriteLine("  Sorting project tree...")
+                SortNodeChildrenRecursively(pProjectSyntaxTree)
+                
+                Console.WriteLine($"BuildProjectSyntaxTree: Complete. Processed {lFileCount} files")
+                Console.WriteLine($"  Root namespace has {lRootNamespace.Children.Count} direct children")
+                
+                ' Raise the structure loaded event
+                RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
+                
+            Catch ex As Exception
+                Console.WriteLine($"BuildProjectSyntaxTree error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Merge a file's syntax tree into the project tree
+        ''' </summary>
+        Private Sub MergeFileIntoProjectTree(vFileInfo As SourceFileInfo, vRootNamespace As SyntaxNode, vNamespaceNodes As Dictionary(Of String, SyntaxNode))
+            Try
+                If vFileInfo.SyntaxTree Is Nothing Then Return
+                
+                ' Process each root node in the file
+                For Each lNode In vFileInfo.SyntaxTree.Children
+                    ' Check if this is the implicit root namespace
+                    If lNode.NodeType = CodeNodeType.eNamespace AndAlso lNode.IsImplicit Then
+                        ' Merge its children directly into our root namespace
+                        For Each lChild In lNode.Children
+                            MergeNodeIntoProjectTree(lChild, vRootNamespace, vFileInfo.FilePath, vNamespaceNodes)
+                        Next
+                    ElseIf lNode.NodeType = CodeNodeType.eNamespace Then
+                        ' This is an explicit namespace - find or create it
+                        Dim lNamespacePath As String = lNode.Name
+                        Dim lTargetNamespace As SyntaxNode = FindOrCreateNamespace(lNamespacePath, vRootNamespace, vNamespaceNodes)
+                        
+                        ' Merge the namespace contents
+                        For Each lChild In lNode.Children
+                            MergeNodeIntoProjectTree(lChild, lTargetNamespace, vFileInfo.FilePath, vNamespaceNodes)
+                        Next
+                    Else
+                        ' This is a type at file level - add to root namespace
+                        MergeNodeIntoProjectTree(lNode, vRootNamespace, vFileInfo.FilePath, vNamespaceNodes)
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"MergeFileIntoProjectTree error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Find or create a namespace node in the tree
+        ''' </summary>
+        Private Function FindOrCreateNamespace(vNamespacePath As String, vRootNamespace As SyntaxNode, vNamespaceNodes As Dictionary(Of String, SyntaxNode)) As SyntaxNode
+            Try
+                ' Check if we already have this namespace
+                If vNamespaceNodes.ContainsKey(vNamespacePath) Then
+                    Return vNamespaceNodes(vNamespacePath)
+                End If
+                
+                ' Parse the namespace path (e.g., "SimpleIDE.Utilities")
+                Dim lParts() As String = vNamespacePath.Split("."c)
+                Dim lCurrentParent As SyntaxNode = vRootNamespace
+                Dim lCurrentPath As String = vRootNamespace.Name
+                
+                ' Skip the root namespace if it's in the path
+                Dim lStartIndex As Integer = 0
+                If lParts.Length > 0 AndAlso String.Equals(lParts(0), vRootNamespace.Name, StringComparison.OrdinalIgnoreCase) Then
+                    lStartIndex = 1
+                End If
+                
+                ' Create or find each namespace in the hierarchy
+                For i As Integer = lStartIndex To lParts.Length - 1
+                    If i > lStartIndex Then
+                        lCurrentPath &= "."
+                    End If
+                    lCurrentPath &= lParts(i)
+                    
+                    ' Check if this namespace already exists
+                    If vNamespaceNodes.ContainsKey(lCurrentPath) Then
+                        lCurrentParent = vNamespaceNodes(lCurrentPath)
+                    Else
+                        ' Find or create this namespace level
+                        Dim lFoundNamespace As SyntaxNode = Nothing
+                        For Each lChild In lCurrentParent.Children
+                            If lChild.NodeType = CodeNodeType.eNamespace AndAlso _
+                               String.Equals(lChild.Name, lParts(i), StringComparison.OrdinalIgnoreCase) Then
+                                lFoundNamespace = lChild
+                                Exit For
+                            End If
+                        Next
+                        
+                        If lFoundNamespace Is Nothing Then
+                            ' Create new namespace node
+                            lFoundNamespace = New SyntaxNode(CodeNodeType.eNamespace, lParts(i))
+                            lCurrentParent.AddChild(lFoundNamespace)
+                        End If
+                        
+                        ' Add to dictionary
+                        vNamespaceNodes(lCurrentPath) = lFoundNamespace
+                        lCurrentParent = lFoundNamespace
+                    End If
+                Next
+                
+                Return lCurrentParent
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindOrCreateNamespace error: {ex.Message}")
+                Return vRootNamespace
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Merge a node into the project tree
+        ''' </summary>
+        Private Sub MergeNodeIntoProjectTree(vNode As SyntaxNode, vParentNode As SyntaxNode, vFilePath As String, vNamespaceNodes As Dictionary(Of String, SyntaxNode))
+            Try
+                If vNode Is Nothing Then Return
+                
+                ' Handle partial classes - merge if already exists
+                If vNode.NodeType = CodeNodeType.eClass AndAlso vNode.IsPartial Then
+                    Dim lExistingClass As SyntaxNode = FindChildByNameAndType(vParentNode, vNode.Name, CodeNodeType.eClass)
+                    
+                    If lExistingClass IsNot Nothing Then
+                        ' Merge members into existing class
+                        lExistingClass.IsPartial = True
+                        
+                        ' Add all members that don't already exist
+                        For Each lMember In vNode.Children
+                            Dim lExistingMember As SyntaxNode = FindChildByNameAndType(lExistingClass, lMember.Name, lMember.NodeType)
+                            If lExistingMember Is Nothing Then
+                                Dim lNewMember As New SyntaxNode(lMember.NodeType, lMember.Name)
+                                CopyNodeAttributes(lMember, lNewMember)
+                                lNewMember.FilePath = vFilePath
+                                lExistingClass.AddChild(lNewMember)
+                            End If
+                        Next
+                    Else
+                        ' Create new partial class
+                        Dim lNewClass As New SyntaxNode(CodeNodeType.eClass, vNode.Name)
+                        CopyNodeAttributes(vNode, lNewClass)
+                        lNewClass.IsPartial = True
+                        lNewClass.FilePath = vFilePath
+                        vParentNode.AddChild(lNewClass)
+                        
+                        ' Add all members
+                        For Each lChild In vNode.Children
+                            MergeNodeIntoProjectTree(lChild, lNewClass, vFilePath, vNamespaceNodes)
+                        Next
+                    End If
+                    
+                Else
+                    ' For non-partial classes and other types, check if already exists
+                    Dim lExistingNode As SyntaxNode = FindChildByNameAndType(vParentNode, vNode.Name, vNode.NodeType)
+                    
+                    If lExistingNode Is Nothing Then
+                        ' Create new node
+                        Dim lNewNode As New SyntaxNode(vNode.NodeType, vNode.Name)
+                        CopyNodeAttributes(vNode, lNewNode)
+                        lNewNode.FilePath = vFilePath
+                        vParentNode.AddChild(lNewNode)
+                        
+                        ' Add all children
+                        For Each lChild In vNode.Children
+                            MergeNodeIntoProjectTree(lChild, lNewNode, vFilePath, vNamespaceNodes)
+                        Next
+                    End If
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"MergeNodeIntoProjectTree error: {ex.Message}")
+            End Try
+        End Sub
+
         
 ' Replace: SimpleIDE.Managers.ProjectManager.CreateEmptyFile
 Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo

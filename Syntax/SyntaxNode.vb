@@ -13,7 +13,7 @@ Namespace Syntax
         Public Property NodeType As CodeNodeType
         Public Property Name As String
         Public Property FullName As String
-        Public Property InitialValue as String
+        Public Property InitialValue As String
         
         ' Location information
         Public Property StartLine As Integer
@@ -50,7 +50,7 @@ Namespace Syntax
         Public Property IsAsync As Boolean = False
         Public Property IsWithEvents As Boolean = False
         Public Property IsStatic As Boolean = False
-        Public Property IsAutoImplemented as Boolean = False
+        Public Property IsAutoImplemented As Boolean = False
 
         Public Property Visibility As eVisibility = eVisibility.ePublic
         Public Property FilePath As String = ""
@@ -63,7 +63,7 @@ Namespace Syntax
         Public Property ImplementsList As New List(Of String)     ' for classes implementing interfaces
         Public Property InheritsList As New List(Of String)       ' for classes inheriting
 
-        Public Property XmlDocumentation as New XMLDocInfo
+        Public Property XmlDocumentation As New XMLDocInfo
 
         
         Public Enum eVisibility
@@ -282,6 +282,40 @@ Namespace Syntax
             ' Note: Parent and Children are not cloned
             
             Return lClone
+        End Function
+
+        ''' <summary>
+        ''' Checks if the given position is within this node's bounds
+        ''' </summary>
+        ''' <param name="vLine">Zero-based line number</param>
+        ''' <param name="vColumn">Zero-based column number</param>
+        ''' <returns>True if the position is within this node, False otherwise</returns>
+        Public Function ContainsPosition(vLine As Integer, vColumn As Integer) As Boolean
+            Try
+                ' Check if line is within range
+                If vLine < StartLine OrElse vLine > EndLine Then
+                    Return False
+                End If
+                
+                ' Check column bounds for single-line nodes
+                If StartLine = EndLine Then
+                    Return vColumn >= StartColumn AndAlso vColumn <= EndColumn
+                End If
+                
+                ' Multi-line node: check column bounds for first and last lines
+                If vLine = StartLine Then
+                    Return vColumn >= StartColumn
+                ElseIf vLine = EndLine Then
+                    Return vColumn <= EndColumn
+                Else
+                    ' Middle lines are always within bounds
+                    Return True
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"ContainsPosition error: {ex.Message}")
+                Return False
+            End Try
         End Function
 
         ''' <summary>

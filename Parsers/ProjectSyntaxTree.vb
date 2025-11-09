@@ -10,8 +10,9 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Parsers
 
-' Add this alias:
+' Add these aliases to resolve ambiguity:
 Imports SimpleSyntaxNode = SimpleIDE.Syntax.SyntaxNode
+Imports RoslynSyntaxNode = Microsoft.CodeAnalysis.SyntaxNode
 
 Namespace Managers
     
@@ -98,34 +99,32 @@ Namespace Managers
         End Function
         
         ''' <summary>
-        ''' Gets all namespaces in the project
+        ''' Finds all methods in the project
         ''' </summary>
-        Public Function GetAllNamespaces() As IEnumerable(Of String)
+        Public Function GetAllMethods() As IEnumerable(Of MethodInfo)
             Try
-                Dim lNamespaces As New HashSet(Of String)()
+                Dim lMethods As New List(Of MethodInfo)
                 
                 If RootNode IsNot Nothing Then
-                    CollectNamespaces(RootNode, lNamespaces)
+                    CollectMethods(RootNode, lMethods)
                 End If
                 
-                Return lNamespaces.OrderBy(Function(n) n)
+                Return lMethods
                 
             Catch ex As Exception
-                Console.WriteLine($"GetAllNamespaces error: {ex.Message}")
-                Return New List(Of String)()
+                Console.WriteLine($"GetAllMethods error: {ex.Message}")
+                Return New List(Of MethodInfo)()
             End Try
         End Function
         
         ''' <summary>
-        ''' Finds a type by its fully qualified name
+        ''' Finds a type by name
         ''' </summary>
-        Public Function FindType(vFullyQualifiedName As String) As SimpleSyntaxNode
+        Public Function FindType(vTypeName As String) As SimpleSyntaxNode
             Try
-                If String.IsNullOrEmpty(vFullyQualifiedName) OrElse RootNode Is Nothing Then
-                    Return Nothing
-                End If
+                If RootNode Is Nothing Then Return Nothing
                 
-                Return FindTypeRecursive(RootNode, vFullyQualifiedName)
+                Return FindTypeRecursive(RootNode, vTypeName)
                 
             Catch ex As Exception
                 Console.WriteLine($"FindType error: {ex.Message}")
@@ -134,7 +133,7 @@ Namespace Managers
         End Function
         
         ''' <summary>
-        ''' Gets all members of a specific type
+        ''' Gets all members of a type
         ''' </summary>
         Public Function GetTypeMembers(vTypeName As String) As IEnumerable(Of SimpleSyntaxNode)
             Try
@@ -143,11 +142,11 @@ Namespace Managers
                     Return lType.Children
                 End If
                 
-                Return New List(Of SyntaxNode)()
+                Return New List(Of SimpleSyntaxNode)()
                 
             Catch ex As Exception
                 Console.WriteLine($"GetTypeMembers error: {ex.Message}")
-                Return New List(Of SyntaxNode)()
+                Return New List(Of SimpleSyntaxNode)()
             End Try
         End Function
         
@@ -171,26 +170,22 @@ Namespace Managers
         ''' <summary>
         ''' Gets all errors in the project
         ''' </summary>
-        Public Function GetErrors() As IEnumerable(Of Diagnostic)
+        Public Function GetAllErrors() As IEnumerable(Of Diagnostic)
             Try
                 Dim lErrors As New List(Of Diagnostic)()
                 
-                ' Collect errors from all files
-                for each lFile in Files.Values
-                    lErrors.AddRange(lFile.Diagnostics.Where(
-                        Function(d) d.Severity = DiagnosticSeverity.error
-                    ))
-                Next
+                ' Add project-level diagnostics
+                lErrors.AddRange(Diagnostics.Where(Function(d) d.Severity = DiagnosticSeverity.error))
                 
-                ' Add project-level errors
-                lErrors.AddRange(Diagnostics.Where(
-                    Function(d) d.Severity = DiagnosticSeverity.error
-                ))
+                ' Add file-level diagnostics
+                for each lFile in Files.Values
+                    lErrors.AddRange(lFile.GetErrors())
+                Next
                 
                 Return lErrors
                 
             Catch ex As Exception
-                Console.WriteLine($"GetErrors error: {ex.Message}")
+                Console.WriteLine($"GetAllErrors error: {ex.Message}")
                 Return New List(Of Diagnostic)()
             End Try
         End Function
@@ -198,108 +193,103 @@ Namespace Managers
         ''' <summary>
         ''' Gets all warnings in the project
         ''' </summary>
-        Public Function GetWarnings() As IEnumerable(Of Diagnostic)
+        Public Function GetAllWarnings() As IEnumerable(Of Diagnostic)
             Try
                 Dim lWarnings As New List(Of Diagnostic)()
                 
-                ' Collect warnings from all files
-                for each lFile in Files.Values
-                    lWarnings.AddRange(lFile.Diagnostics.Where(
-                        Function(d) d.Severity = DiagnosticSeverity.Warning
-                    ))
-                Next
+                ' Add project-level diagnostics
+                lWarnings.AddRange(Diagnostics.Where(Function(d) d.Severity = DiagnosticSeverity.Warning))
                 
-                ' Add project-level warnings
-                lWarnings.AddRange(Diagnostics.Where(
-                    Function(d) d.Severity = DiagnosticSeverity.Warning
-                ))
+                ' Add file-level diagnostics
+                for each lFile in Files.Values
+                    lWarnings.AddRange(lFile.GetWarnings())
+                Next
                 
                 Return lWarnings
                 
             Catch ex As Exception
-                Console.WriteLine($"GetWarnings error: {ex.Message}")
+                Console.WriteLine($"GetAllWarnings error: {ex.Message}")
                 Return New List(Of Diagnostic)()
             End Try
         End Function
         
         ''' <summary>
-        ''' Checks if the project has any errors
+        ''' Merges multiple file syntax trees into a unified project tree
         ''' </summary>
-        Public Function HasErrors() As Boolean
-            Return GetErrors().Any()
-        End Function
-        
-        ''' <summary>
-        ''' Checks if the project has any warnings
-        ''' </summary>
-        Public Function HasWarnings() As Boolean
-            Return GetWarnings().Any()
-        End Function
-        
-        ''' <summary>
-        ''' Gets a summary of the project structure
-        ''' </summary>
-        Public Function GetSummary() As ProjectSummary
+        Public Sub BuildUnifiedTree()
             Try
-                Dim lSummary As New ProjectSummary()
+                ' Create root node
+                RootNode = New SimpleSyntaxNode(CodeNodeType.eProject, AssemblyName)
                 
-                lSummary.FileCount = Files.Count
-                lSummary.NamespaceCount = GetAllNamespaces().Count()
+                ' Create root namespace node if specified
+                Dim lNamespaceNode As SimpleSyntaxNode = Nothing
+                If Not String.IsNullOrEmpty(RootNamespace) Then
+                    lNamespaceNode = New SimpleSyntaxNode(CodeNodeType.eNamespace, RootNamespace)
+                    lNamespaceNode.IsImplicit = True
+                    RootNode.AddChild(lNamespaceNode)
+                End If
                 
-                Dim lTypes = GetAllTypes()
-                lSummary.TypeCount = lTypes.Count()
-                lSummary.ClassCount = lTypes.Count(Function(t) t.NodeType = CodeNodeType.eClass)
-                lSummary.InterfaceCount = lTypes.Count(Function(t) t.NodeType = CodeNodeType.eInterface)
-                lSummary.ModuleCount = lTypes.Count(Function(t) t.NodeType = CodeNodeType.eModule)
-                lSummary.StructureCount = lTypes.Count(Function(t) t.NodeType = CodeNodeType.eStructure)
-                lSummary.EnumCount = lTypes.Count(Function(t) t.NodeType = CodeNodeType.eEnum)
+                ' Dictionary to track partial classes
+                Dim lPartialClasses As New Dictionary(Of String, SimpleSyntaxNode)(StringComparer.OrdinalIgnoreCase)
                 
-                lSummary.ErrorCount = GetErrors().Count()
-                lSummary.WarningCount = GetWarnings().Count()
+                ' Process each file
+                for each lFile in Files.Values
+                    If lFile.SimpleIDETree IsNot Nothing Then
+                        MergeFileIntoProject(lFile.SimpleIDETree, If(lNamespaceNode, RootNode), lPartialClasses)
+                    End If
+                Next
                 
-                ' Count total lines of code
-                lSummary.TotalLines = Files.Values.Sum(Function(f) If(f.LineMetadata?.Length, 0))
-                
-                Return lSummary
+                ' Sort children by type and name
+                SortNodeChildren(RootNode)
                 
             Catch ex As Exception
-                Console.WriteLine($"GetSummary error: {ex.Message}")
-                Return New ProjectSummary()
+                Console.WriteLine($"BuildUnifiedTree error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Gets the line metadata for a specific file
+        ''' </summary>
+        Public Function GetLineMetadata(vFilePath As String) As LineMetadata()
+            Try
+                If Files.ContainsKey(vFilePath) Then
+                    Return Files(vFilePath).LineMetadata
+                End If
+                
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetLineMetadata error: {ex.Message}")
+                Return Nothing
             End Try
         End Function
         
-        ' ===== Private Methods =====
+        ' ===== Private Helper Methods =====
         
         ''' <summary>
-        ''' Recursively collects all types from the syntax tree
+        ''' Recursively collects type information
         ''' </summary>
         Private Sub CollectTypes(vNode As SimpleSyntaxNode, vTypes As List(Of TypeInfo))
             Try
                 ' Check if this node is a type
-                Select Case vNode.NodeType
-                    Case CodeNodeType.eClass, CodeNodeType.eInterface, 
-                         CodeNodeType.eModule, CodeNodeType.eStructure, 
-                         CodeNodeType.eEnum
-                        
-                        Dim lTypeInfo As New TypeInfo with {
-                            .Name = vNode.Name,
-                            .FullName = vNode.GetFullyQualifiedName(),
-                            .NodeType = vNode.NodeType,
-                            .IsPartial = vNode.IsPartial,
-                            .IsPublic = vNode.IsPublic,
-                            .FilePath = vNode.FilePath,
-                            .BaseType = vNode.BaseType
-                        }
-                        
-                        ' Add interfaces
-                        If vNode.ImplementsList IsNot Nothing Then
-                            lTypeInfo.Interfaces.AddRange(vNode.ImplementsList)
-                        End If
-                        
-                        vTypes.Add(lTypeInfo)
-                End Select
+                If vNode.NodeType = CodeNodeType.eClass OrElse
+                   vNode.NodeType = CodeNodeType.eModule OrElse
+                   vNode.NodeType = CodeNodeType.eInterface OrElse
+                   vNode.NodeType = CodeNodeType.eStructure OrElse
+                   vNode.NodeType = CodeNodeType.eEnum Then
+                    
+                    Dim lTypeInfo As New TypeInfo()
+                    lTypeInfo.Name = vNode.Name
+                    lTypeInfo.FullName = vNode.FullName
+                    lTypeInfo.NodeType = vNode.NodeType
+                    lTypeInfo.FilePath = vNode.FilePath
+                    lTypeInfo.StartLine = vNode.StartLine
+                    lTypeInfo.EndLine = vNode.EndLine
+                    
+                    vTypes.Add(lTypeInfo)
+                End If
                 
-                ' Recurse through children
+                ' Recurse into children
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
                         CollectTypes(lChild, vTypes)
@@ -312,46 +302,59 @@ Namespace Managers
         End Sub
         
         ''' <summary>
-        ''' Recursively collects all namespaces from the syntax tree
+        ''' Recursively collects method information
         ''' </summary>
-        Private Sub CollectNamespaces(vNode As SimpleSyntaxNode, vNamespaces As HashSet(Of String))
+        Private Sub CollectMethods(vNode As SimpleSyntaxNode, vMethods As List(Of MethodInfo))
             Try
-                ' Check if this node is a namespace
-                If vNode.NodeType = CodeNodeType.eNamespace Then
-                    vNamespaces.Add(vNode.Name)
+                ' Check if this node is a method/function
+                If vNode.NodeType = CodeNodeType.eMethod OrElse
+                   vNode.NodeType = CodeNodeType.eFunction OrElse
+                   vNode.NodeType = CodeNodeType.eConstructor Then
+                    
+                    Dim lMethodInfo As New MethodInfo()
+                    lMethodInfo.Name = vNode.Name
+                    lMethodInfo.FullName = vNode.FullName
+                    lMethodInfo.NodeType = vNode.NodeType
+                    lMethodInfo.FilePath = vNode.FilePath
+                    lMethodInfo.StartLine = vNode.StartLine
+                    lMethodInfo.EndLine = vNode.EndLine
+                    lMethodInfo.ReturnType = vNode.ReturnType
+                    lMethodInfo.Parameters = vNode.Parameters
+                    
+                    vMethods.Add(lMethodInfo)
                 End If
                 
-                ' Recurse through children
+                ' Recurse into children
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
-                        CollectNamespaces(lChild, vNamespaces)
+                        CollectMethods(lChild, vMethods)
                     Next
                 End If
                 
             Catch ex As Exception
-                Console.WriteLine($"CollectNamespaces error: {ex.Message}")
+                Console.WriteLine($"CollectMethods error: {ex.Message}")
             End Try
         End Sub
         
         ''' <summary>
-        ''' Recursively finds a type by its fully qualified name
+        ''' Recursively finds a type by name
         ''' </summary>
-        Private Function FindTypeRecursive(vNode As SimpleSyntaxNode, vFullyQualifiedName As String) As SimpleSyntaxNode
+        Private Function FindTypeRecursive(vNode As SimpleSyntaxNode, vTypeName As String) As SimpleSyntaxNode
             Try
-                ' Check if this node matches
-                If vNode.GetFullyQualifiedName() = vFullyQualifiedName Then
-                    Select Case vNode.NodeType
-                        Case CodeNodeType.eClass, CodeNodeType.eInterface,
-                             CodeNodeType.eModule, CodeNodeType.eStructure,
-                             CodeNodeType.eEnum
-                            Return vNode
-                    End Select
+                ' Check if this node is the type we're looking for
+                If (vNode.NodeType = CodeNodeType.eClass OrElse
+                    vNode.NodeType = CodeNodeType.eModule OrElse
+                    vNode.NodeType = CodeNodeType.eInterface OrElse
+                    vNode.NodeType = CodeNodeType.eStructure OrElse
+                    vNode.NodeType = CodeNodeType.eEnum) AndAlso
+                   String.Equals(vNode.Name, vTypeName, StringComparison.OrdinalIgnoreCase) Then
+                    Return vNode
                 End If
                 
-                ' Recurse through children
+                ' Recurse into children
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
-                        Dim lResult = FindTypeRecursive(lChild, vFullyQualifiedName)
+                        Dim lResult = FindTypeRecursive(lChild, vTypeName)
                         If lResult IsNot Nothing Then
                             Return lResult
                         End If
@@ -366,37 +369,111 @@ Namespace Managers
             End Try
         End Function
         
+        ''' <summary>
+        ''' Merges a file's syntax tree into the project tree
+        ''' </summary>
+        Private Sub MergeFileIntoProject(vFileNode As SimpleSyntaxNode, vProjectNode As SimpleSyntaxNode, vPartialClasses As Dictionary(Of String, SimpleSyntaxNode))
+            Try
+                ' Process each child of the file node
+                If vFileNode.Children IsNot Nothing Then
+                    for each lChild in vFileNode.Children
+                        MergeNodeIntoProject(lChild, vProjectNode, vPartialClasses)
+                    Next
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"MergeFileIntoProject error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Merges a node into the project tree
+        ''' </summary>
+        Private Sub MergeNodeIntoProject(vNode As SimpleSyntaxNode, vParent As SimpleSyntaxNode, vPartialClasses As Dictionary(Of String, SimpleSyntaxNode))
+            Try
+                ' Handle partial classes
+                If vNode.IsPartial AndAlso 
+                   (vNode.NodeType = CodeNodeType.eClass OrElse
+                    vNode.NodeType = CodeNodeType.eModule OrElse
+                    vNode.NodeType = CodeNodeType.eStructure) Then
+                    
+                    Dim lKey = vNode.FullName
+                    If vPartialClasses.ContainsKey(lKey) Then
+                        ' Merge with existing partial
+                        Dim lExisting = vPartialClasses(lKey)
+                        If vNode.Children IsNot Nothing Then
+                            for each lChild in vNode.Children
+                                lExisting.AddChild(lChild)
+                            Next
+                        End If
+                    Else
+                        ' First occurrence of this partial
+                        vParent.AddChild(vNode)
+                        vPartialClasses(lKey) = vNode
+                    End If
+                Else
+                    ' Non-partial node
+                    vParent.AddChild(vNode)
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"MergeNodeIntoProject error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Sorts the children of a node by type and name
+        ''' </summary>
+        Private Sub SortNodeChildren(vNode As SimpleSyntaxNode)
+            Try
+                If vNode?.Children Is Nothing OrElse vNode.Children.Count <= 1 Then Return
+                
+                ' Sort children
+                vNode.Children.Sort(Function(a, b)
+                    ' Sort by node type first
+                    Dim lTypeCompare = a.NodeType.CompareTo(b.NodeType)
+                    If lTypeCompare <> 0 Then Return lTypeCompare
+                    
+                    ' Then by name
+                    Return String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase)
+                End Function)
+                
+                ' Recursively sort children
+                for each lChild in vNode.Children
+                    SortNodeChildren(lChild)
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"SortNodeChildren error: {ex.Message}")
+            End Try
+        End Sub
+        
     End Class
     
     ''' <summary>
-    ''' Information about a type in the project
+    ''' Type information for GetAllTypes
     ''' </summary>
     Public Class TypeInfo
         Public Property Name As String
         Public Property FullName As String
         Public Property NodeType As CodeNodeType
-        Public Property IsPartial As Boolean
-        Public Property IsPublic As Boolean
         Public Property FilePath As String
-        Public Property BaseType As String
-        Public Property Interfaces As New List(Of String)
+        Public Property StartLine As Integer
+        Public Property EndLine As Integer
     End Class
     
     ''' <summary>
-    ''' Summary information about a project
+    ''' Method information for GetAllMethods
     ''' </summary>
-    Public Class ProjectSummary
-        Public Property FileCount As Integer
-        Public Property NamespaceCount As Integer
-        Public Property TypeCount As Integer
-        Public Property ClassCount As Integer
-        Public Property InterfaceCount As Integer
-        Public Property ModuleCount As Integer
-        Public Property StructureCount As Integer
-        Public Property EnumCount As Integer
-        Public Property ErrorCount As Integer
-        Public Property WarningCount As Integer
-        Public Property TotalLines As Integer
+    Public Class MethodInfo
+        Public Property Name As String
+        Public Property FullName As String
+        Public Property NodeType As CodeNodeType
+        Public Property FilePath As String
+        Public Property StartLine As Integer
+        Public Property EndLine As Integer
+        Public Property ReturnType As String
+        Public Property Parameters As List(Of ParameterInfo)
     End Class
     
 End Namespace

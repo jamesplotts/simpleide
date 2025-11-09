@@ -255,6 +255,9 @@ Namespace Widgets
         Private Sub ApplySorting()
             Try
                 Select Case pSortMode
+                    Case ObjectExplorerSortMode.eDefault
+                        ' For default, use alphabetic with namespaces first
+                        SortAlphabetically()
                     Case ObjectExplorerSortMode.eAlphabetic
                         SortAlphabetically()
                     Case ObjectExplorerSortMode.eByType
@@ -284,9 +287,22 @@ Namespace Widgets
                     lNodeGroups(lKey).Add(lNode)
                 Next
                 
-                ' Sort each group
+                ' Sort each group - namespaces first, then alphabetically
                 for each lGroup in lNodeGroups
-                    lGroup.Value.Sort(Function(a, b) String.Compare(a.Node.Name, b.Node.Name, StringComparison.OrdinalIgnoreCase))
+                    lGroup.Value.Sort(Function(a, b)
+                        ' Namespaces always come first
+                        Dim aIsNamespace As Boolean = (a.Node.NodeType = CodeNodeType.eNamespace)
+                        Dim bIsNamespace As Boolean = (b.Node.NodeType = CodeNodeType.eNamespace)
+                        
+                        If aIsNamespace AndAlso Not bIsNamespace Then
+                            Return -1 ' a (namespace) comes before b
+                        ElseIf Not aIsNamespace AndAlso bIsNamespace Then
+                            Return 1 ' b (namespace) comes before a
+                        Else
+                            ' Both same type (both namespaces or both not), sort alphabetically
+                            Return String.Compare(a.Node.Name, b.Node.Name, StringComparison.OrdinalIgnoreCase)
+                        End If
+                    End Function)
                 Next
                 
                 ' Rebuild sorted list

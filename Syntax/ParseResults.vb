@@ -43,16 +43,31 @@ Namespace Syntax
         Public Property ParseTime As TimeSpan
         
         ''' <summary>
+        ''' Gets or sets the list of class names found during parsing
+        ''' </summary>
+        Public Property ClassNames As List(Of String)
+        
+        ''' <summary>
+        ''' Gets or sets the list of method names found during parsing
+        ''' </summary>
+        Public Property MethodNames As List(Of String)
+        
+        ''' <summary>
+        ''' Gets or sets the list of property names found during parsing
+        ''' </summary>
+        Public Property PropertyNames As List(Of String)
+        
+        ''' <summary>
         ''' Creates a new ParseResult instance
         ''' </summary>
         Public Sub New()
             Errors = New List(Of ParseError)()
+            ClassNames = New List(Of String)()
+            MethodNames = New List(Of String)()
+            PropertyNames = New List(Of String)()
             Success = True
         End Sub
         
     End Class
-
-
-
 
 End Namespace

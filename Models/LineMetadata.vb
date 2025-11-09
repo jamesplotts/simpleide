@@ -15,6 +15,31 @@ Namespace Models
         Public Property LineHash As Integer  ' To detect Content Changes
         Public Property HasHighlighting As Boolean = True
         Public Property ParseState As LineParseState
+
+        ''' <summary>
+        ''' Gets or sets the length of the line
+        ''' </summary>
+        Public Property Length As Integer = 0
+        
+        ''' <summary>
+        ''' Gets or sets the character colors array for syntax highlighting
+        ''' </summary>
+        Public Property CharacterColors As Byte()
+        
+        ''' <summary>
+        ''' Gets or sets the line number (0-based)
+        ''' </summary>
+        Public Property LineNumber As Integer = 0
+        
+        ''' <summary>
+        ''' Gets or sets the text content of the line
+        ''' </summary>
+        Public Property LineText As String = ""
+        
+        ''' <summary>
+        ''' Gets or sets the indentation level of the line
+        ''' </summary>
+        Public Property IndentLevel As Integer = 0
         
         Public Sub New()
             SyntaxTokens = New List(Of SyntaxToken)()

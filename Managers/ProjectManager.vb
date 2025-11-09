@@ -46,7 +46,15 @@ Namespace Managers
         Private pRootNode As SyntaxNode
         Private pThemeManager As ThemeManager
 
-
+        ''' <summary>
+        ''' Gets the current project file path
+        ''' </summary>
+        ''' <value>The full path to the current project file, or empty string if no project is loaded</value>
+        Public ReadOnly Property ProjectFile As String
+            Get
+                Return If(pCurrentProjectInfo?.ProjectPath, "")
+            End Get
+        End Property
 
         Public ReadOnly Property SourceFiles() As Dictionary(Of String, SourceFileInfo)
             Get
@@ -311,6 +319,18 @@ Namespace Managers
 
                 InitializeProjectReferences()
                 InitializeIndices()
+                
+                ' CRITICAL: Load and parse all source files
+                Console.WriteLine("LoadProject: Loading and parsing source files...")
+                Dim lFilesLoaded As Integer = EnsureAllFilesLoaded()
+                Console.WriteLine($"LoadProject: Loaded {lFilesLoaded} source files")
+                
+                ' Build the project syntax tree after loading files
+                If pSourceFiles.Count > 0 Then
+                    Console.WriteLine("LoadProject: Building project syntax tree...")
+                    BuildProjectSyntaxTree()
+                End If
+                
                 ' Raise event
                 RaiseEvent ProjectLoaded(vProjectPath)
                 
@@ -343,7 +363,7 @@ Public Sub CloseProject()
         
         ' IMPORTANT: Clean up all SourceFileInfo event handlers
         If pSourceFiles IsNot Nothing Then
-            For Each lKvp In pSourceFiles
+            for each lKvp in pSourceFiles
                 UnwireSourceFileInfoEvents(lKvp.Value)
             Next
             pSourceFiles.Clear()
@@ -1492,7 +1512,7 @@ Public Sub Dispose() Implements IDisposable.Dispose
         
         ' Clean up any remaining source files
         If pSourceFiles IsNot Nothing Then
-            For Each lKvp In pSourceFiles
+            for each lKvp in pSourceFiles
                 UnwireSourceFileInfoEvents(lKvp.Value)
             Next
             pSourceFiles.Clear()
