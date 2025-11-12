@@ -25,6 +25,7 @@ Namespace Widgets
         Implements ICustomNotebook
         
         ' ===== Private Fields =====
+        'Private pThemeManager As ThemeManager
         Private pTabBar As DrawingArea
         Private pContentArea As Box
         Private pTabs As New List(Of TabData)
@@ -110,13 +111,14 @@ Namespace Widgets
         ''' <summary>
         ''' Initializes a new instance of the CustomDrawNotebook class
         ''' </summary>
-        Public Sub New()
+        Public Sub New(vThemeManager As ThemeManager)
             MyBase.New(Orientation.Vertical, 0)
             
             Try
+                pThemeManager = vThemeManager
                 InitializeComponents()
                 SetupEventHandlers()
-                LoadThemeColors()
+                
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawNotebook constructor error: {ex.Message}")
@@ -225,7 +227,7 @@ Namespace Widgets
                 pShowHidePanelButton = False
                 
                 Console.WriteLine("CustomDrawNotebook components initialized with event masks enabled")
-                
+                Accent(pThemeManager)
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
             End Try

@@ -16,6 +16,7 @@ Namespace Dialogs
         
         ' Private fields
         Private pNotebook As CustomDrawNotebook
+        Private pThemeManager As ThemeManager
         
         ' Public properties
         Public ReadOnly Property Notebook As CustomDrawNotebook
@@ -74,11 +75,12 @@ Namespace Dialogs
         ''' <param name="vParent">Parent window</param>
         ''' <param name="vProjectFile">Path to the project file</param>
         ''' <param name="vProjectManager">The ProjectManager instance</param>
-        Public Sub New(vParent As Window, vProjectFile As String, vProjectManager As ProjectManager)
+        Public Sub New(vParent As Window, vProjectFile As String, vProjectManager As ProjectManager, vThemeManager As ThemeManager)
             MyBase.New("Reference Manager", vParent, DialogFlags.Modal)
             
             pProjectFile = vProjectFile
             pProjectManager = vProjectManager
+            pThemeManager = vThemeManager
             
             ' Remove this line - we don't need a separate ReferenceManager instance:
             ' pReferenceManager = New ReferenceManager()
@@ -104,7 +106,7 @@ Namespace Dialogs
                 Dim lVBox As New Box(Orientation.Vertical, 5)
                 
                 ' Create notebook - Use CustomDrawNotebook instead of standard Notebook
-                pNotebook = New CustomDrawNotebook()
+                pNotebook = New CustomDrawNotebook(pThemeManager)
                 
                 ' Configure the CustomDrawNotebook
                 Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)

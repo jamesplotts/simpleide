@@ -4,6 +4,7 @@ Imports System
 Imports System.IO
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Widgets
+Imports SimpleIDE.Managers
 
 
 Namespace Dialogs
@@ -20,6 +21,7 @@ Namespace Dialogs
         Private pInitializeGitCheck As CheckButton
         Private pSolutionNameEntry As Entry
         Private pCreateSolutionCheck As CheckButton
+        Private pThemeManager As ThemeManager
         
         ' Project templates
         Private Structure ProjectTemplate
@@ -87,7 +89,7 @@ Namespace Dialogs
             End Get
         End Property
         
-        Public Sub New(vParent As Window)
+        Public Sub New(vParent As Window, vThemeManager As ThemeManager)
             MyBase.New("New project", vParent, DialogFlags.Modal)
             
             ' Window setup
@@ -95,6 +97,8 @@ Namespace Dialogs
             SetPosition(WindowPosition.CenterOnParent)
             BorderWidth = 10
             
+            pThemeManager = vThemeManager            
+
             ' Build UI
             BuildUI()
             
@@ -115,7 +119,7 @@ Namespace Dialogs
                 lContentArea.Spacing = 10
                 
                 ' Create notebook - Use CustomDrawNotebook instead of standard Notebook
-                Dim lNotebook As New CustomDrawNotebook()
+                Dim lNotebook As New CustomDrawNotebook(pThemeManager)
                 
                 ' Configure the CustomDrawNotebook
                 lNotebook.ShowHidePanelButton = False  ' Dialog doesn't need hide button

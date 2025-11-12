@@ -16,7 +16,7 @@ Partial Public Class MainWindow
             If Not CheckUnsavedChanges() Then Return
             
             ' Show new project dialog
-            Dim lDialog As New NewProjectDialog(Me)
+            Dim lDialog As New NewProjectDialog(Me, pThemeManager)
             
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lProjectPath As String = lDialog.ProjectPath

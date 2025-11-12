@@ -20,6 +20,7 @@ Namespace Dialogs
         ' ===== Private Fields =====
         Private pSettingsManager As SettingsManager
         Private pNotebook As CustomDrawNotebook
+        Private pThemeManager as ThemeManager
         
         ' Claude API tab controls
         Private pClaudeApiKeyEntry As Entry
@@ -71,7 +72,7 @@ Namespace Dialogs
         Private pTestGenerationCheck As CheckButton
         
         ' ===== Constructor =====
-        Public Sub New(vParent As Window, vSettingsManager As SettingsManager)
+        Public Sub New(vParent As Window, vSettingsManager As SettingsManager, vThemeManager As ThemeManager)
             MyBase.New("AI Assistant Settings", vParent, 
                        DialogFlags.Modal Or DialogFlags.DestroyWithParent,
                        Stock.Cancel, ResponseType.Cancel,
@@ -79,6 +80,7 @@ Namespace Dialogs
                        Stock.Ok, ResponseType.Ok)
             
             pSettingsManager = vSettingsManager
+            pThemeManager = vThemeManager
             
             Try
                 ' Set dialog properties
@@ -104,7 +106,7 @@ Namespace Dialogs
         Private Sub BuildUI()
             Try
                 ' Create notebook for tabs - Use CustomDrawNotebook instead of standard Notebook
-                pNotebook = New CustomDrawNotebook()
+                pNotebook = New CustomDrawNotebook(pThemeManager)
                 
                 ' Configure the CustomDrawNotebook
                 Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)

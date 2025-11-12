@@ -108,7 +108,7 @@ Namespace Widgets
             PackStart(lToolbar, False, False, 0)
             
             ' Create notebook for tabs
-            pNotebook = New CustomDrawNotebook()
+            pNotebook = New CustomDrawNotebook(pThemeManager)
             'pNotebook.TabPos = PositionType.Top
             
             ' Create Changes tab

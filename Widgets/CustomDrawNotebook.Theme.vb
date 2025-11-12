@@ -89,6 +89,17 @@ Namespace Widgets
                 
                 ' Text colors
                 pThemeColors.Text = ParseColor(lTheme.ForegroundColor)
+                ' Make inactive text 50% towards background color
+                Dim lTextColor = ParseColor(lTheme.ForegroundColor)
+                Dim lBgColor = ParseColor(lTheme.BackgroundColor)
+                pThemeColors.TextInactive = New Gdk.RGBA() with {
+                  .Red = (lTextColor.Red + lBgColor.Red) / 2,
+                  .Green = (lTextColor.Green + lBgColor.Green) / 2,
+                  .Blue = (lTextColor.Blue + lBgColor.Blue) / 2,
+                  .Alpha = lTextColor.Alpha
+                }
+
+
                 
                 ' Border colors
                 pThemeColors.Border = DarkenColor(ParseColor(lTheme.BackgroundColor), 0.2)
@@ -106,7 +117,7 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
-                LoadDefaultTheme()
+                ApplyTheme()
             End Try
         End Sub        
         

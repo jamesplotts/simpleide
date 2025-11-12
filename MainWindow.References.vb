@@ -22,7 +22,7 @@ Partial Public Class MainWindow
             End If
             
             ' Create dialog with ProjectManager
-            Dim lDialog As New ReferenceManagerDialog(Me, pProjectManager.CurrentProjectPath, pProjectManager)
+            Dim lDialog As New ReferenceManagerDialog(Me, pProjectManager.CurrentProjectPath, pProjectManager, pThemeManager)
             
             ' Handle references changed event
             AddHandler lDialog.ReferencesChanged, Sub()
@@ -48,7 +48,7 @@ Partial Public Class MainWindow
             End If
             
             ' Create and show the reference manager dialog
-            Dim lDialog As New ReferenceManagerDialog(Me, pCurrentProject, pProjectManager)
+            Dim lDialog As New ReferenceManagerDialog(Me, pCurrentProject, pProjectManager, pThemeManager)
             
             ' Select initial tab if specified
             If vInitialTab >= 0 AndAlso vInitialTab < lDialog.Notebook.NPages Then

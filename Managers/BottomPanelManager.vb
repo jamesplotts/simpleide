@@ -118,8 +118,9 @@ Namespace Managers
         End Property        
         
         ' Constructor
-        Public Sub New(vSettingsManager As SettingsManager)
+        Public Sub New(vSettingsManager As SettingsManager, vThemeManager As ThemeManager)
             pSettingsManager = vSettingsManager
+            pThemeManager = vThemeManager
             Initialize()
         End Sub
         
@@ -131,7 +132,7 @@ Namespace Managers
                 Console.WriteLine("BottomPanelManager.Initialize: Starting")
                 
                 ' Create CustomDrawNotebook instead of regular Notebook
-                pNotebook = New CustomDrawNotebook()
+                pNotebook = New CustomDrawNotebook(pThemeManager)
                 
                 ' Configure the CustomDrawNotebook
                 Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)

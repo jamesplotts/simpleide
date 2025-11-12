@@ -32,7 +32,7 @@ Partial Public Class MainWindow
             Console.WriteLine("InitializeLeftPanel: Starting initialization")
             
             ' Create the CustomDrawNotebook for the left panel
-            pLeftNotebook = New CustomDrawNotebook()
+            pLeftNotebook = New CustomDrawNotebook(pThemeManager)
             
             ' IMPORTANT: Set minimum width ONLY, not both parameters
             ' This ensures minimum width but allows GTK to manage visibility properly
@@ -41,7 +41,7 @@ Partial Public Class MainWindow
             
             ' Configure the notebook
             Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pLeftNotebook, CustomDrawNotebook)
-            lCustomNotebook.SetThemeManager(pThemeManager)
+            'lCustomNotebook.SetThemeManager(pThemeManager)
             lCustomNotebook.ShowHidePanelButton = True ' Left panel needs hide button
             lCustomNotebook.ShowDropdownButton = False ' Left panel needs this hidden
             lCustomNotebook.ShowScrollButtons = False
@@ -385,7 +385,7 @@ Partial Public Class MainWindow
                 If pMainHPaned IsNot Nothing Then
                     If pMainHPaned.Position < LEFT_PANEL_MINIMUM_WIDTH Then
                         pMainHPaned.Position = LEFT_PANEL_MINIMUM_WIDTH
-                        Console.WriteLine($"Set HPaned position to {LEFT_PANEL_MINIMUM_WIDTH}")
+                        Console.WriteLine($"Set HPaned position To {LEFT_PANEL_MINIMUM_WIDTH}")
                     End If
                     
                     ' Force redraw

@@ -140,7 +140,7 @@ Namespace Widgets
                 Me.PackStart(lHeaderBox, False, False, 0)
                 
                 ' Create notebook
-                pNotebook = New CustomDrawNotebook()
+                pNotebook = New CustomDrawNotebook(pThemeManager)
                 pNotebook.ShowHidePanelButton = False ' Bottom panel needs hide button
                 pNotebook.ShowDropDownButton = False  ' No dropdown needed - all tabs fit
                 pNotebook.ShowScrollButtons = False    ' No scroll buttons needed - all tabs fit

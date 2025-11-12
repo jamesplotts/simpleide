@@ -346,8 +346,8 @@ Partial Public Class MainWindow
             SetupPanedHandling()
              
             ' Create editor notebook
-            pNotebook = New CustomDrawNotebook()
-            DirectCast(pNotebook, CustomDrawNotebook).SetThemeManager(pThemeManager)
+            pNotebook = New CustomDrawNotebook(pThemeManager)
+            'DirectCast(pNotebook, CustomDrawNotebook).SetThemeManager(pThemeManager)
             DirectCast(pNotebook, CustomDrawNotebook).ShowHidePanelButton = False ' Main editor doesn't need hide button
             
             ' Wire up CustomDrawNotebook events
@@ -358,7 +358,7 @@ Partial Public Class MainWindow
             pCenterVPaned.Pack1(pNotebook, True, False)
             
             ' Create bottom panel manager
-            pBottomPanelManager = New BottomPanelManager(pSettingsManager)
+            pBottomPanelManager = New BottomPanelManager(pSettingsManager, pThemeManager)
             
             ' Connect bottom panel events
             AddHandler pBottomPanelManager.FindResultSelected, AddressOf OnFindResultSelected
@@ -874,7 +874,7 @@ Partial Public Class MainWindow
             ' Set the paned position
             If pMainHPaned IsNot Nothing Then
                 pMainHPaned.Position = lSavedPosition
-                Console.WriteLine($"InitializePanedPosition: Set to {lSavedPosition}")
+                Console.WriteLine($"InitializePanedPosition: Set To {lSavedPosition}")
             End If
             
             ' Connect to notify event to save position when changed
@@ -911,7 +911,7 @@ Partial Public Class MainWindow
                                 End If
                             End Sub)
                     Catch ex As Exception
-                        Console.WriteLine($"Error saving paned position: {ex.Message}")
+                        Console.WriteLine($"error saving paned position: {ex.Message}")
                     End Try
                 End Sub,
                 Nothing, 500, System.Threading.Timeout.Infinite) ' Save after 500ms of no changes
