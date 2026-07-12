@@ -49,14 +49,18 @@ Namespace Widgets
                     pTooltipWindow.Decorated = False
                     pTooltipWindow.SkipTaskbarHint = True
                     pTooltipWindow.SkipPagerHint = True
-                    
+                    pTooltipWindow.AcceptFocus = False
+                    pTooltipWindow.FocusOnMap = False
+
                     Dim lFrame As New Frame()
+                    lFrame.ShadowType = ShadowType.Out
                     lFrame.BorderWidth = 1
-                    
+
                     pTooltipLabel = New Label()
-                    pTooltipLabel.Margin = 4
+                    pTooltipLabel.UseMarkup = True
+                    pTooltipLabel.Margin = 6
                     lFrame.Add(pTooltipLabel)
-                    
+
                     pTooltipWindow.Add(lFrame)
                 End If
                 
@@ -70,61 +74,57 @@ Namespace Widgets
                 ' Set tooltip text
                 pTooltipLabel.Markup = lTooltipText
                 
-                ' Position the tooltip
+                ' Position the tooltip below the hovered node row
                 Dim lRootX, lRootY As Integer
                 pDrawingArea.Window.GetOrigin(lRootX, lRootY)
-                
-                Dim lTooltipX As Integer = lRootX + pMouseX + 10
-                Dim lTooltipY As Integer = lRootY + pMouseY + 10
-                
-                ' Get screen dimensions
+
+                ' pHoveredNode.Y is absolute content Y; subtract pScrollY for widget-relative Y
+                Dim lNodeBottomInWidget As Integer = pHoveredNode.Y - pScrollY + pHoveredNode.Height
+                Dim lTooltipX As Integer = lRootX
+                Dim lTooltipY As Integer = lRootY + lNodeBottomInWidget
+
+                ' Get screen dimensions for boundary clamping
                 Dim lScreen As Screen = pDrawingArea.Screen
                 Dim lDisplay As Gdk.Display = lScreen.Display
                 Dim lMonitor As Gdk.Monitor = Nothing
-                
+
                 If lDisplay IsNot Nothing AndAlso pDrawingArea.Window IsNot Nothing Then
                     lMonitor = lDisplay.GetMonitorAtWindow(pDrawingArea.Window)
                 End If
-                
+
                 If lMonitor Is Nothing Then
                     lMonitor = lDisplay.GetMonitor(0)
                 End If
-                
-                Dim lMonitorGeometry As Gdk.Rectangle = lMonitor.Geometry 
-               
-                ' FIXED: Account for monitor position in multi-monitor setups
-                ' Calculate actual screen boundaries using monitor position + dimensions
+
+                Dim lMonitorGeometry As Gdk.Rectangle = lMonitor.Geometry
+
                 Dim lMonitorLeft As Integer = lMonitorGeometry.X
                 Dim lMonitorTop As Integer = lMonitorGeometry.Y
                 Dim lMonitorRight As Integer = lMonitorGeometry.X + lMonitorGeometry.Width
                 Dim lMonitorBottom As Integer = lMonitorGeometry.Y + lMonitorGeometry.Height
-                
-                pTooltipWindow.ShowAll()
-                
-                ' Get tooltip size after showing
+
+                ' Get tooltip size before showing so we can position precisely
                 Dim lRequisition As Requisition = Nothing
                 pTooltipWindow.GetPreferredSize(lRequisition, lRequisition)
-                
-                ' Ensure tooltip stays within the monitor boundaries
+
+                ' Clamp to monitor bounds
                 If lTooltipX + lRequisition.Width > lMonitorRight Then
-                    lTooltipX = lMonitorRight - lRequisition.Width - 10
+                    lTooltipX = lMonitorRight - lRequisition.Width - 4
                 End If
-                
-                ' Keep tooltip on the same monitor (don't let it go too far left)
                 If lTooltipX < lMonitorLeft Then
-                    lTooltipX = lMonitorLeft + 10
+                    lTooltipX = lMonitorLeft + 4
                 End If
-                
+                ' If tooltip would go below screen, show it above the node row instead
                 If lTooltipY + lRequisition.Height > lMonitorBottom Then
-                    lTooltipY = lRootY + pMouseY - lRequisition.Height - 5
+                    lTooltipY = lRootY + (pHoveredNode.Y - pScrollY) - lRequisition.Height
                 End If
-                
-                ' Keep tooltip on the same monitor (don't let it go too far up)
                 If lTooltipY < lMonitorTop Then
-                    lTooltipY = lMonitorTop + 10
+                    lTooltipY = lMonitorTop + 4
                 End If
-                
+
+                ' Move BEFORE showing to avoid position flicker
                 pTooltipWindow.Move(lTooltipX, lTooltipY)
+                pTooltipWindow.ShowAll()
                 
                 Return False  ' Don't repeat - timer is auto-removed
                 

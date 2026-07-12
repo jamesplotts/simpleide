@@ -377,6 +377,7 @@ End Function
         ''' </remarks>
         Public Sub ForceImmediateParsing(vStartLine As Integer, vEndLine As Integer)
             Try
+              SyncLock pSyncRoot
                 Console.WriteLine($"SourceFileInfo.ForceImmediateParsing: Parsing lines {vStartLine} to {vEndLine}")
                 
                 ' Ensure we have valid line indices
@@ -440,7 +441,8 @@ End Function
                 
                 ' Notify that rendering has changed
                 NotifyRenderingChanged(vStartLine, vEndLine)
-                
+              End SyncLock
+
             Catch ex As Exception
                 Console.WriteLine($"SourceFileInfo.ForceImmediateParsing error: {ex.Message}")
             End Try
@@ -457,22 +459,23 @@ End Function
         ''' </remarks>
         Public Sub UpdateCharacterTokens(vLineIndex As Integer, vTokens As List(Of SyntaxToken))
             Try
+              SyncLock pSyncRoot
                 ' Validate line index
                 If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
                 If pCharacterTokens Is Nothing OrElse vLineIndex >= pCharacterTokens.Length Then Return
-                
+
                 Dim lLineText As String = pTextLines(vLineIndex)
                 Dim lLineLength As Integer = lLineText.Length
-                
+
                 ' Ensure we have LineMetadata for this line
                 If pLineMetadata IsNot Nothing AndAlso vLineIndex < pLineMetadata.Length Then
                     If pLineMetadata(vLineIndex) Is Nothing Then
                         pLineMetadata(vLineIndex) = New LineMetadata()
                     End If
-                    
+
                     ' Update the LineMetadata's SyntaxTokens
                     pLineMetadata(vLineIndex).SyntaxTokens = If(vTokens, New List(Of SyntaxToken)())
-                    
+
                     ' Use GetEncodedTokens to generate the byte array
                     pCharacterTokens(vLineIndex) = pLineMetadata(vLineIndex).GetEncodedTokens(lLineLength)
                 Else
@@ -487,7 +490,8 @@ End Function
                         pCharacterTokens(vLineIndex) = New Byte() {}
                     End If
                 End If
-                
+              End SyncLock
+
             Catch ex As Exception
                 Console.WriteLine($"UpdateCharacterTokens error: {ex.Message}")
             End Try

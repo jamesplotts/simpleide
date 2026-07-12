@@ -427,6 +427,15 @@ Partial Public Class MainWindow
             ' ProjectManager request event
             AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             AddHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
+
+
+            AddHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
+            AddHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
+            
+            ' Hook up key press for CodeSense interactions
+            If vEditor.Widget IsNot Nothing Then
+                AddHandler vEditor.Widget.KeyPressEvent, AddressOf OnEditorKeyPress
+            End If
             
             ' Navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
@@ -438,6 +447,27 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"HookupAllEditorEvents error: {ex.Message}")
+        End Try
+    End Sub
+    
+    ''' <summary>
+    ''' Handles key press events from the editor to forward navigation keys to CodeSense
+    ''' </summary>
+    Private Sub OnEditorKeyPress(o As Object, args As KeyPressEventArgs)
+        Try
+            ' If CodeSense window is visible, try to handle navigation keys
+            If pCodeSenseWindow IsNot Nothing AndAlso pCodeSenseWindow.Visible Then
+                If HandleCodeSenseKeyPress(args.Event.Key) Then
+                    args.RetVal = True ' Consume the event
+                    Return
+                End If
+            End If
+            
+            ' Otherwise let the editor handle it
+            args.RetVal = False
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnEditorKeyPress error: {ex.Message}")
         End Try
     End Sub
 
@@ -484,6 +514,10 @@ Partial Public Class MainWindow
             RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             
             RemoveHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
+
+            RemoveHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
+            RemoveHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
+
             
             ' Unhook navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
@@ -987,6 +1021,17 @@ End Function
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorTextChanged error: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub OnCodeSenseCancelled(vSender As Object, vArgs As EventArgs)
+        Try
+            ' Forward to CodeSense manager
+            If pCodeSenseManager IsNot Nothing Then
+                pCodeSenseManager.CancelCodeSense()
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnCodeSenseCancelled error: {ex.Message}")
         End Try
     End Sub
     

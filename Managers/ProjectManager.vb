@@ -1449,7 +1449,9 @@ End Sub
                     Return 26
                 Case CodeNodeType.eOperator
                     Return 27
-                    
+                Case CodeNodeType.eDeclare
+                    Return 28
+
                 ' Everything else at the end
                 Case Else
                     Return 99

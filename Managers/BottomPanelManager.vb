@@ -32,6 +32,7 @@ Namespace Managers
         Public Event FindResultSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event TodoSelected(vTodo As TODOItem)
         Public Event BuildErrorWarningSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
+        Public Event SendTodoToAI(vTodo As TODOItem)
         Public Event SendErrorsToAI(vErrorsText As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         Public Event HelpTitleChanged(vTitle As String)
@@ -488,6 +489,11 @@ Namespace Managers
                 AddHandler pTodoPanel.TodoSelected, 
                     Sub(vTodo As TODOItem)
                         RaiseEvent TodoSelected(vTodo)
+                    End Sub
+                
+                AddHandler pTodoPanel.SendToAI,
+                    Sub(vTodo As TODOItem)
+                        RaiseEvent SendTodoToAI(vTodo)
                     End Sub
                 
                 ' Add to notebook with icon

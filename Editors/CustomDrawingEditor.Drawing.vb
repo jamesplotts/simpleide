@@ -59,7 +59,7 @@ Namespace Editors
         ''' </remarks>
         Private Sub DrawContent(vContext As Cairo.Context)
             Try
-                Dim lTopOffset As Integer = -3
+                Dim lTopOffset As Integer = 0
                 Dim lBarLengthHalf As Integer = 4
                 
                 ' Create a layout for text rendering
@@ -76,7 +76,7 @@ Namespace Editors
                 
                 ' Get font metrics
                 Dim lAscent As Integer = 0
-                If pFontMetrics IsNot Nothing Then
+                If pFontMetrics IsNot Nothing AndAlso pFontMetrics.Ascent > 0 Then
                     lAscent = pFontMetrics.Ascent
                 Else
                     lAscent = CInt(pLineHeight * 0.75)
@@ -91,8 +91,20 @@ Namespace Editors
                 lBgPattern.Dispose()
                 
                 ' Calculate visible range
-                Dim lFirstLine As Integer = pFirstVisibleLine
+                ' CRITICAL FIX: Clamp FirstLine to 0 to prevent negative indexing
+                Dim lFirstLine As Integer = Math.Max(0, pFirstVisibleLine)
                 Dim lLastLine As Integer = Math.Min(lFirstLine + pTotalVisibleLines, pLineCount - 1)
+                
+                ' DEBUG: Log drawing parameters for the first frame or periodically
+                Static sDebugCounter As Integer = 0
+                sDebugCounter += 1
+                If sDebugCounter Mod 100 = 1 Then
+                    Console.WriteLine($"DrawContent: FirstLine={lFirstLine} (Prop={pFirstVisibleLine}), Ascent={lAscent}, TopOffset={lTopOffset}")
+                    If GetVisualLineCount() > 0 Then
+                        Dim lFirstVisual As Integer = VisualToSourceLine(lFirstLine)
+                        Console.WriteLine($"  Visual {lFirstLine} -> Source {lFirstVisual}")
+                    End If
+                End If
                 Dim lFirstColumn As Integer = pFirstVisibleColumn
                 Dim lLastColumn As Integer = lFirstColumn + pTotalVisibleColumns
                 
@@ -120,8 +132,14 @@ Namespace Editors
                 Dim lDefaultFgColor As Cairo.Color = GetCachedTokenColor(SyntaxTokenType.eNormal)
                 
                 ' Draw text and selections character by character
-                For lLineIndex As Integer = lFirstLine To lLastLine
-                    If lLineIndex >= pLineCount Then Exit For
+                ' MODIFIED: Iterate over visual lines instead of source lines
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                
+                For lVisualIndex As Integer = lFirstLine To lLastLine
+                    If lVisualIndex >= lVisualLineCount Then Exit For
+                    
+                    ' Map visual line to source line
+                    Dim lLineIndex As Integer = VisualToSourceLine(lVisualIndex)
                     
                     ' Get line text from SourceFileInfo
                     Dim lLine As String = ""
@@ -138,7 +156,8 @@ Namespace Editors
                     End If
                     
                     ' Calculate Y position for this line
-                    Dim lLineTop As Integer = (lLineIndex - lFirstLine - 1) * pLineHeight + pTopPadding + lTopOffset + 3
+                    ' Use visual index for Y position calculation
+                    Dim lLineTop As Integer = (lVisualIndex - lFirstLine) * pLineHeight + pTopPadding + lTopOffset
                     Dim lY As Integer = lLineTop + lAscent
                     
                     ' Draw each visible character in the line
@@ -219,23 +238,24 @@ Namespace Editors
                 Dim lCursorColor As Cairo.Color
                 
                 ' Draw cursor if visible
-                If pCursorVisible AndAlso pCursorLine >= lFirstLine AndAlso pCursorLine <= lLastLine Then
+                ' MODIFIED: Check visual line for cursor
+                Dim lCursorVisualLine As Integer = SourceToVisualLine(pCursorLine)
+                
+                If pCursorVisible AndAlso lCursorVisualLine <> -1 AndAlso 
+                   lCursorVisualLine >= lFirstLine AndAlso lCursorVisualLine <= lLastLine Then
                     ' Draw cursor line
                     lCursorColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eCursorColor)
                 Else
-                    ' Draw cursor line
+                    ' Erase cursor line
                     lCursorColor = lBgColor
                 End if
                 Dim lCursorPattern As New Cairo.SolidPattern(lCursorColor.R, lCursorColor.G, lCursorColor.B)
 
-                If pCursorColumn >= lFirstColumn AndAlso pCursorColumn <= lLastColumn Then
-                    Dim lCursorX As Integer = pLeftPadding + ((pCursorColumn - lFirstColumn) * pCharWidth)
-                    Dim lCursorY As Integer = (pCursorLine - lFirstLine) * pLineHeight + pTopPadding + lTopOffset + 2
+                ' Draw cursor if visible and blinking
+                If pCursorVisible AndAlso pCursorBlink AndAlso pDrawingArea.HasFocus Then
+                    Dim lCursorX As Integer = (pCursorColumn - pFirstVisibleColumn) * pCharWidth + pLeftPadding
+                    Dim lCursorY As Integer = (lCursorVisualLine - lFirstLine) * pLineHeight + pTopPadding  + 13
                     
-                    
-                    ' **********************************************
-                    ' CRITICAL: LEAVE MY GODDAMN I BEAM CURSOR ALONE                        
-                    ' **********************************************
                     vContext.SetSource(lCursorPattern)
                     vContext.LineWidth = 2.0
                     vContext.MoveTo(lCursorX, lCursorY + lTopOffset)

@@ -206,40 +206,64 @@ Namespace Managers
         Public Function ParseProject(vProjectFilePath As String) As Boolean
             Try
                 If Not pIsInitialized Then Initialize()
-                
+
                 Console.WriteLine($"ProjectParser: Parsing project {vProjectFilePath}")
                 pParseErrors.Clear()
-                
+
                 ' Get all source files from project manager
                 Dim lSourceFiles = pProjectManager.GetProjectSourceFiles()
                 Console.WriteLine($"Found {lSourceFiles.Count} source files")
-                
+
+                ' First pass: parse every file's Roslyn syntax tree once. Semantic analysis
+                ' (GetSemanticModel) requires the tree to already be part of the Compilation it's
+                ' called against, and Roslyn's cross-file symbol resolution requires ALL of the
+                ' project's trees to be in that same Compilation - so we parse everything up front,
+                ' rebuild pCompilation with the full set, then run the per-file pass below using
+                ' these same tree instances (not re-parsed) so GetSemanticModel succeeds.
+                Dim lRoslynTrees As New Dictionary(Of String, Microsoft.CodeAnalysis.SyntaxTree)()
+                for each lFilePath in lSourceFiles
+                    Dim lSourceFile = pProjectManager.GetSourceFileInfo(lFilePath)
+                    If lSourceFile IsNot Nothing Then
+                        lRoslynTrees(lFilePath) = VisualBasicSyntaxTree.ParseText(
+                            lSourceFile.TextContent,
+                            options:=pParseOptions,
+                            path:=lSourceFile.FilePath
+                        )
+                    End If
+                Next
+
+                If pCompilation IsNot Nothing Then
+                    pCompilation = pCompilation.RemoveAllSyntaxTrees().AddSyntaxTrees(lRoslynTrees.Values)
+                End If
+
                 ' Parse all files
-                Dim lProjectTree As New SimpleSyntaxNode(CodeNodeType.eProject, 
-                    If(pProjectManager.CurrentProjectInfo?.AssemblyName, 
+                Dim lProjectTree As New SimpleSyntaxNode(CodeNodeType.eProject,
+                    If(pProjectManager.CurrentProjectInfo?.AssemblyName,
                        pProjectManager.CurrentProjectName,
                        "SimpleIDE"))
                 lProjectTree.FilePath = pProjectManager.ProjectFile
-                
+
                 ' Create root namespace node if needed
                 Dim lRootNamespace = pProjectManager.RootNamespace
                 Dim lNamespaceNode As SimpleSyntaxNode = Nothing
-                
+
                 If Not String.IsNullOrEmpty(lRootNamespace) Then
                     lNamespaceNode = New SimpleSyntaxNode(CodeNodeType.eNamespace, lRootNamespace)
                     lNamespaceNode.IsImplicit = True
                     lProjectTree.AddChild(lNamespaceNode)
                 End If
-                
+
                 ' Parse each file
                 Dim lSuccessCount As Integer = 0
                 for each lFilePath in lSourceFiles
                     Dim lSourceFile = pProjectManager.GetSourceFileInfo(lFilePath)
                     If lSourceFile IsNot Nothing Then
-                        Dim lFileSyntaxTree = ParseSourceFile(lSourceFile)
+                        Dim lPreParsedTree As Microsoft.CodeAnalysis.SyntaxTree = Nothing
+                        lRoslynTrees.TryGetValue(lFilePath, lPreParsedTree)
+                        Dim lFileSyntaxTree = ParseSourceFile(lSourceFile, lPreParsedTree)
                         If lFileSyntaxTree IsNot Nothing Then
                             pProjectTree.Files(lFilePath) = lFileSyntaxTree
-                            
+
                             ' Add to project tree
                             If lFileSyntaxTree.SimpleIDETree IsNot Nothing Then
                                 If lNamespaceNode IsNot Nothing Then
@@ -248,17 +272,17 @@ Namespace Managers
                                     MergeFileIntoNamespace(lFileSyntaxTree.SimpleIDETree, lProjectTree)
                                 End If
                             End If
-                            
+
                             lSuccessCount += 1
                         End If
                     End If
                 Next
-                
+
                 pProjectTree.RootNode = lProjectTree
-                
+
                 Console.WriteLine($"ProjectParser: Successfully parsed {lSuccessCount}/{lSourceFiles.Count} files")
                 Return lSuccessCount > 0
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.ParseProject error: {ex.Message}")
                 Console.WriteLine($"  Error type: {ex.GetType().FullName}")
@@ -267,31 +291,41 @@ Namespace Managers
                 Return False
             End Try
         End Function
-        
+
         ''' <summary>
         ''' Parses a single source file
         ''' </summary>
         ''' <param name="vSourceFile">The source file to parse</param>
+        ''' <param name="vPreParsedTree">
+        ''' Optional Roslyn tree already parsed as part of a full-project pass (see ParseProject) and
+        ''' already added to pCompilation, so GetSemanticModel below can succeed. When Nothing, this
+        ''' method parses vSourceFile standalone and no semantic model will be available (syntax only).
+        ''' </param>
         ''' <returns>The parsed FileSyntaxTree</returns>
-        Public Function ParseSourceFile(vSourceFile As SourceFileInfo) As FileSyntaxTree
+        Public Function ParseSourceFile(vSourceFile As SourceFileInfo, Optional vPreParsedTree As Microsoft.CodeAnalysis.SyntaxTree = Nothing) As FileSyntaxTree
             Try
                 If vSourceFile Is Nothing Then Return Nothing
-                
+
                 Console.WriteLine($"ProjectParser: Parsing {vSourceFile.FileName}...")
-                
-                ' Parse with Roslyn
-                Dim lRoslynTree = VisualBasicSyntaxTree.ParseText(
-                    vSourceFile.TextContent,
-                    options:=pParseOptions,
-                    path:=vSourceFile.FilePath
-                )
-                
-                ' Get semantic model if compilation available
+
+                ' Reuse the pre-parsed tree (already part of pCompilation) when provided so
+                ' GetSemanticModel below works; otherwise parse standalone (syntax only, no semantic model)
+                Dim lRoslynTree As Microsoft.CodeAnalysis.SyntaxTree = vPreParsedTree
+                If lRoslynTree Is Nothing Then
+                    lRoslynTree = VisualBasicSyntaxTree.ParseText(
+                        vSourceFile.TextContent,
+                        options:=pParseOptions,
+                        path:=vSourceFile.FilePath
+                    )
+                End If
+
+                ' Get semantic model only if this exact tree instance is part of the compilation -
+                ' GetSemanticModel throws ArgumentException otherwise
                 Dim lSemanticModel As SemanticModel = Nothing
-                If pCompilation IsNot Nothing Then
+                If pCompilation IsNot Nothing AndAlso pCompilation.ContainsSyntaxTree(lRoslynTree) Then
                     lSemanticModel = pCompilation.GetSemanticModel(lRoslynTree)
                 End If
-                
+
                 ' Convert to SimpleIDE format
                 Dim lSimpleIDETree = pConverter.ConvertToSimpleIDE(lRoslynTree, vSourceFile.FilePath)
                 
@@ -516,35 +550,26 @@ Namespace Managers
                 for each lToken in vNode.DescendantTokens()
                     If lToken.Kind() <> SyntaxKind.EndOfFileToken AndAlso
                        lToken.Kind() <> SyntaxKind.None Then
-                        
-                        ' Get line number
+
                         Dim lLineSpan = lToken.GetLocation().GetLineSpan()
-                        Dim lLine = lLineSpan.StartLinePosition.Line
-                        
-                        ' Get or create token list for this line
-                        Dim lTokenList As List(Of SimpleSyntaxToken) = Nothing
-                        If Not vLineTokens.TryGetValue(lLine, lTokenList) Then
-                            lTokenList = New List(Of SimpleSyntaxToken)()
-                            vLineTokens(lLine) = lTokenList
+                        Dim lStartLine = lLineSpan.StartLinePosition.Line
+                        Dim lEndLine = lLineSpan.EndLinePosition.Line
+                        Dim lTokenType = ConvertToSyntaxTokenType(lToken.Kind())
+
+                        If lStartLine = lEndLine Then
+                            AddTokenToLine(vLineTokens, vSourceFile, lStartLine,
+                                            lLineSpan.StartLinePosition.Character,
+                                            lLineSpan.EndLinePosition.Character, lTokenType)
+                        Else
+                            ' Multi-line token (e.g. XML literal, line-continued string): emit an
+                            ' entry on every line it spans so continuation lines aren't left unstyled
+                            for lLine = lStartLine To lEndLine
+                                Dim lStartCol As Integer = If(lLine = lStartLine, lLineSpan.StartLinePosition.Character, 0)
+                                Dim lEndCol As Integer = If(lLine = lEndLine, lLineSpan.EndLinePosition.Character,
+                                                             If(lLine < vSourceFile.TextLines.Count, vSourceFile.TextLines(lLine).Length, lStartCol))
+                                AddTokenToLine(vLineTokens, vSourceFile, lLine, lStartCol, lEndCol, lTokenType)
+                            Next
                         End If
-                        
-                        ' Create syntax token
-                        Dim lStartCol = lLineSpan.StartLinePosition.Character
-                        Dim lEndCol = lLineSpan.EndLinePosition.Character
-                        
-                        ' Handle multi-line tokens
-                        If lLineSpan.StartLinePosition.Line <> lLineSpan.EndLinePosition.Line Then
-                            ' For now, just handle the first line
-                            lEndCol = vSourceFile.TextLines(lLine).Length
-                        End If
-                        
-                        Dim lSyntaxToken As New SimpleSyntaxToken() with {
-                            .StartColumn = lStartCol,
-                            .Length = Math.Max(1, lEndCol - lStartCol),
-                            .TokenType = ConvertToSyntaxTokenType(lToken.Kind())
-                        }
-                        
-                        lTokenList.Add(lSyntaxToken)
                     End If
                 Next
                 
@@ -552,7 +577,32 @@ Namespace Managers
                 Console.WriteLine($"ProcessNodeForTokens error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Appends a single-line token entry to the given line's token list
+        ''' </summary>
+        Private Sub AddTokenToLine(vLineTokens As Dictionary(Of Integer, List(Of SimpleSyntaxToken)), vSourceFile As SourceFileInfo,
+                                    vLine As Integer, vStartCol As Integer, vEndCol As Integer, vTokenType As SyntaxTokenType)
+            Try
+                Dim lTokenList As List(Of SimpleSyntaxToken) = Nothing
+                If Not vLineTokens.TryGetValue(vLine, lTokenList) Then
+                    lTokenList = New List(Of SimpleSyntaxToken)()
+                    vLineTokens(vLine) = lTokenList
+                End If
+
+                Dim lSyntaxToken As New SimpleSyntaxToken() with {
+                    .StartColumn = vStartCol,
+                    .Length = Math.Max(1, vEndCol - vStartCol),
+                    .TokenType = vTokenType
+                }
+
+                lTokenList.Add(lSyntaxToken)
+
+            Catch ex As Exception
+                Console.WriteLine($"AddTokenToLine error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Converts Roslyn SyntaxKind to SimpleIDE TokenType
         ''' </summary>
@@ -748,14 +798,45 @@ Namespace Managers
         ''' </summary>
         Private Sub MergeNamespaceContents(vSourceNamespace As SimpleSyntaxNode, vTargetNamespace As SimpleSyntaxNode)
             Try
-                ' If same namespace, merge children
+                ' Case 1: Names Match (Merging contents of two same-named nodes)
                 If vSourceNamespace.Name = vTargetNamespace.Name Then
-                    for each lChild in vSourceNamespace.Children
-                        vTargetNamespace.AddChild(lChild)
+                    For Each lChild In vSourceNamespace.Children
+                        ' Try to find matching child in Target
+                        ' We primarily check for Namespaces to merge them.
+                        ' For other types, duplicate names might be valid (overloads) or partials (which should be merged but complex here).
+                        Dim lMatchingChild As SimpleSyntaxNode = Nothing
+                        
+                        If lChild.NodeType = CodeNodeType.eNamespace Then
+                            lMatchingChild = vTargetNamespace.Children.FirstOrDefault(Function(c) _
+                                c.NodeType = CodeNodeType.eNamespace AndAlso
+                                String.Equals(c.Name, lChild.Name, StringComparison.OrdinalIgnoreCase))
+                        End If
+                        
+                        If lMatchingChild IsNot Nothing Then
+                            ' Merge recursively
+                            MergeNamespaceContents(lChild, lMatchingChild)
+                        Else
+                            ' Just add
+                            vTargetNamespace.AddChild(lChild)
+                        End If
                     Next
                 Else
-                    ' Different namespace, add as child
-                    vTargetNamespace.AddChild(vSourceNamespace)
+                    ' Case 2: Names Don't Match (vSourceNamespace is a child to be added to vTargetNamespace)
+                    Dim lExistingChild As SimpleSyntaxNode = Nothing
+                    
+                    If vSourceNamespace.NodeType = CodeNodeType.eNamespace Then
+                        lExistingChild = vTargetNamespace.Children.FirstOrDefault(Function(c) _
+                            c.NodeType = CodeNodeType.eNamespace AndAlso
+                            String.Equals(c.Name, vSourceNamespace.Name, StringComparison.OrdinalIgnoreCase))
+                    End If
+                    
+                    If lExistingChild IsNot Nothing Then
+                        ' Merge vSourceNamespace contents into lExistingChild
+                        ' Note: We are effectively merging "Source" into "Existing", which have the same name.
+                        MergeNamespaceContents(vSourceNamespace, lExistingChild)
+                    Else
+                        vTargetNamespace.AddChild(vSourceNamespace)
+                    End If
                 End If
                 
             Catch ex As Exception

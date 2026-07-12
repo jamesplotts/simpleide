@@ -11,7 +11,20 @@ Namespace Syntax
     ' CodeSense suggestion item
     Public Class CodeSenseSuggestion
         Public Property Text As String = ""              ' Text to insert
-        Public Property DisplayText As String = ""       ' Text to display in list
+        
+        Private pDisplayText As String = ""
+        Public Property DisplayText As String        ' Text to display in list
+            Get
+                If String.IsNullOrEmpty(pDisplayText) Then
+                    Return Text
+                End If
+                Return pDisplayText
+            End Get
+            Set(value As String)
+                pDisplayText = value
+            End Set
+        End Property
+        
         Public Property Description As String = ""       ' Tooltip Description
         Public Property Icon As String = ""             ' Icon Identifier
         Public Property SuggestionType As CodeSenseSuggestionType = CodeSenseSuggestionType.eOther

@@ -84,6 +84,7 @@ Namespace Models
         eOperator
         eEnumValue
         eFile
+        eDeclare
         eLastValue
     End Enum
     

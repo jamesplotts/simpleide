@@ -391,30 +391,78 @@ Namespace Managers
         ''' </summary>
         Private Sub MergeNodeIntoProject(vNode As SimpleSyntaxNode, vParent As SimpleSyntaxNode, vPartialClasses As Dictionary(Of String, SimpleSyntaxNode))
             Try
-                ' Handle partial classes
+                ' SPECIAL HANDLING: Namespaces
+                ' If we are adding a namespace to a parent that already has a namespace with that name,
+                ' we MUST merge them
+                If vNode.NodeType = CodeNodeType.eNamespace Then
+                    Dim lExistingNamespace As SimpleSyntaxNode = Nothing
+                    
+                    ' Check if parent already has this namespace
+                    ' Note: We match by Name and NodeType
+                    If vParent.Children IsNot Nothing Then
+                        lExistingNamespace = vParent.Children.FirstOrDefault(Function(c) _
+                            c.NodeType = CodeNodeType.eNamespace AndAlso
+                            String.Equals(c.Name, vNode.Name, StringComparison.OrdinalIgnoreCase))
+                    End If
+                    
+                    If lExistingNamespace IsNot Nothing Then
+                        ' Merge children into existing namespace
+                        If vNode.Children IsNot Nothing Then
+                            ' Use a list copy to avoid modification during enumeration issues if valid
+                            Dim lChildrenToMerge = vNode.Children.ToList()
+                            For Each lChild In lChildrenToMerge
+                                ' Recursive merge
+                                MergeNodeIntoProject(lChild, lExistingNamespace, vPartialClasses)
+                            Next
+                        End If
+                        Return ' We are done with this node
+                    End If
+                End If
+
+                ' Handle partial classes/modules/structures
                 If vNode.IsPartial AndAlso 
                    (vNode.NodeType = CodeNodeType.eClass OrElse
                     vNode.NodeType = CodeNodeType.eModule OrElse
                     vNode.NodeType = CodeNodeType.eStructure) Then
                     
-                    Dim lKey = vNode.FullName
-                    If vPartialClasses.ContainsKey(lKey) Then
-                        ' Merge with existing partial
-                        Dim lExisting = vPartialClasses(lKey)
+                    ' Use the fully qualified name (or at least name + parent path) to identify
+                    ' For simple merging in the tree, we can use the FullName if it was set correctly,
+                    ' but here we might rely on the hierarchy.
+                    
+                    ' IMPROVEMENT: Check if parent already has this child, partial or not
+                    Dim lExistingType As SimpleSyntaxNode = Nothing
+                    If vParent.Children IsNot Nothing Then
+                        lExistingType = vParent.Children.FirstOrDefault(Function(c) _
+                            c.NodeType = vNode.NodeType AndAlso
+                            String.Equals(c.Name, vNode.Name, StringComparison.OrdinalIgnoreCase))
+                    End If
+                    
+                    If lExistingType IsNot Nothing Then
+                        ' Merge children into existing type
                         If vNode.Children IsNot Nothing Then
-                            for each lChild in vNode.Children
-                                lExisting.AddChild(lChild)
+                            Dim lChildrenToMerge = vNode.Children.ToList()
+                            For Each lChild In lChildrenToMerge
+                                lExistingType.AddChild(lChild)
                             Next
                         End If
+                        
+                        ' Update flags if needed (e.g. if one part is public, the whole thing is)
+                        ' (Simplified for now)
+                        Return
                     Else
-                        ' First occurrence of this partial
+                        ' First occurrence
                         vParent.AddChild(vNode)
-                        vPartialClasses(lKey) = vNode
+                        vPartialClasses(vNode.FullName) = vNode
+                        Return
                     End If
-                Else
-                    ' Non-partial node
-                    vParent.AddChild(vNode)
                 End If
+                
+                ' Default behavior: Just add the child
+                ' BUT wait, what if it's a non-partial class but defined in multiple files (error, but we should handle it gracefuly)?
+                ' Or maybe a Module?
+                ' For now, we'll assume uniqueness for non-namespace, non-partial types.
+                
+                vParent.AddChild(vNode)
                 
             Catch ex As Exception
                 Console.WriteLine($"MergeNodeIntoProject error: {ex.Message}")
@@ -429,12 +477,16 @@ Namespace Managers
                 If vNode?.Children Is Nothing OrElse vNode.Children.Count <= 1 Then Return
                 
                 ' Sort children
+                ' Sort children
                 vNode.Children.Sort(Function(a, b)
-                    ' Sort by node type first
-                    Dim lTypeCompare = a.NodeType.CompareTo(b.NodeType)
-                    If lTypeCompare <> 0 Then Return lTypeCompare
+                    ' 1. Namespaces always come first
+                    Dim aIsNamespace = (a.NodeType = CodeNodeType.eNamespace)
+                    Dim bIsNamespace = (b.NodeType = CodeNodeType.eNamespace)
                     
-                    ' Then by name
+                    If aIsNamespace AndAlso Not bIsNamespace Then Return -1
+                    If Not aIsNamespace AndAlso bIsNamespace Then Return 1
+                    
+                    ' 2. Everything else sorted by Name
                     Return String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase)
                 End Function)
                 

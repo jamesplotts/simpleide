@@ -486,8 +486,8 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                         Return pShowRegions
                         
                     ' Methods and functions - check visibility or ShowPrivateMembers
-                    Case CodeNodeType.eMethod, CodeNodeType.eFunction, 
-                         CodeNodeType.eConstructor, CodeNodeType.eOperator
+                    Case CodeNodeType.eMethod, CodeNodeType.eFunction,
+                         CodeNodeType.eConstructor, CodeNodeType.eOperator, CodeNodeType.eDeclare
                         ' FIXED: If ShowPrivateMembers is true, show all methods
                         ' Otherwise check visibility flags
                         If pShowPrivateMembers Then
@@ -702,7 +702,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     'Console.WriteLine($"BuildVisualNodes: Root is eDocument with {vNode.Children.Count} children")
                     
                     ' Sort children alphabetically before processing
+                    ' Sort children alphabetically before processing (Namespaces first)
                     Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
+                        Function(c) If(c.NodeType = CodeNodeType.eNamespace, 0, 1)).ThenBy(
                         Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
                     
                     ' Process all children of the document root
@@ -758,7 +760,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     Console.WriteLine($"  Expanding {vNode.Name} with {vNode.Children.Count} children")
                     
                     ' Sort children alphabetically for consistent display
+                    ' Sort children alphabetically for consistent display (Namespaces first)
                     Dim lSortedChildren As List(Of SyntaxNode) = vNode.Children.OrderBy(
+                        Function(c) If(c.NodeType = CodeNodeType.eNamespace, 0, 1)).ThenBy(
                         Function(c) c.Name, StringComparer.OrdinalIgnoreCase).ToList()
                     
                     ' Recursively process each child

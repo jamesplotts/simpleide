@@ -598,5 +598,45 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnSendBuildErrorsToAI error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Handle sending TODO item to AI assistant
+    ''' </summary>
+    Private Sub OnSendTodoToAI(vTodo As TODOItem)
+        Try
+            If pAIAssistantPanel IsNot Nothing Then
+                Dim lPrompt As New StringBuilder()
+                lPrompt.AppendLine($"I need help with this TODO item:")
+                lPrompt.AppendLine($"Title: {vTodo.Title}")
+                lPrompt.AppendLine($"Priority: {vTodo.GetPriorityDisplayText()}")
+                lPrompt.AppendLine($"Category: {vTodo.GetCategoryDisplayText()}")
+                
+                If Not String.IsNullOrEmpty(vTodo.Description) Then
+                    lPrompt.AppendLine("Description:")
+                    lPrompt.AppendLine(vTodo.Description)
+                End If
+                
+                If vTodo.SourceType = TODOItem.eSourceType.eCodeComment AndAlso Not String.IsNullOrEmpty(vTodo.SourceFile) Then
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine($"Source: {System.IO.Path.GetFileName(vTodo.SourceFile)} line {vTodo.SourceLine}")
+                End If
+                
+                lPrompt.AppendLine()
+                lPrompt.AppendLine("Please help me address this task.")
+                
+                pAIAssistantPanel.SendMessage(lPrompt.ToString())
+                
+                ' Show AI panel
+                If pBottomPanelManager IsNot Nothing Then
+                    pBottomPanelManager.ShowTabByType(pBottomPanelManager.BottomPanelTab.eAIAssistant)
+                End If
+            Else
+                ShowError("AI Not Configured", "Please configure AI settings first.")
+            End If
+            
+        Catch ex As Exception
+            Console.WriteLine($"OnSendTodoToAI error: {ex.Message}")
+        End Try
+    End Sub
+
 End Class

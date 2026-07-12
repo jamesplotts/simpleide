@@ -195,20 +195,20 @@ Namespace Parsers
         Private Function FindNodeRecursive(vNode As SimpleSyntaxNode, vLine As Integer, vColumn As Integer) As SimpleSyntaxNode
             Try
                 If vNode Is Nothing Then Return Nothing
-                
-                ' Check if this node contains the position
-                If vLine >= vNode.StartLine AndAlso vLine <= vNode.EndLine Then
-                    
+
+                ' Check if this node contains the position (line AND column)
+                If vNode.ContainsPosition(vLine, vColumn) Then
+
                     ' Check children first (more specific)
                     for each lChild in vNode.Children
                         Dim lResult = FindNodeRecursive(lChild, vLine, vColumn)
                         If lResult IsNot Nothing Then Return lResult
                     Next
-                    
+
                     ' If no child matches, return this node
                     Return vNode
                 End If
-                
+
                 Return Nothing
                 
             Catch ex As Exception

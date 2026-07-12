@@ -67,8 +67,13 @@ Namespace Editors
         ' are now in VBCodeParser to avoid duplication
 
         ' Public method to get document nodes
+        ''' <remarks>
+        ''' pDocumentNodes is not currently populated by any node-graph builder (see NOTE above);
+        ''' always return an empty dictionary rather than Nothing so callers that enumerate the
+        ''' result (e.g. For Each) don't throw a NullReferenceException.
+        ''' </remarks>
         Public Function GetDocumentNodes() As Dictionary(Of String, DocumentNode) Implements IEditor.GetDocumentNodes
-            Return pDocumentNodes
+            Return If(pDocumentNodes, New Dictionary(Of String, DocumentNode)())
         End Function
         
         ' Public method to get root nodes

@@ -514,6 +514,32 @@ Namespace Syntax
         Public Property Remarks As String
         
         ''' <summary>
+        ''' Gets or sets whether the node is expanded (for code folding)
+        ''' </summary>
+        Public Property IsExpanded As Boolean = True
+
+        ''' <summary>
+        ''' Gets whether the node is foldable
+        ''' </summary>
+        Public ReadOnly Property IsFoldable As Boolean
+            Get
+                ' Only certain node types are foldable
+                Select Case NodeType
+                    Case CodeNodeType.eNamespace, CodeNodeType.eClass, CodeNodeType.eModule, 
+                         CodeNodeType.eInterface, CodeNodeType.eStructure, CodeNodeType.eEnum,
+                         CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eProperty,
+                         CodeNodeType.eConstructor, CodeNodeType.eOperator, CodeNodeType.eEvent,
+                         CodeNodeType.eRegion
+                        
+                        ' Must span multiple lines to be foldable
+                        Return (EndLine > StartLine)
+                    Case Else
+                        Return False
+                End Select
+            End Get
+        End Property
+
+        ''' <summary>
         ''' Example usage
         ''' </summary>
         Public Property Example As String

@@ -133,40 +133,116 @@ Partial Public Class MainWindow
                 lContext.TriggerChar = lText(lCursorPos - 1)
             End If
             
-            ' Extract current word
-            Dim lWordStart As Integer = lCursorPos
-            Dim lWordEnd As Integer = lCursorPos
-            
-            ' Find word start
-            While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
-                lWordStart -= 1
-            End While
-            
-            ' Find word end
-            While lWordEnd < lText.Length AndAlso (Char.IsLetterOrDigit(lText(lWordEnd)) OrElse lText(lWordEnd) = "_"c)
-                lWordEnd += 1
-            End While
-            
-            lContext.CurrentWord = lText.Substring(lWordStart, lWordEnd - lWordStart)
-            
-            ' Store word start offset in a local variable for later use
-            Dim lWordStartOffset As Integer = lWordStart
-            
-            ' Get prefix (text before current word) - store in local variable
-            Dim lPrefix As String = ""
-            If lWordStart > 0 Then
-                Dim lLineStart As Integer = lText.LastIndexOf(vbLf, lWordStart - 1) + 1
-                lPrefix = lText.Substring(lLineStart, lWordStart - lLineStart)
+            ' Determine TriggerKind and Target
+            If lContext.TriggerChar = "."c Then
+                lContext.TriggerKind = CodeSenseTriggerKind.eDot
+                
+                ' Find the word before the dot
+                Dim lWordEnd As Integer = lCursorPos - 1
+                Dim lWordStart As Integer = lWordEnd
+                
+                ' Skip whitespace before dot if any (not strictly valid in VB but good for robustness)
+                While lWordStart > 0 AndAlso Char.IsWhiteSpace(lText(lWordStart - 1))
+                    lWordStart -= 1
+                End While
+                lWordEnd = lWordStart
+                
+                ' Find start of word
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                
+                If lWordEnd > lWordStart Then
+                    lContext.MemberAccessTarget = lText.Substring(lWordStart, lWordEnd - lWordStart)
+                    
+                    ' Handle "Me" or "MyBase" case-insensitively
+                    If lContext.MemberAccessTarget.Equals("me", StringComparison.OrdinalIgnoreCase) Then
+                         lContext.MemberAccessTarget = "Me"
+                    ElseIf lContext.MemberAccessTarget.Equals("mybase", StringComparison.OrdinalIgnoreCase) Then
+                         lContext.MemberAccessTarget = "MyBase"
+                    End If
+                End If
+                
+            ElseIf lContext.TriggerChar = "("c Then
+                lContext.TriggerKind = CodeSenseTriggerKind.eOpenParen
+                
+            ElseIf Char.IsWhiteSpace(lContext.TriggerChar) Then
+                lContext.TriggerKind = CodeSenseTriggerKind.eSpace
+                
+            ElseIf Char.IsLetterOrDigit(lContext.TriggerChar) Then
+                lContext.TriggerKind = CodeSenseTriggerKind.eManual ' Typing a word
+                
+                ' Extract current word being typed
+                Dim lWordStart As Integer = lCursorPos
+                Dim lWordEnd As Integer = lCursorPos
+                
+                ' Find word start
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                
+                ' Find word end
+                While lWordEnd < lText.Length AndAlso (Char.IsLetterOrDigit(lText(lWordEnd)) OrElse lText(lWordEnd) = "_"c)
+                    lWordEnd += 1
+                End While
+                
+                lContext.CurrentWord = lText.Substring(lWordStart, lWordEnd - lWordStart)
+            Else
+                 lContext.TriggerKind = CodeSenseTriggerKind.eManual
             End If
             
-            Dim lObjectNodes As New Dictionary(Of String, DocumentNode)
-            for each lKvp in vEditor.GetDocumentNodes()
-                lObjectNodes(lKvp.Key) = lKvp.Value
-            Next
+            ' Extract current context (Class/Method name) for "Me" support
+            Dim lContextStack As New Stack(Of String)
+            
+            ' Traverse up syntax tree to find containing class for "Me" context
+            If vEditor.RootNode IsNot Nothing Then
+                Dim lCurrentNode As SyntaxNode = vEditor.RootNode
+                Dim lFound As Boolean = True
+                
+                While lFound
+                    lFound = False
+                    If lCurrentNode.Children IsNot Nothing Then
+                        For Each lChild As SyntaxNode In lCurrentNode.Children
+                            If lChild.StartLine <= lContext.TriggerPosition.Line AndAlso lChild.EndLine >= lContext.TriggerPosition.Line Then
+                                ' This child contains the cursor
+                                If lChild.NodeType = CodeNodeType.eClass OrElse 
+                                   lChild.NodeType = CodeNodeType.eModule OrElse 
+                                   lChild.NodeType = CodeNodeType.eStructure Then
+                                    lContextStack.Push(lChild.Name)
+                                End If
+                                lCurrentNode = lChild
+                                lFound = True
+                                Exit For
+                            End If
+                        Next
+                    End If
+                End While
+            End If
+            
+            If lContextStack.Count > 0 Then
+                lContext.ContainingClass = lContextStack.Peek()
+                Dim lScopeItems = lContextStack.ToArray()
+                Array.Reverse(lScopeItems)
+                lContext.CurrentScope = String.Join(".", lScopeItems)
+            End If
+            
             pCodeSenseEngine.UpdateDocumentNodes(vEditor.RootNode)
             
-  
-         Return lContext
+            ' Extract Imports statements
+            ' Read first 50 lines to find imports
+            Dim lImportText As String = ""
+            Dim lImportLines = lText.Split(New Char() {vbLf, vbCr}, StringSplitOptions.RemoveEmptyEntries)
+            Dim lLimit As Integer = Math.Min(lImportLines.Length - 1, 50)
+            
+            Dim lSb As New System.Text.StringBuilder()
+            For i As Integer = 0 To lLimit
+                lSb.AppendLine(lImportLines(i))
+            Next
+            lImportText = lSb.ToString()
+            
+            lContext.ImportsContext = pCodeSenseEngine.ParseImports(lImportText)
+            
+            Return lContext
             
         Catch ex As Exception
             Console.WriteLine($"GetCodeSenseContext error: {ex.Message}")
@@ -259,6 +335,9 @@ Partial Public Class MainWindow
             pCodeSenseWindow.Decorated = False
             pCodeSenseWindow.SkipTaskbarHint = True
             pCodeSenseWindow.SkipPagerHint = True
+            pCodeSenseWindow.TransientFor = Me
+            pCodeSenseWindow.AcceptFocus = False
+            pCodeSenseWindow.FocusOnMap = False
             
             ' Create scrolled window
             Dim lScrolled As New ScrolledWindow()
@@ -301,22 +380,23 @@ Partial Public Class MainWindow
     ' Calculate CodeSense window position
     Private Function CalculateCodeSensePosition(vContext As CodeSenseContext) As Gdk.Point
         Try
-            ' Get window position
-            Dim lWindowX, lWindowY As Integer
-            Me.GetPosition(lWindowX, lWindowY)
+            ' Get current tab editor
+            Dim lTabInfo = GetCurrentTabInfo()
+            If lTabInfo?.Editor Is Nothing Then 
+                Console.WriteLine("CalculateCodeSensePosition: No active editor found")
+                Return New Gdk.Point(0, 0)
+            End If
             
-            ' Estimate character position (rough approximation)
-            Dim lLineHeight As Integer = 20 ' Approximate
-            Dim lCharWidth As Integer = 8   ' Approximate
+            Dim lEditor As IEditor = DirectCast(lTabInfo.Editor, IEditor)
+            Dim lPos As Gdk.Point = lEditor.GetCursorScreenPosition()
             
-            Dim lX As Integer = lWindowX + (vContext.TriggerPosition.Column * lCharWidth)
-            Dim lY As Integer = lWindowY + ((vContext.TriggerPosition.Line + 1) * lLineHeight)
+            Console.WriteLine($"CalculateCodeSensePosition: Editor returned Screen Position: {lPos.X}, {lPos.Y}")
             
-            Return New Gdk.Point(lX, lY)
+            Return lPos
             
         Catch ex As Exception
             Console.WriteLine($"CalculateCodeSensePosition error: {ex.Message}")
-            Return New Gdk.Point(100, 100) ' Default position
+            Return New Gdk.Point(0, 0)
         End Try
     End Function
     
@@ -325,6 +405,14 @@ Partial Public Class MainWindow
         Try
             If pCodeSenseWindow IsNot Nothing AndAlso pCodeSenseWindow.Visible Then
                 pCodeSenseWindow.Hide()
+                
+                ' Notify current editor that CodeSense is closed
+                Dim lTabInfo = GetCurrentTabInfo()
+                If lTabInfo IsNot Nothing AndAlso lTabInfo.Editor IsNot Nothing Then
+                    If TypeOf lTabInfo.Editor Is CustomDrawingEditor Then
+                        DirectCast(lTabInfo.Editor, CustomDrawingEditor).SetCodeSenseActive(False)
+                    End If
+                End If
             End If
             
         Catch ex As Exception
@@ -332,6 +420,102 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Manually handle a key press from the editor to control the CodeSense window
+    ''' </summary>
+    ''' <param name="vKey">The key that was pressed</param>
+    ''' <returns>True if the key was handled by CodeSense, False otherwise</returns>
+    Public Function HandleCodeSenseKeyPress(vKey As Gdk.Key) As Boolean
+        Try
+            If pCodeSenseWindow Is Nothing OrElse Not pCodeSenseWindow.Visible Then
+                Return False
+            End If
+            
+            Select Case vKey
+                Case Gdk.Key.Escape
+                    HideCodeSense()
+                    Return True
+                    
+                Case Gdk.Key.Return, Gdk.Key.Tab, Gdk.Key.ISO_Left_Tab
+                    ' Insert selected item
+                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
+                    Dim lIter As TreeIter
+                    If lSelection.GetSelected(lIter) Then
+                        Dim lItemName As String = CStr(pCodeSenseListStore.GetValue(lIter, 1))
+                        InsertCodeSenseItem(lItemName)
+                    End If
+                    
+                    HideCodeSense()
+                    Return True
+                    
+                Case Gdk.Key.Up, Gdk.Key.KP_Up
+                    ' Move selection up
+                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
+                    Dim lIter As TreeIter
+                    If lSelection.GetSelected(lIter) Then
+                        Dim lPath As TreePath = pCodeSenseListStore.GetPath(lIter)
+                        If lPath.Prev() Then
+                            pCodeSenseTreeView.SetCursor(lPath, pCodeSenseTreeView.Columns(0), False)
+                        End If
+                    End If
+                    Return True
+                    
+                Case Gdk.Key.Down, Gdk.Key.KP_Down
+                    ' Move selection down
+                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
+                    Dim lIter As TreeIter
+                    If lSelection.GetSelected(lIter) Then
+                        Dim lPath As TreePath = pCodeSenseListStore.GetPath(lIter)
+                        lPath.Next() 
+                        ' Check if next exists
+                         If pCodeSenseListStore.GetIter(lIter, lPath) Then
+                            pCodeSenseTreeView.SetCursor(lPath, pCodeSenseTreeView.Columns(0), False)
+                        End If
+                    End If
+                    Return True
+
+                Case Gdk.Key.Page_Up, Gdk.Key.KP_Page_Up
+                    ' Simple page up - move 10 items up
+                     Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
+                    Dim lIter As TreeIter
+                    If lSelection.GetSelected(lIter) Then
+                        Dim lPath As TreePath = pCodeSenseListStore.GetPath(lIter)
+                        ' Move up 10 times or until top
+                         for i As Integer = 1 To 10
+                            If Not lPath.Prev() Then Exit For
+                         Next
+                        pCodeSenseTreeView.SetCursor(lPath, pCodeSenseTreeView.Columns(0), False)
+                    End If
+                    Return True
+                    
+                Case Gdk.Key.Page_Down, Gdk.Key.KP_Page_Down
+                    ' Simple page down - move 10 items down
+                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
+                    Dim lIter As TreeIter
+                    If lSelection.GetSelected(lIter) Then
+                        Dim lPath As TreePath = pCodeSenseListStore.GetPath(lIter)
+                        ' Move down 10 times or until bottom
+                         for i As Integer = 1 To 10
+                            If Not pCodeSenseListStore.GetIter(lIter, lPath) Then Exit For
+                            lPath.Next()
+                         Next
+                         ' Go back one if we fell off
+                         If Not pCodeSenseListStore.GetIter(lIter, lPath) Then
+                            lPath.Prev()
+                         End If
+                        pCodeSenseTreeView.SetCursor(lPath, pCodeSenseTreeView.Columns(0), False)
+                    End If
+                    Return True
+            End Select
+            
+            Return False
+            
+        Catch ex As Exception
+            Console.WriteLine($"HandleCodeSenseKeyPress error: {ex.Message}")
+            Return False
+        End Try
+    End Function
+
     ' Handle CodeSense item activation
     Private Sub OnCodeSenseItemActivated(vSender As Object, vArgs As RowActivatedArgs)
         Try
@@ -349,34 +533,20 @@ Partial Public Class MainWindow
     ' Handle CodeSense window key press
     Private Sub OnCodeSenseKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
         Try
-            Select Case vArgs.Event.key
-                Case Gdk.key.Escape
-                    ' Hide CodeSense
-                    HideCodeSense()
-                    vArgs.RetVal = True
-                    
-                Case Gdk.key.Return, Gdk.key.Tab
-                    ' Insert selected item
-                    Dim lSelection As TreeSelection = pCodeSenseTreeView.Selection
-                    Dim lIter As TreeIter
-                    If lSelection.GetSelected(lIter) Then
-                        Dim lItemName As String = CStr(pCodeSenseListStore.GetValue(lIter, 1))
-                        InsertCodeSenseItem(lItemName)
-                    End If
-                    
-                    ' Hide CodeSense
-                    HideCodeSense()
-                    vArgs.RetVal = True
-                    
-                Case Gdk.key.Up, Gdk.key.Down, Gdk.key.Page_Up, Gdk.key.Page_Down
-                    ' Let TreeView handle navigation
-                    vArgs.RetVal = False
-                    
-                Case Else
-                    ' Pass other keys to editor
-                    HideCodeSense()
-                    vArgs.RetVal = False
-            End Select
+            If HandleCodeSenseKeyPress(vArgs.Event.Key) Then
+                vArgs.RetVal = True
+            Else
+                 ' Pass other keys to editor? No, usually we just close if it's typing
+                 ' Use a whitelist of allowed navigation keys, otherwise close?
+                 ' Actually, if it's text, we might want to let it go to the editor and Update the list...
+                 ' But since the window doesn't have focus, this event handler might not even fire properly 
+                 ' for typing if we rely on the editor having focus.
+                 ' The main interaction is handled by HandleCodeSenseKeyPress called from Editor.
+                 
+                 ' But if the window DOES have focus for some reason:
+                HideCodeSense()
+                vArgs.RetVal = False
+            End If
             
         Catch ex As Exception
             Console.WriteLine($"OnCodeSenseKeyPress error: {ex.Message}")
@@ -400,14 +570,29 @@ Partial Public Class MainWindow
                 Dim lText As String = lEditor.Text
                 Dim lCursorPos As Integer = GetOffsetFromPosition(lText, lContext.TriggerPosition.Line, lContext.TriggerPosition.Column)
                 
-                ' Find word start
+                ' Find word start - CAUTIOUS: We need to respect the TriggerKind.
+                ' If it was a Dot trigger, we are inserting AFTER the dot.
+                ' If it was Manual trigger on a word, we replace the word.
+                
                 Dim lWordStart As Integer = lCursorPos
-                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
-                    lWordStart -= 1
-                End While
+                Dim lWordEnd As Integer = lCursorPos
+                
+                 If lContext.TriggerKind = CodeSenseTriggerKind.eDot Then
+                    ' Starting a new member after dot - existing text is just what we typed so far
+                     While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
+                        lWordStart -= 1
+                    End While
+                    ' Ensure we don't go past the dot
+                    ' (This logic is a bit simplistic, assumes we haven't moved cursor away)
+                 Else
+                    ' Standard word replacement
+                    While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lText(lWordStart - 1)) OrElse lText(lWordStart - 1) = "_"c)
+                        lWordStart -= 1
+                    End While
+                 End If
+
                 
                 ' Find word end
-                Dim lWordEnd As Integer = lCursorPos
                 While lWordEnd < lText.Length AndAlso (Char.IsLetterOrDigit(lText(lWordEnd)) OrElse lText(lWordEnd) = "_"c)
                     lWordEnd += 1
                 End While
@@ -541,6 +726,11 @@ Partial Public Class MainWindow
                 Dim lWidget As Widget = DirectCast(vEditor, Widget)
                 ' Position relative to cursor position
                 pCodeSenseWindow.ShowAll()
+                
+                ' Notify editor that CodeSense is active (for Backspace handling)
+                If TypeOf vEditor Is CustomDrawingEditor Then
+                    DirectCast(vEditor, CustomDrawingEditor).SetCodeSenseActive(True)
+                End If
             End If
             
         Catch ex As Exception

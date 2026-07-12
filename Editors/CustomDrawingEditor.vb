@@ -73,7 +73,7 @@ Namespace Editors
         ' ===== Layout =====
         Private pLeftPadding As Integer = 5
         Private pRightPadding As Integer = 5
-        Private pTopPadding As Integer = 5
+        Private pTopPadding As Integer = -10
         Private pBottomPadding As Integer = 5
         Private pViewportWidth As Integer = 0
         Private pViewportHeight As Integer = 0
@@ -267,6 +267,8 @@ Namespace Editors
         Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
         Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
         Public Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestGotoDefinition
+        Public Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext) Implements IEditor.CodeSenseRequested
+        Public Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs) Implements IEditor.CodeSenseCancelled
  
         ''' <summary>
         ''' Raised when the navigation dropdowns need to be updated due to cursor context change
@@ -527,6 +529,9 @@ Namespace Editors
         
                 ' Initialize context menus
                 InitializeContextMenus()
+
+                ' Initialize visual line map
+                RebuildVisualLineMap()
 
                 ' Update scrollbars
                 UpdateScrollbars()
@@ -1011,6 +1016,12 @@ Namespace Editors
                 ' Notify that parsing is complete (raises DocumentParsed event)
                 NotifyParsingComplete()
                 
+                ' Restore folding state from persistence
+                ApplyFoldingState()
+                
+                ' Rebuild visual line map with new syntax tree
+                RebuildVisualLineMap()
+                
                 ' Queue redraw to show the updated colors
                 pDrawingArea?.QueueDraw()
                 
@@ -1202,6 +1213,7 @@ Namespace Editors
                 
                 ' Update UI components
                 UpdateLineNumberWidth()
+                RebuildVisualLineMap() ' Rebuild map as line counts/content changed
                 UpdateScrollbars()
                 
                 ' Queue redraw
@@ -1284,6 +1296,37 @@ Namespace Editors
             End Try
         End Sub
     
+        ''' <summary>
+        ''' Gets the absolute screen position of the cursor (in pixels)
+        ''' </summary>
+        Public Function GetCursorScreenPosition() As Gdk.Point Implements IEditor.GetCursorScreenPosition
+            Try
+                If pDrawingArea Is Nothing OrElse Not pDrawingArea.IsRealized OrElse pDrawingArea.GdkWindow Is Nothing Then
+                    Return New Gdk.Point(0, 0)
+                End If
+                
+                ' Get origin of the window on screen
+                Dim lOriginX, lOriginY As Integer
+                pDrawingArea.GdkWindow.GetOrigin(lOriginX, lOriginY)
+                
+                ' Calculate local coordinates of cursor
+                ' Relative to the drawing area's top-left corner
+                Dim lCursorX As Integer = pLeftPadding + ((pCursorColumn - pFirstVisibleColumn) * pCharWidth)
+                
+                ' If LineNumbers are visible (in column 0), our drawing area is in column 1
+                ' But pDrawingArea represents just the editor canvas, so local 0,0 is start of text calculation
+                
+                Dim lCursorY As Integer = pTopPadding + ((pCursorLinep - pFirstVisibleLine + 1) * pLineHeight)
+                
+                ' Add origin to local coordinates
+                Return New Gdk.Point(lOriginX + lCursorX, lOriginY + lCursorY)
+                
+            Catch ex As Exception
+                Console.WriteLine($"GetCursorScreenPosition error: {ex.Message}")
+                Return New Gdk.Point(0, 0)
+            End Try
+        End Function
+        
     End Class
     
 End Namespace

@@ -28,6 +28,7 @@ Namespace Models
 								''' </remarks>
 								Public Sub InsertCharacter(vLine As Integer, vColumn As Integer, vChar As Char)
 								    Try
+								        SyncLock pSyncRoot
 								        ' Validate line
 								        If vLine < 0 OrElse vLine >= TextLines.Count Then
 								            Console.WriteLine($"InsertCharacter: Invalid line {vLine}")
@@ -134,6 +135,7 @@ Namespace Models
 								        ' This will happen in the background without disrupting the UI
 								        RequestAsyncParse()
 								        
+								    End SyncLock
 								    Catch ex As Exception
 								        Console.WriteLine($"InsertCharacter error: {ex.Message}")
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
@@ -151,6 +153,7 @@ Namespace Models
 								''' </remarks>
 								Public Sub DeleteCharacter(vLine As Integer, vColumn As Integer)
 								    Try
+								        SyncLock pSyncRoot
 								        ' Validate line and column
 								        If vLine < 0 OrElse vLine >= TextLines.Count Then
 								            Console.WriteLine($"DeleteCharacter: Invalid line {vLine}")
@@ -248,6 +251,7 @@ Namespace Models
 								        ' This will happen in the background without disrupting the UI
 								        RequestAsyncParse()
 								        
+								    End SyncLock
 								    Catch ex As Exception
 								        Console.WriteLine($"DeleteCharacter error: {ex.Message}")
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
@@ -267,6 +271,7 @@ Namespace Models
         ''' </remarks>
         Public Sub InsertText(vLine As Integer, vColumn As Integer, vText As String)
             Try
+            SyncLock pSyncRoot
                 If String.IsNullOrEmpty(vText) Then Return
                 If vLine < 0 OrElse vLine >= TextLines.Count Then
                     Console.WriteLine($"InsertText: Invalid line {vLine}")
@@ -285,6 +290,7 @@ Namespace Models
                     InsertSingleLineTextInternal(vLine, vColumn, vText)
                 End If
                 
+            End SyncLock
             Catch ex As Exception
                 Console.WriteLine($"InsertText error: {ex.Message}")
             End Try
@@ -304,6 +310,7 @@ Namespace Models
         Public Sub DeleteText(vStartLine As Integer, vStartColumn As Integer, 
                             vEndLine As Integer, vEndColumn As Integer)
             Try
+            SyncLock pSyncRoot
                 ' Validate range
                 If vStartLine < 0 OrElse vStartLine >= TextLines.Count Then
                     Console.WriteLine($"DeleteText: Invalid start line {vStartLine}")
@@ -352,15 +359,15 @@ Namespace Models
                     
                     ' Update the line
                     pTextLines(vStartLine) = lNewLine
-                   
-                    SetLineMetadataAndCharacterTokens(lLine)
-                    
+
+                    SetLineMetadataAndCharacterTokens(vStartLine)
+
                     ' Update state
                     pIsModified = True
                     pNeedsParsing = True
-                    
+
                     ' Raise event
-                    RaiseTextChangedEvent(TextChangeType.eLineModified, lLine, lLine, 1)
+                    RaiseTextChangedEvent(TextChangeType.eLineModified, vStartLine, vStartLine, 1)
 
                     'DeleteSingleLineTextInternal(vStartLine, vStartColumn, vEndColumn)
                 Else
@@ -368,6 +375,7 @@ Namespace Models
                     DeleteMultiLineTextInternal(vStartLine, vStartColumn, vEndLine, vEndColumn)
                 End If
                 
+            End SyncLock
             Catch ex As Exception
                 Console.WriteLine($"DeleteText error: {ex.Message}")
             End Try
@@ -383,6 +391,7 @@ Namespace Models
 								''' </remarks>
 								Public Sub SetLineMetadataAndCharacterTokens(vLineIndex As Integer)
 								    Try
+								        SyncLock pSyncRoot
 								        Console.WriteLine("SourceFileInfo.SetLineMetadataAndCharacterTokens called")
                 ' Validate line index
 								        If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
@@ -489,6 +498,7 @@ Namespace Models
 								            RequestAsyncParse()
 								        End If
 								        
+								    End SyncLock
 								    Catch ex As Exception
 								        Console.WriteLine($"SetLineMetadataAndCharacterTokens error: {ex.Message}")
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
@@ -517,6 +527,7 @@ Namespace Models
         ''' Atomic method to delete a line
         ''' </summary>
         Public Sub DeleteLine(vLineIndex As Integer)
+            SyncLock pSyncRoot
             ' Validate index
             If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
             
@@ -553,6 +564,7 @@ Namespace Models
                 Next
                 ReDim Preserve pCharacterTokens(Math.Max(0, pCharacterTokens.Length - 2))
             End If
+            End SyncLock
         End Sub   
 
         Public Sub InsertLine(vLineIndex As Integer, vLineText As String)

@@ -173,11 +173,12 @@ Namespace Editors
                 
                 ' Calculate line from Y coordinate
                 ' First subtract top padding to get the actual text area Y
-                Dim lTextAreaY As Double = vY - pTopPadding
+                Dim lTextAreaY As Double = vY - pTopPadding +10
                 
                 ' Y is in widget space, so divide by line height and add first visible line
+                ' Use CInt(Math.Floor(...)) to ensure truncation, not rounding
                 Dim lWidgetLine As Integer = CInt(Math.Floor(lTextAreaY / pLineHeight))
-                Dim lLine As Integer = lWidgetLine + pFirstVisibleLine
+                Dim lLine As Integer = lWidgetLine + pFirstVisibleLine - 1
                 
                 ' Clamp to valid range
                 lLine = Math.Max(0, Math.Min(lLine, pLineCount - 1))
@@ -202,6 +203,14 @@ Namespace Editors
                 Else
                     lColumn = 0
                 End If
+
+                ' DEBUG LOGGING
+                Try
+                    Using writer As New System.IO.StreamWriter("/home/jamesp/.gemini/debug_mouse.log", True)
+                        writer.WriteLine($"[{DateTime.Now}] Click: X={vX:F1}, Y={vY:F1}, Padding={pTopPadding}, LineHeight={pLineHeight}, TextAreaY={lTextAreaY:F1}, WidgetLine={lWidgetLine}, Line={lLine}")
+                    End Using
+                Catch
+                End Try
                 
                 Return New EditorPosition(lLine, lColumn)
                 
@@ -219,16 +228,16 @@ Namespace Editors
         Private Function GetLineFromY(vY As Double) As Integer
             Try
                 ' CRITICAL FIX: When called from line number area events,
-                ' the Y coordinate is relative to the line number widget (starts at 0),
-                ' NOT the drawing area. We should NOT subtract pTopPadding here.
+                ' the Y coordinate is relative to the line number widget (starts at 0).
+                ' We MUST subtract pTopPadding because the drawing logic uses it.
+                ' If pTopPadding is -10, drawing starts at -10.
+                ' If we click at 5, relative to drawing start (-10) it is 15.
+                ' So we need (vY - pTopPadding) / pLineHeight.
                 
-                ' The line number area is a separate widget with its own coordinate system.
-                ' Y=0 is the top of the line number area widget.
-                ' We need to account for scrolling but NOT padding.
+                Dim lTextAreaY As Double = vY - pTopPadding
                 
                 ' Calculate which line this Y coordinate represents
-                ' Directly divide by line height without subtracting padding
-                Dim lWidgetLine As Integer = CInt(Math.Floor(vY / pLineHeight))
+                Dim lWidgetLine As Integer = CInt(Math.Floor(lTextAreaY / pLineHeight))
                 
                 ' Add the first visible line to account for vertical scrolling
                 Dim lLine As Integer = lWidgetLine + pFirstVisibleLine

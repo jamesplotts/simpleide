@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <RootNamespace>SimpleIDE</RootNamespace>
     <AssemblyName>SimpleIDE</AssemblyName>
     <StartupObject>SimpleIDE.Program</StartupObject>
@@ -79,6 +80,7 @@
     <Compile Include="Editors/CustomDrawingEditor.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Clipboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Codesense.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.CodeSenseTrigger.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Colors.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Comment.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ContextMenu.vb" />
@@ -88,6 +90,7 @@
     <Compile Include="Editors/CustomDrawingEditor.DragDrop.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Drawing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.Folding.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
@@ -142,6 +145,7 @@
     <Compile Include="Managers/AssemblyVersionManager.vb" />
     <Compile Include="Managers/BottomPanelManager.vb" />
     <Compile Include="Managers/BuildManager.vb" />
+    <Compile Include="Managers/CodeSenseManager.vb" />
     <Compile Include="Managers/CredentialManager.vb" />
     <Compile Include="Managers/GitManager.vb" />
     <Compile Include="Managers/ProjectInfo.vb" />

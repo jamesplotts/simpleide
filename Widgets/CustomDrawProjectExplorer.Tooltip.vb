@@ -125,9 +125,7 @@ Namespace Widgets
                 Dim lMonitorRight As Integer = lMonitorGeometry.X + lMonitorGeometry.Width
                 Dim lMonitorBottom As Integer = lMonitorGeometry.Y + lMonitorGeometry.Height
                 
-                pTooltipWindow.ShowAll()
-                
-                ' Get tooltip size after showing
+                ' Get tooltip size BEFORE showing to calculate position
                 Dim lRequisition As Requisition = Nothing
                 pTooltipWindow.GetPreferredSize(lRequisition, lRequisition)
                 
@@ -150,7 +148,9 @@ Namespace Widgets
                     lTooltipY = lMonitorTop + 10
                 End If
                 
+                ' Move first, THEN show
                 pTooltipWindow.Move(lTooltipX, lTooltipY)
+                pTooltipWindow.ShowAll()
                 
                 Return False  ' Don't repeat - timer is auto-removed
                 

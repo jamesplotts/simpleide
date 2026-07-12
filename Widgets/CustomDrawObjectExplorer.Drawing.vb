@@ -575,6 +575,8 @@ Namespace Widgets
                         Return "application-x-addon-symbolic"
                     Case CodeNodeType.eMethod, CodeNodeType.eFunction
                         Return "system-run-symbolic"
+                    Case CodeNodeType.eDeclare
+                        Return "network-transmit-receive-symbolic"
                     Case CodeNodeType.eProperty
                         Return "document-properties-symbolic"
                     Case CodeNodeType.eField
@@ -642,7 +644,7 @@ Namespace Widgets
                     Case CodeNodeType.eEnum
                         lColor = If(lIsDark, HexToCairoColor("#F72585"), HexToCairoColor("#B5179E"))  ' Magenta for enums
                         
-                    Case CodeNodeType.eMethod, CodeNodeType.eFunction
+                    Case CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eDeclare
                         lColor = If(lIsDark, HexToCairoColor("#DCDCAA"), HexToCairoColor("#795E26"))  ' Yellow/Brown for methods
                         
                     Case CodeNodeType.eProperty

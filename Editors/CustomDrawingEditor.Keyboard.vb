@@ -259,10 +259,12 @@ Namespace Editors
                         Return True
                         
                     Case Gdk.Key.Escape
-                        ' Clear selection on Escape
+                        ' Clear selection and Cancel CodeSense
                         ClearSelection()
+                        CancelCodeSense()
                         vArgs.RetVal = True
                         Return True
+
                         
                     Case Gdk.Key.Insert
                         ' Toggle insert/overwrite mode
@@ -282,6 +284,9 @@ Namespace Editors
                     Case Gdk.Key.BackSpace
                         If Not pIsReadOnly Then
                             HandleBackspace()
+
+                            ' UPDATE CODESENSE
+                            HandleBackspaceForCodeSense()
                         End If
                         vArgs.RetVal = True
                         Return True
@@ -319,6 +324,9 @@ Namespace Editors
                             
                             ' Move cursor forward
                             SetCursorPosition(pCursorLine, pCursorColumn + 1)
+
+                            ' CHECK FOR CODESENSE TRIGGERS
+                            CheckCodeSenseTrigger(lChar)
                             
                             ' Track modification
                             OnTextModified()

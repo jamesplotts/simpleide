@@ -36,8 +36,29 @@ Namespace Models
         Private pParseErrors As List(Of ParseError)
         Private pKeywordCaseMap As Dictionary(Of String, String) = Nothing
         Private pIdentifierCaseMap As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)  
+        Private pFoldingState As New Dictionary(Of String, Boolean)()
         Public Property ProjectRootNamespace As String = ""
         Public ProjectManager As ProjectManager
+
+        ''' <summary>
+        ''' Guards pTextLines/pLineMetadata/pCharacterTokens against concurrent structural
+        ''' mutation by the UI-thread atomic text operations and background parse tasks
+        ''' </summary>
+        Private ReadOnly pSyncRoot As New Object()
+
+        ''' <summary>
+        ''' Gets the lock object that guards TextLines/LineMetadata/CharacterTokens
+        ''' </summary>
+        ''' <remarks>
+        ''' Background parse code (e.g. ProjectManager.Parser) must SyncLock this while
+        ''' reading TextLines or writing LineMetadata/CharacterTokens, matching the locking
+        ''' done inside the atomic text operations, to avoid racing with UI-thread edits.
+        ''' </remarks>
+        Public ReadOnly Property SyncRoot As Object
+            Get
+                Return pSyncRoot
+            End Get
+        End Property
 
         ''' <summary>
         ''' Gets or sets the complete text content of the file
@@ -360,6 +381,15 @@ Namespace Models
             Set(value As SyntaxNode)
                 pSyntaxTree = value
             End Set
+        End Property
+        
+        ''' <summary>
+        ''' Gets the folding state dictionary (Key: Node Path, Value: IsExpanded)
+        ''' </summary>
+        Public ReadOnly Property FoldingState As Dictionary(Of String, Boolean)
+            Get
+                Return pFoldingState
+            End Get
         End Property
         
         ''' <summary>

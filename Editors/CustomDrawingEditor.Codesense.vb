@@ -60,6 +60,13 @@ Namespace Editors
                 Console.WriteLine($"CancelCodeSense error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Sets the CodeSense active state from external source (MainWindow)
+        ''' </summary>
+        Public Sub SetCodeSenseActive(vActive As Boolean)
+            pCodeSenseActive = vActive
+        End Sub
         
         ' Create the CodeSense popup
         Private Sub CreateCodeSensePopup()

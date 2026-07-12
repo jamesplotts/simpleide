@@ -751,34 +751,28 @@ End Function
             Try
                 If vFile Is Nothing OrElse vParseResult Is Nothing Then Return
                 If vParseResult.LineMetadata Is Nothing Then Return
-                
-                Dim lLineCount As Integer = vFile.TextLines.Count
-                
-                ' CRITICAL FIX: Only update LineMetadata for lines that were actually parsed
-                ' Don't overwrite metadata for unchanged lines
-                for i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
-                    ' Only update if the parse result has metadata for this line
-                    If vParseResult.LineMetadata(i) IsNot Nothing Then
-                        ' Check if this line was actually parsed (has new tokens)
-                        ' Compare with existing to see if it's actually new
-                        Dim lExistingMetadata As LineMetadata = vFile.LineMetadata(i)
+
+                SyncLock vFile.SyncRoot
+                    Dim lLineCount As Integer = vFile.TextLines.Count
+
+                    ' ParseFileContent always performs a full, fresh parse of every line (see
+                    ' ParseFileContent: every LineMetadata entry it produces has ParseState = eParsed),
+                    ' so any freshly parsed line's metadata should simply replace the prior metadata.
+                    ' A ParseState-based gate here would (and previously did) permanently block a line's
+                    ' metadata from ever being refreshed again after its first successful parse.
+                    for i As Integer = 0 To Math.Min(lLineCount - 1, vParseResult.LineMetadata.Length - 1)
                         Dim lNewMetadata As LineMetadata = vParseResult.LineMetadata(i)
-                        
-                        ' Only replace if it's truly new parsed data
-                        If lNewMetadata.ParseState = LineParseState.eParsed AndAlso
-                           (lExistingMetadata Is Nothing OrElse 
-                            lExistingMetadata.ParseState = LineParseState.eUnparsed OrElse
-                            lExistingMetadata.ParseState = LineParseState.eUnspecified) Then
+                        If lNewMetadata IsNot Nothing Then
                             vFile.LineMetadata(i) = lNewMetadata
                         End If
-                    End If
-                Next
-                
-                ' Update character tokens from the parsed metadata
-                UpdateCharacterTokens(vFile)
-                
+                    Next
+
+                    ' Update character tokens from the parsed metadata
+                    UpdateCharacterTokens(vFile)
+                End SyncLock
+
                 Console.WriteLine($"UpdateSourceFileMetadata: Updated metadata and tokens for {vFile.FileName}")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"UpdateSourceFileMetadata error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
@@ -797,14 +791,21 @@ End Function
             Try
                 Dim lResult As New ParseResult()
                 lResult.FilePath = vFile.FilePath
-                
-                ' Initialize LineMetadata array
-                Dim lLineCount As Integer = vFile.TextLines.Count
+
+                ' Snapshot TextLines under lock (briefly) so a concurrent UI-thread edit can't
+                ' structurally resize the list (Insert/RemoveAt) while we're indexing into it;
+                ' the rest of the parse below runs unlocked against this local copy so we don't
+                ' hold the lock for the whole (potentially slow) tokenize/parse pass.
+                Dim lLines As New List(Of String)
+                SyncLock vFile.SyncRoot
+                    lLines.AddRange(vFile.TextLines)
+                End SyncLock
+                Dim lLineCount As Integer = lLines.Count
                 ReDim lResult.LineMetadata(Math.Max(0, lLineCount - 1))
-                
+
                 ' Parse each line
                 for i As Integer = 0 To lLineCount - 1
-                    Dim lLineText As String = vFile.TextLines(i)
+                    Dim lLineText As String = lLines(i)
                     Dim lMetadata As New LineMetadata()
                     
                     ' Tokenize the line (without colors)
@@ -819,8 +820,10 @@ End Function
                 
                 ' Parse overall structure for SyntaxNode tree
                 If Parser IsNot Nothing Then
-                    ' ParseContent only takes 2 parameters: content and filepath
-                    Dim lSyntaxNode As SyntaxNode = Parser.ParseContent(vFile.TextContent, vFile.FilePath)
+                    ' Use the snapshot rather than vFile.TextContent so this doesn't re-read
+                    ' pTextLines unlocked (see snapshot note above)
+                    Dim lSnapshotContent As String = String.Join(Environment.NewLine, lLines)
+                    Dim lSyntaxNode As SyntaxNode = Parser.ParseContent(lSnapshotContent, vFile.FilePath)
                     If lSyntaxNode IsNot Nothing Then
                         lResult.RootNode = lSyntaxNode
                         
@@ -929,45 +932,50 @@ End Function
                     'Console.WriteLine($"UpdateCharacterTokens: File or LineMetadata is Nothing")
                     Return
                 End If
-                
-                'Console.WriteLine($"UpdateCharacterTokens: Starting token update for {vFile.FileName}")
-                
-                ' DON'T call EnsureCharacterTokens here - it resets everything!
-                ' The tokens array should already be properly sized from text modifications
-                
-                ' Update tokens for each line
-                Dim lLineCount As Integer = vFile.TextLines.Count
-                Dim lLinesWithTokens As Integer = 0
-                
-                for i As Integer = 0 To lLineCount - 1
-                    ' Get the metadata for this line
-                    Dim lMetadata As LineMetadata = vFile.GetLineMetadata(i)
-                    
-                    If lMetadata IsNot Nothing AndAlso lMetadata.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
-                        ' Update tokens for this line
-                        vFile.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
-                        lLinesWithTokens += 1
-                    Else
-                        ' CRITICAL: Don't reset lines that have no tokens in the metadata
-                        ' They might just be unchanged lines that weren't reparsed
-                        ' Only apply defaults if the line truly has no tokens at all
-                        If i < vFile.CharacterTokens.Length AndAlso vFile.CharacterTokens(i) Is Nothing Then
-                            Dim lLineLength As Integer = vFile.TextLines(i).Length
-                            If lLineLength > 0 Then
-                                ReDim vFile.CharacterTokens(i)(lLineLength - 1)
-                                Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
-                                for j As Integer = 0 To lLineLength - 1
-                                    vFile.CharacterTokens(i)(j) = lDefaultToken
-                                Next
-                            Else
-                                vFile.CharacterTokens(i) = New Byte() {}
+
+                ' Reentrant: this is only ever called from UpdateSourceFileMetadata, which already
+                ' holds vFile.SyncRoot on this same thread; SyncLock is safe to re-acquire here too
+                ' so this method stays correct even if called directly in the future.
+                SyncLock vFile.SyncRoot
+                    'Console.WriteLine($"UpdateCharacterTokens: Starting token update for {vFile.FileName}")
+
+                    ' DON'T call EnsureCharacterTokens here - it resets everything!
+                    ' The tokens array should already be properly sized from text modifications
+
+                    ' Update tokens for each line
+                    Dim lLineCount As Integer = vFile.TextLines.Count
+                    Dim lLinesWithTokens As Integer = 0
+
+                    for i As Integer = 0 To lLineCount - 1
+                        ' Get the metadata for this line
+                        Dim lMetadata As LineMetadata = vFile.GetLineMetadata(i)
+
+                        If lMetadata IsNot Nothing AndAlso lMetadata.SyntaxTokens IsNot Nothing AndAlso lMetadata.SyntaxTokens.Count > 0 Then
+                            ' Update tokens for this line
+                            vFile.UpdateCharacterTokens(i, lMetadata.SyntaxTokens)
+                            lLinesWithTokens += 1
+                        Else
+                            ' CRITICAL: Don't reset lines that have no tokens in the metadata
+                            ' They might just be unchanged lines that weren't reparsed
+                            ' Only apply defaults if the line truly has no tokens at all
+                            If i < vFile.CharacterTokens.Length AndAlso vFile.CharacterTokens(i) Is Nothing Then
+                                Dim lLineLength As Integer = vFile.TextLines(i).Length
+                                If lLineLength > 0 Then
+                                    ReDim vFile.CharacterTokens(i)(lLineLength - 1)
+                                    Dim lDefaultToken As Byte = CharacterToken.CreateDefault()
+                                    for j As Integer = 0 To lLineLength - 1
+                                        vFile.CharacterTokens(i)(j) = lDefaultToken
+                                    Next
+                                Else
+                                    vFile.CharacterTokens(i) = New Byte() {}
+                                End If
                             End If
                         End If
-                    End If
-                Next
-                
-                'Console.WriteLine($"UpdateCharacterTokens: Updated {lLinesWithTokens} lines with syntax tokens")
-                
+                    Next
+
+                    'Console.WriteLine($"UpdateCharacterTokens: Updated {lLinesWithTokens} lines with syntax tokens")
+                End SyncLock
+
             Catch ex As Exception
                 Console.WriteLine($"UpdateCharacterTokens error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")

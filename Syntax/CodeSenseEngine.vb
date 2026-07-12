@@ -78,6 +78,7 @@ Namespace Syntax
         Private pKeywordSuggestions As List(Of CodeSenseSuggestion)
         Private pLastUpdateTime As DateTime = DateTime.MinValue
         Private pDisposed As Boolean = False
+        Private pCurrentContext As CodeSenseContext ' Store current context for access in sub-methods
         
         ' ===== Events =====
         
@@ -638,34 +639,65 @@ Namespace Syntax
         ''' <returns>List of code completion suggestions</returns>
         Public Function GetSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             Try
+                pCurrentContext = vContext
                 Dim lSuggestions As New List(Of CodeSenseSuggestion)()
-                
+
                 ' Determine what kind of suggestions to provide
                 Select Case vContext.TriggerKind
                     Case CodeSenseTriggerKind.eDot
                         lSuggestions = GetMemberSuggestions(vContext)
-                        
+
                     Case CodeSenseTriggerKind.eSpace
                         lSuggestions = GetContextualSuggestions(vContext)
-                        
+
                     Case CodeSenseTriggerKind.eOpenParen
                         lSuggestions = GetParameterHints(vContext)
-                        
+
                     Case CodeSenseTriggerKind.eManual
                         lSuggestions = GetGeneralSuggestions(vContext)
-                        
+
                     Case Else
                         lSuggestions = GetGeneralSuggestions(vContext)
                 End Select
-                
+
+                ' Filter by whatever the user has typed so far, so the popup narrows as they type
+                ' instead of always showing the full unfiltered candidate set
+                Dim lFilterText As String = If(Not String.IsNullOrEmpty(vContext.CurrentWord), vContext.CurrentWord, vContext.Prefix)
+                lSuggestions = FilterSuggestionsByPrefix(lSuggestions, lFilterText)
+
                 ' Sort suggestions by relevance
                 lSuggestions.Sort(AddressOf CompareSuggestions)
-                
+
                 Return lSuggestions
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetSuggestions error: {ex.Message}")
                 Return New List(Of CodeSenseSuggestion)()
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Filters suggestions to those whose Text starts with the given filter text
+        ''' </summary>
+        ''' <param name="vSuggestions">Unfiltered suggestion list</param>
+        ''' <param name="vFilterText">Text typed so far (case-insensitive, VB.NET identifiers are case-insensitive); empty means no filtering</param>
+        ''' <returns>The filtered list, or the original list unchanged if vFilterText is empty</returns>
+        Private Function FilterSuggestionsByPrefix(vSuggestions As List(Of CodeSenseSuggestion), vFilterText As String) As List(Of CodeSenseSuggestion)
+            Try
+                If String.IsNullOrEmpty(vFilterText) OrElse vSuggestions Is Nothing Then Return vSuggestions
+
+                Dim lFiltered As New List(Of CodeSenseSuggestion)()
+                for each lSuggestion in vSuggestions
+                    If lSuggestion.Text IsNot Nothing AndAlso lSuggestion.Text.StartsWith(vFilterText, StringComparison.OrdinalIgnoreCase) Then
+                        lFiltered.Add(lSuggestion)
+                    End If
+                Next
+
+                Return lFiltered
+
+            Catch ex As Exception
+                Console.WriteLine($"FilterSuggestionsByPrefix error: {ex.Message}")
+                Return vSuggestions
             End Try
         End Function
         
@@ -819,15 +851,28 @@ Namespace Syntax
                     Return lSuggestions
                 End If
                 
-                ' Try to find the node in our syntax trees
-                Dim lNode As SyntaxNode = FindNodeByName(lTarget)
+                Dim lNode As SyntaxNode = Nothing
+                
+                ' Handle "Me" keyword
+                If lTarget.Equals("Me", StringComparison.OrdinalIgnoreCase) Then
+                    ' Find the containing class from the context
+                    If pCurrentSyntaxTree IsNot Nothing Then
+                        lNode = FindContainingClass(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
+                    End If
+                Else
+                    ' Try to find the node in our syntax trees
+                    lNode = FindNodeByName(lTarget)
+                End If
+                
                 If lNode IsNot Nothing Then
                     ' Add members from the node
                     AddNodeMemberSuggestions(lNode, lSuggestions)
                 End If
                 
-                ' Also check for types in referenced assemblies
-                AddTypeMemberSuggestions(lTarget, lSuggestions)
+                ' Also check for types in referenced assemblies (only if not Me for now)
+                If Not lTarget.Equals("Me", StringComparison.OrdinalIgnoreCase) Then
+                     AddTypeMemberSuggestions(lTarget, lSuggestions)
+                End If
                 
                 Return lSuggestions
                 
@@ -957,12 +1002,183 @@ Namespace Syntax
         ''' </summary>
         Private Sub AddTypeMemberSuggestions(vTypeName As String, vSuggestions As List(Of CodeSenseSuggestion))
             Try
-                ' TODO: Implement reflection-based member suggestions
+                ' Iterate through referenced assemblies
+                If pProjectReferences Is Nothing Then Return
+                
+                For Each lAssembly As Assembly In pProjectReferences
+                    ' Check 1: Exact Type match
+                    Dim lType As Type = lAssembly.GetType(vTypeName, False, True)
+                    
+                    ' Check 2: Try checking for System.TypeName if not found (e.g. Console -> System.Console)
+                    If lType Is Nothing AndAlso Not vTypeName.Contains(".") Then
+                        lType = lAssembly.GetType("System." & vTypeName, False, True)
+                    End If
+                    
+                     ' Check 3: Check against Imports
+                    If lType Is Nothing AndAlso pCurrentContext?.ImportsContext IsNot Nothing Then
+                        For Each lImport As String In pCurrentContext.ImportsContext
+                            lType = lAssembly.GetType(lImport & "." & vTypeName, False, True)
+                            If lType IsNot Nothing Then Exit For
+                        Next
+                    End If
+                    
+                    If lType IsNot Nothing Then
+                        ' Found the type, add its members
+                        AddMemberSuggestionsFromType(lType, vSuggestions)
+                        Exit For
+                    Else
+                        ' Check 4: Check if vTypeName is a Namespace
+                        ' Since Namespaces aren't Types, we have to scan exported types to see if they belong to this namespace
+                        Dim lFoundNamespace As Boolean = False
+                        Dim lNamespacePrefix As String = vTypeName & "."
+                        
+                        ' Also check if vTypeName is a child namespace of an Import
+                        Dim lNamespaceOptions As New List(Of String)
+                        lNamespaceOptions.Add(vTypeName)
+                         If pCurrentContext?.ImportsContext IsNot Nothing Then
+                            For Each lImport As String In pCurrentContext.ImportsContext
+                                lNamespaceOptions.Add(lImport & "." & vTypeName)
+                            Next
+                        End If
+                        
+                        For Each lExportedType As Type In lAssembly.GetExportedTypes()
+                            For Each lNamespaceCheck As String In lNamespaceOptions
+                                If lExportedType.Namespace IsNot Nothing AndAlso 
+                                   (lExportedType.Namespace.Equals(lNamespaceCheck, StringComparison.OrdinalIgnoreCase) OrElse 
+                                    lExportedType.Namespace.StartsWith(lNamespaceCheck & ".", StringComparison.OrdinalIgnoreCase)) Then
+                                    
+                                    ' Found a match!
+                                    ' If exact namespace match, add Type
+                                    If lExportedType.Namespace.Equals(lNamespaceCheck, StringComparison.OrdinalIgnoreCase) Then
+                                         Dim lSuggestion As New CodeSenseSuggestion()
+                                        lSuggestion.Text = lExportedType.Name
+                                        lSuggestion.Kind = If(lExportedType.IsInterface, CodeSenseSuggestionKind.eInterface, 
+                                                              If(lExportedType.IsEnum, CodeSenseSuggestionKind.eSnippet, CodeSenseSuggestionKind.eClass))
+                                        lSuggestion.Icon = If(lExportedType.IsInterface, "interface", 
+                                                              If(lExportedType.IsEnum, "enum", "class"))
+                                        lSuggestion.Description = lExportedType.FullName
+                                        
+                                        ' Add unique
+                                        If Not vSuggestions.Any(Function(s) s.Text = lSuggestion.Text) Then
+                                            vSuggestions.Add(lSuggestion)
+                                        End If
+                                    
+                                    Else
+                                        ' Child namespace
+                                        ' Extract the immediate child name
+                                        ' e.g. looking for "System", found "System.Collections.Generic.List"
+                                        ' We want "Collections"
+                                        
+                                        Dim lRemaining As String = lExportedType.Namespace.Substring(lNamespaceCheck.Length + 1)
+                                        Dim lLimit As Integer = lRemaining.IndexOf(".")
+                                        Dim lChildNs As String = If(lLimit > 0, lRemaining.Substring(0, lLimit), lRemaining)
+                                        
+                                        Dim lSuggestion As New CodeSenseSuggestion()
+                                        lSuggestion.Text = lChildNs
+                                        lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
+                                        lSuggestion.Icon = "namespace"
+                                        lSuggestion.Description = "Namespace " & lChildNs
+                                        
+                                        If Not vSuggestions.Any(Function(s) s.Text = lSuggestion.Text) Then
+                                            vSuggestions.Add(lSuggestion)
+                                        End If
+                                    End If
+                                    
+                                    lFoundNamespace = True
+                                End If
+                            Next
+                        Next
+                    End If
+                Next
                 
             Catch ex As Exception
                 Console.WriteLine($"AddTypeMemberSuggestions error: {ex.Message}")
             End Try
         End Sub
+        
+        Private Sub AddMemberSuggestionsFromType(vType As Type, vSuggestions As List(Of CodeSenseSuggestion))
+            For Each lMember As MemberInfo In vType.GetMembers(BindingFlags.Public Or BindingFlags.Instance Or BindingFlags.Static)
+                
+                ' Filter out "special" names (internal getters/setters/constructors usually)
+                If lMember.Name.StartsWith("get_") OrElse lMember.Name.StartsWith("set_") OrElse lMember.Name.StartsWith(".ctor") Then
+                    Continue For
+                End If
+                
+                Dim lSuggestion As New CodeSenseSuggestion()
+                lSuggestion.Text = lMember.Name
+                
+                Select Case lMember.MemberType
+                    Case MemberTypes.Method
+                        lSuggestion.Kind = CodeSenseSuggestionKind.eMethod
+                        lSuggestion.Icon = "method"
+                        lSuggestion.Description = "Method " & lMember.Name
+                        
+                    Case MemberTypes.Property
+                        lSuggestion.Kind = CodeSenseSuggestionKind.eProperty
+                        lSuggestion.Icon = "property"
+                        lSuggestion.Description = "Property " & lMember.Name
+                        
+                    Case MemberTypes.Field
+                        lSuggestion.Kind = CodeSenseSuggestionKind.eField
+                        lSuggestion.Icon = "field"
+                        lSuggestion.Description = "Field " & lMember.Name
+                        
+                    Case MemberTypes.Event
+                        lSuggestion.Kind = CodeSenseSuggestionKind.eEvent
+                        lSuggestion.Icon = "event"
+                        lSuggestion.Description = "Event " & lMember.Name
+                End Select
+                
+                ' Avoid duplicates
+                Dim lFound As Boolean = False
+                For Each lExist In vSuggestions
+                    If lExist.Text = lSuggestion.Text Then
+                        lFound = True
+                        Exit For
+                    End If
+                Next
+                
+                If Not lFound AndAlso lSuggestion.Icon <> "" Then
+                    vSuggestions.Add(lSuggestion)
+                End If
+            Next
+        End Sub
+        
+        ''' <summary>
+        ''' Parse Imports statements from text
+        ''' </summary>
+        Public Function ParseImports(vText As String) As List(Of String)
+            Dim lImports As New List(Of String)()
+            Try
+                Dim lLines = vText.Split(New Char() {vbLf, vbCr}, StringSplitOptions.RemoveEmptyEntries)
+                
+                ' Only check first 50 lines for optimization
+                Dim lLimit As Integer = Math.Min(lLines.Length - 1, 50)
+                
+                For i As Integer = 0 To lLimit
+                    Dim lLine = lLines(i).Trim()
+                    If lLine.StartsWith("Imports ", StringComparison.OrdinalIgnoreCase) Then
+                        Dim lNs = lLine.Substring(8).Trim()
+                        If Not String.IsNullOrEmpty(lNs) Then
+                            lImports.Add(lNs)
+                        End If
+                    ElseIf Not lLine.StartsWith("'") AndAlso Not String.IsNullOrEmpty(lLine) AndAlso Not lLine.StartsWith("Option ") Then
+                         ' Stop at first real code line (Class, Module, Namespace, etc.)
+                         ' But be lenient with comments and Option statements
+                         If lLine.StartsWith("Class ") OrElse lLine.StartsWith("Module ") OrElse lLine.StartsWith("Namespace ") OrElse lLine.StartsWith("Public ") Then
+                            ' Usually imports are at top, but can be inside namespaces. 
+                            ' For now, just top level.
+                             Exit For
+                         End If
+                    End If
+                Next
+            Catch ex As Exception
+                Console.WriteLine($"ParseImports error: {ex.Message}")
+            End Try
+            Return lImports
+        End Function
+        
+
         
         ''' <summary>
         ''' Add types available in current scope
@@ -1092,6 +1308,58 @@ Namespace Syntax
                 
             Catch ex As Exception
                 Console.WriteLine($"FindNodeByName error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+        
+        ''' <summary>
+        ''' Find the class containing the specified line
+        ''' </summary>
+        Private Function FindContainingClass(vNode As SyntaxNode, vLine As Integer) As SyntaxNode
+            Try
+                If vNode Is Nothing Then Return Nothing
+                
+                ' Check if this node is a class and contains the line
+                If vNode.NodeType = CodeNodeType.eClass OrElse vNode.NodeType = CodeNodeType.eModule Then
+                    ' Check line range if available
+                    If vNode.StartLine <= vLine AndAlso vNode.EndLine >= vLine Then
+                        ' This class/module contains the line. 
+                        ' However, there might be a nested class that is a better match.
+                        ' So we continue searching children.
+                        
+                        Dim lBetterMatch As SyntaxNode = Nothing
+                        If vNode.Children IsNot Nothing Then
+                            for each lChild in vNode.Children
+                                Dim lResult = FindContainingClass(lChild, vLine)
+                                If lResult IsNot Nothing Then
+                                    lBetterMatch = lResult
+                                    Exit For
+                                End If
+                            Next
+                        End If
+                        
+                        If lBetterMatch IsNot Nothing Then
+                            Return lBetterMatch
+                        Else
+                            Return vNode
+                        End If
+                    End If
+                End If
+                
+                ' If not a match or not a container, check children
+                If vNode.Children IsNot Nothing Then
+                    for each lChild in vNode.Children
+                        Dim lResult = FindContainingClass(lChild, vLine)
+                        If lResult IsNot Nothing Then
+                            Return lResult
+                        End If
+                    Next
+                End If
+                
+                Return Nothing
+                
+            Catch ex As Exception
+                Console.WriteLine($"FindContainingClass error: {ex.Message}")
                 Return Nothing
             End Try
         End Function

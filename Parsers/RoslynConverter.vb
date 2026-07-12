@@ -38,11 +38,15 @@ Namespace Managers
                 ' Create root node for the file
                 Dim lFileRoot As New SimpleSyntaxNode(CodeNodeType.eFile, IO.Path.GetFileName(vFilePath))
                 lFileRoot.FilePath = vFilePath
+                SetNodeLocation(lFileRoot, lRoot)
                 
                 ' Process compilation unit
                 If TypeOf lRoot Is CompilationUnitSyntax Then
                     Dim lCompilationUnit = DirectCast(lRoot, CompilationUnitSyntax)
                     ProcessCompilationUnit(lCompilationUnit, lFileRoot)
+                    
+                    ' Process regions (after building the tree so we can insert them correctly)
+                    ProcessRegions(lCompilationUnit, lFileRoot)
                 End If
                 
                 Return lFileRoot
@@ -92,8 +96,7 @@ Namespace Managers
                     )
                     
                     lImportNode.FilePath = pCurrentFilePath
-                    lImportNode.StartLine = GetLineNumber(DirectCast(vImport, RoslynSyntaxNode))
-                    lImportNode.EndLine = lImportNode.StartLine
+                    SetNodeLocation(lImportNode, DirectCast(vImport, RoslynSyntaxNode))
                     
                     vParent.AddChild(lImportNode)
                 Next
@@ -175,12 +178,18 @@ Namespace Managers
                         
                     Case SyntaxKind.EventStatement
                         ProcessEventStatement(DirectCast(vMember, EventStatementSyntax), vParent)
-                        
+
+                    Case SyntaxKind.OperatorBlock
+                        ProcessOperator(DirectCast(vMember, OperatorBlockSyntax), vParent)
+
+                    Case SyntaxKind.DeclareSubStatement, SyntaxKind.DeclareFunctionStatement
+                        ProcessDeclare(DirectCast(vMember, DeclareStatementSyntax), vParent)
+
                     Case Else
                         ' Handle other member types if needed
                         Console.WriteLine($"Unhandled member kind: {vMember.Kind()}")
                 End Select
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProcessMember error: {ex.Message}")
             End Try
@@ -227,11 +236,18 @@ Namespace Managers
                         
                     Case SyntaxKind.InterfaceBlock
                         ProcessInterface(DirectCast(vMember, InterfaceBlockSyntax), vParent)
-                        
+
+                    Case SyntaxKind.OperatorBlock
+                        ProcessOperator(DirectCast(vMember, OperatorBlockSyntax), vParent)
+
+                    Case SyntaxKind.DeclareSubStatement, SyntaxKind.DeclareFunctionStatement
+                        ProcessDeclare(DirectCast(vMember, DeclareStatementSyntax), vParent)
+
                     Case Else
                         ' Handle other member types if needed
+                        Console.WriteLine($"Unhandled type member kind: {vMember.Kind()}")
                 End Select
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProcessTypeMember error: {ex.Message}")
             End Try
@@ -248,8 +264,7 @@ Namespace Managers
                 )
                 
                 lNamespaceNode.FilePath = pCurrentFilePath
-                lNamespaceNode.StartLine = GetLineNumber(DirectCast(vNamespace, RoslynSyntaxNode))
-                lNamespaceNode.EndLine = GetLineNumber(DirectCast(vNamespace.EndNamespaceStatement, RoslynSyntaxNode))
+                SetNodeLocation(lNamespaceNode, DirectCast(vNamespace, RoslynSyntaxNode), DirectCast(vNamespace.EndNamespaceStatement, RoslynSyntaxNode))
                 
                 vParent.AddChild(lNamespaceNode)
                 
@@ -274,8 +289,7 @@ Namespace Managers
                 )
                 
                 lClassNode.FilePath = pCurrentFilePath
-                lClassNode.StartLine = GetLineNumber(DirectCast(vClass, RoslynSyntaxNode))
-                lClassNode.EndLine = GetLineNumber(DirectCast(vClass.EndClassStatement, RoslynSyntaxNode))
+                SetNodeLocation(lClassNode, DirectCast(vClass, RoslynSyntaxNode), DirectCast(vClass.EndClassStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vClass.ClassStatement.Modifiers, lClassNode)
@@ -331,8 +345,7 @@ Namespace Managers
                 )
                 
                 lModuleNode.FilePath = pCurrentFilePath
-                lModuleNode.StartLine = GetLineNumber(DirectCast(vModule, RoslynSyntaxNode))
-                lModuleNode.EndLine = GetLineNumber(DirectCast(vModule.EndModuleStatement, RoslynSyntaxNode))
+                SetNodeLocation(lModuleNode, DirectCast(vModule, RoslynSyntaxNode), DirectCast(vModule.EndModuleStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vModule.ModuleStatement.Modifiers, lModuleNode)
@@ -366,8 +379,7 @@ Namespace Managers
                 )
                 
                 lInterfaceNode.FilePath = pCurrentFilePath
-                lInterfaceNode.StartLine = GetLineNumber(DirectCast(vInterface, RoslynSyntaxNode))
-                lInterfaceNode.EndLine = GetLineNumber(DirectCast(vInterface.EndInterfaceStatement, RoslynSyntaxNode))
+                SetNodeLocation(lInterfaceNode, DirectCast(vInterface, RoslynSyntaxNode), DirectCast(vInterface.EndInterfaceStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vInterface.InterfaceStatement.Modifiers, lInterfaceNode)
@@ -412,8 +424,7 @@ Namespace Managers
                 )
                 
                 lStructureNode.FilePath = pCurrentFilePath
-                lStructureNode.StartLine = GetLineNumber(DirectCast(vStructure, RoslynSyntaxNode))
-                lStructureNode.EndLine = GetLineNumber(DirectCast(vStructure.EndStructureStatement, RoslynSyntaxNode))
+                SetNodeLocation(lStructureNode, DirectCast(vStructure, RoslynSyntaxNode), DirectCast(vStructure.EndStructureStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vStructure.StructureStatement.Modifiers, lStructureNode)
@@ -458,8 +469,7 @@ Namespace Managers
                 )
                 
                 lEnumNode.FilePath = pCurrentFilePath
-                lEnumNode.StartLine = GetLineNumber(DirectCast(vEnum, RoslynSyntaxNode))
-                lEnumNode.EndLine = GetLineNumber(DirectCast(vEnum.EndEnumStatement, RoslynSyntaxNode))
+                SetNodeLocation(lEnumNode, DirectCast(vEnum, RoslynSyntaxNode), DirectCast(vEnum.EndEnumStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vEnum.EnumStatement.Modifiers, lEnumNode)
@@ -477,8 +487,7 @@ Namespace Managers
                     )
                     
                     lMemberNode.FilePath = pCurrentFilePath
-                    lMemberNode.StartLine = GetLineNumber(DirectCast(lMember, RoslynSyntaxNode))
-                    lMemberNode.EndLine = lMemberNode.StartLine
+                    SetNodeLocation(lMemberNode, DirectCast(lMember, RoslynSyntaxNode))
                     
                     ' Extract initializer value if present
                     Dim lEnumMember = DirectCast(lMember, EnumMemberDeclarationSyntax)
@@ -505,8 +514,7 @@ Namespace Managers
                 )
                 
                 lDelegateNode.FilePath = pCurrentFilePath
-                lDelegateNode.StartLine = GetLineNumber(DirectCast(vDelegate, RoslynSyntaxNode))
-                lDelegateNode.EndLine = lDelegateNode.StartLine
+                SetNodeLocation(lDelegateNode, DirectCast(vDelegate, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vDelegate.Modifiers, lDelegateNode)
@@ -544,9 +552,58 @@ Namespace Managers
                 ExtractXmlDocumentation(DirectCast(vDelegate, RoslynSyntaxNode), lDelegateNode)
                 
                 vParent.AddChild(lDelegateNode)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProcessDelegate error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Processes a Declare Sub/Function statement (P/Invoke)
+        ''' </summary>
+        Private Sub ProcessDeclare(vDeclare As DeclareStatementSyntax, vParent As SimpleSyntaxNode)
+            Try
+                Dim lDeclareNode As New SimpleSyntaxNode(
+                    CodeNodeType.eDeclare,
+                    vDeclare.Identifier.Text
+                )
+
+                lDeclareNode.FilePath = pCurrentFilePath
+                SetNodeLocation(lDeclareNode, DirectCast(vDeclare, RoslynSyntaxNode))
+
+                ' Extract modifiers
+                ExtractModifiers(vDeclare.Modifiers, lDeclareNode)
+
+                ' Determine if it's a function or sub
+                If vDeclare.Kind() = SyntaxKind.DeclareFunctionStatement Then
+                    If vDeclare.AsClause IsNot Nothing Then
+                        lDeclareNode.ReturnType = vDeclare.AsClause.Type.ToString()
+                    Else
+                        lDeclareNode.ReturnType = "Object"
+                    End If
+                End If
+
+                ' Record the external library and entry point (Lib "..." Alias "...")
+                If vDeclare.LibraryName IsNot Nothing Then
+                    lDeclareNode.Attributes("Lib") = vDeclare.LibraryName.Token.ValueText
+                End If
+                If vDeclare.AliasName IsNot Nothing Then
+                    lDeclareNode.Attributes("Alias") = vDeclare.AliasName.Token.ValueText
+                End If
+                If vDeclare.CharsetKeyword.Kind() <> SyntaxKind.None Then
+                    lDeclareNode.Attributes("Charset") = vDeclare.CharsetKeyword.Text
+                End If
+
+                ' Extract parameters
+                ExtractParameters(vDeclare.ParameterList, lDeclareNode)
+
+                ' Extract XML documentation
+                ExtractXmlDocumentation(DirectCast(vDeclare, RoslynSyntaxNode), lDeclareNode)
+
+                vParent.AddChild(lDeclareNode)
+
+            Catch ex As Exception
+                Console.WriteLine($"ProcessDeclare error: {ex.Message}")
             End Try
         End Sub
         
@@ -575,8 +632,7 @@ Namespace Managers
                 )
                 
                 lOperatorNode.FilePath = pCurrentFilePath
-                lOperatorNode.StartLine = GetLineNumber(DirectCast(vOperator, RoslynSyntaxNode))
-                lOperatorNode.EndLine = GetLineNumber(DirectCast(vOperator.EndOperatorStatement, RoslynSyntaxNode))
+                SetNodeLocation(lOperatorNode, DirectCast(vOperator, RoslynSyntaxNode), DirectCast(vOperator.EndOperatorStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vOperator.OperatorStatement.Modifiers, lOperatorNode)
@@ -618,8 +674,7 @@ Namespace Managers
                 )
                 
                 lMethodNode.FilePath = pCurrentFilePath
-                lMethodNode.StartLine = GetLineNumber(DirectCast(vMethod, RoslynSyntaxNode))
-                lMethodNode.EndLine = GetLineNumber(DirectCast(vMethod.EndSubOrFunctionStatement, RoslynSyntaxNode))
+                SetNodeLocation(lMethodNode, DirectCast(vMethod, RoslynSyntaxNode), DirectCast(vMethod.EndSubOrFunctionStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vMethod.SubOrFunctionStatement.Modifiers, lMethodNode)
@@ -635,6 +690,9 @@ Namespace Managers
                 
                 ' Extract parameters
                 ExtractParameters(vMethod.SubOrFunctionStatement.ParameterList, lMethodNode)
+                
+                ' Extract local variables
+                ExtractLocalVariables(DirectCast(vMethod, RoslynSyntaxNode), lMethodNode)
                 
                 ' Extract XML documentation
                 ExtractXmlDocumentation(DirectCast(vMethod, RoslynSyntaxNode), lMethodNode)
@@ -657,14 +715,16 @@ Namespace Managers
                 )
                 
                 lConstructorNode.FilePath = pCurrentFilePath
-                lConstructorNode.StartLine = GetLineNumber(DirectCast(vConstructor, RoslynSyntaxNode))
-                lConstructorNode.EndLine = GetLineNumber(DirectCast(vConstructor.EndSubStatement, RoslynSyntaxNode))
+                SetNodeLocation(lConstructorNode, DirectCast(vConstructor, RoslynSyntaxNode), DirectCast(vConstructor.EndSubStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vConstructor.SubNewStatement.Modifiers, lConstructorNode)
                 
                 ' Extract parameters
                 ExtractParameters(vConstructor.SubNewStatement.ParameterList, lConstructorNode)
+                
+                ' Extract local variables
+                ExtractLocalVariables(DirectCast(vConstructor, RoslynSyntaxNode), lConstructorNode)
                 
                 ' Extract XML documentation
                 ExtractXmlDocumentation(DirectCast(vConstructor, RoslynSyntaxNode), lConstructorNode)
@@ -687,8 +747,7 @@ Namespace Managers
                 )
                 
                 lPropertyNode.FilePath = pCurrentFilePath
-                lPropertyNode.StartLine = GetLineNumber(DirectCast(vProperty, RoslynSyntaxNode))
-                lPropertyNode.EndLine = GetLineNumber(DirectCast(vProperty.EndPropertyStatement, RoslynSyntaxNode))
+                SetNodeLocation(lPropertyNode, DirectCast(vProperty, RoslynSyntaxNode), DirectCast(vProperty.EndPropertyStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vProperty.PropertyStatement.Modifiers, lPropertyNode)
@@ -736,8 +795,7 @@ Namespace Managers
                 )
                 
                 lPropertyNode.FilePath = pCurrentFilePath
-                lPropertyNode.StartLine = GetLineNumber(DirectCast(vProperty, RoslynSyntaxNode))
-                lPropertyNode.EndLine = lPropertyNode.StartLine
+                SetNodeLocation(lPropertyNode, DirectCast(vProperty, RoslynSyntaxNode))
                 lPropertyNode.IsAutoImplemented = True
                 
                 ' Extract modifiers
@@ -776,8 +834,7 @@ Namespace Managers
                 )
                 
                 lEventNode.FilePath = pCurrentFilePath
-                lEventNode.StartLine = GetLineNumber(DirectCast(vEvent, RoslynSyntaxNode))
-                lEventNode.EndLine = GetLineNumber(DirectCast(vEvent.EndEventStatement, RoslynSyntaxNode))
+                SetNodeLocation(lEventNode, DirectCast(vEvent, RoslynSyntaxNode), DirectCast(vEvent.EndEventStatement, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vEvent.EventStatement.Modifiers, lEventNode)
@@ -811,8 +868,7 @@ Namespace Managers
                 )
                 
                 lEventNode.FilePath = pCurrentFilePath
-                lEventNode.StartLine = GetLineNumber(DirectCast(vEvent, RoslynSyntaxNode))
-                lEventNode.EndLine = lEventNode.StartLine
+                SetNodeLocation(lEventNode, DirectCast(vEvent, RoslynSyntaxNode))
                 
                 ' Extract modifiers
                 ExtractModifiers(vEvent.Modifiers, lEventNode)
@@ -851,8 +907,7 @@ Namespace Managers
                         )
                         
                         lFieldNode.FilePath = pCurrentFilePath
-                        lFieldNode.StartLine = GetLineNumber(DirectCast(vField, RoslynSyntaxNode))
-                        lFieldNode.EndLine = lFieldNode.StartLine
+                        SetNodeLocation(lFieldNode, DirectCast(vField, RoslynSyntaxNode))
                         
                         ' Extract modifiers
                         ExtractModifiers(lModifiers, lFieldNode)
@@ -970,6 +1025,58 @@ Namespace Managers
         End Sub
         
         ''' <summary>
+        ''' Extract local variables from a code block
+        ''' </summary>
+        Private Sub ExtractLocalVariables(vBlock As RoslynSyntaxNode, vParent As SimpleSyntaxNode)
+            Try
+                If vBlock Is Nothing Then Return
+                
+                ' Find all local declarations in the block (including nested blocks)
+                Dim lLocalDecls = vBlock.DescendantNodes().OfType(Of LocalDeclarationStatementSyntax)()
+                
+                For Each lLocalDecl In lLocalDecls
+                    ' Extract modifiers (const, etc.)
+                    Dim lIsConst = lLocalDecl.Modifiers.Any(Function(m) m.Kind() = SyntaxKind.ConstKeyword)
+                    
+                    For Each lDeclarator In lLocalDecl.Declarators
+                        ' Get type if specified
+                        Dim lDataType As String = "Object"
+                        If lDeclarator.AsClause IsNot Nothing Then
+                            lDataType = lDeclarator.AsClause.Type.ToString()
+                        ElseIf lDeclarator.Initializer IsNot Nothing Then
+                             ' Simplistic inference or default
+                             ' We could infer from initializer kind but that requires more logic
+                             lDataType = "Object" 
+                        End If
+                        
+                        For Each lName In lDeclarator.Names
+                            Dim lVarNode As New SimpleSyntaxNode(
+                                CodeNodeType.eVariable,
+                                lName.Identifier.Text
+                            )
+                            
+                            lVarNode.FilePath = pCurrentFilePath
+                            SetNodeLocation(lVarNode, DirectCast(lLocalDecl, RoslynSyntaxNode))
+                            lVarNode.DataType = lDataType
+                            lVarNode.ReturnType = lDataType
+                            lVarNode.IsConst = lIsConst
+                            
+                            ' Handle initializer value for consts or simple inits
+                            If lDeclarator.Initializer IsNot Nothing Then
+                                lVarNode.InitialValue = lDeclarator.Initializer.Value.ToString()
+                            End If
+                            
+                            vParent.AddChild(lVarNode)
+                        Next
+                    Next
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"ExtractLocalVariables error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
         ''' Extracts XML documentation comments
         ''' </summary>
         Private Sub ExtractXmlDocumentation(vNode As RoslynSyntaxNode, vTargetNode As SimpleSyntaxNode)
@@ -979,7 +1086,7 @@ Namespace Managers
                 Dim lTrivia = vNode.GetLeadingTrivia()
                 Dim lXmlDoc As New XmlDocInfo()
                 
-                for each lTriviaItem in lTrivia
+                For Each lTriviaItem In lTrivia
                     If lTriviaItem.Kind() = SyntaxKind.DocumentationCommentExteriorTrivia Then
                         Dim lStructure = lTriviaItem.GetStructure()
                         If TypeOf lStructure Is DocumentationCommentTriviaSyntax Then
@@ -1165,19 +1272,138 @@ Namespace Managers
         Private Function GetLineNumber(vNode As RoslynSyntaxNode) As Integer
             Try
                 If vNode Is Nothing Then Return 0
-                
+
                 Dim lLocation = vNode.GetLocation()
                 If lLocation IsNot Nothing Then
                     Dim lLineSpan = lLocation.GetLineSpan()
                     Return lLineSpan.StartLinePosition.Line
                 End If
-                
+
                 Return 0
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetLineNumber error: {ex.Message}")
                 Return 0
             End Try
+        End Function
+
+        ''' <summary>
+        ''' Sets a node's full line/column span from Roslyn source locations
+        ''' </summary>
+        ''' <param name="vTargetNode">Node whose StartLine/EndLine/StartColumn/EndColumn will be set</param>
+        ''' <param name="vStartNode">Roslyn node providing the start position</param>
+        ''' <param name="vEndNode">Roslyn node providing the end position; defaults to vStartNode for single-line constructs</param>
+        ''' <remarks>
+        ''' All positions are zero-based, matching SyntaxNode.ContainsPosition()'s expectations.
+        ''' </remarks>
+        Private Sub SetNodeLocation(vTargetNode As SimpleSyntaxNode, vStartNode As RoslynSyntaxNode, Optional vEndNode As RoslynSyntaxNode = Nothing)
+            Try
+                If vTargetNode Is Nothing OrElse vStartNode Is Nothing Then Return
+                Dim lEndNode As RoslynSyntaxNode = If(vEndNode, vStartNode)
+
+                Dim lStartLocation = vStartNode.GetLocation()
+                If lStartLocation IsNot Nothing Then
+                    Dim lStartSpan = lStartLocation.GetLineSpan()
+                    vTargetNode.StartLine = lStartSpan.StartLinePosition.Line
+                    vTargetNode.StartColumn = lStartSpan.StartLinePosition.Character
+                End If
+
+                Dim lEndLocation = lEndNode.GetLocation()
+                If lEndLocation IsNot Nothing Then
+                    Dim lEndSpan = lEndLocation.GetLineSpan()
+                    vTargetNode.EndLine = lEndSpan.EndLinePosition.Line
+                    vTargetNode.EndColumn = lEndSpan.EndLinePosition.Character
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"SetNodeLocation error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Processes #Region directives and adds them to the syntax tree
+        ''' </summary>
+        Private Sub ProcessRegions(vUnit As CompilationUnitSyntax, vFileRoot As SimpleSyntaxNode)
+            Try
+                ' Find all region directives
+                Dim lTriviaList = vUnit.DescendantTrivia().Where(Function(t) t.IsKind(SyntaxKind.RegionDirectiveTrivia) OrElse t.IsKind(SyntaxKind.EndRegionDirectiveTrivia)).ToList()
+                
+                Dim lRegionStack As New Stack(Of RegionDirectiveTriviaSyntax)()
+                
+                For Each lTrivia In lTriviaList
+                    If lTrivia.IsKind(SyntaxKind.RegionDirectiveTrivia) Then
+                        ' Start of a region
+                        Dim lRegion = DirectCast(lTrivia.GetStructure(), RegionDirectiveTriviaSyntax)
+                        lRegionStack.Push(lRegion)
+                    ElseIf lTrivia.IsKind(SyntaxKind.EndRegionDirectiveTrivia) Then
+                        ' End of a region
+                        If lRegionStack.Count > 0 Then
+                            Dim lStartRegion = lRegionStack.Pop()
+                            Dim lEndRegion = DirectCast(lTrivia.GetStructure(), EndRegionDirectiveTriviaSyntax)
+                            
+                            ' Create region node
+                            Dim lRegionName As String = "Region"
+                            If lStartRegion.Name.Kind() <> SyntaxKind.None Then
+                                lRegionName = lStartRegion.Name.ToString().Trim(""""c)
+                            End If
+                            
+                            Dim lRegionNode As New SimpleSyntaxNode(CodeNodeType.eRegion, lRegionName)
+                            lRegionNode.FilePath = pCurrentFilePath
+                            SetNodeLocation(lRegionNode, lStartRegion, lEndRegion)
+                            ' lRegionNode.IsFoldable is read-only and calculated based on NodeType and line count
+                            
+                            ' Find the best parent for this region
+                            Dim lParent = FindEnclosingNode(vFileRoot, lRegionNode.StartLine, lRegionNode.EndLine)
+                            If lParent IsNot Nothing Then
+                                lParent.AddChild(lRegionNode)
+                            Else
+                                vFileRoot.AddChild(lRegionNode)
+                            End If
+                        End If
+                    End If
+                Next
+                
+            Catch ex As Exception
+                Console.WriteLine($"ProcessRegions error: {ex.Message}")
+            End Try
+        End Sub
+        
+        ''' <summary>
+        ''' Finds the smallest node that fully encloses the given line range
+        ''' </summary>
+        Private Function FindEnclosingNode(vNode As SimpleSyntaxNode, vStartLine As Integer, vEndLine As Integer) As SimpleSyntaxNode
+            If vNode Is Nothing Then Return Nothing
+            
+            ' Check if this node encloses the range (but is not the range itself, to avoid self-parenting if ranges match exactly)
+            ' Actually, regions usually sit inside a class/namespace.
+            ' We want the deepest node that fully contains the region.
+            
+            ' Iterate children to see if any child fully contains the region
+            If vNode.Children IsNot Nothing Then
+                For Each lChild As SimpleSyntaxNode In vNode.Children
+                    ' Skip regions to avoid nesting regions inside other regions unless they are strictly inside
+                    ' (Regions can nest, so we should check regions too)
+                    
+                    ' If child fully encloses the region
+                    If lChild.StartLine <= vStartLine AndAlso lChild.EndLine >= vEndLine Then
+                        ' Found a tighter enclosing node, recurse
+                        Dim lBetterParent = FindEnclosingNode(lChild, vStartLine, vEndLine)
+                        If lBetterParent IsNot Nothing Then
+                            Return lBetterParent
+                        Else
+                            Return lChild
+                        End If
+                    End If
+                Next
+            End If
+            
+            ' If no child encloses it, and this node encloses it, then this is the parent.
+            ' (The root always encloses everything)
+            If vNode.StartLine <= vStartLine AndAlso vNode.EndLine >= vEndLine Then
+                Return vNode
+            End If
+            
+            Return Nothing
         End Function
         
     End Class

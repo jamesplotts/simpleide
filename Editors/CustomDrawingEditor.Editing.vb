@@ -14,8 +14,7 @@ Namespace Editors
         Implements IEditor
 
         ' CodeSense events (if not defined elsewhere)
-        Public Event CodeSenseRequested(sender As Object, Context As CodeSenseContext)
-        Public Event CodeSenseCancelled(sender As Object, e As EventArgs)
+
 
         ' ===== Character Operations =====
 
@@ -806,6 +805,9 @@ Namespace Editors
                 
                 ' Move cursor forward
                 SetCursorPosition(pCursorLine, pCursorColumn + 1)
+
+                ' CHECK FOR CODESENSE TRIGGERS
+                CheckCodeSenseTrigger(vChar)
                 
                 ' Ensure cursor visible
                 EnsureCursorVisible()

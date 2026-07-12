@@ -14,6 +14,8 @@ Namespace Models
         Public Property TriggerPosition As EditorPosition
         Public Property TriggerChar As Char
         Public Property TriggerKind As CodeSenseTriggerKind
+        Public Property TriggerReason As CodeSenseTriggerReason
+        Public Property LinePosition As Integer
         Public Property CurrentWord As String
         Public Property LineText As String
         Public Property FileType As String
@@ -25,6 +27,7 @@ Namespace Models
         Public Property AvailableMembers As List(Of String) ' members available in current class
         Public Property LocalVariables As List(Of String)   ' Variables in current Scope
         Public Property MemberAccessTarget As String       ' Identifier before dot (for member access)
+        Public Property ImportsContext As List(Of String)  ' Imports statements in current file
         
         ' Type information (for advanced CodeSense)
         Public Property ExpectedReturnType As String       ' Expected return Type in current Context
@@ -48,6 +51,7 @@ Namespace Models
         Public Sub New()
             AvailableMembers = New List(Of String)()
             LocalVariables = New List(Of String)()
+            ImportsContext = New List(Of String)()
             SuggestedCompletions = New List(Of CompletionItem)()
             SuggestedActions = New List(Of CodeAction)()
         End Sub
@@ -246,4 +250,15 @@ Namespace Models
         End Property
     End Structure
     
+    ' Reasons why CodeSense was triggered
+    Public Enum CodeSenseTriggerReason
+        eUnspecified
+        eCompletion      ' Regular word completion (typing)
+        eMemberList      ' Member list (after period)
+        eParameterHints  ' Parameter hints (after opening parenthesis)
+        eTypeList        ' Type list (after As, New, etc.)
+        eManual          ' Manually triggered (Ctrl+Space)
+        eLastValue
+    End Enum
+
 End Namespace

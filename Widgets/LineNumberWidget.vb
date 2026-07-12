@@ -6,6 +6,7 @@ Imports Cairo
 Imports Pango
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Syntax
 
 ' LineNumberWidget.vb
 ' Created: 2025-08-24 00:08:22
@@ -23,9 +24,9 @@ Namespace Widgets
         Private pFontDescription As FontDescription
         Private pLineHeight As Integer
         Private pCharWidth As Integer
-        Private pTopPadding As Integer = 4
-        Private pRightPadding As Integer = 8
-        Private pWidth As Integer = 50
+        Private pTopPadding As Integer = -10
+        Private pRightPadding As Integer = 24 ' Increased to accommodate fold icons
+        Private pWidth As Integer = 60
         
         ' Theme colors
         Private pBackgroundColor As String = "#1E1E1E"
@@ -90,7 +91,7 @@ Namespace Widgets
                 If pEditor IsNot Nothing Then
                     Dim lMaxLineNumber As Integer = pEditor.LineCount
                     Dim lDigits As Integer = Math.Max(3, lMaxLineNumber.ToString().Length)
-                    Dim lNewWidth As Integer = (lDigits * pCharWidth) + (pRightPadding * 2)
+                    Dim lNewWidth As Integer = (lDigits * pCharWidth) + pRightPadding + 20 ' Ensure ample space
                     
                     ' Update width if changed
                     If lNewWidth <> pWidth Then
@@ -119,7 +120,7 @@ Namespace Widgets
                 
                 Dim lLineCount As Integer = pEditor.LineCount
                 Dim lMaxDigits As Integer = Math.Max(3, lLineCount.ToString().Length)
-                Dim lNewWidth As Integer = (lMaxDigits * pCharWidth) + pRightPadding + 8
+                Dim lNewWidth As Integer = (lMaxDigits * pCharWidth) + pRightPadding + 20
                 
                 If lNewWidth <> pWidth Then
                     pWidth = lNewWidth
@@ -208,21 +209,23 @@ Namespace Widgets
                 If pEditor Is Nothing OrElse pLineHeight <= 0 Then Return
                 
                 ' Get editor state
-                Dim lLineCount As Integer = pEditor.LineCount
-                Dim lFirstVisibleLine As Integer = pEditor.FirstVisibleLine
+                Dim lVisualLineCount As Integer = pEditor.GetVisualLineCount()
+                Dim lFirstVisibleLine As Integer = Math.Max(0, pEditor.FirstVisibleLine)
                 Dim lCurrentLine As Integer = pEditor.CurrentLine
+                Dim lCurrentSourceLine As Integer = pEditor.VisualToSourceLine(lCurrentLine)
                 
                 ' Calculate visible range - add extra lines to ensure we draw everything visible
                 Dim lVisibleLines As Integer = (AllocatedHeight \ pLineHeight) + 3
-                Dim lLastLine As Integer = Math.Min(lLineCount - 1, lFirstVisibleLine + lVisibleLines)
+                Dim lLastLine As Integer = Math.Min(lVisualLineCount - 1, lFirstVisibleLine + lVisibleLines)
                 
                 ' Create layout for text
                 Using lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
                     If pFontDescription IsNot Nothing Then
                         lLayout.FontDescription = pFontDescription
                     End If
-                    lLayout.Alignment = Pango.Alignment.Right
-                    lLayout.Width = Pango.Units.FromPixels(pWidth - pRightPadding)
+                    ' Remove Pango alignment/width to rely on manual positioning
+                    ' lLayout.Alignment = Pango.Alignment.Right
+                    ' lLayout.Width = Pango.Units.FromPixels(pWidth - pRightPadding)
                     
                     ' Set default text color
                     Dim lFgColor As New RGBA()
@@ -249,11 +252,11 @@ Namespace Widgets
                     End Try
                     
                     ' Draw each visible line number (including partially visible ones)
-                    For i As Integer = Math.Max(0, lFirstVisibleLine - 1) To lLastLine
+                    For lVisualIndex As Integer = lFirstVisibleLine To lLastLine
                         ' Calculate Y position to match editor text
                         ' The editor draws at: (line - firstLine) * lineHeight + topPadding
-                        Dim lLineIndex As Integer = i - lFirstVisibleLine
-                        Dim lLineTop As Integer = (lLineIndex - 1) * pLineHeight + pTopPadding
+                        Dim lLineIndex As Integer = lVisualIndex - lFirstVisibleLine
+                        Dim lLineTop As Integer = lLineIndex * pLineHeight + pTopPadding
                         
                         ' Add ascent to get baseline position
                         Dim lY As Integer = lLineTop + lAscent
@@ -263,11 +266,30 @@ Namespace Widgets
                             Continue For
                         End If
                         
-                        ' Set text (1-based line numbers)
-                        lLayout.SetText((i + 1).ToString())
+                        ' Map visual line to source line
+                        Dim lSourceLine As Integer = pEditor.VisualToSourceLine(lVisualIndex)
+                        
+                        ' DEBUG LOGGING
+                        If lVisualIndex < 5 Then
+                            Try
+                                Using writer As New System.IO.StreamWriter("/home/jamesp/.gemini/debug_folding.log", True)
+                                    writer.WriteLine($"[{DateTime.Now}] Widget: Visual={lVisualIndex}, Source={lSourceLine}, FirstVisible={lFirstVisibleLine}")
+                                End Using
+                            Catch
+                            End Try
+                        End If
+                        
+                        ' Fallback: If we get 0 for a non-zero visual line, and the map seems broken, use visual line
+                        ' This handles the case where pVisualLineMap might be truncated or invalid
+                        If lSourceLine = 0 AndAlso lVisualIndex > 0 AndAlso pEditor.GetVisualLineCount() <= 1 Then
+                             lSourceLine = lVisualIndex
+                        End If
+                        
+                        ' Set text (1-based source line numbers)
+                        lLayout.SetText((lSourceLine + 1).ToString())
                         
                         ' Highlight current line number if needed
-                        If i = lCurrentLine Then
+                        If lSourceLine = lCurrentSourceLine Then
                             Dim lCurrentColor As New RGBA()
                             If lCurrentColor.Parse(pCurrentLineColor) Then
                                 vContext.SetSourceRgba(lCurrentColor.Red, lCurrentColor.Green, lCurrentColor.Blue, 1.0)
@@ -275,14 +297,36 @@ Namespace Widgets
                                 vContext.SetSourceRgba(0.78, 0.78, 0.78, 1.0) ' Fallback light gray
                             End If
                             
-                            vContext.MoveTo(0, lY)
+                            ' Draw line number right-aligned within the text area (left of padding)
+                            ' pWidth - pRightPadding is the boundary. We subtract text width from there.
+                            Dim lTextWidth As Integer
+                            Dim lTextHeight As Integer
+                            lLayout.GetPixelSize(lTextWidth, lTextHeight)
+                            Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
+                            
+                            vContext.MoveTo(lX, lY)
                             Pango.CairoHelper.ShowLayout(vContext, lLayout)
                             
                             ' Restore default color
-                            vContext.SetSourceRgba(lFgColor.Red, lFgColor.Green, lFgColor.Blue, 1.0)
+                            vContext.SetSourceRGB(0.5, 0.5, 0.5)
                         Else
-                            vContext.MoveTo(0, lY)
+                            ' Draw line number right-aligned within the text area (left of padding)
+                            ' pWidth - pRightPadding is the boundary. We subtract text width from there.
+                            Dim lTextWidth As Integer
+                            Dim lTextHeight As Integer
+                            lLayout.GetPixelSize(lTextWidth, lTextHeight)
+                            Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
+                            
+                            vContext.MoveTo(lX, lY)
                             Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                        End If
+                        
+                        ' Draw fold icon if needed
+                        ' Center it in the right padding area
+                        Dim lFoldNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lSourceLine)
+                        If lFoldNode IsNot Nothing Then
+                            Dim lIconX As Integer = pWidth - (pRightPadding / 2) - 4 ' Center 8px icon
+                            DrawFoldIcon(vContext, lIconX, lLineTop + (pLineHeight / 2) - 4, lFoldNode.IsExpanded)
                         End If
                     Next
                 End Using
@@ -334,37 +378,47 @@ Namespace Widgets
                 End If
                 
                 ' Calculate which line was clicked
-                Dim lY As Integer = CInt(vArgs.Event.Y) - pTopPadding
-                Dim lClickedLine As Integer = (lY \ pLineHeight) + pEditor.FirstVisibleLine
+                Dim lY As Double = vArgs.Event.Y - pTopPadding
+                Dim lClickedVisualLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
+                Dim lClickedSourceLine As Integer = pEditor.VisualToSourceLine(lClickedVisualLine)
                 
-                Console.WriteLine($"LineNumberWidget.OnButtonPress: Clicked line {lClickedLine}")
+                Console.WriteLine($"LineNumberWidget.OnButtonPress: Clicked visual line {lClickedVisualLine}, source line {lClickedSourceLine}")
+                
+                ' Check for fold toggle click (right side of widget)
+                If vArgs.Event.X > pWidth - pRightPadding Then
+                    Dim lNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lClickedSourceLine)
+                    If lNode IsNot Nothing Then
+                        pEditor.ToggleFold(lNode)
+                        Return True
+                    End If
+                End If
                 
                 ' Validate line
-                If lClickedLine >= 0 AndAlso lClickedLine < pEditor.LineCount Then
+                If lClickedSourceLine >= 0 AndAlso lClickedSourceLine < pEditor.LineCount Then
                     If vArgs.Event.Button = 1 Then
                         ' Check for multi-click events
                         If vArgs.Event.Type = EventType.ThreeButtonPress Then
-                            Console.WriteLine($"LineNumberWidget.OnButtonPress: TRIPLE-CLICK detected on line {lClickedLine}")
+                            Console.WriteLine($"LineNumberWidget.OnButtonPress: TRIPLE-CLICK detected on line {lClickedSourceLine}")
                             ' Triple-click - select entire line (GTK standard behavior)
-                            pEditor.SelectLine(lClickedLine)
+                            pEditor.SelectLine(lClickedSourceLine)
                             ' Grab focus for the drawing area after selection
                             pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.TwoButtonPress Then
-                            Console.WriteLine($"LineNumberWidget.OnButtonPress: DOUBLE-CLICK detected on line {lClickedLine}")
+                            Console.WriteLine($"LineNumberWidget.OnButtonPress: DOUBLE-CLICK detected on line {lClickedSourceLine}")
                             ' Double-click - check if it's a method declaration and select entire method
-                            HandleDoubleClick(lClickedLine)
+                            HandleDoubleClick(lClickedSourceLine)
                             ' Grab focus for the drawing area after selection
                             pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.ButtonPress Then
-                            Console.WriteLine($"LineNumberWidget.OnButtonPress: Single-click on line {lClickedLine}")
+                            Console.WriteLine($"LineNumberWidget.OnButtonPress: Single-click on line {lClickedSourceLine}")
                             ' Single click - select line (only if not double-click)
-                            pEditor.SelectLine(lClickedLine)
-                            pEditor.StartLineNumberDrag(lClickedLine)
+                            pEditor.SelectLine(lClickedSourceLine)
+                            pEditor.StartLineNumberDrag(lClickedSourceLine)
                             ' Grab focus for the drawing area after selection
                             pEditor.GrabFocus()
                         End If
                     ElseIf vArgs.Event.Button = 3 Then
-                        Console.WriteLine($"LineNumberWidget.OnButtonPress: Right-click on line {lClickedLine}")
+                        Console.WriteLine($"LineNumberWidget.OnButtonPress: Right-click on line {lClickedSourceLine}")
                         ' Right click - show context menu
                         pEditor.ShowLineNumberContextMenu(CInt(vArgs.Event.X), CInt(vArgs.Event.Y))
                         ' Also grab focus for context menu operations
@@ -407,8 +461,8 @@ Namespace Widgets
                 If pEditor Is Nothing OrElse pLineHeight <= 0 Then Return False
                 
                 ' Calculate which line the mouse is over
-                Dim lY As Integer = CInt(vArgs.Event.Y) - pTopPadding
-                Dim lHoverLine As Integer = (lY \ pLineHeight) + pEditor.FirstVisibleLine
+                Dim lY As Double = vArgs.Event.Y - pTopPadding
+                Dim lHoverLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
                 
                 ' Update drag selection if dragging
                 If pEditor.IsLineNumberDragging AndAlso lHoverLine >= 0 AndAlso lHoverLine < pEditor.LineCount Then
@@ -795,6 +849,36 @@ Namespace Widgets
             End Try
         End Function
         
+        ''' <summary>
+        ''' Draws a fold icon (plus or minus)
+        ''' </summary>
+        Private Sub DrawFoldIcon(vContext As Cairo.Context, vX As Integer, vY As Integer, vIsExpanded As Boolean)
+            Try
+                Dim lSize As Integer = 9
+                
+                ' Draw box
+                vContext.SetSourceRGB(0.5, 0.5, 0.5)
+                vContext.LineWidth = 1.0
+                vContext.Rectangle(vX, vY, lSize, lSize)
+                vContext.Stroke()
+                
+                ' Draw horizontal line (minus)
+                vContext.MoveTo(vX + 2, vY + (lSize \ 2))
+                vContext.LineTo(vX + lSize - 2, vY + (lSize \ 2))
+                vContext.Stroke()
+                
+                ' Draw vertical line (plus) if collapsed
+                If Not vIsExpanded Then
+                    vContext.MoveTo(vX + (lSize \ 2), vY + 2)
+                    vContext.LineTo(vX + (lSize \ 2), vY + lSize - 2)
+                    vContext.Stroke()
+                End If
+                
+            Catch ex As Exception
+                Console.WriteLine($"DrawFoldIcon error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
     
 End Namespace

@@ -107,6 +107,9 @@ Partial Public Class MainWindow
     Private Sub UpdateObjectExplorerForActiveTab()
         Try
             If pObjectExplorer Is Nothing Then Return
+            ' Skip rebuild when the tab switch was initiated by the Object Explorer itself —
+            ' there's no need to rebuild and it would lose the expanded node state
+            If pIsObjectExplorerNavigating Then Return
             
             ' Get current tab
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
@@ -213,16 +216,20 @@ Partial Public Class MainWindow
     Private Sub OnObjectExplorerNavigateToFile(vFilePath As String, vPosition As EditorPosition)
         Try
             Console.WriteLine($"NavigateToFile: {vFilePath} at line {vPosition.Line + 1}")
+            ' Suppress tree rebuild triggered by the tab switch we are about to make
+            pIsObjectExplorerNavigating = True
             
-            ' Check if we need to open a different file
+            ' Check if the file is already open in any tab
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             Dim lNeedToOpenFile As Boolean = True
-            
-            If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                If Not String.IsNullOrEmpty(lCurrentTab.FilePath) Then
-                    If vFilePath.Equals(lCurrentTab.FilePath, StringComparison.OrdinalIgnoreCase) Then
-                        lNeedToOpenFile = False
-                    End If
+
+            If pOpenTabs.ContainsKey(vFilePath) Then
+                lNeedToOpenFile = False
+                ' Switch to the existing tab if it isn't already active
+                If lCurrentTab Is Nothing OrElse
+                   Not vFilePath.Equals(lCurrentTab.FilePath, StringComparison.OrdinalIgnoreCase) Then
+                    SwitchToTab(vFilePath)
+                    lCurrentTab = GetCurrentTabInfo()
                 End If
             End If
             
@@ -258,6 +265,8 @@ Partial Public Class MainWindow
         Catch ex As Exception
             Console.WriteLine($"OnObjectExplorerNavigateToFile error: {ex.Message}")
             UpdateStatusBar("Ready")
+        Finally
+            pIsObjectExplorerNavigating = False
         End Try
     End Sub
 

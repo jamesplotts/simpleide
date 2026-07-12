@@ -28,6 +28,7 @@ Partial Public Class MainWindow
     Private pSettingsManager As SettingsManager
     Private pThemeManager As ThemeManager
     Private pCodeSenseEngine As CodeSenseEngine
+    Private pCodeSenseManager As CodeSenseManager
     Private pFileSystemWatcher As Utilities.FileSystemWatcher
     Private pMemoryManifest As MemoryManifest
     Private pProjectManager As ProjectManager
@@ -52,6 +53,7 @@ Partial Public Class MainWindow
     Private pBottomPanelVisible As Boolean = False
     Private pIsBuilding As Boolean = False
     Private pIsFullScreen As Boolean = False
+    Private pIsObjectExplorerNavigating As Boolean = False
     Private pPendingProjectFile As String = Nothing
     Private pTotalFilesToParse As Integer = 0
     Private pCurrentFileParsed As Integer = 0
@@ -119,6 +121,7 @@ Partial Public Class MainWindow
             
             ' Initialize CodeSense engine
             pCodeSenseEngine = New CodeSenseEngine()
+            pCodeSenseManager = New CodeSenseManager(pCodeSenseEngine)
             
             ' Initialize build system
             InitializeBuildSystem()
@@ -366,6 +369,7 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.TodoSelected, AddressOf OnTodoSelected
             AddHandler pBottomPanelManager.ErrorDoubleClicked, AddressOf OnBuildErrorDoubleClicked
             AddHandler pBottomPanelManager.SendErrorsToAI, AddressOf OnSendBuildErrorsToAI
+            AddHandler pBottomPanelManager.SendTodoToAI, AddressOf OnSendTodoToAI
             AddHandler pBottomPanelManager.PanelClosed, AddressOf OnBottomPanelClosed
 
             ' Hook up notebook fix after window is realized

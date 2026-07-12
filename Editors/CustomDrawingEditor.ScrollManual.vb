@@ -30,14 +30,16 @@ Namespace Editors
                 
                 ' Calculate the maximum valid first visible line
                 ' This ensures we can see all lines including the last one
-                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                Dim lMaxFirstLine As Integer = Math.Max(0, lVisualLineCount - pTotalVisibleLines)
                 
                 ' CRITICAL FIX: Also handle the case where we have fewer lines than visible area
                 ' In this case, we should always start at line 0
-                If pLineCount <= pTotalVisibleLines Then
+                If lVisualLineCount <= pTotalVisibleLines Then
                     lNewFirstLine = 0
                 Else
                     ' Clamp to valid range - ensure we can scroll to show the last line
+                    ' CRITICAL: Ensure never negative
                     lNewFirstLine = Math.Max(0, Math.Min(lNewFirstLine, lMaxFirstLine))
                 End If
                 
@@ -58,6 +60,7 @@ Namespace Editors
                     
                     ' Update line number widget
                     If pLineNumberWidget IsNot Nothing Then
+                        ' Console.WriteLine("OnVScrollbarValueChanged: Queueing LineNumberWidget redraw")
                         pLineNumberWidget.QueueDraw()
                     End If
                     
@@ -109,7 +112,9 @@ Namespace Editors
                 If pLineHeight > 0 AndAlso pViewportHeight > 0 Then
                     pTotalVisibleLines = pViewportHeight \ pLineHeight
                 Else
-                    pTotalVisibleLines = 1
+                    ' CRITICAL FIX: Default to a reasonable number (e.g. 20) instead of 1
+                    ' This prevents EnsureCursorVisible from scrolling aggressively during initialization
+                    pTotalVisibleLines = 20
                 End If
                 
                 ' Calculate visible columns
@@ -146,7 +151,8 @@ Namespace Editors
                 
                 ' Calculate the actual number of lines that can be scrolled to
                 ' The maximum first visible line is total lines minus visible lines
-                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                Dim lMaxFirstLine As Integer = Math.Max(0, lVisualLineCount - pTotalVisibleLines)
                 
                 ' Store the handler reference if we don't have it yet
                 If pVScrollbarHandler Is Nothing Then
@@ -163,7 +169,7 @@ Namespace Editors
                 
                 ' Set Upper to line count (total content)
                 ' But we need to ensure that Value can never exceed the maximum first visible line
-                lAdjustment.Upper = Math.Max(pTotalVisibleLines, pLineCount)
+                lAdjustment.Upper = Math.Max(pTotalVisibleLines, lVisualLineCount)
                 
                 ' PageSize represents how many lines are visible at once
                 ' This affects the thumb size and how far we can scroll
@@ -187,9 +193,12 @@ Namespace Editors
                 
                 ' Re-add handler - this ensures it's always connected
                 AddHandler pVScrollbar.ValueChanged, pVScrollbarHandler
+
+                ' Force visual update
+                pVScrollbar.QueueDraw()
                 
                 ' Show/hide scrollbar based on need
-                pVScrollbar.Visible = (pLineCount > pTotalVisibleLines)
+                pVScrollbar.Visible = (lVisualLineCount > pTotalVisibleLines)
                 
                 ' Debug output to verify scrollbar settings
                 Console.WriteLine($"UpdateVerticalScrollbar: Lines={pLineCount}, VisibleLines={pTotalVisibleLines}, " & _
@@ -310,6 +319,9 @@ Namespace Editors
                 
                 ' Re-add handler - this ensures it's always connected
                 AddHandler pHScrollbar.ValueChanged, pHScrollbarHandler
+
+                ' Force visual update
+                pHScrollbar.QueueDraw()
                 
                 ' Show/hide scrollbar based on need
                 pHScrollbar.Visible = (lMaxColumns > pTotalVisibleColumns)
@@ -504,7 +516,8 @@ Namespace Editors
             Try
                 ' Calculate the maximum valid first visible line
                 ' This ensures the last line can be visible at the bottom of the viewport
-                Dim lMaxFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                Dim lMaxFirstLine As Integer = Math.Max(0, lVisualLineCount - pTotalVisibleLines)
                 
                 If pFirstVisibleLine < lMaxFirstLine Then
                     ' Calculate new first visible line
@@ -525,10 +538,10 @@ Namespace Editors
                         
                         Console.WriteLine($"ScrollDown: Scrolled to line {pFirstVisibleLine}, Max={lMaxFirstLine}")
                     End If
-                ElseIf pLineCount > pTotalVisibleLines Then
+                ElseIf lVisualLineCount > pTotalVisibleLines Then
                     ' CRITICAL FIX: If we think we're at the bottom but we're not showing all lines,
                     ' try to scroll to the absolute maximum to show the last lines
-                    Dim lAbsoluteMax As Integer = pLineCount - pTotalVisibleLines
+                    Dim lAbsoluteMax As Integer = lVisualLineCount - pTotalVisibleLines
                     If pFirstVisibleLine < lAbsoluteMax Then
                         pFirstVisibleLine = lAbsoluteMax
                         
@@ -726,6 +739,11 @@ Namespace Editors
                 If pVScrollbar Is Nothing OrElse pHScrollbar Is Nothing Then
                     Return
                 End If
+
+                ' CRITICAL FIX: Don't scroll if viewport is not initialized
+                If pViewportHeight <= 0 OrElse pViewportWidth <= 0 Then
+                    Return
+                End If
                 
                 ' Vertical scrolling
                 If pCursorLine < pFirstVisibleLine Then
@@ -780,9 +798,18 @@ Namespace Editors
                 ' Validate line
                 vLine = Math.Max(0, Math.Min(vLine, pLineCount - 1))
                 
+                ' Convert to visual line
+                Dim lVisualLine As Integer = SourceToVisualLine(vLine)
+                If lVisualLine = -1 Then
+                    ' Line is hidden, expand parent? For now just return or find nearest visible
+                    ' TODO: Auto-expand
+                    Return
+                End If
+                
                 ' Center the line if possible
-                Dim lTargetFirstLine As Integer = Math.Max(0, vLine - pTotalVisibleLines \ 2)
-                lTargetFirstLine = Math.Min(lTargetFirstLine, Math.Max(0, pLineCount - pTotalVisibleLines))
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                Dim lTargetFirstLine As Integer = Math.Max(0, lVisualLine - pTotalVisibleLines \ 2)
+                lTargetFirstLine = Math.Min(lTargetFirstLine, Math.Max(0, lVisualLineCount - pTotalVisibleLines))
                 
                 If lTargetFirstLine <> pFirstVisibleLine Then
                     pFirstVisibleLine = lTargetFirstLine

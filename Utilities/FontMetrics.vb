@@ -225,6 +225,13 @@ Namespace Utilities
                                         pAscent = Pango.Units.ToPixels(lMetrics.Ascent)
                                         pDescent = Pango.Units.ToPixels(lMetrics.Descent)
                                         
+                                        ' CRITICAL FIX: Ensure Ascent is never 0
+                                        If pAscent <= 0 Then
+                                            Console.WriteLine($"FontMetrics: Pango returned Ascent={pAscent}, using approximation")
+                                            pAscent = CInt(Math.Ceiling(pCharHeight * 0.75))
+                                            pDescent = pCharHeight - pAscent
+                                        End If
+                                        
                                         ' Ensure height is consistent
                                         pCharHeight = Math.Max(pCharHeight, pAscent + pDescent)
                                         

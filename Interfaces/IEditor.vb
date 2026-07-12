@@ -59,7 +59,9 @@ Namespace Interfaces
         Event DocumentParsed(vRootNode As SyntaxNode)
         Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs)
         Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs)
-        Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs)  
+        Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs)
+        Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext)
+        Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs)  
         
         ' Helper method for setting file path (used by EditorFactory)
         Sub SetThemeManager(vThemeManager As ThemeManager)
@@ -99,6 +101,7 @@ Namespace Interfaces
         Sub SquareSelection()
         Sub EnsureCursorVisible()
         Function GetCursorPosition() As EditorPosition
+        Function GetCursorScreenPosition() As Gdk.Point
         Sub OnShown()
         
         ' Text Manipulation - Updated to use EditorPosition

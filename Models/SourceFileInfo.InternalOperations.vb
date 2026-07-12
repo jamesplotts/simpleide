@@ -13,6 +13,7 @@ Namespace Models
         ''' Internal method to insert text within a single line
         ''' </summary>
         Private Sub InsertSingleLineTextInternal(vLine As Integer, vColumn As Integer, vText As String)
+            SyncLock pSyncRoot
             Dim lOldLine As String = pTextLines(vLine)
             Dim lOldLength As Integer = lOldLine.Length
             
@@ -41,12 +42,14 @@ Namespace Models
             
             ' Raise event
             RaiseTextChangedEvent(TextChangeType.eLineModified, vLine, vLine, 1)
+            End SyncLock
         End Sub
         
         ''' <summary>
         ''' Internal method to insert multi-line text
         ''' </summary>
         Private Sub InsertMultiLineTextInternal(vLine As Integer, vColumn As Integer, vNewLines() As String)
+            SyncLock pSyncRoot
             If vNewLines.Length = 0 Then Return
             
             ' Get current line text
@@ -85,13 +88,15 @@ Namespace Models
             
             ' Raise event
             RaiseTextChangedEvent(TextChangeType.eMultipleLines, vLine, vLine + vNewLines.Length - 1, vNewLines.Length)
+            End SyncLock
         End Sub
 
         ''' <summary>
         ''' Internal method to delete multi-line text
         ''' </summary>
-        Private Sub DeleteMultiLineTextInternal(vStartLine As Integer, vStartCol As Integer, 
+        Private Sub DeleteMultiLineTextInternal(vStartLine As Integer, vStartCol As Integer,
                                                vEndLine As Integer, vEndCol As Integer)
+            SyncLock pSyncRoot
             ' Get the text we're keeping from first and last lines
             Dim lFirstLine As String = pTextLines(vStartLine)
             Dim lLastLine As String = pTextLines(vEndLine)
@@ -119,6 +124,7 @@ Namespace Models
             
             ' Raise event
             RaiseTextChangedEvent(TextChangeType.eMultipleLines, vStartLine, vStartLine, vEndLine - vStartLine + 1)
+            End SyncLock
         End Sub
         
         ''' <summary>
@@ -131,6 +137,7 @@ Namespace Models
         ''' </remarks>
         Private Sub InsertLineInternal(vLineIndex As Integer, vText As String)
             Try
+                SyncLock pSyncRoot
                 ' Validate index
                 If vLineIndex < 0 Then vLineIndex = 0
                 If vLineIndex > pTextLines.Count Then vLineIndex = pTextLines.Count
@@ -191,6 +198,7 @@ Namespace Models
                     End If
                 End If
                 
+                End SyncLock
             Catch ex As Exception
                 Console.WriteLine($"InsertLineInternal error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
@@ -230,6 +238,7 @@ Namespace Models
         ''' </remarks>
         Private Sub InsertMultiLineTextInternal(vLine As Integer, vColumn As Integer, vText As String)
             Try
+            SyncLock pSyncRoot
                 ' Split text into lines
                 Dim lNewLines() As String = vText.Split({vbLf}, StringSplitOptions.None)
                 If lNewLines.Length = 0 Then Return
@@ -298,6 +307,7 @@ Namespace Models
                 
                 Console.WriteLine($"InsertMultiLineTextInternal: Completed insertion of {lNewLines.Length} lines")
                 
+            End SyncLock
             Catch ex As Exception
                 Console.WriteLine($"InsertMultiLineTextInternal error: {ex.Message}")
                 Console.WriteLine($"  Stack: {ex.StackTrace}")
