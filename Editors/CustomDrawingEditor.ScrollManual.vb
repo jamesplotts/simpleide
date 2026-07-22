@@ -346,7 +346,16 @@ Namespace Editors
         Public Shadows Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
                 Console.WriteLine($"OnScrollEvent called: Direction={vArgs.Event.Direction}, State={vArgs.Event.State}")
-                
+
+                ' If the CodeSense popup is showing and the pointer is over it, scroll its
+                ' list instead of the editor content
+                If pCodeSenseActive Then
+                    If HandleCodeSensePopupScroll(vArgs.Event.X, vArgs.Event.Y, vArgs.Event.Direction) Then
+                        vArgs.RetVal = True
+                        Return True
+                    End If
+                End If
+
                 ' Check for Ctrl+Scroll for zoom functionality
                 If (vArgs.Event.State And ModifierType.ControlMask) = ModifierType.ControlMask Then
                     Console.WriteLine("Ctrl modifier detected!")

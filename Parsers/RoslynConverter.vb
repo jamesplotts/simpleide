@@ -773,12 +773,15 @@ Namespace Managers
                 
                 ' Extract parameters (for indexed properties)
                 ExtractParameters(vProperty.PropertyStatement.ParameterList, lPropertyNode)
-                
+
+                ' Extract local variables declared in Get/Set accessor bodies
+                ExtractLocalVariables(DirectCast(vProperty, RoslynSyntaxNode), lPropertyNode)
+
                 ' Extract XML documentation
                 ExtractXmlDocumentation(DirectCast(vProperty, RoslynSyntaxNode), lPropertyNode)
-                
+
                 vParent.AddChild(lPropertyNode)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProcessPropertyBlock error: {ex.Message}")
             End Try

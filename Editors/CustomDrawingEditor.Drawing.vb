@@ -270,7 +270,12 @@ Namespace Editors
 '                    Pango.CairoHelper.ShowLayout(vContext, lLayout)
                     lCursorPattern.Dispose()
                 End If
-            
+
+                ' Draw CodeSense popup overlay last so it paints on top of everything else
+                If pCodeSenseActive Then
+                    DrawCodeSensePopup(vContext)
+                End If
+
 				            ' Clean up
                 lLayout?.Dispose()
                 
@@ -342,10 +347,14 @@ Namespace Editors
                 If pCursorLine < pFirstVisibleLine OrElse pCursorLine >= pFirstVisibleLine + pTotalVisibleLines Then Return
                 If pCursorColumn < pFirstVisibleColumn - 1 OrElse pCursorColumn > pFirstVisibleColumn + pTotalVisibleColumns + 1 Then Return
                 
-                ' Calculate cursor area relative to viewport
+                ' Calculate cursor area relative to viewport - the +13 matches the same
+                ' empirical correction the actual cursor draw uses below (DrawContent's
+                ' lCursorY); without it this invalidated region sits ~13px above where the
+                ' cursor really renders, so only the portion that happens to overlap gets
+                ' cleared on each blink toggle, leaving the rest as a stale remnant
                 Dim lX As Integer = pLeftPadding + ((pCursorColumn - pFirstVisibleColumn) * pCharWidth) - 2
-                Dim lY As Integer = (pCursorLine - pFirstVisibleLine) * pLineHeight + pTopPadding
-                
+                Dim lY As Integer = (pCursorLine - pFirstVisibleLine) * pLineHeight + pTopPadding + 13
+
                 ' Queue draw for cursor area only
                 pDrawingArea?.QueueDrawArea(lX - 4, lY - 4, 12, pLineHeight + 8)
                 

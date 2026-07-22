@@ -66,6 +66,16 @@ Namespace Editors
         ''' <returns>True if event was handled, False otherwise</returns>
         Private Function OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs) As Boolean
             Try
+                ' Let the CodeSense popup handle clicks inside its own bounds first (item
+                ' select/commit, scrollbar drag start); clicks outside dismiss it and fall
+                ' through to normal handling below
+                If pCodeSenseActive Then
+                    If HandleCodeSensePopupButtonPress(vArgs.Event.X, vArgs.Event.Y) Then
+                        vArgs.RetVal = True
+                        Return True
+                    End If
+                End If
+
                 pDrawingArea.GrabFocus()
                 Dim lPos As EditorPosition = GetPositionFromCoordinates(vArgs.Event.X, vArgs.Event.Y)
                 
@@ -119,6 +129,13 @@ Namespace Editors
         ''' </summary>
         Private Function OnButtonRelease(vSender As Object, vArgs As ButtonReleaseEventArgs) As Boolean
             Try
+                If pCodeSenseScrollbarDragging Then
+                    If HandleCodeSensePopupButtonRelease() Then
+                        vArgs.RetVal = True
+                        Return True
+                    End If
+                End If
+
                 If vArgs.Event.Button = 1 Then
                     ' If we were in potential drag mode but didn't actually drag
                     ' (pPotentialDrag is true when clicking in a selection)
@@ -787,6 +804,13 @@ Namespace Editors
             Try
                 ' Show mouse cursor on any mouse movement
                 ShowMouseCursor()
+
+                If pCodeSenseActive Then
+                    If HandleCodeSensePopupMotion(vArgs.Event.X, vArgs.Event.Y) Then
+                        vArgs.RetVal = True
+                        Return True
+                    End If
+                End If
                 Dim pDragText As String
                 Dim lCurrentX As Double = vArgs.Event.X
                 Dim lCurrentY As Double = vArgs.Event.Y

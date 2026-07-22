@@ -75,6 +75,7 @@ Namespace Syntax
         Private pProjectSyntaxTree As SyntaxNode   ' Full project syntax tree
         Private pTypeCache As New Dictionary(Of String, CodeSenseTypeInfo)
         Private pMemberCache As New Dictionary(Of String, List(Of MemberInfo))
+        Private pTopLevelNamespaceCache As List(Of String) = Nothing
         Private pKeywordSuggestions As List(Of CodeSenseSuggestion)
         Private pLastUpdateTime As DateTime = DateTime.MinValue
         Private pDisposed As Boolean = False
@@ -281,9 +282,8 @@ Namespace Syntax
         ''' </summary>
         Private Function IsAccessibleMember(vNode As SyntaxNode) As Boolean
             Try
-                ' For now, return true for public and friend members
-                Return vNode.IsPublic OrElse vNode.IsFriend
-                
+                Return IsNodeAccessible(vNode)
+
             Catch ex As Exception
                 Console.WriteLine($"IsAccessibleMember error: {ex.Message}")
                 Return True
@@ -625,8 +625,15 @@ Namespace Syntax
                 pProjectReferences.Clear()
                 pTypeCache.Clear()
                 pMemberCache.Clear()
+                pTopLevelNamespaceCache = Nothing
+
+                ' Re-seed the core framework assemblies immediately so callers that clear
+                ' references before adding project-specific ones (e.g. MainWindow.
+                ' UpdateCodeSenseReferences) never leave the engine without System/etc.
+                LoadCoreAssemblies()
+
                 Console.WriteLine("CodeSenseEngine: All references cleared")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ClearReferences error: {ex.Message}")
             End Try
@@ -640,6 +647,11 @@ Namespace Syntax
         Public Function GetSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             Try
                 pCurrentContext = vContext
+
+                ' Populate Imports/containing-class/containing-method/locals from the live
+                ' syntax tree before dispatching - every trigger kind below reads these
+                PopulateScopeContext(vContext)
+
                 Dim lSuggestions As New List(Of CodeSenseSuggestion)()
 
                 ' Determine what kind of suggestions to provide
@@ -852,28 +864,51 @@ Namespace Syntax
                 End If
                 
                 Dim lNode As SyntaxNode = Nothing
-                
+
                 ' Handle "Me" keyword
                 If lTarget.Equals("Me", StringComparison.OrdinalIgnoreCase) Then
                     ' Find the containing class from the context
                     If pCurrentSyntaxTree IsNot Nothing Then
                         lNode = FindContainingClass(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
                     End If
-                Else
-                    ' Try to find the node in our syntax trees
-                    lNode = FindNodeByName(lTarget)
+
+                    If lNode IsNot Nothing Then
+                        AddNodeMemberSuggestions(lNode, lSuggestions)
+                    End If
+
+                    Return lSuggestions
                 End If
-                
+
+                ' Resolve the DECLARED TYPE of the identifier (parameter, local, field, or
+                ' property visible at the cursor) first, rather than treating the identifier
+                ' text itself as a type name - this is what makes "lFoo." resolve based on
+                ' what lFoo actually is, not just when lFoo happens to share a name with a type
+                Dim lResolvedType As String = ResolveVariableType(lTarget, vContext)
+                If Not String.IsNullOrEmpty(lResolvedType) AndAlso Not lResolvedType.Equals("Object", StringComparison.OrdinalIgnoreCase) Then
+                    Dim lTypeNode As SyntaxNode = FindTypeNodeByName(lResolvedType)
+                    If lTypeNode IsNot Nothing Then
+                        AddNodeMemberSuggestions(lTypeNode, lSuggestions)
+                    End If
+
+                    ' Also try framework/reflection lookup using the resolved type name
+                    ' (handles e.g. "lFoo As String" -> System.String members)
+                    AddTypeMemberSuggestions(lResolvedType, lSuggestions)
+
+                    Return lSuggestions
+                End If
+
+                ' Fallback: previous behavior - treat the identifier text itself as a type/class
+                ' name (handles "Console.", "ThemeManager.", etc., and Option Infer'd locals
+                ' whose declared type couldn't be resolved above)
+                lNode = FindNodeByName(lTarget)
+
                 If lNode IsNot Nothing Then
                     ' Add members from the node
                     AddNodeMemberSuggestions(lNode, lSuggestions)
                 End If
-                
-                ' Also check for types in referenced assemblies (only if not Me for now)
-                If Not lTarget.Equals("Me", StringComparison.OrdinalIgnoreCase) Then
-                     AddTypeMemberSuggestions(lTarget, lSuggestions)
-                End If
-                
+
+                AddTypeMemberSuggestions(lTarget, lSuggestions)
+
                 Return lSuggestions
                 
             Catch ex As Exception
@@ -911,9 +946,37 @@ Namespace Syntax
         ''' </summary>
         Private Function GetParameterHints(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             Try
-                ' TODO: Implement parameter hints based on method signatures
-                Return New List(Of CodeSenseSuggestion)()
-                
+                Dim lSuggestions As New List(Of CodeSenseSuggestion)()
+
+                ' MemberAccessTarget carries the identifier before the "(" for this trigger kind
+                ' (set by CustomDrawingEditor.GetIdentifierBeforeParen)
+                Dim lTarget As String = vContext.MemberAccessTarget
+                If String.IsNullOrEmpty(lTarget) Then Return lSuggestions
+
+                ' Best-effort lookup by name - does not disambiguate overloads, matching the
+                ' same single-node-by-name approach GetMemberSuggestions/FindNodeByName uses
+                Dim lNode As SyntaxNode = FindNodeByName(lTarget)
+                If lNode Is Nothing OrElse lNode.Parameters Is Nothing OrElse lNode.Parameters.Count = 0 Then
+                    Return lSuggestions
+                End If
+
+                Dim lParamParts As New List(Of String)()
+                for each lParam in lNode.Parameters
+                    Dim lPart As String = $"{lParam.Name} As {lParam.ParameterType}"
+                    If lParam.IsOptional Then lPart = $"[{lPart}]"
+                    lParamParts.Add(lPart)
+                Next
+
+                Dim lSuggestion As New CodeSenseSuggestion()
+                lSuggestion.Text = lNode.Name
+                lSuggestion.Kind = CodeSenseSuggestionKind.eMethod
+                lSuggestion.Icon = "method"
+                lSuggestion.Signature = $"{lNode.Name}({String.Join(", ", lParamParts)})"
+                lSuggestion.Description = lSuggestion.Signature
+                lSuggestions.Add(lSuggestion)
+
+                Return lSuggestions
+
             Catch ex As Exception
                 Console.WriteLine($"GetParameterHints error: {ex.Message}")
                 Return New List(Of CodeSenseSuggestion)()
@@ -929,18 +992,16 @@ Namespace Syntax
                 
                 ' Add keywords
                 lSuggestions.AddRange(pKeywordSuggestions)
-                
-                ' Add all types in scope
+
+                ' Add all types in scope (AddScopeTypeSuggestions delegates to AddProjectTypeSuggestions,
+                ' so this alone covers project types - a separate direct call here would duplicate them)
                 AddScopeTypeSuggestions(vContext, lSuggestions)
-                
+
                 ' Add local variables and parameters
                 AddLocalSuggestions(vContext, lSuggestions)
-                
-                ' Add project types
-                AddProjectTypeSuggestions(lSuggestions)
-                
+
                 Return lSuggestions
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetGeneralSuggestions error: {ex.Message}")
                 Return New List(Of CodeSenseSuggestion)()
@@ -953,7 +1014,15 @@ Namespace Syntax
         Private Sub AddNodeMemberSuggestions(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion))
             Try
                 If vNode Is Nothing OrElse vNode.Children Is Nothing Then Return
-                
+
+                If vNode.NodeType = CodeNodeType.eNamespace Then
+                    ' A namespace's members are types and nested namespaces, not
+                    ' methods/properties/fields - handle it separately
+                    Dim lSeenNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                    AddNamespaceMemberSuggestions(vNode, vSuggestions, lSeenNames)
+                    Return
+                End If
+
                 for each lChild in vNode.Children
                     Select Case lChild.NodeType
                         Case CodeNodeType.eMethod, CodeNodeType.eFunction
@@ -994,6 +1063,83 @@ Namespace Syntax
                 
             Catch ex As Exception
                 Console.WriteLine($"AddNodeMemberSuggestions error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Adds a namespace's direct child types and nested namespaces as suggestions
+        ''' </summary>
+        ''' <param name="vNamespaceNode">The namespace node (e.g. the project's synthesized root namespace)</param>
+        ''' <param name="vSuggestions">Suggestion list to append to</param>
+        ''' <param name="vSeenNames">Names already added - a namespace's children include one
+        ''' node per partial-class declaring file, so this prevents e.g. "MainWindow" from
+        ''' appearing once per MainWindow.*.vb file</param>
+        Private Sub AddNamespaceMemberSuggestions(vNamespaceNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion), vSeenNames As HashSet(Of String))
+            Try
+                If vNamespaceNode.Children Is Nothing Then Return
+
+                for each lChild in vNamespaceNode.Children
+                    If Not IsNodeAccessible(lChild) Then Continue for
+
+                    Select Case lChild.NodeType
+                        Case CodeNodeType.eClass
+                            If vSeenNames.Add(lChild.Name) Then
+                                Dim lSuggestion As New CodeSenseSuggestion()
+                                lSuggestion.Text = lChild.Name
+                                lSuggestion.Kind = CodeSenseSuggestionKind.eClass
+                                lSuggestion.Icon = "class"
+                                lSuggestion.Description = $"Class {lChild.Name}"
+                                vSuggestions.Add(lSuggestion)
+                            End If
+
+                        Case CodeNodeType.eInterface
+                            If vSeenNames.Add(lChild.Name) Then
+                                Dim lSuggestion As New CodeSenseSuggestion()
+                                lSuggestion.Text = lChild.Name
+                                lSuggestion.Kind = CodeSenseSuggestionKind.eInterface
+                                lSuggestion.Icon = "interface"
+                                lSuggestion.Description = $"Interface {lChild.Name}"
+                                vSuggestions.Add(lSuggestion)
+                            End If
+
+                        Case CodeNodeType.eModule, CodeNodeType.eStructure
+                            ' CodeSenseSuggestionKind has no distinct Module/Structure kind -
+                            ' reuse eClass, same as the reflection-based framework-type path
+                            If vSeenNames.Add(lChild.Name) Then
+                                Dim lSuggestion As New CodeSenseSuggestion()
+                                lSuggestion.Text = lChild.Name
+                                lSuggestion.Kind = CodeSenseSuggestionKind.eClass
+                                Dim lIsModule As Boolean = (lChild.NodeType = CodeNodeType.eModule)
+                                lSuggestion.Icon = If(lIsModule, "module", "structure")
+                                lSuggestion.Description = If(lIsModule, "Module ", "Structure ") & lChild.Name
+                                vSuggestions.Add(lSuggestion)
+                            End If
+
+                        Case CodeNodeType.eEnum
+                            ' Matches AddTypeMemberSuggestions's existing enum -> eSnippet convention
+                            If vSeenNames.Add(lChild.Name) Then
+                                Dim lSuggestion As New CodeSenseSuggestion()
+                                lSuggestion.Text = lChild.Name
+                                lSuggestion.Kind = CodeSenseSuggestionKind.eSnippet
+                                lSuggestion.Icon = "enum"
+                                lSuggestion.Description = $"Enum {lChild.Name}"
+                                vSuggestions.Add(lSuggestion)
+                            End If
+
+                        Case CodeNodeType.eNamespace
+                            If vSeenNames.Add(lChild.Name) Then
+                                Dim lSuggestion As New CodeSenseSuggestion()
+                                lSuggestion.Text = lChild.Name
+                                lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
+                                lSuggestion.Icon = "namespace"
+                                lSuggestion.Description = $"Namespace {lChild.Name}"
+                                vSuggestions.Add(lSuggestion)
+                            End If
+                    End Select
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"AddNamespaceMemberSuggestions error: {ex.Message}")
             End Try
         End Sub
         
@@ -1051,8 +1197,8 @@ Namespace Syntax
                                     ' If exact namespace match, add Type
                                     If lExportedType.Namespace.Equals(lNamespaceCheck, StringComparison.OrdinalIgnoreCase) Then
                                          Dim lSuggestion As New CodeSenseSuggestion()
-                                        lSuggestion.Text = lExportedType.Name
-                                        lSuggestion.Kind = If(lExportedType.IsInterface, CodeSenseSuggestionKind.eInterface, 
+                                        lSuggestion.Text = StripGenericArity(lExportedType.Name)
+                                        lSuggestion.Kind = If(lExportedType.IsInterface, CodeSenseSuggestionKind.eInterface,
                                                               If(lExportedType.IsEnum, CodeSenseSuggestionKind.eSnippet, CodeSenseSuggestionKind.eClass))
                                         lSuggestion.Icon = If(lExportedType.IsInterface, "interface", 
                                                               If(lExportedType.IsEnum, "enum", "class"))
@@ -1098,35 +1244,39 @@ Namespace Syntax
         
         Private Sub AddMemberSuggestionsFromType(vType As Type, vSuggestions As List(Of CodeSenseSuggestion))
             For Each lMember As MemberInfo In vType.GetMembers(BindingFlags.Public Or BindingFlags.Instance Or BindingFlags.Static)
-                
+
                 ' Filter out "special" names (internal getters/setters/constructors usually)
                 If lMember.Name.StartsWith("get_") OrElse lMember.Name.StartsWith("set_") OrElse lMember.Name.StartsWith(".ctor") Then
                     Continue For
                 End If
-                
+
+                ' Strip the CLR generic-arity suffix (e.g. "Cast`1" -> "Cast") - VB.NET never
+                ' shows the backtick-mangled reflection name, only "Cast(Of T)" style syntax
+                Dim lName As String = StripGenericArity(lMember.Name)
+
                 Dim lSuggestion As New CodeSenseSuggestion()
-                lSuggestion.Text = lMember.Name
-                
+                lSuggestion.Text = lName
+
                 Select Case lMember.MemberType
                     Case MemberTypes.Method
                         lSuggestion.Kind = CodeSenseSuggestionKind.eMethod
                         lSuggestion.Icon = "method"
-                        lSuggestion.Description = "Method " & lMember.Name
-                        
+                        lSuggestion.Description = "Method " & lName
+
                     Case MemberTypes.Property
                         lSuggestion.Kind = CodeSenseSuggestionKind.eProperty
                         lSuggestion.Icon = "property"
-                        lSuggestion.Description = "Property " & lMember.Name
-                        
+                        lSuggestion.Description = "Property " & lName
+
                     Case MemberTypes.Field
                         lSuggestion.Kind = CodeSenseSuggestionKind.eField
                         lSuggestion.Icon = "field"
-                        lSuggestion.Description = "Field " & lMember.Name
-                        
+                        lSuggestion.Description = "Field " & lName
+
                     Case MemberTypes.Event
                         lSuggestion.Kind = CodeSenseSuggestionKind.eEvent
                         lSuggestion.Icon = "event"
-                        lSuggestion.Description = "Event " & lMember.Name
+                        lSuggestion.Description = "Event " & lName
                 End Select
                 
                 ' Avoid duplicates
@@ -1143,7 +1293,23 @@ Namespace Syntax
                 End If
             Next
         End Sub
-        
+
+        ''' <summary>
+        ''' Strips the CLR generic-arity suffix (e.g. "List`1", "Dictionary`2") from a
+        ''' reflection-derived type or member name
+        ''' </summary>
+        ''' <param name="vName">Raw reflection Name/MemberInfo.Name</param>
+        ''' <returns>The name with everything from the backtick onward removed, unchanged if there's no backtick</returns>
+        ''' <remarks>
+        ''' VB.NET generics use "List(Of T)" syntax and never show the CLR's backtick-mangled
+        ''' name, so this always applies regardless of the type's actual arity
+        ''' </remarks>
+        Private Function StripGenericArity(vName As String) As String
+            If String.IsNullOrEmpty(vName) Then Return vName
+            Dim lIndex As Integer = vName.IndexOf("`"c)
+            Return If(lIndex >= 0, vName.Substring(0, lIndex), vName)
+        End Function
+
         ''' <summary>
         ''' Parse Imports statements from text
         ''' </summary>
@@ -1185,10 +1351,73 @@ Namespace Syntax
         ''' </summary>
         Private Sub AddScopeTypeSuggestions(vContext As CodeSenseContext, vSuggestions As List(Of CodeSenseSuggestion))
             Try
-                ' TODO: Add types from current namespace and imports
-                
+                ' This trigger fires after keywords like As/New/Inherits/Implements/Imports where
+                ' a type/namespace name is expected next - surface the project's own types and
+                ' top-level framework namespaces (System, Microsoft, etc.) as candidates
+                AddProjectTypeSuggestions(vSuggestions)
+                AddFrameworkNamespaceSuggestions(vSuggestions)
+
             Catch ex As Exception
                 Console.WriteLine($"AddScopeTypeSuggestions error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Adds top-level namespaces (System, Microsoft, etc.) from referenced assemblies
+        ''' </summary>
+        ''' <remarks>
+        ''' Results are cached (see pTopLevelNamespaceCache, cleared in ClearReferences) since
+        ''' this runs on every keystroke while a type/namespace is expected and scanning
+        ''' GetExportedTypes() across mscorlib-sized assemblies on every call would be slow
+        ''' </remarks>
+        Private Sub AddFrameworkNamespaceSuggestions(vSuggestions As List(Of CodeSenseSuggestion))
+            Try
+                If pTopLevelNamespaceCache Is Nothing Then
+                    BuildTopLevelNamespaceCache()
+                End If
+
+                for each lNamespace in pTopLevelNamespaceCache
+                    Dim lSuggestion As New CodeSenseSuggestion()
+                    lSuggestion.Text = lNamespace
+                    lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
+                    lSuggestion.Icon = "namespace"
+                    lSuggestion.Description = $"Namespace {lNamespace}"
+                    vSuggestions.Add(lSuggestion)
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"AddFrameworkNamespaceSuggestions error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Scans all referenced assemblies for their top-level namespace segments
+        ''' </summary>
+        Private Sub BuildTopLevelNamespaceCache()
+            Try
+                Dim lNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+                If pProjectReferences IsNot Nothing Then
+                    For Each lAssembly As Assembly In pProjectReferences
+                        Try
+                            For Each lType As Type In lAssembly.GetExportedTypes()
+                                If Not String.IsNullOrEmpty(lType.Namespace) Then
+                                    Dim lDotIndex As Integer = lType.Namespace.IndexOf("."c)
+                                    Dim lTopLevel As String = If(lDotIndex > 0, lType.Namespace.Substring(0, lDotIndex), lType.Namespace)
+                                    lNames.Add(lTopLevel)
+                                End If
+                            Next
+                        Catch ex As Exception
+                            Console.WriteLine($"BuildTopLevelNamespaceCache: failed to scan {lAssembly.GetName().Name}: {ex.Message}")
+                        End Try
+                    Next
+                End If
+
+                pTopLevelNamespaceCache = New List(Of String)(lNames)
+
+            Catch ex As Exception
+                Console.WriteLine($"BuildTopLevelNamespaceCache error: {ex.Message}")
+                pTopLevelNamespaceCache = New List(Of String)()
             End Try
         End Sub
         
@@ -1218,47 +1447,69 @@ Namespace Syntax
         Private Sub AddProjectTypeSuggestions(vSuggestions As List(Of CodeSenseSuggestion))
             Try
                 If pProjectSyntaxTree Is Nothing Then Return
-                
+
+                ' Track names already added - partial classes (mandatory pattern in this
+                ' project, e.g. the MainWindow.*.vb files) contribute one node per declaring
+                ' file, so without this the same class name would be suggested once per file
+                Dim lSeenNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
                 ' Walk the tree looking for types
-                AddProjectTypesRecursive(pProjectSyntaxTree, vSuggestions)
-                
+                AddProjectTypesRecursive(pProjectSyntaxTree, vSuggestions, lSeenNames)
+
             Catch ex As Exception
                 Console.WriteLine($"AddProjectTypeSuggestions error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Recursively add project types
         ''' </summary>
-        Private Sub AddProjectTypesRecursive(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion))
+        Private Sub AddProjectTypesRecursive(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion), vSeenNames As HashSet(Of String))
             Try
                 If vNode Is Nothing Then Return
-                
+
                 Select Case vNode.NodeType
                     Case CodeNodeType.eClass
-                        Dim lSuggestion As New CodeSenseSuggestion()
-                        lSuggestion.Text = vNode.Name
-                        lSuggestion.Kind = CodeSenseSuggestionKind.eClass
-                        lSuggestion.Icon = "class"
-                        lSuggestion.Description = $"Class {vNode.Name}"
-                        vSuggestions.Add(lSuggestion)
-                        
+                        If vSeenNames.Add(vNode.Name) Then
+                            Dim lSuggestion As New CodeSenseSuggestion()
+                            lSuggestion.Text = vNode.Name
+                            lSuggestion.Kind = CodeSenseSuggestionKind.eClass
+                            lSuggestion.Icon = "class"
+                            lSuggestion.Description = $"Class {vNode.Name}"
+                            vSuggestions.Add(lSuggestion)
+                        End If
+
                     Case CodeNodeType.eInterface
-                        Dim lSuggestion As New CodeSenseSuggestion()
-                        lSuggestion.Text = vNode.Name
-                        lSuggestion.Kind = CodeSenseSuggestionKind.eInterface
-                        lSuggestion.Icon = "interface"
-                        lSuggestion.Description = $"Interface {vNode.Name}"
-                        vSuggestions.Add(lSuggestion)
+                        If vSeenNames.Add(vNode.Name) Then
+                            Dim lSuggestion As New CodeSenseSuggestion()
+                            lSuggestion.Text = vNode.Name
+                            lSuggestion.Kind = CodeSenseSuggestionKind.eInterface
+                            lSuggestion.Icon = "interface"
+                            lSuggestion.Description = $"Interface {vNode.Name}"
+                            vSuggestions.Add(lSuggestion)
+                        End If
+
+                    Case CodeNodeType.eNamespace
+                        ' Includes the project's own root namespace (synthesized as an
+                        ' eNamespace node by ProjectManager - see GetProjectSyntaxTree) as
+                        ' well as any explicit sub-namespaces (e.g. "Namespace Editors")
+                        If vSeenNames.Add(vNode.Name) Then
+                            Dim lSuggestion As New CodeSenseSuggestion()
+                            lSuggestion.Text = vNode.Name
+                            lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
+                            lSuggestion.Icon = "namespace"
+                            lSuggestion.Description = $"Namespace {vNode.Name}"
+                            vSuggestions.Add(lSuggestion)
+                        End If
                 End Select
-                
+
                 ' Recursively process children
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
-                        AddProjectTypesRecursive(lChild, vSuggestions)
+                        AddProjectTypesRecursive(lChild, vSuggestions, vSeenNames)
                     Next
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"AddProjectTypesRecursive error: {ex.Message}")
             End Try
@@ -1357,24 +1608,199 @@ Namespace Syntax
                 End If
                 
                 Return Nothing
-                
+
             Catch ex As Exception
                 Console.WriteLine($"FindContainingClass error: {ex.Message}")
                 Return Nothing
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Find the innermost method/function/constructor/property containing the specified line
+        ''' </summary>
+        ''' <param name="vNode">Node to search from (typically the document's file-root node)</param>
+        ''' <param name="vLine">0-based line number to locate</param>
+        ''' <returns>The innermost containing member node, or Nothing if the line isn't inside one</returns>
+        Private Function FindContainingMethod(vNode As SyntaxNode, vLine As Integer) As SyntaxNode
+            Try
+                If vNode Is Nothing Then Return Nothing
+
+                If vNode.NodeType = CodeNodeType.eMethod OrElse vNode.NodeType = CodeNodeType.eFunction OrElse
+                   vNode.NodeType = CodeNodeType.eConstructor OrElse vNode.NodeType = CodeNodeType.eProperty Then
+                    If vNode.StartLine <= vLine AndAlso vNode.EndLine >= vLine Then
+                        Return vNode
+                    End If
+                End If
+
+                If vNode.Children IsNot Nothing Then
+                    for each lChild in vNode.Children
+                        Dim lResult = FindContainingMethod(lChild, vLine)
+                        If lResult IsNot Nothing Then
+                            Return lResult
+                        End If
+                    Next
+                End If
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"FindContainingMethod error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Populates Imports, containing class/method, and locally-visible parameters/variables
+        ''' on the context by walking the current document's syntax tree
+        ''' </summary>
+        ''' <param name="vContext">The context being built for this suggestion request</param>
+        ''' <remarks>
+        ''' Runs on every GetSuggestions call so all trigger kinds (dot, space, manual) see live
+        ''' scope data instead of the empty defaults CodeSenseContext.New() leaves them at
+        ''' </remarks>
+        Private Sub PopulateScopeContext(vContext As CodeSenseContext)
+            Try
+                If pCurrentSyntaxTree Is Nothing Then Return
+
+                ' Imports: the file-root node's direct children include one eImport node
+                ' per imported namespace (see RoslynConverter.ProcessImport)
+                If pCurrentSyntaxTree.Children IsNot Nothing Then
+                    Dim lImports As New List(Of String)()
+                    for each lChild in pCurrentSyntaxTree.Children
+                        If lChild.NodeType = CodeNodeType.eImport AndAlso Not String.IsNullOrEmpty(lChild.Name) Then
+                            If Not lImports.Contains(lChild.Name) Then
+                                lImports.Add(lChild.Name)
+                            End If
+                        End If
+                    Next
+                    vContext.ImportsContext = lImports
+                End If
+
+                ' Containing class, for Me./MyBase. and general scope awareness
+                Dim lClassNode As SyntaxNode = FindContainingClass(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
+                If lClassNode IsNot Nothing Then
+                    vContext.ContainingClass = lClassNode.Name
+                End If
+
+                ' Containing method/function/constructor/property, for locals + parameters
+                Dim lMethodNode As SyntaxNode = FindContainingMethod(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
+                If lMethodNode IsNot Nothing Then
+                    vContext.ContainingMethod = lMethodNode.Name
+
+                    Dim lLocals As New List(Of String)()
+
+                    ' Parameters are in scope for the whole member body
+                    If lMethodNode.Parameters IsNot Nothing Then
+                        for each lParam in lMethodNode.Parameters
+                            If Not String.IsNullOrEmpty(lParam.Name) Then
+                                lLocals.Add(lParam.Name)
+                            End If
+                        Next
+                    End If
+
+                    ' Dim'd locals - RoslynConverter.ExtractLocalVariables flattens every local
+                    ' in the member as a direct eVariable child regardless of nested block, so
+                    ' restrict to ones declared at or before the cursor line as a simple proxy
+                    ' for "already in scope" rather than showing locals from later in the method
+                    If lMethodNode.Children IsNot Nothing Then
+                        for each lChild in lMethodNode.Children
+                            If lChild.NodeType = CodeNodeType.eVariable AndAlso lChild.StartLine <= vContext.TriggerPosition.Line Then
+                                If Not String.IsNullOrEmpty(lChild.Name) AndAlso Not lLocals.Contains(lChild.Name) Then
+                                    lLocals.Add(lChild.Name)
+                                End If
+                            End If
+                        Next
+                    End If
+
+                    vContext.LocalVariables = lLocals
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"PopulateScopeContext error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Resolves the declared type of an identifier (parameter, local variable, field, or
+        ''' property) visible at the cursor's position
+        ''' </summary>
+        ''' <param name="vIdentifier">Identifier to resolve, as typed by the user</param>
+        ''' <param name="vContext">Current suggestion context, used for the cursor position</param>
+        ''' <returns>The declared type name, or Nothing if not found</returns>
+        ''' <remarks>
+        ''' This is a syntactic lookup against data RoslynConverter already extracts
+        ''' (ParameterInfo.ParameterType, SyntaxNode.DataType) - it resolves explicitly-typed
+        ''' declarations ("Dim lFoo As Bar", "vFoo As Bar") correctly, but Option Infer-style
+        ''' declarations with no As clause are recorded as "Object" and can't be resolved this
+        ''' way. Real inference for those would need a Roslyn semantic model lookup, which
+        ''' CodeSenseEngine does not currently have access to.
+        ''' </remarks>
+        Private Function ResolveVariableType(vIdentifier As String, vContext As CodeSenseContext) As String
+            Try
+                If String.IsNullOrEmpty(vIdentifier) OrElse pCurrentSyntaxTree Is Nothing Then Return Nothing
+
+                Dim lMethodNode As SyntaxNode = FindContainingMethod(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
+                If lMethodNode IsNot Nothing Then
+                    If lMethodNode.Parameters IsNot Nothing Then
+                        for each lParam in lMethodNode.Parameters
+                            If String.Equals(lParam.Name, vIdentifier, StringComparison.OrdinalIgnoreCase) Then
+                                Return lParam.ParameterType
+                            End If
+                        Next
+                    End If
+
+                    If lMethodNode.Children IsNot Nothing Then
+                        for each lChild in lMethodNode.Children
+                            If lChild.NodeType = CodeNodeType.eVariable AndAlso
+                               String.Equals(lChild.Name, vIdentifier, StringComparison.OrdinalIgnoreCase) Then
+                                Return lChild.DataType
+                            End If
+                        Next
+                    End If
+                End If
+
+                Dim lClassNode As SyntaxNode = FindContainingClass(pCurrentSyntaxTree, vContext.TriggerPosition.Line)
+                If lClassNode IsNot Nothing AndAlso lClassNode.Children IsNot Nothing Then
+                    for each lChild in lClassNode.Children
+                        If (lChild.NodeType = CodeNodeType.eField OrElse lChild.NodeType = CodeNodeType.eProperty) AndAlso
+                           String.Equals(lChild.Name, vIdentifier, StringComparison.OrdinalIgnoreCase) Then
+                            Return If(Not String.IsNullOrEmpty(lChild.DataType), lChild.DataType, lChild.ReturnType)
+                        End If
+                    Next
+                End If
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"ResolveVariableType error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
         ''' <summary>
         ''' Recursively find a node by name
         ''' </summary>
         Private Function FindNodeByNameRecursive(vNode As SyntaxNode, vName As String) As SyntaxNode
             Try
                 If vNode Is Nothing Then Return Nothing
-                
-                If String.Equals(vNode.Name, vName, StringComparison.OrdinalIgnoreCase) Then
+
+                ' Only match type-like/namespace nodes - the project tree's root is an
+                ' eDocument wrapper named after the project (e.g. "SimpleIDE"), which can
+                ' collide with the real eNamespace child of the same name (the project's root
+                ' namespace); without this check that wrapper matches first and member lookup
+                ' silently returns an eDocument node with no usable members
+                Dim lIsCompletableKind As Boolean =
+                    vNode.NodeType = CodeNodeType.eClass OrElse
+                    vNode.NodeType = CodeNodeType.eInterface OrElse
+                    vNode.NodeType = CodeNodeType.eModule OrElse
+                    vNode.NodeType = CodeNodeType.eStructure OrElse
+                    vNode.NodeType = CodeNodeType.eEnum OrElse
+                    vNode.NodeType = CodeNodeType.eNamespace
+
+                If lIsCompletableKind AndAlso String.Equals(vNode.Name, vName, StringComparison.OrdinalIgnoreCase) Then
                     Return vNode
                 End If
-                
+
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
                         Dim lFound As SyntaxNode = FindNodeByNameRecursive(lChild, vName)
@@ -1397,16 +1823,8 @@ Namespace Syntax
         ''' </summary>
         Private Function CompareSuggestions(vX As CodeSenseSuggestion, vY As CodeSenseSuggestion) As Integer
             Try
-                ' Keywords come first
-                If vX.Kind = CodeSenseSuggestionKind.eKeyword AndAlso vY.Kind <> CodeSenseSuggestionKind.eKeyword Then
-                    Return -1
-                ElseIf vY.Kind = CodeSenseSuggestionKind.eKeyword AndAlso vX.Kind <> CodeSenseSuggestionKind.eKeyword Then
-                    Return 1
-                End If
-                
-                ' Then alphabetical
                 Return String.Compare(vX.Text, vY.Text, StringComparison.OrdinalIgnoreCase)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CompareSuggestions error: {ex.Message}")
                 Return 0
@@ -1476,18 +1894,168 @@ Namespace Syntax
         ''' <summary>
         ''' Check if a node is accessible in current context
         ''' </summary>
+        ''' <param name="vNode">The member node being considered as a suggestion</param>
+        ''' <returns>True if visible from the class the cursor is currently in (see pCurrentContext.ContainingClass)</returns>
+        ''' <remarks>
+        ''' Public/Friend members are always visible (CodeSense only surfaces same-project symbols
+        ''' via this path, so "Friend" effectively means "same assembly" here). Private members
+        ''' require the caller to be inside the exact same class; Protected members require the
+        ''' caller's class to be the same class or a subclass of it (checked via IsClassDerivedFrom).
+        ''' </remarks>
         Private Function IsNodeAccessible(vNode As SyntaxNode) As Boolean
             Try
-                ' For now, return true for all public and friend members
-                ' TODO: Implement proper visibility checking based on context
-                Return vNode.IsPublic OrElse vNode.IsFriend
-                
+                If vNode Is Nothing Then Return False
+
+                If vNode.IsPublic OrElse vNode.IsFriend Then Return True
+
+                If Not vNode.IsPrivate AndAlso Not vNode.IsProtected Then
+                    ' No explicit accessibility modifier captured - fail open rather than
+                    ' hide a member we can't actually classify
+                    Return True
+                End If
+
+                Dim lOwnerType As SyntaxNode = GetContainingTypeNode(vNode)
+                If lOwnerType Is Nothing Then Return True
+
+                Dim lCallerClassName As String = pCurrentContext?.ContainingClass
+                If String.IsNullOrEmpty(lCallerClassName) Then Return False
+
+                If String.Equals(lCallerClassName, lOwnerType.Name, StringComparison.OrdinalIgnoreCase) Then
+                    Return True
+                End If
+
+                If vNode.IsProtected Then
+                    Return IsClassDerivedFrom(lCallerClassName, lOwnerType.Name)
+                End If
+
+                Return False
+
             Catch ex As Exception
                 Console.WriteLine($"IsNodeAccessible error: {ex.Message}")
                 Return True
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Walks up from a member node to find its containing class/module/structure/interface
+        ''' </summary>
+        ''' <param name="vNode">Member node to walk up from</param>
+        ''' <returns>The nearest type-level ancestor, or Nothing if none is found</returns>
+        Private Function GetContainingTypeNode(vNode As SyntaxNode) As SyntaxNode
+            Try
+                Dim lCurrent As SyntaxNode = vNode?.Parent
+                While lCurrent IsNot Nothing
+                    If lCurrent.NodeType = CodeNodeType.eClass OrElse lCurrent.NodeType = CodeNodeType.eModule OrElse
+                       lCurrent.NodeType = CodeNodeType.eStructure OrElse lCurrent.NodeType = CodeNodeType.eInterface Then
+                        Return lCurrent
+                    End If
+                    lCurrent = lCurrent.Parent
+                End While
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"GetContainingTypeNode error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Finds a Class/Module/Structure/Interface node by name anywhere in the project tree
+        ''' </summary>
+        ''' <param name="vName">Simple type name to search for</param>
+        ''' <returns>The matching type node, or Nothing if not found</returns>
+        Private Function FindTypeNodeByName(vName As String) As SyntaxNode
+            Try
+                If String.IsNullOrEmpty(vName) Then Return Nothing
+
+                If pProjectSyntaxTree IsNot Nothing Then
+                    Dim lResult = FindTypeNodeByNameRecursive(pProjectSyntaxTree, vName)
+                    If lResult IsNot Nothing Then Return lResult
+                End If
+
+                If pCurrentSyntaxTree IsNot Nothing Then
+                    Return FindTypeNodeByNameRecursive(pCurrentSyntaxTree, vName)
+                End If
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"FindTypeNodeByName error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Recursive helper for FindTypeNodeByName
+        ''' </summary>
+        Private Function FindTypeNodeByNameRecursive(vNode As SyntaxNode, vName As String) As SyntaxNode
+            Try
+                If vNode Is Nothing Then Return Nothing
+
+                If (vNode.NodeType = CodeNodeType.eClass OrElse vNode.NodeType = CodeNodeType.eModule OrElse
+                    vNode.NodeType = CodeNodeType.eStructure OrElse vNode.NodeType = CodeNodeType.eInterface) AndAlso
+                   String.Equals(vNode.Name, vName, StringComparison.OrdinalIgnoreCase) Then
+                    Return vNode
+                End If
+
+                If vNode.Children IsNot Nothing Then
+                    for each lChild in vNode.Children
+                        Dim lResult = FindTypeNodeByNameRecursive(lChild, vName)
+                        If lResult IsNot Nothing Then Return lResult
+                    Next
+                End If
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"FindTypeNodeByNameRecursive error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Checks whether vDerivedClassName inherits (directly or transitively) from vBaseClassName
+        ''' </summary>
+        ''' <param name="vDerivedClassName">Name of the potential subclass</param>
+        ''' <param name="vBaseClassName">Name of the potential base class</param>
+        ''' <returns>True if vDerivedClassName's Inherits chain reaches vBaseClassName</returns>
+        ''' <remarks>
+        ''' Only walks project-defined classes (via BaseType/FindTypeNodeByName); a chain that
+        ''' leaves the project into a framework base type simply stops there. Bounded to 25 hops
+        ''' as a guard against bad/cyclic data rather than genuine deep hierarchies.
+        ''' </remarks>
+        Private Function IsClassDerivedFrom(vDerivedClassName As String, vBaseClassName As String) As Boolean
+            Try
+                If String.IsNullOrEmpty(vDerivedClassName) OrElse String.IsNullOrEmpty(vBaseClassName) Then Return False
+
+                Dim lCurrentName As String = vDerivedClassName
+                Dim lGuard As Integer = 0
+                While lGuard < 25
+                    lGuard += 1
+
+                    Dim lNode As SyntaxNode = FindTypeNodeByName(lCurrentName)
+                    If lNode Is Nothing OrElse String.IsNullOrEmpty(lNode.BaseType) Then Return False
+
+                    ' BaseType may be namespace-qualified (e.g. "SimpleIDE.Editors.Foo")
+                    Dim lBaseSimpleName As String = lNode.BaseType
+                    Dim lDotIndex As Integer = lBaseSimpleName.LastIndexOf("."c)
+                    If lDotIndex >= 0 Then lBaseSimpleName = lBaseSimpleName.Substring(lDotIndex + 1)
+
+                    If String.Equals(lBaseSimpleName, vBaseClassName, StringComparison.OrdinalIgnoreCase) Then
+                        Return True
+                    End If
+
+                    lCurrentName = lBaseSimpleName
+                End While
+
+                Return False
+
+            Catch ex As Exception
+                Console.WriteLine($"IsClassDerivedFrom error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
         ' ===== IDisposable Implementation =====
         
         ''' <summary>

@@ -31,7 +31,16 @@ Namespace Editors
                 ' Get key and modifiers
                 Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
                 Dim lModifiers As ModifierType = vArgs.Event.State
-                
+
+                ' Intercept navigation/commit/dismiss keys while the CodeSense popup is showing,
+                ' before Tab/indent handling and normal editing get a chance at them
+                If pCodeSenseActive Then
+                    If HandleCodeSensePopupKeyPress(lKey) Then
+                        vArgs.RetVal = True
+                        Return True
+                    End If
+                End If
+
                 ' Debug output for Tab keys
                 If lKey = Gdk.Key.Tab OrElse lKey = Gdk.Key.ISO_Left_Tab Then
                     Console.WriteLine($"Editor Tab Detection: Key={lKey}, KeyValue={vArgs.Event.KeyValue}, Modifiers={lModifiers}")

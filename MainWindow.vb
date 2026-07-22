@@ -154,6 +154,7 @@ Partial Public Class MainWindow
             
             InitializeObjectExplorer()
             InitializeCodeSense()
+            InitializeCodeSenseWithProjectManager()
             InitializeProjectManagerReferences()
 
             ' Setup window state tracking

@@ -431,47 +431,21 @@ Partial Public Class MainWindow
 
             AddHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
             AddHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
-            
-            ' Hook up key press for CodeSense interactions
-            If vEditor.Widget IsNot Nothing Then
-                AddHandler vEditor.Widget.KeyPressEvent, AddressOf OnEditorKeyPress
-            End If
-            
+
             ' Navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
                 AddHandler lCustomEditor.NavigationUpdateRequested, AddressOf OnEditorNavigationUpdateRequested
             End If
-            
+
             Console.WriteLine($"Hooked up all events for editor")
-            
+
         Catch ex As Exception
             Console.WriteLine($"HookupAllEditorEvents error: {ex.Message}")
         End Try
     End Sub
-    
-    ''' <summary>
-    ''' Handles key press events from the editor to forward navigation keys to CodeSense
-    ''' </summary>
-    Private Sub OnEditorKeyPress(o As Object, args As KeyPressEventArgs)
-        Try
-            ' If CodeSense window is visible, try to handle navigation keys
-            If pCodeSenseWindow IsNot Nothing AndAlso pCodeSenseWindow.Visible Then
-                If HandleCodeSenseKeyPress(args.Event.Key) Then
-                    args.RetVal = True ' Consume the event
-                    Return
-                End If
-            End If
-            
-            ' Otherwise let the editor handle it
-            args.RetVal = False
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnEditorKeyPress error: {ex.Message}")
-        End Try
-    End Sub
 
-    
+
     ''' <summary>
     ''' Unhooks all editor events including Object Explorer integration and navigation dropdowns
     ''' </summary>

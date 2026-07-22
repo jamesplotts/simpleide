@@ -80,6 +80,7 @@
     <Compile Include="Editors/CustomDrawingEditor.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Clipboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Codesense.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.CodeSensePopup.vb" />
     <Compile Include="Editors/CustomDrawingEditor.CodeSenseTrigger.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Colors.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Comment.vb" />
