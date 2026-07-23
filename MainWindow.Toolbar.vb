@@ -232,7 +232,7 @@ Partial Public Class MainWindow
             pToolbar.Insert(pIndentToolButton, -1)
     
             ' Toggle Comment button
-            pToggleCommentButton = New ToolButton(Nothing, "Toggle Comment")
+            pToggleCommentButton = New ToolButton(Nothing, "Comment")
             Try
                 Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", lIconSize)
                 lImg.Show()
@@ -360,7 +360,23 @@ Partial Public Class MainWindow
         Using lStream As System.IO.Stream = GetType(MainWindow).Assembly.GetManifestResourceStream(vResourceName)
             If lStream IsNot Nothing Then
                 Dim lPB As New Gdk.Pixbuf(lStream)
-                Dim lImg As New Gtk.Image(lPB, vIconSize)
+
+                ' Gdk.Pixbuf implements GLib.IIcon, so New Gtk.Image(pixbuf, iconSize) silently
+                ' resolves to the (GLib.IIcon, IconSize) overload instead of actually scaling
+                ' the pixbuf - that overload renders the pixbuf at its native embedded pixel
+                ' size and ignores vIconSize entirely, which is why toggling the toolbar's
+                ' Button Size (View > Toolbar > Button Size) never visibly changed anything.
+                ' Explicitly rescale the pixbuf to the requested icon size's real pixel
+                ' dimensions before wrapping it.
+                Dim lWidth As Integer = 0
+                Dim lHeight As Integer = 0
+                If Gtk.Icon.SizeLookup(vIconSize, lWidth, lHeight) AndAlso lWidth > 0 AndAlso lHeight > 0 Then
+                    If lPB.Width <> lWidth OrElse lPB.Height <> lHeight Then
+                        lPB = lPB.ScaleSimple(lWidth, lHeight, Gdk.InterpType.Bilinear)
+                    End If
+                End If
+
+                Dim lImg As New Gtk.Image(lPB)
                 lImg.Show()
                 Return lImg
             Else

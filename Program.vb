@@ -868,7 +868,7 @@ Module Program
         Console.WriteLine($"  Machine: {Environment.MachineName}")
         Console.WriteLine($"  Processors: {Environment.ProcessorCount}")
         Console.WriteLine()
-        Console.WriteLine("Copyright (C) 2025 VbIDE Contributors")
+        Console.WriteLine("Copyright (C) 2026 VbIDE Contributors")
         Console.WriteLine("Licensed under GPL v3.0 - See --license for details")
         Console.WriteLine("For more information, visit: https://github.com/jamesplotts/simpleide")
     End Sub
@@ -878,7 +878,7 @@ Module Program
     ''' </summary>
     Private Sub ShowLicense()
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
-        Console.WriteLine("Copyright (C) 2025 VbIDE Contributors")
+        Console.WriteLine("Copyright (C) 2026 VbIDE Contributors")
         Console.WriteLine("Repository: https://github.com/jamesplotts/simpleide")
         Console.WriteLine()
         Console.WriteLine("This program is free software: you can redistribute it and/or modify")

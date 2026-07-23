@@ -67,7 +67,7 @@ Partial Public Class MainWindow
             lDescription.Add( "opening a folder (File -> Open Folder)," )
             lDescription.Add( "or use keyboard shortcuts (Ctrl+N for new file)." )
             lDescription.Add( " " )
-            lDescription.Add( "Copyright © 2024-2025 James Duane Plotts" )
+            lDescription.Add( "Copyright © 2024-2026 James Duane Plotts" )
             lDescription.Add( "License granted under GNU GPLv3:" )
             lDescription.Add( "https://www.gnu.org/licenses/gpl-3.0.html" )
             lDescription.Add( " " )
