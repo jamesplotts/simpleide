@@ -87,7 +87,12 @@ Partial Public Class MainWindow
             End If
             
             Console.WriteLine("  Adding Object Explorer tab")
-            Dim lObjectIndex As Integer = lCustomNotebook.AppendPage(pObjectExplorer, "Objects", "file-code")
+            ' "file-code" is not a real icon name in most system icon themes (including the
+            ' active KDE theme this was tested against), so it silently fell back to a
+            ' generic blank-document icon - "view-list-tree" is a standard freedesktop icon
+            ' name present in Breeze, Papirus, and other common themes, and fits a class/
+            ' member hierarchy browser better anyway
+            Dim lObjectIndex As Integer = lCustomNotebook.AppendPage(pObjectExplorer, "Objects", "view-list-tree")
             Console.WriteLine($"  Object Explorer added at index {lObjectIndex}")
             
             ' CRITICAL FIX: Pack the notebook with shrink:=False to prevent it from disappearing

@@ -191,6 +191,18 @@ Namespace Widgets
                 End Try
                 
                 If lPixbuf IsNot Nothing Then
+                    ' IconTheme.LoadIcon is supposed to render at the requested pIconSize, but
+                    ' some icon files (depending on the active system theme) come back at their
+                    ' native/declared size instead of being rescaled - most visible on file
+                    ' icons simply because there are far more file rows than folder rows in a
+                    ' typical project tree. Force the size explicitly so zooming the explorer
+                    ' always scales every icon consistently.
+                    If lPixbuf.Width <> pIconSize OrElse lPixbuf.Height <> pIconSize Then
+                        Dim lScaled As Pixbuf = lPixbuf.ScaleSimple(pIconSize, pIconSize, InterpType.Bilinear)
+                        lPixbuf.Dispose()
+                        lPixbuf = lScaled
+                    End If
+
                     ' Center icon vertically in row
                     Dim lIconY As Integer = vY + (pRowHeight - pIconSize) \ 2
                     Gdk.CairoHelper.SetSourcePixbuf(vContext, lPixbuf, vX, lIconY)
