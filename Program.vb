@@ -4,6 +4,7 @@ Imports System.Collections.Generic
 Imports System.IO
 Imports System.Linq
 Imports System.Reflection
+Imports System.Runtime.InteropServices
 Imports System.Text
 Imports System.Text.Json
 Imports Gtk
@@ -376,13 +377,36 @@ Module Program
     
     Private Const APPLICATION_ID As String = "com.simple.ide"
     Private Const APPLICATION_NAME As String = "VbIDE"
-    
+
+    ' .NET's Environment.SetEnvironmentVariable does not propagate to the real process
+    ' environment that native libraries (libc getenv, and by extension GLib/GTK) read from
+    ' on this runtime - confirmed by direct P/Invoke testing. Calling libc's own setenv()
+    ' is required for GDK_BACKEND below to actually be visible to GTK.
+    <DllImport("libc", EntryPoint:="setenv")>
+    Private Function libc_setenv(vName As String, vValue As String, vOverwrite As Integer) As Integer
+    End Function
+
     Sub Main(vArgs As String())
+        ' KDE Plasma's native Wayland session does not resolve the window-decoration
+        ' (title-bar) icon for GTK apps even with a correctly matched .desktop file/app-id -
+        ' this is a KWin limitation, confirmed by testing under both native Wayland and a
+        ' forced X11/XWayland backend. Forcing X11 (which GTK renders via XWayland on a
+        ' Wayland session) makes GTK push the icon directly via the standard _NET_WM_ICON
+        ' hint, which every X11 window manager - including KWin's XWayland compat layer -
+        ' honors correctly. Only set this if the user hasn't already chosen a backend
+        ' themselves (e.g. GDK_BACKEND=wayland to opt back into native Wayland). Must happen
+        ' before anything touches GLib/GTK (including GLib.Global.ProgramName below) - GLib
+        ' caches environment variables internally the first time it reads them.
+        If RuntimeInformation.IsOSPlatform(OSPlatform.Linux) AndAlso
+           String.IsNullOrEmpty(Environment.GetEnvironmentVariable("GDK_BACKEND")) Then
+            libc_setenv("GDK_BACKEND", "x11", 1)
+        End If
+
         ' Process command line arguments that don't require GUI
         If ProcessNonGuiArguments(vArgs) Then
             Return ' Exit if handled
         End If
-        
+
         ' Set the program name so Wayland/desktop compositors can match this window to a
         ' .desktop file (see simpleide.desktop) for taskbar/title-bar icon lookup - without
         ' this, Wayland falls back to a generic "W" logo since it can't map the window to

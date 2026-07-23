@@ -104,21 +104,33 @@ Partial Public Class MainWindow
         Try
             Dim lLocalAppData As String = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
 
-            Dim lIconsDir As String = System.IO.Path.Combine(lLocalAppData, "icons", "hicolor", "256x256", "apps")
-            Directory.CreateDirectory(lIconsDir)
-            Dim lIconDestPath As String = System.IO.Path.Combine(lIconsDir, $"{DesktopIntegrationAppId}.png")
-
-            ' Copy from the embedded resource so this works regardless of where/how the
-            ' repo was cloned or the app was launched from
+            ' Read the embedded icon into memory first so we can inspect its actual pixel
+            ' dimensions - the icons/hicolor theme spec requires the file to live in a
+            ' folder matching its real size (e.g. "128x128/apps"), and hardcoding a size
+            ' here previously caused gtk-update-icon-cache to reject the whole theme when
+            ' icon.png didn't match the hardcoded "256x256" folder it was written to
+            Dim lIconBytes As Byte()
             Using lStream = GetType(MainWindow).Assembly.GetManifestResourceStream("SimpleIDE.icon.png")
                 If lStream Is Nothing Then
                     Console.WriteLine("InstallDesktopIntegration: embedded icon resource not found")
                     Return False
                 End If
-                Using lFileStream = File.Create(lIconDestPath)
-                    lStream.CopyTo(lFileStream)
+                Using lMemoryStream As New MemoryStream()
+                    lStream.CopyTo(lMemoryStream)
+                    lIconBytes = lMemoryStream.ToArray()
                 End Using
             End Using
+
+            Dim lIconSizeFolder As String
+            Using lPixbuf As New Gdk.Pixbuf(lIconBytes)
+                lIconSizeFolder = $"{lPixbuf.Width}x{lPixbuf.Height}"
+            End Using
+
+            Dim lIconsDir As String = System.IO.Path.Combine(lLocalAppData, "icons", "hicolor", lIconSizeFolder, "apps")
+            Directory.CreateDirectory(lIconsDir)
+            Dim lIconDestPath As String = System.IO.Path.Combine(lIconsDir, $"{DesktopIntegrationAppId}.png")
+
+            File.WriteAllBytes(lIconDestPath, lIconBytes)
 
             ' Prefer the actual running executable's path (works for a published/built copy);
             ' fall back to the assembly location if the host process path isn't available

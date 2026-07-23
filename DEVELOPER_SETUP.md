@@ -88,12 +88,19 @@ dotnet run --project SimpleIDE.vbproj
 Or run built executable
 ./bin/Debug/net8.0/SimpleIDE
 
-### 6. Desktop Integration (Taskbar / Alt-Tab Icon)
+### 6. Desktop Integration & Icons on Linux (Wayland / KDE)
 
-On Wayland compositors (this shows up most often on KDE Plasma), GTK windows only get
-their correct taskbar, title-bar, and Alt-Tab icon if the compositor can match the running
-window to an installed `.desktop` file via a matching application ID. Without that match,
-Wayland falls back to a generic icon instead of SimpleIDE's own.
+SimpleIDE shows its own penguin-and-VB icon in three separate places - the taskbar, the
+Alt-Tab switcher, and the window's own title bar - and on a Wayland session (most notably
+KDE Plasma, which defaults to Wayland) each of those is resolved differently. This section
+explains what SimpleIDE does about each one and why, so nobody "cleans up" this code later
+thinking it's redundant.
+
+#### Taskbar / Alt-Tab icon - fixed via a `.desktop` file
+
+Wayland compositors only show the correct taskbar/Alt-Tab icon for a GTK window if the
+compositor can match the running window to an installed `.desktop` file via a matching
+application ID. Without that match, Wayland falls back to a generic icon.
 
 **The app handles this for you automatically.** The first time you run SimpleIDE on Linux,
 it will offer to install desktop integration (a `.desktop` file plus a copy of the app icon,
@@ -102,8 +109,7 @@ the prompt, then fully quit and relaunch SimpleIDE for it to take effect. If you
 prompt, or want to reinstall/repair it later (e.g. after moving where you keep the repo),
 use **Help > Install Desktop Integration** from the menu at any time.
 
-**If you'd rather do it manually** (or you're on a different desktop environment and want
-to double-check the details), the app writes exactly this:
+**If you'd rather do it manually**, the app writes exactly this:
 
 1. A `.desktop` file at `~/.local/share/applications/simpleide.desktop`:
    ```ini
@@ -117,7 +123,11 @@ to double-check the details), the app writes exactly this:
    StartupWMClass=simpleide
    Categories=Development;IDE;
    ```
-2. A copy of `Resources/icon.png` at `~/.local/share/icons/hicolor/256x256/apps/simpleide.png`.
+2. A copy of `Resources/icon.png` at `~/.local/share/icons/hicolor/<WxH>/apps/simpleide.png`,
+   where `<WxH>` is the icon's *actual* pixel dimensions (read at install time via
+   `Gdk.Pixbuf`, not hardcoded) - the freedesktop icon-theme spec requires the file to live
+   in a folder matching its real size, and a mismatch here makes `gtk-update-icon-cache`
+   reject the whole theme.
 3. A call to `update-desktop-database ~/.local/share/applications` (if that tool is
    installed) so the desktop environment picks up the new file immediately rather than
    waiting for its next periodic scan.
@@ -126,6 +136,32 @@ The `StartupWMClass` value (`simpleide`) must match the program name the app set
 startup via `GLib.Global.ProgramName` in `Program.vb` — that's the other half of the fix;
 without it, GTK's default window class won't match what the `.desktop` file declares even
 if the file itself is installed correctly.
+
+#### Title-bar (window decoration) icon - fixed by forcing the X11 backend
+
+The taskbar fix above does **not** cover the icon in the window's own title bar. On KDE
+Plasma's *native* Wayland session, KWin does not resolve a GTK3 window's decoration icon
+even when the `.desktop`/app-id match above is set up correctly - this was confirmed by
+testing side-by-side under native Wayland (no icon) versus the same binary forced onto the
+X11/XWayland backend (icon shows correctly), including with old, unmodified builds of
+SimpleIDE from before this was ever an issue. It's a KWin/Wayland limitation, not something
+wrong in SimpleIDE's own code - X11 window managers (and XWayland) get the icon directly
+from GTK via the standard `_NET_WM_ICON` window property, a mechanism Wayland deliberately
+does not expose to native clients.
+
+**The app works around this automatically**: `Program.vb`'s `Sub Main` forces
+`GDK_BACKEND=x11` before any other GTK/GLib code runs, which makes GTK render through
+XWayland instead of natively. This only kicks in if `GDK_BACKEND` isn't already set in your
+environment, so it never overrides a deliberate choice (e.g. exporting
+`GDK_BACKEND=wayland` yourself to opt back into native Wayland rendering).
+
+**Implementation note for contributors**: this is set via a direct P/Invoke to libc's own
+`setenv()` (see `libc_setenv` in `Program.vb`), *not* `Environment.SetEnvironmentVariable`.
+On this runtime, `Environment.SetEnvironmentVariable` was confirmed (by comparing against a
+P/Invoke to `getenv()`) to update only .NET's own internal view of the environment, not the
+real process environment that GLib/GTK read via `getenv()` - so it silently fails to affect
+GTK's backend selection. If you ever need to set another env var that native/GTK code must
+observe, use the same `libc_setenv` pattern, not the .NET API.
 
 ## Development Environment
 
