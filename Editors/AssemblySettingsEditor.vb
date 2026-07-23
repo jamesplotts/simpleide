@@ -431,8 +431,9 @@ Namespace Editors
                 Dim lDelaySign As String = GetNodeValue(vDoc, "//DelaySign")
                 pDelaySignCheck.Active = (lDelaySign.ToLower() = "true")
                 
-                ' Auto-increment setting (custom property)
-                Dim lAutoIncrement As String = GetNodeValue(vDoc, "//AutoIncrementBuildNumber")
+                ' Auto-increment setting (custom property) - must match the property name
+                ' AssemblyVersionManager.IsAutoIncrementEnabled() actually checks for
+                Dim lAutoIncrement As String = GetNodeValue(vDoc, "//AutoIncrementVersion")
                 pAutoIncrementCheck.Active = (lAutoIncrement.ToLower() = "true")
                 
             Catch ex As Exception
@@ -611,8 +612,9 @@ Namespace Editors
                     SetNodeValue(lDoc, "DelaySign", pDelaySignCheck.Active.ToString().ToLower())
                 End If
                 
-                ' Auto-increment (custom property)
-                SetNodeValue(lDoc, "AutoIncrementBuildNumber", pAutoIncrementCheck.Active.ToString().ToLower())
+                ' Auto-increment (custom property) - name must match what
+                ' AssemblyVersionManager.IsAutoIncrementEnabled() checks for
+                SetNodeValue(lDoc, "AutoIncrementVersion", pAutoIncrementCheck.Active.ToString().ToLower())
                 
                 ' Save with formatting
                 Dim lSettings As New XmlWriterSettings()

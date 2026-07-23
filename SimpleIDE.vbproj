@@ -8,19 +8,59 @@
     <AssemblyName>SimpleIDE</AssemblyName>
     <StartupObject>SimpleIDE.Program</StartupObject>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <PlatformTarget></PlatformTarget>
+    <PlatformTarget>
+    </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.159.0</AssemblyVersion>
-    <FileVersion>1.1.159.0</FileVersion>
-    <AutoIncrementBuildNumber>true</AutoIncrementBuildNumber>
+    <AssemblyVersion>1.1.167.0</AssemblyVersion>
+    <FileVersion>1.1.167.0</FileVersion>
+    <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.159</Version>
+    <Version>1.1.167</Version>
+    <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
     <NoWarn>$(NoWarn);NU1605</NoWarn>
   </PropertyGroup>
+  <!--
+    Auto-increments the Build component of Version/AssemblyVersion/FileVersion on every
+    build (dotnet build, dotnet run, or the IDE's own Build command), persisting the new
+    number back into this file. Runs BeforeTargets="GenerateAssemblyInfo" specifically
+    because that's the target that actually bakes AssemblyVersion/FileVersion into the
+    compiled DLL - ApplicationVersion.vb reads the version back via reflection off the
+    compiled assembly at runtime (not by re-reading this file), so the property override
+    has to land before that happens for the Welcome tab to show the new number.
+    Reads the CURRENT value directly from this file's own XML (via XmlPeek) rather than
+    the evaluated $(Version) property, since the property was already evaluated from
+    last build's persisted value before this target ever runs.
+    Gated on the same AutoIncrementVersion property AssemblyVersionManager.vb checks for
+    the IDE-internal increment path, so there's one toggle for both.
+  -->
+  <Target Name="AutoIncrementVersion" BeforeTargets="GenerateAssemblyInfo" Condition="'$(AutoIncrementVersion)' == 'true'">
+    <XmlPeek XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" ItemName="_CurrentVersionRaw" />
+    </XmlPeek>
+    <PropertyGroup>
+      <_CurrentVersion>@(_CurrentVersionRaw)</_CurrentVersion>
+      <_VerMajor>$(_CurrentVersion.Split('.')[0])</_VerMajor>
+      <_VerMinor>$(_CurrentVersion.Split('.')[1])</_VerMinor>
+      <_VerBuild>$(_CurrentVersion.Split('.')[2])</_VerBuild>
+      <_NewBuild>$([MSBuild]::Add($(_VerBuild), 1))</_NewBuild>
+      <_NewVersion>$(_VerMajor).$(_VerMinor).$(_NewBuild)</_NewVersion>
+    </PropertyGroup>
+    <!-- Persist the new version in this file so the next build increments from here -->
+    <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/Version" Value="$(_NewVersion)" />
+    <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/AssemblyVersion" Value="$(_NewVersion).0" />
+    <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/FileVersion" Value="$(_NewVersion).0" />
+    <!-- Override the in-memory properties so THIS build's compiled assembly uses the new version -->
+    <PropertyGroup>
+      <Version>$(_NewVersion)</Version>
+      <AssemblyVersion>$(_NewVersion).0</AssemblyVersion>
+      <FileVersion>$(_NewVersion).0</FileVersion>
+    </PropertyGroup>
+    <Message Importance="high" Text="AutoIncrementVersion: $(_CurrentVersion) -&gt; $(_NewVersion)" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="GtkSharp" Version="3.24.24.95" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -44,6 +84,7 @@
     <Compile Include="MainWindow.Comment.vb" />
     <Compile Include="MainWindow.Console.vb" />
     <Compile Include="MainWindow.Debug.vb" />
+    <Compile Include="MainWindow.DesktopIntegration.vb" />
     <Compile Include="MainWindow.Editor.vb" />
     <Compile Include="MainWindow.Events.vb" />
     <Compile Include="MainWindow.FileManagement.vb" />
@@ -278,7 +319,8 @@
     <Compile Include="MainWindow.Diagnose.vb" />
     <Compile Include="Widgets/WelcomeTabWidget.vb" />
     <Compile Include="MainWindow.WindowState.vb" />
-    <Compile Include="Models/DefinitionInfo.vb" /></ItemGroup>
+    <Compile Include="Models/DefinitionInfo.vb" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Application Icon -->
     <EmbeddedResource Include="Resources/icon.png" />

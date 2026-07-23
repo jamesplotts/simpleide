@@ -723,8 +723,13 @@ Partial Public Class MainWindow
             PopulateDotNetHelpMenu(lDotNetHelpMenu)
             lHelpMenu.Append(lDotNetHelp)
             
+            ' Install Desktop Integration (Linux taskbar/Alt-Tab icon fix)
+            Dim lDesktopIntegration As New MenuItem("Install Desktop _Integration")
+            AddHandler lDesktopIntegration.Activated, AddressOf OnInstallDesktopIntegration
+            lHelpMenu.Append(lDesktopIntegration)
+
             lHelpMenu.Append(New SeparatorMenuItem())
-            
+
             ' About
             Dim lAbout As MenuItem = CreateMenuItemWithIcon("_About SimpleIDE", "help-about")
             AddHandler lAbout.Activated, AddressOf OnAbout

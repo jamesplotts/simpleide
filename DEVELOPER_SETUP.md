@@ -88,6 +88,45 @@ dotnet run --project SimpleIDE.vbproj
 Or run built executable
 ./bin/Debug/net8.0/SimpleIDE
 
+### 6. Desktop Integration (Taskbar / Alt-Tab Icon)
+
+On Wayland compositors (this shows up most often on KDE Plasma), GTK windows only get
+their correct taskbar, title-bar, and Alt-Tab icon if the compositor can match the running
+window to an installed `.desktop` file via a matching application ID. Without that match,
+Wayland falls back to a generic icon instead of SimpleIDE's own.
+
+**The app handles this for you automatically.** The first time you run SimpleIDE on Linux,
+it will offer to install desktop integration (a `.desktop` file plus a copy of the app icon,
+both written to your personal `~/.local/share/` folders - no admin rights needed). Accept
+the prompt, then fully quit and relaunch SimpleIDE for it to take effect. If you skip the
+prompt, or want to reinstall/repair it later (e.g. after moving where you keep the repo),
+use **Help > Install Desktop Integration** from the menu at any time.
+
+**If you'd rather do it manually** (or you're on a different desktop environment and want
+to double-check the details), the app writes exactly this:
+
+1. A `.desktop` file at `~/.local/share/applications/simpleide.desktop`:
+   ```ini
+   [Desktop Entry]
+   Type=Application
+   Name=SimpleIDE
+   Comment=Lightweight VB.NET IDE
+   Exec="/path/to/your/SimpleIDE"
+   Icon=simpleide
+   Terminal=false
+   StartupWMClass=simpleide
+   Categories=Development;IDE;
+   ```
+2. A copy of `Resources/icon.png` at `~/.local/share/icons/hicolor/256x256/apps/simpleide.png`.
+3. A call to `update-desktop-database ~/.local/share/applications` (if that tool is
+   installed) so the desktop environment picks up the new file immediately rather than
+   waiting for its next periodic scan.
+
+The `StartupWMClass` value (`simpleide`) must match the program name the app sets at
+startup via `GLib.Global.ProgramName` in `Program.vb` — that's the other half of the fix;
+without it, GTK's default window class won't match what the `.desktop` file declares even
+if the file itself is installed correctly.
+
 ## Development Environment
 
 ### Recommended IDEs/Editors for MX Linux

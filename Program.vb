@@ -383,6 +383,12 @@ Module Program
             Return ' Exit if handled
         End If
         
+        ' Set the program name so Wayland/desktop compositors can match this window to a
+        ' .desktop file (see simpleide.desktop) for taskbar/title-bar icon lookup - without
+        ' this, Wayland falls back to a generic "W" logo since it can't map the window to
+        ' any known application
+        GLib.Global.ProgramName = "simpleide"
+
         ' Initialize GTK
         Application.Init()
         

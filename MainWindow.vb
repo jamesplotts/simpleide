@@ -168,6 +168,13 @@ Partial Public Class MainWindow
                 ShowWelcomeTab()
             End If
 
+            ' Offer Linux desktop integration once the window is fully shown, rather than
+            ' popping a dialog up mid-construction
+            GLib.Idle.Add(Function()
+                CheckAndOfferDesktopIntegration()
+                Return False
+            End Function)
+
             SetupKeyboardShortcuts()
 
             ' CRITICAL FIX: Show all BEFORE setting up panels
