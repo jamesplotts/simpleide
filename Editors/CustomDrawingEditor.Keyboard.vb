@@ -63,7 +63,7 @@ Namespace Editors
                                 IndentSelection()
                             Else
                                 Console.WriteLine("No selection - inserting Tab character")
-                                InsertText(vbTab)
+                                InsertText(GetTabIndentString())
                             End If
                         End If
                     End If
@@ -292,7 +292,11 @@ Namespace Editors
                         
                     Case Gdk.Key.BackSpace
                         If Not pIsReadOnly Then
-                            HandleBackspace()
+                            If (lModifiers and ModifierType.ControlMask) = ModifierType.ControlMask Then
+                                HandleCtrlBackspace()
+                            Else
+                                HandleBackspace()
+                            End If
 
                             ' UPDATE CODESENSE
                             HandleBackspaceForCodeSense()
@@ -380,14 +384,33 @@ Namespace Editors
                         IndentSelection()
                     Else
                         ' Insert tab character
-                        InsertText(vbTab)
+                        InsertText(GetTabIndentString())
                     End If
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"HandleTab error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Gets the text to insert for a single Tab press, respecting the UseTabs/TabWidth settings
+        ''' </summary>
+        ''' <returns>A string of TabWidth spaces if UseTabs is off, otherwise a literal tab character</returns>
+        Private Function GetTabIndentString() As String
+            Try
+                If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.UseTabs Then
+                    Dim lTabWidth As Integer = pSettingsManager.TabWidth
+                    If lTabWidth <= 0 Then lTabWidth = 4
+                    Return New String(" "c, lTabWidth)
+                End If
+                Return vbTab
+
+            Catch ex As Exception
+                Console.WriteLine($"GetTabIndentString error: {ex.Message}")
+                Return vbTab
+            End Try
+        End Function
         
         
         ' ===== Word Navigation Methods =====

@@ -259,25 +259,59 @@ Partial Public Class MainWindow
     
     ' ===== Helper Methods =====
     
-    ' Check for unsaved changes in all open documents
+    ''' <summary>
+    ''' Checks all open documents for unsaved changes, prompting to save/discard/cancel for
+    ''' each one that has any
+    ''' </summary>
+    ''' <returns>True if it's okay to proceed (nothing unsaved, or the user saved/discarded
+    ''' everything); False if the user cancelled, meaning the caller should abort whatever
+    ''' operation (opening a different project/file, etc.) prompted this check</returns>
     Private Function CheckUnsavedChanges() As Boolean
         Try
-            ' TODO: Implement check for unsaved changes
-            ' For now, always return true
+            for each lTabEntry in pOpenTabs
+                Dim lTabInfo As TabInfo = lTabEntry.Value
+                If Not lTabInfo.Modified Then Continue for
+
+                Dim lDialog As New MessageDialog(
+                    Me,
+                    DialogFlags.Modal,
+                    MessageType.Question,
+                    ButtonsType.None,
+                    $"Save changes to {System.IO.Path.GetFileName(lTabInfo.FilePath)} before continuing?"
+                )
+                lDialog.AddButton("Don't Save", ResponseType.No)
+                lDialog.AddButton("Cancel", ResponseType.Cancel)
+                lDialog.AddButton("Save", ResponseType.Yes)
+                lDialog.DefaultResponse = ResponseType.Yes
+
+                Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
+                lDialog.Destroy()
+
+                Select Case lResponse
+                    Case ResponseType.Yes
+                        If Not SaveFile(lTabInfo) Then Return False
+                    Case ResponseType.Cancel
+                        Return False
+                    Case ResponseType.No
+                        ' Discard changes - reverts the cached SourceFileInfo to match disk
+                        DiscardTabChanges(lTabInfo)
+                End Select
+            Next
+
             Return True
-            
+
         Catch ex As Exception
             Console.WriteLine($"CheckUnsavedChanges error: {ex.Message}")
-            Return True
+            Return False
         End Try
     End Function
     
     ' Close the current project
     Private Sub CloseCurrentProject()
         Try
-            ' Close all open documents
-            CloseAllTabs()
-            
+            ' Close all open documents - abort if the user cancels closing one
+            If Not CloseAllTabs() Then Return
+
             ' Clear project explorer
             pProjectExplorer.ClearProject()
             

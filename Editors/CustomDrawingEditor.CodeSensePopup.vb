@@ -514,7 +514,13 @@ Namespace Editors
                         MoveCodeSenseSelection(CodeSensePopupVisibleItems)
                         Return True
 
-                    Case Gdk.Key.Return, Gdk.Key.KP_Enter, Gdk.Key.Tab, Gdk.Key.ISO_Left_Tab
+                    Case Gdk.Key.Return, Gdk.Key.KP_Enter
+                        ' Commit the selection, then let Enter still reach normal handling
+                        ' below so it also inserts a newline rather than just finishing the word
+                        CommitCodeSenseSelection()
+                        Return False
+
+                    Case Gdk.Key.Tab, Gdk.Key.ISO_Left_Tab
                         CommitCodeSenseSelection()
                         Return True
 

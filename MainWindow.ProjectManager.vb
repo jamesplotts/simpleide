@@ -240,32 +240,31 @@ Partial Public Class MainWindow
     ' ===== Window Event Handlers =====
     Private Function OnWindowDelete(vSender As Object, vArgs As DeleteEventArgs) As Boolean
         Try
-            ' Check for unsaved changes
-            If Not CheckUnsavedChanges() Then
+            ' Close all tabs (prompting to save unsaved changes) and dispose resources.
+            ' If the user cancels closing a modified tab, abort the close entirely instead
+            ' of quitting anyway.
+            If Not CleanUp() Then
                 vArgs.RetVal = True
                 Return True ' Cancel close
             End If
-            
+
             ' Close project if open
             If pProjectManager.IsProjectOpen Then
                 pProjectManager.CloseProject()
             End If
-            
+
             ' Save settings
             SaveWindowState()
-            
+
             ' Dispose managers
             If pProjectManager IsNot Nothing Then
                 pProjectManager.Dispose()
             End If
 
-            ' Clean up
-            CleanUp()
-            
             ' Quit application
             Application.Quit()
             Return False
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnWindowDelete error: {ex.Message}")
             Return False
@@ -281,9 +280,10 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Close all open files
-            CloseAllTabs()
-            
+            ' Close all open files - abort loading the new project if the user cancels
+            ' closing one of them
+            If Not CloseAllTabs() Then Return
+
             ' Load project through manager
             If pProjectManager.LoadProjectWithParsing(vProjectFile) Then
                 ' Update current project path

@@ -356,6 +356,7 @@ Partial Public Class MainWindow
             
             ' Wire up CustomDrawNotebook events
             AddHandler DirectCast(pNotebook, CustomDrawNotebook).CurrentTabChanged, AddressOf OnMainNotebookPageSwitched
+            AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabClosing, AddressOf OnNotebookTabClosing
             AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabClosed, AddressOf OnCustomNotebookTabClosed
             AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabModifiedChanged, AddressOf OnCustomNotebookTabModifiedChanged
 
@@ -590,20 +591,31 @@ Partial Public Class MainWindow
         End Try
     End Function
 
-    Private Sub CleanUp()
+    ''' <summary>
+    ''' Closes all tabs (prompting to save as needed) and disposes application resources
+    ''' </summary>
+    ''' <returns>True if cleanup completed; False if the user cancelled closing a tab, in
+    ''' which case resources are deliberately left undisposed since the app is staying open</returns>
+    Private Function CleanUp() As Boolean
         Try
-            ' Dispose of resources
+            ' Close all tabs first (may prompt to save/cancel) - check this before disposing
+            ' anything else, so a cancelled close doesn't leave the app running with its
+            ' file watcher/CodeSense engine already torn down
+            If Not CloseAllTabs() Then
+                Return False
+            End If
+
             SaveAllScratchpads()
             pFileSystemWatcher?.Dispose()
             pCodeSenseEngine?.Dispose()
-            
-            ' Close all tabs
-            CloseAllTabs()
-            
+
+            Return True
+
         Catch ex As Exception
             Console.WriteLine($"CleanUp error: {ex.Message}")
+            Return False
         End Try
-    End Sub
+    End Function
 
     Private Sub OnSettingsChanged(vSettingName As String, vOldValue As Object, vNewValue As Object)
         Try

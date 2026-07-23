@@ -208,38 +208,6 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Override SetupWindow to include state tracking
-    ''' </summary>
-    Private Sub SetupWindowEnhanced()
-        Try
-            ' Set a reasonable default size
-            SetDefaultSize(1024, 768)
-            
-            ' Set icon
-            Try
-                Dim lIconPath As String = "SimpleIDE.icon.png"
-                Dim lIcon As Gdk.Pixbuf = New Gdk.Pixbuf(GetType(MainWindow).Assembly, lIconPath)
-                Icon = lIcon
-            Catch ex As Exception
-                Console.WriteLine($"Failed to load Icon: {ex.Message}")
-            End Try
-            
-            ' Connect event handlers
-            AddHandler DeleteEvent, AddressOf OnWindowDelete
-            
-            ' Setup window state tracking
-            SetupWindowStateTracking()
-            
-            ' Enable required event masks
-            AddEvents(CInt(Gdk.EventMask.KeyPressMask))
-            
-        Catch ex As Exception
-            Console.WriteLine($"SetupWindowEnhanced error: {ex.Message}")
-            Throw
-        End Try
-    End Sub
-    
-    ''' <summary>
     ''' Call this instead of SaveWindowState when closing
     ''' </summary>
     Public Sub PrepareForClose()
@@ -414,42 +382,6 @@ Partial Public Class MainWindow
 '             Console.WriteLine($"FixEmptyLeftPanel error: {ex.Message}")
 '         End Try
 '     End Sub
-    
-    ' ===== Override Window Delete Event =====
-    
-    ''' <summary>
-    ''' Enhanced window delete handler that saves proper state
-    ''' </summary>
-    Private Sub OnWindowDeleteEnhanced(vSender As Object, vArgs As DeleteEventArgs)
-        Try
-            ' Save window state before closing
-            SaveWindowStateEnhanced()
-            
-            ' Check for unsaved changes
-            If Not CheckUnsavedChanges() Then
-                vArgs.RetVal = True  ' Cancel close
-                Return
-            End If
-            
-'            ' Close AI assistant if it exists
-'            If pAIAssistant IsNot Nothing Then
-'                pAIAssistant.CloseConnection()
-'            End If
-            
-            ' Stop file watcher if it exists
-            If pFileSystemWatcher IsNot Nothing Then
-                pFileSystemWatcher.Dispose()
-            End If
-            
-            ' Clean shutdown
-            Application.Quit()
-            vArgs.RetVal = False
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnWindowDeleteEnhanced error: {ex.Message}")
-            vArgs.RetVal = False
-        End Try
-    End Sub
     
     ' ===== Debug/Diagnostic Menu Items =====
     

@@ -508,49 +508,122 @@ Partial Public Class MainWindow
     
     
     
-    ' Replace: SimpleIDE.MainWindow.CloseTab
-    Private Sub CloseTab(vTabInfo As TabInfo)
+    ''' <summary>
+    ''' Shows the "Save changes before closing?" dialog for a modified tab
+    ''' </summary>
+    ''' <param name="vTabInfo">The tab with unsaved changes</param>
+    ''' <returns>ResponseType.Yes (save), ResponseType.No (discard), or ResponseType.Cancel</returns>
+    ''' <remarks>
+    ''' Shared by CloseTab (menu/keyboard/window-close paths) and OnNotebookTabClosing (the
+    ''' tab's own "x" button) so there's a single source of truth for this prompt
+    ''' </remarks>
+    Private Function PromptSaveTabChanges(vTabInfo As TabInfo) As ResponseType
+        Dim lDialog As New MessageDialog(
+            Me,
+            DialogFlags.Modal,
+            MessageType.Question,
+            ButtonsType.None,
+            $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)} before closing?"
+        )
+        lDialog.AddButton("Don't Save", ResponseType.No)
+        lDialog.AddButton("Cancel", ResponseType.Cancel)
+        lDialog.AddButton("Save", ResponseType.Yes)
+        lDialog.DefaultResponse = ResponseType.Yes
+
+        Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
+        lDialog.Destroy()
+        Return lResponse
+    End Function
+
+    ''' <summary>
+    ''' Handles the notebook's TabClosing event (raised before RemovePage actually removes a
+    ''' tab, including when the user clicks the tab's own "x" button) - prompts to save if the
+    ''' tab has unsaved changes, and cancels the close if the user cancels or a save fails
+    ''' </summary>
+    Private Sub OnNotebookTabClosing(vSender As Object, vArgs As TabClosingEventArgs)
         Try
-            If vTabInfo Is Nothing Then Return
+            Dim lTabInfo As TabInfo = Nothing
+            for each lKvp in pOpenTabs
+                If lKvp.Value.EditorContainer Is vArgs.TabWidget Then
+                    lTabInfo = lKvp.Value
+                    Exit for
+                End If
+            Next
+
+            If lTabInfo Is Nothing OrElse Not lTabInfo.Modified Then Return
+
+            Select Case PromptSaveTabChanges(lTabInfo)
+                Case ResponseType.Yes
+                    If Not SaveFile(lTabInfo) Then
+                        vArgs.Cancel = True
+                    End If
+                Case ResponseType.Cancel
+                    vArgs.Cancel = True
+                Case ResponseType.No
+                    DiscardTabChanges(lTabInfo)
+            End Select
+
+        Catch ex As Exception
+            Console.WriteLine($"OnNotebookTabClosing error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Discards a tab's unsaved changes by reloading its content fresh from disk
+    ''' </summary>
+    ''' <param name="vTabInfo">The tab whose changes should be discarded</param>
+    ''' <remarks>
+    ''' ProjectManager caches SourceFileInfo by path (GetSourceFileInfo) and never re-reads
+    ''' from disk on its own, so without this, choosing "Don't Save" would leave the discarded
+    ''' edits sitting in that cache - reopening the same file would show the "discarded"
+    ''' changes again since the cached object was never actually reverted to match disk
+    ''' </remarks>
+    Private Sub DiscardTabChanges(vTabInfo As TabInfo)
+        Try
+            vTabInfo.Editor?.SourceFileInfo?.LoadContent()
+            vTabInfo.Modified = False
+
+        Catch ex As Exception
+            Console.WriteLine($"DiscardTabChanges error: {ex.Message}")
+        End Try
+    End Sub
+
+    ' Replace: SimpleIDE.MainWindow.CloseTab
+    ''' <summary>
+    ''' Closes a tab, prompting to save if it has unsaved changes
+    ''' </summary>
+    ''' <param name="vTabInfo">The tab to close</param>
+    ''' <returns>True if the tab was closed (or wasn't modified); False if the user cancelled or the save failed</returns>
+    Private Function CloseTab(vTabInfo As TabInfo) As Boolean
+        Try
+            If vTabInfo Is Nothing Then Return True
             
             Console.WriteLine($"===== CloseTab called for: {vTabInfo.FilePath} =====")
             Console.WriteLine($"  pOpenTabs.Count before = {pOpenTabs.Count}")
-            
+
             ' Check for unsaved changes
             If vTabInfo.Modified Then
-                Dim lDialog As New MessageDialog(
-                    Me,
-                    DialogFlags.Modal,
-                    MessageType.Question,
-                    ButtonsType.None,
-                    $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)} before closing?"
-                )
-                lDialog.AddButton("Don't Save", ResponseType.No)
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                lDialog.AddButton("Save", ResponseType.Yes)
-                lDialog.DefaultResponse = ResponseType.Yes
-                
-                Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
-                lDialog.Destroy()
-                
-                Select Case lResponse
+                Select Case PromptSaveTabChanges(vTabInfo)
                     Case ResponseType.Yes
                         ' Save the file
                         If Not SaveFile(vTabInfo) Then
                             ' Save failed, abort close
                             Console.WriteLine("  Save failed, aborting close")
-                            Return
+                            Return False
                         End If
                     Case ResponseType.Cancel
                         ' User cancelled, abort close
                         Console.WriteLine("  User cancelled, aborting close")
-                        Return
+                        Return False
                     Case ResponseType.No
-                        ' Continue without saving
+                        ' Discard changes (reverts the cached SourceFileInfo to match disk,
+                        ' and clears Modified so the RemovePage call below, which raises
+                        ' TabClosing, doesn't prompt a second time)
                         Console.WriteLine("  Closing without saving")
+                        DiscardTabChanges(vTabInfo)
                 End Select
             End If
-            
+
             ' Remove from notebook
             Console.WriteLine($"  Removing from notebook...")
             For i As Integer = 0 To pNotebook.NPages - 1
@@ -615,27 +688,40 @@ Partial Public Class MainWindow
             End If
             
             Console.WriteLine($"===== CloseTab finished =====")
-            
+            Return True
+
         Catch ex As Exception
             Console.WriteLine($"CloseTab error: {ex.Message}")
             Console.WriteLine($"Stack: {ex.StackTrace}")
+            Return False
         End Try
-    End Sub
+    End Function
 
-    
-    Private Sub CloseAllTabs()
+    ''' <summary>
+    ''' Closes all open tabs, prompting to save any with unsaved changes
+    ''' </summary>
+    ''' <returns>True if all tabs were closed; False if the user cancelled partway through,
+    ''' in which case any remaining tabs (including the one that was cancelled) are left open</returns>
+    Private Function CloseAllTabs() As Boolean
         Try
             ' Create a copy of the collection to avoid modification during iteration
             Dim lTabsToClose As New List(Of TabInfo)(pOpenTabs.Values)
-            
+
             for each lTabInfo in lTabsToClose
-                CloseTab(lTabInfo)
+                If Not CloseTab(lTabInfo) Then
+                    ' User cancelled (or a save failed) - stop closing the rest too,
+                    ' rather than continuing to prompt for every other open tab
+                    Return False
+                End If
             Next
-            
+
+            Return True
+
         Catch ex As Exception
             Console.WriteLine($"CloseAllTabs error: {ex.Message}")
+            Return False
         End Try
-    End Sub
+    End Function
 
     
     ' ===== File Operations =====

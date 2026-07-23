@@ -12,40 +12,6 @@ Partial Public Class MainWindow
 
     
     ' ===== Window Events =====
-    
-    Public Shadows Sub OnDeleteEvent(vSender As Object, vArgs As DeleteEventArgs)
-        Try
-            ' Check for unsaved changes
-            If Not CheckUnsavedChanges() Then
-                vArgs.RetVal = True ' Cancel close
-                Return
-            End If
-            
-            ' Save window state
-            SaveWindowState()
-            
-            ' Save the current left panel width before closing - use lowercase key
-            If pMainHPaned IsNot Nothing AndAlso pSettingsManager IsNot Nothing Then
-                Dim lCurrentWidth As Integer = pMainHPaned.Position
-                If lCurrentWidth > 0 Then
-                    Console.WriteLine($"OnDeleteEvent: Saving final left panel width: {lCurrentWidth}")
-                    pSettingsManager.SetInteger("leftpanelwidth", lCurrentWidth)
-                End If
-            End If
-            
-            ' Force save all settings to disk
-            If pSettingsManager IsNot Nothing Then
-                pSettingsManager.SaveSettings()
-            End If
-            
-            ' Close application
-            Application.Quit()
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnDeleteEvent error: {ex.Message}")
-            Application.Quit()
-        End Try
-    End Sub
 
     ' Handle TODO selection from BottomPanelManager
     Private Sub OnTodoSelected(vTodo As TODOItem)
@@ -95,7 +61,9 @@ Partial Public Class MainWindow
     
     Public Sub OnExit(vSender As Object, vArgs As EventArgs)
         Try
-            OnDeleteEvent(vSender, New DeleteEventArgs())
+            ' Reuse the same window-close logic (prompts to save, respects Cancel) that
+            ' actually handles the title bar close button
+            OnWindowDelete(vSender, New DeleteEventArgs())
         Catch ex As Exception
             Console.WriteLine($"OnExit error: {ex.Message}")
         End Try

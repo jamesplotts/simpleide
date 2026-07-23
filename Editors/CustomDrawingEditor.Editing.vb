@@ -267,7 +267,51 @@ Namespace Editors
             End Try
         End Sub
 
-        
+        ''' <summary>
+        ''' Handles Ctrl+Backspace - deletes from the cursor back to the start of the
+        ''' previous word, joining with the previous line if already at column 0
+        ''' </summary>
+        Private Sub HandleCtrlBackspace()
+            Try
+                If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
+
+                If pHasSelection Then
+                    DeleteSelection()
+                    Return
+                End If
+
+                Dim lEnd As New EditorPosition(pCursorLine, pCursorColumn)
+
+                ' Reuse the same word-boundary logic Ctrl+Left uses - it moves the cursor
+                ' to the start of the previous word (or the end of the previous line if
+                ' already at column 0), which is exactly the delete range's start
+                MoveToPreviousWord()
+                Dim lStart As New EditorPosition(pCursorLine, pCursorColumn)
+
+                If lStart.Line = lEnd.Line AndAlso lStart.Column = lEnd.Column Then Return
+
+                Dim lDeletedText As String = GetTextInRange(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
+
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordDeleteText(lStart, lEnd, lDeletedText, lStart)
+                End If
+
+                pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
+                SetCursorPosition(lStart.Line, lStart.Column)
+
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
+
+            Catch ex As Exception
+                Console.WriteLine($"HandleCtrlBackspace error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Handles the Delete key using atomic operations
         ''' </summary>
