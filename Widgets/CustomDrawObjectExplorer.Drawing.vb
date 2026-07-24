@@ -5,6 +5,7 @@ Imports Gdk
 Imports Cairo
 Imports Pango
 Imports System
+Imports System.Collections.Generic
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
@@ -390,25 +391,64 @@ Namespace Widgets
         ''' </summary>
         ''' <param name="vHex">Hex color string (e.g., "#FF0000")</param>
         ''' <returns>Cairo.Color structure</returns>
-        Private Function HexToCairoColor(vHex As String) As Cairo.Color
+        Private Shared Function HexToCairoColor(vHex As String) As Cairo.Color
             Try
                 ' Remove the '#' prefix if present
                 Dim lHex As String = vHex.TrimStart("#"c)
-                
+
                 ' Parse hex components
                 Dim lR As Byte = Convert.ToByte(lHex.Substring(0, 2), 16)
                 Dim lG As Byte = Convert.ToByte(lHex.Substring(2, 2), 16)
                 Dim lB As Byte = Convert.ToByte(lHex.Substring(4, 2), 16)
-                
+
                 ' Convert to Cairo's [0.0, 1.0] range
                 Return New Cairo.Color(lR / 255.0, lG / 255.0, lB / 255.0)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"HexToCairoColor error: {ex.Message}")
                 ' Return default color on error
                 Return New Cairo.Color(0.5, 0.5, 0.5)
             End Try
         End Function
+
+        ''' <summary>
+        ''' Precomputed fallback-icon colors per node type, dark and light theme variants -
+        ''' DrawFallbackIcon runs once per visible tree node on every repaint, so re-parsing
+        ''' the same ~26 constant hex strings via HexToCairoColor on every call was a real
+        ''' repeated cost for values that never change
+        ''' </summary>
+        Private Shared ReadOnly pFallbackColorsDark As New Dictionary(Of CodeNodeType, Cairo.Color)
+        Private Shared ReadOnly pFallbackColorsLight As New Dictionary(Of CodeNodeType, Cairo.Color)
+
+        Shared Sub New()
+            Try
+                Dim lAdd = Sub(vType As CodeNodeType, vDarkHex As String, vLightHex As String)
+                               pFallbackColorsDark(vType) = HexToCairoColor(vDarkHex)
+                               pFallbackColorsLight(vType) = HexToCairoColor(vLightHex)
+                           End Sub
+
+                lAdd(CodeNodeType.eNamespace, "#C77DFF", "#9D4EDD")
+                lAdd(CodeNodeType.eClass, "#4EC9B0", "#2B91AF")
+                lAdd(CodeNodeType.eInterface, "#B8D7A3", "#6B8E23")
+                lAdd(CodeNodeType.eModule, "#4CC9F0", "#4361EE")
+                lAdd(CodeNodeType.eStructure, "#7209B7", "#560BAD")
+                lAdd(CodeNodeType.eEnum, "#F72585", "#B5179E")
+                lAdd(CodeNodeType.eMethod, "#DCDCAA", "#795E26")
+                lAdd(CodeNodeType.eFunction, "#DCDCAA", "#795E26")
+                lAdd(CodeNodeType.eDeclare, "#DCDCAA", "#795E26")
+                lAdd(CodeNodeType.eProperty, "#9CDCFE", "#0070C0")
+                lAdd(CodeNodeType.eField, "#51CF66", "#2B8A3E")
+                lAdd(CodeNodeType.eConst, "#FFB700", "#FF8500")
+                lAdd(CodeNodeType.eEvent, "#CE9178", "#A31515")
+                lAdd(CodeNodeType.eDelegate, "#C586C0", "#9B4F96")
+                lAdd(CodeNodeType.eConstructor, "#4CC9F0", "#4361EE")
+                lAdd(CodeNodeType.eOperator, "#D4D4D4", "#000000")
+                lAdd(CodeNodeType.eRegion, "#808080", "#606060")
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawObjectExplorer fallback color cache init error: {ex.Message}")
+            End Try
+        End Sub
         
         ''' <summary>
         ''' Draws all visible nodes in the tree
@@ -622,59 +662,16 @@ Namespace Widgets
                                               pSettingsManager.GetString("CurrentTheme", "Default Dark"), 
                                               "Default Dark")
                 Dim lIsDark As Boolean = lThemeName.ToLower().Contains("dark")
-                
-                ' Set vibrant colors based on node type and theme
-                Dim lColor As Cairo.Color
-                Select Case vNodeType
-                    Case CodeNodeType.eNamespace
-                        lColor = If(lIsDark, HexToCairoColor("#C77DFF"), HexToCairoColor("#9D4EDD"))  ' Purple for namespaces
-                        
-                    Case CodeNodeType.eClass
-                        lColor = If(lIsDark, HexToCairoColor("#4EC9B0"), HexToCairoColor("#2B91AF"))  ' Teal/Blue for classes
-                        
-                    Case CodeNodeType.eInterface
-                        lColor = If(lIsDark, HexToCairoColor("#B8D7A3"), HexToCairoColor("#6B8E23"))  ' Light/Dark green
-                        
-                    Case CodeNodeType.eModule
-                        lColor = If(lIsDark, HexToCairoColor("#4CC9F0"), HexToCairoColor("#4361EE"))  ' Cyan/Blue for modules
-                        
-                    Case CodeNodeType.eStructure
-                        lColor = If(lIsDark, HexToCairoColor("#7209B7"), HexToCairoColor("#560BAD"))  ' Deep purple for structures
-                        
-                    Case CodeNodeType.eEnum
-                        lColor = If(lIsDark, HexToCairoColor("#F72585"), HexToCairoColor("#B5179E"))  ' Magenta for enums
-                        
-                    Case CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eDeclare
-                        lColor = If(lIsDark, HexToCairoColor("#DCDCAA"), HexToCairoColor("#795E26"))  ' Yellow/Brown for methods
-                        
-                    Case CodeNodeType.eProperty
-                        lColor = If(lIsDark, HexToCairoColor("#9CDCFE"), HexToCairoColor("#0070C0"))  ' Light/Dark blue
-                        
-                    Case CodeNodeType.eField
-                        lColor = If(lIsDark, HexToCairoColor("#51CF66"), HexToCairoColor("#2B8A3E"))  ' Green for fields
-                        
-                    Case CodeNodeType.eConst
-                        lColor = If(lIsDark, HexToCairoColor("#FFB700"), HexToCairoColor("#FF8500"))  ' Orange for constants
-                        
-                    Case CodeNodeType.eEvent
-                        lColor = If(lIsDark, HexToCairoColor("#CE9178"), HexToCairoColor("#A31515"))  ' Orange/Red for events
-                        
-                    Case CodeNodeType.eDelegate
-                        lColor = If(lIsDark, HexToCairoColor("#C586C0"), HexToCairoColor("#9B4F96"))  ' Light magenta
-                        
-                    Case CodeNodeType.eConstructor
-                        lColor = If(lIsDark, HexToCairoColor("#4CC9F0"), HexToCairoColor("#4361EE"))  ' Cyan like methods
-                        
-                    Case CodeNodeType.eOperator
-                        lColor = If(lIsDark, HexToCairoColor("#D4D4D4"), HexToCairoColor("#000000"))  ' Gray/Black
-                        
-                    Case CodeNodeType.eRegion
-                        lColor = If(lIsDark, HexToCairoColor("#808080"), HexToCairoColor("#606060"))  ' Gray for regions
-                        
-                    Case Else
-                        lColor = If(lIsDark, HexToCairoColor("#808080"), HexToCairoColor("#606060"))  ' Default gray
-                End Select
-                
+
+                ' Look up the precomputed color for this node type/theme (see the Shared
+                ' Sub New above) instead of re-parsing hex strings on every call - this runs
+                ' once per visible node on every repaint
+                Dim lPalette As Dictionary(Of CodeNodeType, Cairo.Color) = If(lIsDark, pFallbackColorsDark, pFallbackColorsLight)
+                Dim lColor As Cairo.Color = Nothing
+                If Not lPalette.TryGetValue(vNodeType, lColor) Then
+                    lColor = If(lIsDark, pFallbackColorsDark(CodeNodeType.eRegion), pFallbackColorsLight(CodeNodeType.eRegion)) ' default gray
+                End If
+
                 vContext.SetSourceRGB(lColor.R, lColor.G, lColor.B)
                 
                 ' Draw shapes based on node type for better visual distinction

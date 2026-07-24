@@ -44,24 +44,21 @@ Namespace Managers
             Return pSourceFiles(vFilePath)
         End Function
         
-        ' Add method to get project syntax tree
+        ''' <summary>
+        ''' Gets the cached whole-project syntax tree, building it if it doesn't exist yet
+        ''' </summary>
+        ''' <remarks>
+        ''' Called on every keystroke while the cursor is inside a call's parentheses (via
+        ''' CustomDrawingEditor.ParameterHint) and on every hover-tooltip resolution, so this
+        ''' must stay cheap - previously had unconditional Console.WriteLine debug logging on
+        ''' every call, which is real per-keystroke stdout overhead, not just noise
+        ''' </remarks>
         Public Function GetProjectSyntaxTree() As SyntaxNode
             Try
-                Console.WriteLine($"DEBUG: GetProjectSyntaxTree called")
-                Console.WriteLine($"  pProjectSyntaxTree is {If(pProjectSyntaxTree Is Nothing, "Nothing", "NOT Nothing")}")
-                
-                ' If we don't have a project syntax tree but we have source files, build it
                 If pProjectSyntaxTree Is Nothing AndAlso pSourceFiles IsNot Nothing AndAlso pSourceFiles.Count > 0 Then
-                    Console.WriteLine($"  Building project syntax tree from {pSourceFiles.Count} source files...")
                     BuildProjectSyntaxTree()
                 End If
-                
-                If pProjectSyntaxTree IsNot Nothing Then
-                    Console.WriteLine($"  Returning tree with {pProjectSyntaxTree.Children.Count} root children")
-                Else
-                    Console.WriteLine($"  Returning Nothing - tree could not be built")
-                End If
-                
+
                 Return pProjectSyntaxTree
             Catch ex As Exception
                 Console.WriteLine($"GetProjectSyntaxTree error: {ex.Message}")

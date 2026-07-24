@@ -105,8 +105,6 @@ Namespace Editors
         
         ' ===== Node Graph =====
         Private pRootNode As SyntaxNode
-        Private pRootNodes As List(Of DocumentNode)    ' for document Node representation
-        Private pDocumentNodes As Dictionary(Of String, DocumentNode)
         
         ' ===== Font Metrics =====
         Private pFontMetrics As Utilities.FontMetrics

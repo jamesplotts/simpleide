@@ -106,7 +106,42 @@ Namespace Widgets
         End Sub
         
         ' ===== Theme Management =====
-        
+
+        ''' <summary>
+        ''' Cached, already-parsed Cairo colors for the current theme - DrawNodeText/
+        ''' DrawPlusMinus run once per visible node on every repaint, so re-parsing the same
+        ''' theme hex strings via HexToCairoColor on every node was a real repeated cost.
+        ''' Refreshed in RefreshColorCache, called from ApplyTheme (i.e. on theme change).
+        ''' </summary>
+        Private pCachedBackgroundColor As Cairo.Color
+        Private pCachedLineNumberBackgroundColor As Cairo.Color
+        Private pCachedForegroundColor As Cairo.Color
+        Private pCachedSelectionColor As Cairo.Color
+        Private pCachedCurrentLineColor As Cairo.Color
+        Private pColorCacheValid As Boolean = False
+
+        ''' <summary>
+        ''' Re-parses and caches the Cairo colors used by the drawing methods from the
+        ''' current theme - call whenever the active theme changes
+        ''' </summary>
+        Private Sub RefreshColorCache()
+            Try
+                If pThemeManager Is Nothing Then Return
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                pCachedBackgroundColor = HexToCairoColor(lTheme.BackgroundColor)
+                pCachedLineNumberBackgroundColor = HexToCairoColor(lTheme.LineNumberBackgroundColor)
+                pCachedForegroundColor = HexToCairoColor(lTheme.ForegroundColor)
+                pCachedSelectionColor = HexToCairoColor(lTheme.SelectionColor)
+                pCachedCurrentLineColor = HexToCairoColor(lTheme.CurrentLineColor)
+                pColorCacheValid = True
+
+            Catch ex As Exception
+                Console.WriteLine($"RefreshColorCache error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Applies the current theme and forces a complete refresh
         ''' </summary>
@@ -114,7 +149,8 @@ Namespace Widgets
             Try
                 ' Since we're now using the shared ThemeManager,
                 ' we just need to redraw with the current theme
-                
+                RefreshColorCache()
+
                 ' Force a complete redraw of all visual elements
                 If pDrawingArea IsNot Nothing Then
                     pDrawingArea.QueueDraw()

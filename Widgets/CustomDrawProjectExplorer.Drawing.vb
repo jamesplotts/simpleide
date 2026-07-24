@@ -26,13 +26,13 @@ Namespace Widgets
         Private Function OnDrawingAreaDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
                 Dim lContext As Cairo.Context = vArgs.Cr
-                
-                ' Get current theme
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                
+
+                ' Ensure the theme color cache is populated before any node draws (which read
+                ' from it instead of re-parsing hex strings per node)
+                If Not pColorCacheValid Then RefreshColorCache()
+
                 ' Draw background
-                Dim lBgColor As Cairo.Color = HexToCairoColor(lTheme.BackgroundColor)
-                lContext.SetSourceRGB(lBgColor.R, lBgColor.G, lBgColor.B)
+                lContext.SetSourceRGB(pCachedBackgroundColor.R, pCachedBackgroundColor.G, pCachedBackgroundColor.B)
                 lContext.Paint()
                 
                 ' Draw visible nodes
@@ -58,11 +58,10 @@ Namespace Widgets
         Private Function OnCornerBoxDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
                 Dim lContext As Cairo.Context = vArgs.Cr
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                
-                ' Draw background matching scrollbar color (FIXED: using correct property name)
-                Dim lBgColor As Cairo.Color = HexToCairoColor(lTheme.LineNumberBackgroundColor)
-                lContext.SetSourceRGB(lBgColor.R, lBgColor.G, lBgColor.B)
+                If Not pColorCacheValid Then RefreshColorCache()
+
+                ' Draw background matching scrollbar color
+                lContext.SetSourceRGB(pCachedLineNumberBackgroundColor.R, pCachedLineNumberBackgroundColor.G, pCachedLineNumberBackgroundColor.B)
                 lContext.Paint()
                 
                 Return True
@@ -139,14 +138,13 @@ Namespace Widgets
         ''' </summary>
         Private Sub DrawPlusMinus(vContext As Cairo.Context, vX As Integer, vY As Integer, vIsExpanded As Boolean)
             Try
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
                 Dim lSize As Integer = pPlusMinusSize
                 Dim lHalfSize As Integer = lSize \ 2
                 Dim lCenterX As Integer = vX + lHalfSize
                 Dim lCenterY As Integer = vY + pRowHeight \ 2
-                
+
                 ' Draw box
-                Dim lBoxColor As Cairo.Color = HexToCairoColor(lTheme.ForegroundColor)
+                Dim lBoxColor As Cairo.Color = pCachedForegroundColor
                 vContext.SetSourceRGB(lBoxColor.R * 0.6, lBoxColor.G * 0.6, lBoxColor.B * 0.6)
                 vContext.Rectangle(lCenterX - lHalfSize, lCenterY - lHalfSize, lSize, lSize)
                 vContext.Stroke()
@@ -256,11 +254,8 @@ Namespace Widgets
         ''' </summary>
         Private Sub DrawNodeText(vContext As Cairo.Context, vX As Integer, vY As Integer, vNode As ProjectNode)
             Try
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                
                 ' Set text color
-                Dim lTextColor As Cairo.Color = HexToCairoColor(lTheme.ForegroundColor)
-                vContext.SetSourceRGB(lTextColor.R, lTextColor.G, lTextColor.B)
+                vContext.SetSourceRGB(pCachedForegroundColor.R, pCachedForegroundColor.G, pCachedForegroundColor.B)
                 
                 ' Set font
                 vContext.SelectFontFace("monospace", Cairo.FontSlant.Normal, Cairo.FontWeight.Normal)
@@ -288,12 +283,9 @@ Namespace Widgets
         Private Sub DrawSelection(vContext As Cairo.Context)
             Try
                 If pSelectedNode Is Nothing Then Return
-                
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                
-                ' Draw selection background (FIXED: using correct property name)
-                Dim lSelectionColor As Cairo.Color = HexToCairoColor(lTheme.SelectionColor)
-                vContext.SetSourceRGBA(lSelectionColor.R, lSelectionColor.G, lSelectionColor.B, 0.3)
+
+                ' Draw selection background
+                vContext.SetSourceRGBA(pCachedSelectionColor.R, pCachedSelectionColor.G, pCachedSelectionColor.B, 0.3)
                 vContext.Rectangle(pSelectedNode.X - pScrollX, pSelectedNode.Y - pScrollY, 
                                  pSelectedNode.Width, pSelectedNode.Height)
                 vContext.Fill()
@@ -309,12 +301,9 @@ Namespace Widgets
         Private Sub DrawHover(vContext As Cairo.Context)
             Try
                 If pHoveredNode Is Nothing OrElse pHoveredNode Is pSelectedNode Then Return
-                
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                
-                ' Draw hover background (FIXED: using correct property name)
-                Dim lHoverColor As Cairo.Color = HexToCairoColor(lTheme.CurrentLineColor)
-                vContext.SetSourceRGBA(lHoverColor.R, lHoverColor.G, lHoverColor.B, 0.2)
+
+                ' Draw hover background
+                vContext.SetSourceRGBA(pCachedCurrentLineColor.R, pCachedCurrentLineColor.G, pCachedCurrentLineColor.B, 0.2)
                 vContext.Rectangle(pHoveredNode.X - pScrollX, pHoveredNode.Y - pScrollY, 
                                  pHoveredNode.Width, pHoveredNode.Height)
                 vContext.Fill()
