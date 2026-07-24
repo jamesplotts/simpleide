@@ -402,9 +402,10 @@ Namespace Editors
                 pDrawingArea = New DrawingArea()
                 pDrawingArea.CanFocus = True
                 pDrawingArea.FocusOnClick = True
-                pDrawingArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or 
+                pDrawingArea.AddEvents(CInt(EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or
                                            EventMask.PointerMotionMask Or EventMask.KeyPressMask Or
                                            EventMask.KeyReleaseMask Or EventMask.ScrollMask Or
+                                           EventMask.LeaveNotifyMask Or
                                            EventMask.ExposureMask))
                 
                 ' Create scrollbars
@@ -447,6 +448,7 @@ Namespace Editors
                 AddHandler pDrawingArea.ButtonPressEvent, AddressOf OnButtonPress
                 AddHandler pDrawingArea.ButtonReleaseEvent, AddressOf OnButtonRelease
                 AddHandler pDrawingArea.MotionNotifyEvent, AddressOf OnMotionNotify
+                AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnEditorLeaveNotify
                 AddHandler pDrawingArea.KeyPressEvent, AddressOf OnKeyPress
                 AddHandler pDrawingArea.KeyReleaseEvent, AddressOf OnKeyRelease
                 AddHandler pDrawingArea.ScrollEvent, AddressOf OnScrollEvent

@@ -85,6 +85,11 @@ Namespace Editors
                     ' Raise navigation update event for dropdown context updates
                     ' This fires when cursor position changes to update navigation dropdowns
                     RaiseEvent NavigationUpdateRequested(Me, EventArgs.Empty)
+
+                    ' Recompute the current-parameter hint popup (see
+                    ' CustomDrawingEditor.ParameterHint.vb) - covers both typing (InsertCharacter
+                    ' moves the cursor via this same method) and cursor navigation
+                    UpdateParameterHint()
                 End If
                 
                 ' Restart cursor blink

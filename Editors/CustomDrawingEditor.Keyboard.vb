@@ -180,6 +180,14 @@ Namespace Editors
                             End If
                             vArgs.RetVal = True
                             Return True
+
+                        ' Manually trigger CodeSense at the cursor - Ctrl+Space (32)
+                        Case 32
+                            If Not pIsReadOnly Then
+                                TriggerCodeSenseManualAtCursor()
+                            End If
+                            vArgs.RetVal = True
+                            Return True
                         ' Zoom In - Ctrl+Plus (43 for plus, 61 for equals/plus without shift)
                         Case 43, 61, 65451  ' +, =, KP_Plus
                             ZoomIn()

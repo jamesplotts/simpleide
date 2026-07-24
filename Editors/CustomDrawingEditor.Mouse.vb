@@ -908,6 +908,13 @@ Namespace Editors
                             pDrawingArea.Window.Cursor = pTextCursor
                         End If
                     End If
+
+                    ' Track hover for the declaration-line tooltip (variables/consts only,
+                    ' see CustomDrawingEditor.HoverTooltip.vb) - skip while the CodeSense
+                    ' popup is showing since it occupies the same screen region
+                    If Not pCodeSenseActive Then
+                        UpdateHoverDeclarationTooltip(lCurrentX, lCurrentY)
+                    End If
                 End If
                 
                 ' Handle text selection dragging - FIXED: removed the "Not pPotentialDrag" condition

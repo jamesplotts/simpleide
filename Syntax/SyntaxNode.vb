@@ -343,6 +343,7 @@ Namespace Syntax
                 vTarget.IsConst = vSource.IsConst
                 vTarget.IsWithEvents = vSource.IsWithEvents
                 vTarget.Visibility = vSource.Visibility
+                vTarget.DataType = vSource.DataType
                 vTarget.ReturnType = vSource.ReturnType
                 vTarget.BaseType = vSource.BaseType
                 vTarget.IsImplicit = vSource.IsImplicit
@@ -390,11 +391,18 @@ Namespace Syntax
         ''' <summary>
         ''' Get the fully qualified name of this node
         ''' </summary>
-        Public Function GetFullyQualifiedName() As String
+        ''' <param name="vIncludeImplicitNamespace">
+        ''' When True, includes the project's implicit root namespace (e.g. "SimpleIDE" for
+        ''' files with no explicit Namespace statement) in the result. Callers that match
+        ''' this against other FQNs built the same way (e.g. definition lookups) should leave
+        ''' this False; display-only callers that want the true full name (e.g. tooltips)
+        ''' should pass True.
+        ''' </param>
+        Public Function GetFullyQualifiedName(Optional vIncludeImplicitNamespace As Boolean = False) As String
             Try
                 Dim lParts As New List(Of String)()
                 Dim lCurrent As SyntaxNode = Me
-                
+
                 ' Build name from this node up to root
                 While lCurrent IsNot Nothing
                     If lCurrent.NodeType = CodeNodeType.eNamespace OrElse
@@ -403,18 +411,19 @@ Namespace Syntax
                        lCurrent.NodeType = CodeNodeType.eInterface OrElse
                        lCurrent.NodeType = CodeNodeType.eStructure OrElse
                        lCurrent.NodeType = CodeNodeType.eEnum Then
-                        
-                        ' Don't include implicit namespaces in the display
-                        If Not (lCurrent.NodeType = CodeNodeType.eNamespace AndAlso lCurrent.IsImplicit) Then
+
+                        ' Don't include implicit namespaces in the display unless requested
+                        If vIncludeImplicitNamespace OrElse
+                           Not (lCurrent.NodeType = CodeNodeType.eNamespace AndAlso lCurrent.IsImplicit) Then
                             lParts.Insert(0, lCurrent.Name)
                         End If
                     End If
-                    
+
                     lCurrent = lCurrent.Parent
                 End While
-                
+
                 Return String.Join(".", lParts)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetFullyQualifiedName error: {ex.Message}")
                 Return Name
@@ -604,9 +613,39 @@ Namespace Syntax
                     Return GetFieldDeclaration()
                 Case CodeNodeType.eEvent
                     Return GetEventDeclaration()
+                Case CodeNodeType.eNamespace, CodeNodeType.eModule, CodeNodeType.eStructure, CodeNodeType.eEnum
+                    Return GetContainerDeclaration()
                 Case Else
                     Return Name
             End Select
+        End Function
+
+        ''' <summary>
+        ''' Gets the declaration string for a namespace, module, structure, or enum,
+        ''' using the fully qualified name so hovering shows e.g. "SimpleIDE.Program"
+        ''' instead of just "Program"
+        ''' </summary>
+        Private Function GetContainerDeclaration() As String
+            Dim lFqn As String = GetFullyQualifiedName(vIncludeImplicitNamespace:=True)
+            If String.IsNullOrEmpty(lFqn) Then lFqn = Name
+
+            If NodeType = CodeNodeType.eNamespace Then
+                Return "Namespace " & lFqn
+            End If
+
+            Dim lKeyword As String
+            Select Case NodeType
+                Case CodeNodeType.eModule
+                    lKeyword = "Module"
+                Case CodeNodeType.eStructure
+                    lKeyword = "Structure"
+                Case CodeNodeType.eEnum
+                    lKeyword = "Enum"
+                Case Else
+                    lKeyword = ""
+            End Select
+
+            Return (GetVisibilityString() & " " & lKeyword & " " & lFqn).Trim()
         End Function
         
         Private Function GetMethodDeclaration() As String
@@ -687,32 +726,38 @@ Namespace Syntax
             If IsMustInherit Then lDecl &= "MustInherit "
             If IsNotInheritable Then lDecl &= "NotInheritable "
             
-            lDecl &= "Class " & Name
-            
+            Dim lFqn As String = GetFullyQualifiedName(vIncludeImplicitNamespace:=True)
+            lDecl &= "Class " & If(String.IsNullOrEmpty(lFqn), Name, lFqn)
+
             If Not String.IsNullOrEmpty(BaseType) Then
                 lDecl &= " Inherits " & BaseType
             End If
-            
+
             Return lDecl
         End Function
         
         Private Function GetInterfaceDeclaration() As String
-            Return GetVisibilityString() & " Interface " & Name
+            Dim lFqn As String = GetFullyQualifiedName(vIncludeImplicitNamespace:=True)
+            Return GetVisibilityString() & " Interface " & If(String.IsNullOrEmpty(lFqn), Name, lFqn)
         End Function
         
         Private Function GetFieldDeclaration() As String
             Dim lDecl As String = GetVisibilityString() & " "
-            
+
             If IsShared Then lDecl &= "Shared "
             If IsReadOnly Then lDecl &= "ReadOnly "
             If IsConst Then lDecl &= "Const "
-            
+
             lDecl &= Name
-            
-            If Not String.IsNullOrEmpty(ReturnType) Then
-                lDecl &= " As " & ReturnType
+
+            ' Fields are parsed into DataType (RoslynConverter.ProcessField) - ReturnType is
+            ' only populated for functions/properties (see its declaration comment above).
+            ' Fall back to ReturnType too in case a caller ever populates that instead.
+            Dim lType As String = If(Not String.IsNullOrEmpty(DataType), DataType, ReturnType)
+            If Not String.IsNullOrEmpty(lType) Then
+                lDecl &= " As " & lType
             End If
-            
+
             Return lDecl
         End Function
         

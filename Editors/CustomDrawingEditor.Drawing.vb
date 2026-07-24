@@ -271,6 +271,12 @@ Namespace Editors
                     lCursorPattern.Dispose()
                 End If
 
+                ' Draw the hover declaration tooltip and parameter hint (if any) before the
+                ' CodeSense popup so the popup - which takes priority when more than one could
+                ' theoretically be active - still paints on top
+                DrawHoverDeclarationTooltip(vContext)
+                DrawParameterHint(vContext)
+
                 ' Draw CodeSense popup overlay last so it paints on top of everything else
                 If pCodeSenseActive Then
                     DrawCodeSensePopup(vContext)

@@ -39,9 +39,13 @@ Namespace Editors
                         ' Period triggers member list immediately
                         TriggerCodeSenseImmediate(CodeSenseTriggerReason.eMemberList)
 
-                    Case "("c
-                        ' Opening parenthesis triggers parameter hints
-                        TriggerCodeSenseImmediate(CodeSenseTriggerReason.eParameterHints)
+                    ' "(" no longer triggers CodeSenseEngine.GetParameterHints here - that
+                    ' path shows the whole signature as a single suggestion-list entry (and,
+                    ' before the CommitCodeSenseSelection fix above, could reopen/clobber the
+                    ' popup right after a completion). The dedicated per-parameter hint popup
+                    ' (CustomDrawingEditor.ParameterHint.vb, driven from SetCursorPosition)
+                    ' supersedes it - it updates live as the cursor moves between commas
+                    ' rather than showing one static full-signature line.
 
                     Case " "c
                         ' Space after certain keywords triggers CodeSense
@@ -72,6 +76,45 @@ Namespace Editors
 
             Catch ex As Exception
                 Console.WriteLine($"TriggerCodeSenseForCurrentWord error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Manually triggers CodeSense at the cursor (Ctrl+Space), regardless of what was
+        ''' just typed, and pre-selects whatever best matches the identifier the cursor is
+        ''' currently on: if the cursor sits inside/at a complete, already-known identifier,
+        ''' that exact entry is selected; if only a partial prefix is present, the first
+        ''' prefix-matching entry (already how the filtered/sorted list naturally orders) is
+        ''' left selected
+        ''' </summary>
+        Private Sub TriggerCodeSenseManualAtCursor()
+            Try
+                If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.CodeSenseEnabled Then Return
+
+                Dim lWord As String = GetWordAtCursor()
+                Dim lPrefix As String = GetCurrentWord()
+
+                If String.IsNullOrEmpty(lPrefix) Then
+                    ' Cursor isn't after any already-typed characters of a word (e.g. sitting
+                    ' right at its start, or on whitespace) - fall back to the general/manual
+                    ' suggestion set instead of filtering to nothing
+                    TriggerCodeSenseImmediate(CodeSenseTriggerReason.eManual)
+                Else
+                    TriggerCodeSenseForCompletion(lPrefix)
+                End If
+
+                ' Pre-select the exact word under the cursor, if the resulting list has it
+                If pCodeSenseActive AndAlso Not String.IsNullOrEmpty(lWord) AndAlso pCodeSenseSuggestions IsNot Nothing Then
+                    for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
+                        If String.Equals(pCodeSenseSuggestions(i).Text, lWord, StringComparison.OrdinalIgnoreCase) Then
+                            MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
+                            Exit For
+                        End If
+                    Next
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"TriggerCodeSenseManualAtCursor error: {ex.Message}")
             End Try
         End Sub
 

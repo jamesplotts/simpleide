@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.167.0</AssemblyVersion>
-    <FileVersion>1.1.167.0</FileVersion>
+    <AssemblyVersion>1.1.198.0</AssemblyVersion>
+    <FileVersion>1.1.198.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.167</Version>
+    <Version>1.1.198</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -134,6 +134,7 @@
     <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Folding.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.HoverTooltip.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.LineExitedEventArgs.vb" />
@@ -141,6 +142,7 @@
     <Compile Include="Editors/CustomDrawingEditor.Mouse.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Navigation.vb" />
     <Compile Include="Editors/CustomDrawingEditor.NodeAccess.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.ParameterHint.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ProjectManager.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ScheduleParse.vb" />
     <Compile Include="Editors/CustomDrawingEditor.ScrollManual.vb" />

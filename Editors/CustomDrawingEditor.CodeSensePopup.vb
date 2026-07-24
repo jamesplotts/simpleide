@@ -524,11 +524,13 @@ Namespace Editors
                         CommitCodeSenseSelection()
                         Return True
 
-                    Case Gdk.Key.space, Gdk.Key.period
+                    Case Gdk.Key.space, Gdk.Key.period, Gdk.Key.parenleft
                         ' "Commit characters" - accept the highlighted suggestion, then let
-                        ' the space/period itself still reach normal character handling below
-                        ' (so "Str" + space completes to "String " and "Str" + "." completes
-                        ' to "String." and immediately opens member-list for it)
+                        ' the space/period/"(" itself still reach normal character handling
+                        ' below (so "Str" + space completes to "String " and "Str" + "."
+                        ' completes to "String." and immediately opens member-list for it, and
+                        ' "CodeSense" + "(" completes to "CodeSenseEngine(" instead of leaving
+                        ' the word unfinished and inserting "(" into the middle of it)
                         CommitCodeSenseSelection()
                         Return False
 
