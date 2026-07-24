@@ -29,6 +29,7 @@ Namespace Widgets
         Private pWidth As Integer = 60
         Private ReadOnly pFoldIconLeft As Integer = 2 ' X offset of the fold icon from the far left of the gutter
         Private ReadOnly pFoldIconAreaWidth As Integer = 13 ' Click hit-test width for the fold icon column
+        Private pLastAscent As Integer = 0 ' Ascent used by the last DrawLineNumbers call, reused for hit-testing
         
         ' Theme colors
         Private pBackgroundColor As String = "#1E1E1E"
@@ -252,7 +253,11 @@ Namespace Widgets
                         ' Fallback to approximate ascent
                         lAscent = CInt(pLineHeight * 0.75)
                     End Try
-                    
+
+                    ' Cache for hit-testing (OnButtonPress/OnMotionNotify need to know where the
+                    ' glyph actually renders within its row, not just the row's nominal top)
+                    pLastAscent = lAscent
+
                     ' Draw each visible line number (including partially visible ones)
                     For lVisualIndex As Integer = lFirstVisibleLine To lLastLine
                         ' Calculate Y position to match editor text
@@ -364,7 +369,11 @@ Namespace Widgets
                 End If
                 
                 ' Calculate which line was clicked
-                Dim lY As Double = vArgs.Event.Y - pTopPadding
+                ' Subtract pLastAscent so the hit-test band for a row starts at the same Y its
+                ' glyph actually renders at (lLineTop + lAscent), not the row's nominal empty top -
+                ' otherwise clicking on the visible digit/icon (which renders low in its row) can
+                ' resolve to the row below it
+                Dim lY As Double = vArgs.Event.Y - pTopPadding - pLastAscent
                 Dim lClickedVisualLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
                 Dim lClickedSourceLine As Integer = pEditor.VisualToSourceLine(lClickedVisualLine)
                 
@@ -449,8 +458,9 @@ Namespace Widgets
                 ' Calculate which line the mouse is over
                 ' pEditor.FirstVisibleLine and the resulting index are visual line numbers, so
                 ' they must be mapped back to the actual source line to account for any lines
-                ' currently hidden by a collapsed fold
-                Dim lY As Double = vArgs.Event.Y - pTopPadding
+                ' currently hidden by a collapsed fold. Also subtract pLastAscent so the hit-test
+                ' band matches where the glyph actually renders (see OnButtonPress).
+                Dim lY As Double = vArgs.Event.Y - pTopPadding - pLastAscent
                 Dim lHoverVisualLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
                 Dim lHoverLine As Integer = pEditor.VisualToSourceLine(lHoverVisualLine)
 
