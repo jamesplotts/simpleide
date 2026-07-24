@@ -150,50 +150,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateObjectExplorerForActiveTab error: {ex.Message}")
         End Try
     End Sub
-'     
-'     ''' <summary>
-'     ''' Set up editor for Object Explorer integration without redundant parsing
-'     ''' </summary>
-'     Private Sub SetupEditorForObjectExplorer(vEditor As IEditor)
-'         Try
-'             If vEditor Is Nothing Then Return
-'             
-'             ' Set up Object Explorer integration
-'             SetupObjectExplorerForEditor(vEditor)
-'             
-' '             ' FIXED: Only trigger parsing if we don't already have structure
-' '             Dim lCustomEditor As CustomDrawingEditor = TryCast(vEditor, CustomDrawingEditor)
-' '             If lCustomEditor IsNot Nothing Then
-' '                 ' Check if the editor already has parsed structure
-' '                 Dim lStructure As SyntaxNode = lCustomEditor.GetDocumentStructure()
-' '                 
-' '                 If lStructure Is Nothing Then
-' '                     ' No existing structure, request initial parse
-' '                     Console.WriteLine("No existing structure, requesting parse")
-' '                     lCustomEditor.RefreshSyntaxHighlighting()
-' '                 Else
-' '                     ' Already has structure, just update Object Explorer
-' '                     Console.WriteLine("Editor already has parsed structure, updating Object Explorer")
-' '                     If pObjectExplorer IsNot Nothing Then
-' '                         ' If project is open, show full project structure
-' '                         If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
-' '                             Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
-' '                             If lProjectTree IsNot Nothing Then
-' '                                 pObjectExplorer.UpdateStructure(lProjectTree)
-' '                             End If
-' '                         Else
-' '                             ' No project, show file structure
-' '                             pObjectExplorer.UpdateStructure(lStructure)
-' '                         End If
-' '                     End If
-' '                 End If
-' '             End If
-'             
-'         Catch ex As Exception
-'             Console.WriteLine($"SetupEditorForObjectExplorer error: {ex.Message}")
-'         End Try
-'     End Sub
-    
+
     ''' <summary>
     ''' Object Explorer toolbar integration
     ''' </summary>

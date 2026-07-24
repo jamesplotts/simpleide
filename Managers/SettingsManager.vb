@@ -1169,41 +1169,8 @@ End Property
             Catch ex As Exception
                 Console.WriteLine($"RemoveRecentFile error: {ex.Message}")
             End Try
-        End Sub     
-'
-'        ''' <summary>
-'        ''' Gets an integer setting value
-'        ''' </summary>
-'        ''' <param name="vKey">Setting key</param>
-'        ''' <param name="vDefaultValue">Default value if not found</param>
-'        ''' <returns>The integer value</returns>
-'        Public Function GetInteger(vKey As String, vDefaultValue As Integer) As Integer
-'            Try
-'                Dim lValue As String = GetString(vKey, vDefaultValue.ToString())
-'                Dim lResult As Integer
-'                If Integer.TryParse(lValue, lResult) Then
-'                    Return lResult
-'                End If
-'                Return vDefaultValue
-'            Catch ex As Exception
-'                Console.WriteLine($"GetInteger error: {ex.Message}")
-'                Return vDefaultValue
-'            End Try
-'        End Function
-'        
-'        ''' <summary>
-'        ''' Sets an integer setting value
-'        ''' </summary>
-'        ''' <param name="vKey">Setting key</param>
-'        ''' <param name="vValue">Integer value to set</param>
-'        Public Sub SetInteger(vKey As String, vValue As Integer)
-'            Try
-'                SetString(vKey, vValue.ToString())
-'            Catch ex As Exception
-'                Console.WriteLine($"SetInteger error: {ex.Message}")
-'            End Try
-'        End Sub        
-        
+        End Sub
+
     End Class
     
 End Namespace
