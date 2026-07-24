@@ -22,43 +22,6 @@ Partial Public Class MainWindow
         StopProject()
     End Sub
 
-'     Private Sub OnStopDebugging(vSender As Object, vArgs As EventArgs)
-'         Try
-'             If pIsDebugging Then
-'                 ' Stop the debug process
-'                 If pDebugProcess IsNot Nothing AndAlso Not pDebugProcess.HasExited Then
-'                     pDebugProcess.Kill()
-'                     pDebugProcess = Nothing
-'                 End If
-'                 pIsDebugging = False
-'                 
-'                 ' Update UI
-'                 UpdateDebugButtonStates()
-'             End If
-'         Catch ex As Exception
-'             Console.WriteLine($"OnStopDebugging error: {ex.Message}")
-'         End Try
-'     End Sub
-
-
-'     Private Sub OnStopDebugging(vSender As Object, vArgs As EventArgs)
-'         Try
-'             If pIsDebugging Then
-'                 ' Stop the debug process
-'                 If pDebugProcess IsNot Nothing AndAlso Not pDebugProcess.HasExited Then
-'                     pDebugProcess.Kill()
-'                     pDebugProcess = Nothing
-'                 End If
-'                 pIsDebugging = False
-'                 
-'                 ' Update UI
-'                 UpdateDebugButtonStates()
-'             End If
-'         Catch ex As Exception
-'             Console.WriteLine($"OnStopDebugging error: {ex.Message}")
-'         End Try
-'     End Sub
-    
     ' Helper method to update debug button states
     Private Sub UpdateDebugButtonStates()
         Try

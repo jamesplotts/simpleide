@@ -255,27 +255,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-'    ''' <summary>
-'    ''' Handle project structure changed event
-'    ''' </summary>
-'    Private Sub OnProjectStructureChanged(vRootNode As DocumentNode)
-'        Try
-'            Console.WriteLine("project structure updated")
-'            
-'            ' Update object explorer on main thread
-'            Application.Invoke(Sub()
-'                If pObjectExplorer IsNot Nothing Then
-'                    Dim lSyntaxNode As SyntaxNode = ConvertDocumentNodeToSyntaxNode(vRootNode)
-'                    If lSyntaxNode IsNot Nothing Then
-'                        pObjectExplorer.SetProjectStructure(lSyntaxNode)
-'                    End If
-'                End If
-'            End Sub)
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"MainWindow.OnProjectStructureChanged error: {ex.Message}")
-'        End Try
-'    End Sub
     
     ''' <summary>
     ''' Handle cancel button click in progress dialog

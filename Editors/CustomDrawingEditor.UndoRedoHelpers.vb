@@ -156,15 +156,6 @@ Namespace Editors
             End Try
         End Sub
         
-'         ''' <summary>
-'         ''' Alternative overload for backward compatibility with integer parameters
-'         ''' </summary>
-'         Public Sub DeleteTextDirect(vStartLine As Integer, vStartColumn As Integer,
-'                                    vEndLine As Integer, vEndColumn As Integer) Implements IEditor.DeleteTextDirect
-'             DeleteTextDirect(New EditorPosition(vStartLine, vStartColumn),
-'                             New EditorPosition(vEndLine, vEndColumn))
-'         End Sub
-        
         ''' <summary>
         ''' Helper method for single-line deletion without undo
         ''' </summary>

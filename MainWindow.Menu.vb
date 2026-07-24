@@ -75,20 +75,7 @@ Partial Public Class MainWindow
             
             ' Separator
             lDebugMenu.Append(New SeparatorMenuItem())
-            
-'            ' Refresh Explorers
-'            Dim lRefreshExplorers As New MenuItem("Refresh Explorers")
-'            AddHandler lRefreshExplorers.Activated, Sub() RefreshExplorers()
-'            lDebugMenu.Append(lRefreshExplorers)
-'            
-'            ' Fix Empty Left Panel
-'            Dim lFixEmptyPanel As New MenuItem("Fix Empty Left Panel")
-'            AddHandler lFixEmptyPanel.Activated, Sub() FixEmptyLeftPanel()
-'            lDebugMenu.Append(lFixEmptyPanel)
-            
-            ' Separator
-            lDebugMenu.Append(New SeparatorMenuItem())
-            
+
             ' Ensure Notebooks Ready
             Dim lEnsureNotebooks As New MenuItem("Ensure Notebooks Ready")
             AddHandler lEnsureNotebooks.Activated, Sub() EnsureNotebooksReady()

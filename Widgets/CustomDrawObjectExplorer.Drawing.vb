@@ -40,63 +40,6 @@ Namespace Widgets
             End Try
         End Function
         
-'        ''' <summary>
-'        ''' Draws a fallback icon when the actual icon cannot be loaded
-'        ''' </summary>
-'        Private Sub DrawFallbackIcon(vContext As Cairo.Context, vX As Integer, vY As Integer, vNodeType As CodeNodeType)
-'            Try
-'                Dim lCenterX As Double = vX + pIconSize / 2
-'                Dim lCenterY As Double = vY + pRowHeight / 2
-'                Dim lRadius As Double = pIconSize / 3
-'                
-'                vContext.SetSourceRGB(0.3, 0.3, 0.7)
-'                
-'                Select Case vNodeType
-'                    Case CodeNodeType.eNamespace
-'                        ' Draw folder shape
-'                        vContext.Rectangle(vX + 2, lCenterY - lRadius, pIconSize - 4, lRadius * 2)
-'                        
-'                    Case CodeNodeType.eClass, CodeNodeType.eModule
-'                        ' Draw square
-'                        vContext.Rectangle(lCenterX - lRadius, lCenterY - lRadius, lRadius * 2, lRadius * 2)
-'                        
-'                    Case CodeNodeType.eInterface
-'                        ' Draw diamond
-'                        vContext.MoveTo(lCenterX, lCenterY - lRadius)
-'                        vContext.LineTo(lCenterX + lRadius, lCenterY)
-'                        vContext.LineTo(lCenterX, lCenterY + lRadius)
-'                        vContext.LineTo(lCenterX - lRadius, lCenterY)
-'                        vContext.ClosePath()
-'                        
-'                    Case CodeNodeType.eMethod, CodeNodeType.eFunction
-'                        ' Draw circle
-'                        vContext.Arc(lCenterX, lCenterY, lRadius, 0, Math.PI * 2)
-'                        
-'                    Case CodeNodeType.eProperty
-'                        ' Draw wrench shape (simplified)
-'                        vContext.Rectangle(lCenterX - lRadius/2, lCenterY - lRadius, lRadius, lRadius * 2)
-'                        
-'                    Case CodeNodeType.eEnum
-'                        ' Draw list shape
-'                        For i As Integer = -1 To 1
-'                            vContext.Rectangle(vX + 4, lCenterY + i * lRadius/2 - 1, pIconSize - 8, 2)
-'                        Next
-'                        
-'                    Case Else
-'                        ' Draw triangle
-'                        vContext.MoveTo(lCenterX, lCenterY - lRadius)
-'                        vContext.LineTo(lCenterX + lRadius, lCenterY + lRadius)
-'                        vContext.LineTo(lCenterX - lRadius, lCenterY + lRadius)
-'                        vContext.ClosePath()
-'                End Select
-'                
-'                vContext.Fill()
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"DrawFallbackIcon error: {ex.Message}")
-'            End Try
-'        End Sub
-        
         ' ===== Text Drawing =====
         
 

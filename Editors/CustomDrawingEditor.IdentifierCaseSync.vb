@@ -263,18 +263,7 @@ Namespace Editors
                 Line = vLine
             End Sub
         End Class
-        
-'        Public Enum IdentifierScope
-'            Local
-'            Parameter
-'            Variable
-'            Method
-'            [Property]
-'            Type
-'            [Event]
-'            Constant
-'        End Enum
-        
+
     End Class
     
 End Namespace

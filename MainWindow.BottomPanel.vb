@@ -443,56 +443,6 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Function ShouldFocusEditor() As Boolean
         Try
-'             ' Don't focus editor if a dialog is open
-'             Dim lToplevels As List(Of Gdk.Window) = Gdk.Window.ListToplevels()
-'             for each lWindow As Gdk.Window in lToplevels
-'                 If lWindow IsNot Me AndAlso lWindow.Visible AndAlso lWindow.Modal Then
-'                     Console.WriteLine("Modal dialog open - Not focusing editor")
-'                     Return False
-'                 End If
-'             Next
-'             
-'             ' Don't focus editor if bottom panel has focus and is visible
-'             If pBottomPanelVisible Then
-'                 ' Check if any bottom panel widget has focus
-'                 Dim lFocusWidget As Widget = Widget.GetFocusWidget()
-'                 If lFocusWidget IsNot Nothing Then
-'                     ' Check if focus is in bottom panel
-'                     If pBottomPanelManager IsNot Nothing Then
-'                         Dim lBottomWidget As Widget = pBottomPanelManager.GetWidget()
-'                         If lBottomWidget IsNot Nothing AndAlso lFocusWidget.IsAncestor(lBottomWidget) Then
-'                             Console.WriteLine("Bottom panel has focus - Not stealing it")
-'                             Return False
-'                         End If
-'                     End If
-'                 End If
-'             End If
-'             
-'             ' Don't focus editor if project explorer has focus
-'             If pProjectExplorer IsNot Nothing Then
-'                 Dim lFocusWidget As Widget = Widget.GetFocusWidget()
-'                 If lFocusWidget IsNot Nothing AndAlso lFocusWidget.IsAncestor(pProjectExplorer) Then
-'                     Console.WriteLine("Project explorer has focus - Not stealing it")
-'                     Return False
-'                 End If
-'             End If
-'             
-'             ' Check if there's actually an editor to focus
-'             Dim lEditor As IEditor = GetCurrentEditor()
-'             If lEditor Is Nothing Then
-'                 Console.WriteLine("No editor available To focus")
-'                 Return False
-'             End If
-'             
-'             ' Default to focusing the editor
-
-
-' TODO:  The above commented code causes these build errors:
-' /home/jamesp/Projects/VbIDE/MainWindow.BottomPanel.vb(326,45): error BC30456: 'Visible' is not a member of 'Window'. [/home/jamesp/Projects/VbIDE/SimpleIDE.vbproj]
-' /home/jamesp/Projects/VbIDE/MainWindow.BottomPanel.vb(326,69): error BC30456: 'Modal' is not a member of 'Window'. [/home/jamesp/Projects/VbIDE/SimpleIDE.vbproj]
-' /home/jamesp/Projects/VbIDE/MainWindow.BottomPanel.vb(335,46): error BC30456: 'GetFocusWidget' is not a member of 'Widget'. [/home/jamesp/Projects/VbIDE/SimpleIDE.vbproj]
-' /home/jamesp/Projects/VbIDE/MainWindow.BottomPanel.vb(350,46): error BC30456: 'GetFocusWidget' is not a member of 'Widget'. [/home/jamesp/Projects/VbIDE/SimpleIDE.vbproj]
-
             Return True
             
         Catch ex As Exception

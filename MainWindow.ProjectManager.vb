@@ -728,40 +728,6 @@ Partial Public Class MainWindow
     
 
     
-    ' ===== Editor Content Changes =====
-    
-'     ''' <summary>
-'     ''' Handle editor content changes to update project structure
-'     ''' </summary>
-'     Private Sub OnEditorContentChangedWithProjectUpdate(vSender As Object, vArgs As EventArgs)
-'         Try
-'             ' Get the editor that changed
-'             Dim lEditor As IEditor = TryCast(vSender, IEditor)
-'             If lEditor Is Nothing Then Return
-'             
-'             ' Find the tab for this editor
-'             Dim lTab As TabInfo = Nothing
-'             For Each lT In pOpenTabs
-'                 If lT.Value.Editor Is lEditor Then
-'                     lTab = lT.Value
-'                     Exit For
-'                 End If
-'             Next
-'             
-'             If lTab Is Nothing OrElse String.IsNullOrEmpty(lTab.FilePath) Then Return
-'             
-'             ' If project is open, update the file structure
-'             If pProjectManager.IsProjectOpen Then
-'                 ' This will trigger a reparse and update events
-'                 pProjectManager.LoadProjectStructure()
-' '                if pProjectManager.LoadProjectStructure() Then pProjectManager.DiagnoseProjectStructure() 
-'             End If
-'             
-'         Catch ex As Exception
-'             Console.WriteLine($"OnEditorContentChangedWithProjectUpdate error: {ex.Message}")
-'         End Try
-'     End Sub
-    
     ' ===== Refresh Commands =====
     
     ''' <summary>

@@ -169,50 +169,6 @@ Partial Public Class MainWindow
         End Try
     End Function
 
-'        ' Check if app.manifest exists
-'        Public Function ManifestExists() As Boolean
-'            Try
-'                Dim lPath As String = GetManifestPath()
-'                Return Not String.IsNullOrEmpty(lPath) AndAlso File.Exists(lPath)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"ManifestExists error: {ex.Message}")
-'                Return False
-'            End Try
-'        End Function
-
-    
-'    ' Create default manifest
-'    Private Function CreateDefaultManifest() As Boolean
-'        Try
-'            If String.IsNullOrEmpty(pCurrentProject) Then Return False
-'            
-'            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-'            Dim lManifestPath As String = System.IO.Path.Combine(lProjectDir, "app.manifest")
-'            
-'            ' Create default manifest content
-'            Dim lContent As String = "<?xml Version=""1.0"" Encoding=""utf-8""?>" & Environment.NewLine & _
-'                                   "<assembly manifestVersion=""1.0"" xmlns=""urn:schemas-microsoft-com:asm.v1"">" & Environment.NewLine & _
-'                                   "  <assemblyIdentity Version=""1.0.0.0"" Name=""MyApplication.app""/>" & Environment.NewLine & _
-'                                   "  <trustInfo xmlns=""urn:schemas-microsoft-com:asm.v2"">" & Environment.NewLine & _
-'                                   "    <security>" & Environment.NewLine & _
-'                                   "      <requestedPrivileges xmlns=""urn:schemas-microsoft-com:asm.v3"">" & Environment.NewLine & _
-'                                   "        <requestedExecutionLevel Level=""asInvoker"" uiAccess=""false"" />" & Environment.NewLine & _
-'                                   "      </requestedPrivileges>" & Environment.NewLine & _
-'                                   "    </security>" & Environment.NewLine & _
-'                                   "  </trustInfo>" & Environment.NewLine & _
-'                                   "</assembly>"
-'            
-'            File.WriteAllText(lManifestPath, lContent)
-'            Return True
-'            
-'        Catch ex As Exception
-'            Console.WriteLine($"CreateDefaultManifest error: {ex.Message}")
-'            ShowError("Create Manifest error", ex.Message)
-'            Return False
-'        End Try
-'    End Function
-    
     ' Toggle manifest embedding
     Public Sub ToggleManifestEmbedding(vEmbed As Boolean)
         Try

@@ -1292,93 +1292,6 @@ End Sub
             vSource.CopyNodeAttributesTo(vTarget)
         End Sub
 
-'         ''' <summary>
-'         ''' Load and parse all project source files with correct namespace organization and sorting
-'         ''' </summary>
-'         Public Function LoadProjectStructure() As Boolean
-'             Try
-'                 If Not pIsProjectOpen Then
-'                     Console.WriteLine("No project Is open")
-'                     Return False
-'                 End If
-'                 
-'                 pIsLoadingStructure = True
-'                 pSourceFiles.Clear()
-'                 
-'                 ' Get the actual root namespace from project info
-'                 ' Make sure pCurrentProjectInfo has the RootNamespace property populated
-'                 Dim lRootNamespaceName As String
-'                 If pCurrentProjectInfo IsNot Nothing AndAlso 
-'                    TypeOf pCurrentProjectInfo Is ProjectInfo Then
-'                     Dim lProjectInfo As ProjectInfo = DirectCast(pCurrentProjectInfo, ProjectInfo)
-'                     lRootNamespaceName = lProjectInfo.GetEffectiveRootNamespace()
-'                 Else
-'                     ' Fallback to project name
-'                     lRootNamespaceName = Path.GetFileNameWithoutExtension(pCurrentProjectInfo.ProjectPath)
-'                 End If
-'                 
-'                 Console.WriteLine($"Loading project Structure with root Namespace: {lRootNamespaceName}")
-'                 
-'                 ' Create root document node and namespace
-'                 pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, pCurrentProjectInfo.ProjectName)
-'                 Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
-'                 lRootNamespace.IsImplicit = True
-'                 pProjectSyntaxTree.AddChild(lRootNamespace)
-'                 
-'                 ' Dictionary to track namespace nodes
-'                 Dim lNamespaceNodes As New Dictionary(Of String, SyntaxNode)(StringComparer.OrdinalIgnoreCase)
-'                 lNamespaceNodes(lRootNamespaceName) = lRootNamespace
-'                 
-'                 ' Get all source files
-'                 Dim lSourceFiles As List(Of String) = GetProjectSourceFiles()
-'                 Console.WriteLine($"Found {lSourceFiles.Count} source files")
-'                 
-'                 ' Parse and process each file
-'                 For Each lFilePath In lSourceFiles
-'                     ' Create SourceFileInfo
-'                     Dim lFileInfo As New SourceFileInfo(lFilePath, pCurrentProjectInfo.ProjectDirectory)
-'                     lFileInfo.ProjectRootNamespace = lRootNamespaceName
-'                     
-'                     ' Raise progress event
-'                     RaiseEvent ParsingProgress(pSourceFiles.Count + 1, lSourceFiles.Count, lFileInfo.FileName)
-'                     
-'                     ' Load and parse the file
-'                     If lFileInfo.LoadAndParse() Then
-'                         ' Add to dictionary
-'                         pSourceFiles(lFilePath) = lFileInfo
-'                         
-'                         ' Process the parsed structure and organize by namespace
-'                         If lFileInfo.SyntaxTree IsNot Nothing Then
-'                             ProcessFileStructure(lFileInfo, lRootNamespace, lNamespaceNodes, lRootNamespaceName)
-'                         End If
-'                         
-'                         ' Raise file parsed event
-'                         RaiseEvent FileParsed(lFileInfo)
-'                     End If
-'                 Next
-'                 
-'                 ' Build final namespace tree structure
-'                 BuildNamespaceHierarchy(lNamespaceNodes, lRootNamespace)
-'                 
-'                 ' CRITICAL FIX: Sort the entire project tree recursively
-'                 Console.WriteLine("Sorting project Structure...")
-'                 SortNodeChildrenRecursively(pProjectSyntaxTree)
-'                 
-'                 pIsLoadingStructure = False
-'                 
-'                 ' Raise project structure loaded event
-'                 RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
-'                 
-'                 Console.WriteLine($"Project Structure loaded with root Namespace: {lRootNamespaceName}")
-'                 Return True
-'                 
-'             Catch ex As Exception
-'                 Console.WriteLine($"ProjectManager.LoadProjectStructure error: {ex.Message}")
-'                 pIsLoadingStructure = False
-'                 Return False
-'             End Try
-'         End Function
-
         ' ===== Supporting Classes =====
     
         ''' <summary>
@@ -1497,11 +1410,6 @@ End Sub
 
 
         
-'        Public Sub Dispose() Implements IDisposable.Dispose
-'            Dispose(True)
-'            GC.SuppressFinalize(Me)
-'        End Sub
-
 ''' <summary>
 ''' Disposes of the ProjectManager and cleans up resources
 ''' </summary>
