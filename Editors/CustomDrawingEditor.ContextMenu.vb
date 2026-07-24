@@ -1,6 +1,7 @@
 ' Editors/CustomDrawingEditor.ContextMenu.vb - Context menu implementation
 Imports Gtk
 Imports System
+Imports System.Collections.Generic
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
@@ -125,6 +126,31 @@ Namespace Editors
                 lImplementInterfaceItem.Name = "ImplementInterfaceMenuItem"
                 AddHandler lImplementInterfaceItem.Activated, AddressOf OnContextMenuImplementInterface
                 pContextMenu.Append(lImplementInterfaceItem)
+
+                ' Surround Selection With submenu (conditional - only shown when there's a
+                ' selection)
+                Dim lSurroundWithItem As New MenuItem("Su_rround Selection With")
+                lSurroundWithItem.Name = "SurroundWithMenuItem"
+                Dim lSurroundWithMenu As New Menu()
+                lSurroundWithItem.Submenu = lSurroundWithMenu
+
+                Dim lSurroundKinds As New Dictionary(Of String, SurroundWithKind) From {
+                    {"Try / Catch", SurroundWithKind.eTryCatch},
+                    {"If", SurroundWithKind.eIf},
+                    {"For", SurroundWithKind.eFor},
+                    {"For Each", SurroundWithKind.eForEach},
+                    {"Using", SurroundWithKind.eUsing},
+                    {"With", SurroundWithKind.eWith},
+                    {"While", SurroundWithKind.eWhile}
+                }
+                for each lEntry In lSurroundKinds
+                    Dim lKindItem As New MenuItem(lEntry.Key)
+                    Dim lKind As SurroundWithKind = lEntry.Value
+                    AddHandler lKindItem.Activated, Sub(vSender As Object, vArgs As EventArgs) SurroundSelectionWith(lKind)
+                    lSurroundWithMenu.Append(lKindItem)
+                Next
+
+                pContextMenu.Append(lSurroundWithItem)
 
                 ' Show all items
                 pContextMenu.ShowAll()
@@ -257,6 +283,9 @@ Namespace Editors
 
                             Case "ImplementInterfaceMenuItem"
                                 lMenuItem.Visible = GetUnimplementedInterfaceMembers().Count > 0
+
+                            Case "SurroundWithMenuItem"
+                                lMenuItem.Visible = lHasSelection
 
                         End Select
                     End If

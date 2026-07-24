@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.206.0</AssemblyVersion>
-    <FileVersion>1.1.206.0</FileVersion>
+    <AssemblyVersion>1.1.207.0</AssemblyVersion>
+    <FileVersion>1.1.207.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.206</Version>
+    <Version>1.1.207</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -152,6 +152,7 @@
     <Compile Include="Editors/CustomDrawingEditor.Search.vb" />
     <Compile Include="Editors/CustomDrawingEditor.SetCursorPosition.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Settings.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.SurroundWith.vb" />
     <Compile Include="Editors/CustomDrawingEditor.TextManipulation.vb" />
     <Compile Include="Editors/CustomDrawingEditor.UndoRedo.vb" />
     <Compile Include="Editors/CustomDrawingEditor.UndoRedoHelpers.vb" />
