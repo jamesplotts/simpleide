@@ -238,14 +238,30 @@ Namespace Editors
                     ' If this line begins a collapsed foldable block, show a "{...}" hint after it
                     Dim lFoldedNode As SyntaxNode = GetFoldableNodeAtLine(lLineIndex)
                     If lFoldedNode IsNot Nothing AndAlso Not lFoldedNode.IsExpanded AndAlso lLine.Length >= lFirstColumn Then
+                        Dim lIndicatorText As String = " {...}"
                         Dim lIndicatorColumnIndex As Integer = lLine.Length - lFirstColumn
                         Dim lIndicatorX As Integer = pLeftPadding + (lIndicatorColumnIndex * pCharWidth)
+
+                        ' The collapsed lines this indicator stands in for are still part of the
+                        ' document, so if the selection continues past this row (i.e. it's not
+                        ' the row the selection ends on), the folded content is included in the
+                        ' selection - paint the same highlight behind the indicator so the
+                        ' highlight doesn't visually break at the fold point
+                        If pSelectionActive AndAlso lLineIndex >= lSelStartLine AndAlso lLineIndex < lSelEndLine Then
+                            Dim lSelColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eSelectionColor)
+                            Dim lSelPattern As New Cairo.SolidPattern(lSelColor.R, lSelColor.G, lSelColor.B)
+                            vContext.SetSource(lSelPattern)
+                            vContext.Rectangle(lIndicatorX, lLineTop + lAscent + 1, lIndicatorText.Length * pCharWidth, pLineHeight)
+                            vContext.Fill()
+                            lSelPattern.Dispose()
+                        End If
+
                         Dim lIndicatorColor As Cairo.Color = GetCachedTokenColor(SyntaxTokenType.eComment)
                         Dim lIndicatorPattern As New Cairo.SolidPattern(lIndicatorColor.R, lIndicatorColor.G, lIndicatorColor.B)
                         vContext.SetSource(lIndicatorPattern)
                         vContext.MoveTo(lIndicatorX, lY)
                         lLayout.FontDescription = pFontDescription
-                        lLayout.SetText(" {...}")
+                        lLayout.SetText(lIndicatorText)
                         Pango.CairoHelper.ShowLayout(vContext, lLayout)
                         lIndicatorPattern.Dispose()
                     End If
