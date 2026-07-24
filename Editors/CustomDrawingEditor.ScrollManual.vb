@@ -755,13 +755,26 @@ Namespace Editors
                 End If
                 
                 ' Vertical scrolling
-                If pCursorLine < pFirstVisibleLine Then
+                ' pFirstVisibleLine/pTotalVisibleLines are visual-line values (they skip lines
+                ' hidden by a collapsed fold), while pCursorLine is a source line - these must be
+                ' converted to the same space before comparing, otherwise the viewport can be
+                ' scrolled to a position that doesn't actually contain the cursor once any fold
+                ' above it is collapsed
+                Dim lCursorVisualLine As Integer = SourceToVisualLine(pCursorLine)
+                If lCursorVisualLine < 0 Then
+                    ' Cursor is hidden inside a collapsed fold - expand it so it becomes visible
+                    EnsureLineVisible(pCursorLine)
+                    lCursorVisualLine = SourceToVisualLine(pCursorLine)
+                    If lCursorVisualLine < 0 Then lCursorVisualLine = 0
+                End If
+
+                If lCursorVisualLine < pFirstVisibleLine Then
                     ' Cursor above visible area
-                    pFirstVisibleLine = pCursorLine
+                    pFirstVisibleLine = lCursorVisualLine
                     pVScrollbar.Value = pFirstVisibleLine
-                ElseIf pCursorLine >= pFirstVisibleLine + pTotalVisibleLines Then
+                ElseIf lCursorVisualLine >= pFirstVisibleLine + pTotalVisibleLines Then
                     ' Cursor below visible area
-                    pFirstVisibleLine = Math.Max(0, pCursorLine - pTotalVisibleLines + 1)
+                    pFirstVisibleLine = Math.Max(0, lCursorVisualLine - pTotalVisibleLines + 1)
                     pVScrollbar.Value = pFirstVisibleLine
                 End If
                 
@@ -895,12 +908,16 @@ Namespace Editors
                 
                 ' Calculate the target first visible line to show the bottom
                 ' We want the last line to be at the bottom of the viewport
-                Dim lTargetFirstLine As Integer = Math.Max(0, pLineCount - pTotalVisibleLines)
-                
+                ' pFirstVisibleLine/pTotalVisibleLines are visual-line values, so the target must
+                ' be computed against the visual line count, not the raw source line count -
+                ' otherwise a collapsed fold anywhere in the file would overshoot the scroll range
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                Dim lTargetFirstLine As Integer = Math.Max(0, lVisualLineCount - pTotalVisibleLines)
+
                 ' If we're already at the bottom, force a complete scroll
-                If pFirstVisibleLine = lTargetFirstLine AndAlso lTargetFirstLine < pLineCount - 1 Then
+                If pFirstVisibleLine = lTargetFirstLine AndAlso lTargetFirstLine < lVisualLineCount - 1 Then
                     ' Try to scroll one more line if possible to ensure we're truly at bottom
-                    lTargetFirstLine = Math.Min(pLineCount - 1, lTargetFirstLine + 1)
+                    lTargetFirstLine = Math.Min(lVisualLineCount - 1, lTargetFirstLine + 1)
                 End If
                 
                 ' Set the scroll position
