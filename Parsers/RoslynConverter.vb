@@ -169,13 +169,19 @@ Namespace Managers
                         
                     Case SyntaxKind.SubBlock, SyntaxKind.FunctionBlock
                         ProcessMethodBlock(DirectCast(vMember, MethodBlockSyntax), vParent)
-                        
+
+                    Case SyntaxKind.SubStatement, SyntaxKind.FunctionStatement
+                        ' Bare method statement with no block/body - interface method members
+                        ' are declared this way; without this case they were previously
+                        ' invisible in the parsed tree entirely
+                        ProcessMethodStatement(DirectCast(vMember, MethodStatementSyntax), vParent)
+
                     Case SyntaxKind.ConstructorBlock
                         ProcessConstructor(DirectCast(vMember, ConstructorBlockSyntax), vParent)
-                        
+
                     Case SyntaxKind.EventBlock
                         ProcessEventBlock(DirectCast(vMember, EventBlockSyntax), vParent)
-                        
+
                     Case SyntaxKind.EventStatement
                         ProcessEventStatement(DirectCast(vMember, EventStatementSyntax), vParent)
 
@@ -212,16 +218,22 @@ Namespace Managers
                         
                     Case SyntaxKind.SubBlock, SyntaxKind.FunctionBlock
                         ProcessMethodBlock(DirectCast(vMember, MethodBlockSyntax), vParent)
-                        
+
+                    Case SyntaxKind.SubStatement, SyntaxKind.FunctionStatement
+                        ' Bare method statement with no block/body - interface method members
+                        ' are declared this way; without this case they were previously
+                        ' invisible in the parsed tree entirely
+                        ProcessMethodStatement(DirectCast(vMember, MethodStatementSyntax), vParent)
+
                     Case SyntaxKind.ConstructorBlock
                         ProcessConstructor(DirectCast(vMember, ConstructorBlockSyntax), vParent)
-                        
+
                     Case SyntaxKind.EventBlock
                         ProcessEventBlock(DirectCast(vMember, EventBlockSyntax), vParent)
-                        
+
                     Case SyntaxKind.EventStatement
                         ProcessEventStatement(DirectCast(vMember, EventStatementSyntax), vParent)
-                        
+
                     Case SyntaxKind.EnumBlock
                         ProcessEnum(DirectCast(vMember, EnumBlockSyntax), vParent)
                         
@@ -703,7 +715,44 @@ Namespace Managers
                 Console.WriteLine($"ProcessMethodBlock error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Processes a bare method statement with no block/body - interface method members
+        ''' (Sub/Function declared inside an Interface block) are represented this way in the
+        ''' Roslyn syntax model since they have no End Sub/End Function to close a block
+        ''' </summary>
+        Private Sub ProcessMethodStatement(vMethod As MethodStatementSyntax, vParent As SimpleSyntaxNode)
+            Try
+                Dim lMethodNode As New SimpleSyntaxNode(
+                    If(vMethod.Kind() = SyntaxKind.FunctionStatement,
+                       CodeNodeType.eFunction,
+                       CodeNodeType.eMethod),
+                    vMethod.Identifier.Text
+                )
+
+                lMethodNode.FilePath = pCurrentFilePath
+                SetNodeLocation(lMethodNode, DirectCast(vMethod, RoslynSyntaxNode))
+
+                ExtractModifiers(vMethod.Modifiers, lMethodNode)
+
+                If vMethod.Kind() = SyntaxKind.FunctionStatement Then
+                    If vMethod.AsClause IsNot Nothing Then
+                        lMethodNode.ReturnType = vMethod.AsClause.Type.ToString()
+                    Else
+                        lMethodNode.ReturnType = "Object"
+                    End If
+                End If
+
+                ExtractParameters(vMethod.ParameterList, lMethodNode)
+                ExtractXmlDocumentation(DirectCast(vMethod, RoslynSyntaxNode), lMethodNode)
+
+                vParent.AddChild(lMethodNode)
+
+            Catch ex As Exception
+                Console.WriteLine($"ProcessMethodStatement error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Processes a constructor
         ''' </summary>

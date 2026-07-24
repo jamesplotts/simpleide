@@ -109,7 +109,23 @@ Namespace Editors
                 lGoToDefinitionItem.Name = "GoToDefinitionMenuItem"
                 AddHandler lGoToDefinitionItem.Activated, AddressOf OnContextMenuGoToDefinition
                 pContextMenu.Append(lGoToDefinitionItem)
-                
+
+                ' Generate Field(s) From Parameters menu item (conditional - only shown when
+                ' the cursor is inside a Sub/Function/constructor with a parameter that
+                ' doesn't already have a matching field)
+                Dim lGenerateFieldsItem As New MenuItem("_Generate Field(s) From Parameters")
+                lGenerateFieldsItem.Name = "GenerateFieldsMenuItem"
+                AddHandler lGenerateFieldsItem.Activated, AddressOf OnContextMenuGenerateFieldsFromParameters
+                pContextMenu.Append(lGenerateFieldsItem)
+
+                ' Implement Interface Members menu item (conditional - only shown when the
+                ' cursor is inside a class/module that Implements an interface with members
+                ' not yet implemented)
+                Dim lImplementInterfaceItem As New MenuItem("Imple_ment Interface Members")
+                lImplementInterfaceItem.Name = "ImplementInterfaceMenuItem"
+                AddHandler lImplementInterfaceItem.Activated, AddressOf OnContextMenuImplementInterface
+                pContextMenu.Append(lImplementInterfaceItem)
+
                 ' Show all items
                 pContextMenu.ShowAll()
                 
@@ -235,6 +251,12 @@ Namespace Editors
 
                             Case "SmartPasteMenuItem"
                                 lMenuItem.Sensitive = lHasClipboard AndAlso Not pIsReadOnly
+
+                            Case "GenerateFieldsMenuItem"
+                                lMenuItem.Visible = GetGenerateFieldCandidates().Count > 0
+
+                            Case "ImplementInterfaceMenuItem"
+                                lMenuItem.Visible = GetUnimplementedInterfaceMembers().Count > 0
 
                         End Select
                     End If
@@ -423,7 +445,29 @@ Namespace Editors
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Handles the Generate Field(s) From Parameters context menu item click
+        ''' </summary>
+        Private Sub OnContextMenuGenerateFieldsFromParameters(vSender As Object, vArgs As EventArgs)
+            Try
+                GenerateFieldsFromParameters()
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuGenerateFieldsFromParameters error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles the Implement Interface Members context menu item click
+        ''' </summary>
+        Private Sub OnContextMenuImplementInterface(vSender As Object, vArgs As EventArgs)
+            Try
+                ImplementInterfaceMembers()
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuImplementInterface error: {ex.Message}")
+            End Try
+        End Sub
+
         ' Line Number Context Menu Handlers
         Private Sub OnContextMenuSelectBlock(vSender As Object, vArgs As EventArgs)
             Try
