@@ -193,32 +193,80 @@ Namespace Editors
         ''' <summary>
         ''' Inserts a Property's Get/Set skeleton based on which of ReadOnly/WriteOnly (if
         ''' either) was present on the declaration line, using the property's declared type
-        ''' (defaulting to Object if none is given) for the Set accessor's parameter
+        ''' (defaulting to Object if none is given) for the Set accessor's parameter. Also
+        ''' generates a "p" + PropertyName backing field above the property (below its XML
+        ''' doc comment, if any) and wires Get/Set to it ("Return pName" / "pName = value"),
+        ''' matching this codebase's field/property pairing convention.
         ''' </summary>
         Private Sub InsertPropertyBody(vCompletedLineIndex As Integer, vIndent As String, vBodyIndent As String,
                                         vDeclarationCode As String, vIsReadOnly As Boolean, vIsWriteOnly As Boolean)
             Dim lType As String = GetPropertyTypeFromDeclaration(vDeclarationCode)
+            Dim lPropertyName As String = GetPropertyNameFromDeclaration(vDeclarationCode)
+            Dim lFieldName As String = If(String.IsNullOrEmpty(lPropertyName), "", "p" & lPropertyName)
+
+            ' Insert the backing field above the property (and above its XML doc comment, if
+            ' any, so the doc stays attached to the property) - this shifts every line at and
+            ' after it down by one, including the still-blank line the cursor is on
+            If Not String.IsNullOrEmpty(lFieldName) Then
+                Dim lInsertFieldAtLine As Integer = vCompletedLineIndex
+                While lInsertFieldAtLine > 0 AndAlso TextLines(lInsertFieldAtLine - 1).TrimStart().StartsWith("'''")
+                    lInsertFieldAtLine -= 1
+                End While
+                InsertLinesBefore(lInsertFieldAtLine, vIndent & "Private " & lFieldName & " As " & lType & Environment.NewLine)
+                SetCursorPosition(pCursorLine + 1, pCursorColumn)
+            End If
+
             Dim lInnerIndent As String = vBodyIndent & GetTabIndentString()
+            Dim lGetBody As String = If(String.IsNullOrEmpty(lFieldName), "", "Return " & lFieldName)
+            Dim lSetBody As String = If(String.IsNullOrEmpty(lFieldName), "", lFieldName & " = value")
+
             Dim lSb As New StringBuilder()
             Dim lCursorLineOffset As Integer = 1 ' Get/Set skeleton always starts with an accessor line, cursor is the next line
 
             If Not vIsWriteOnly Then
                 lSb.Append(vBodyIndent).Append("Get").Append(Environment.NewLine)
-                lSb.Append(lInnerIndent).Append(Environment.NewLine)
+                lSb.Append(lInnerIndent).Append(lGetBody).Append(Environment.NewLine)
                 lSb.Append(vBodyIndent).Append("End Get")
                 If Not vIsReadOnly Then lSb.Append(Environment.NewLine)
             End If
 
             If Not vIsReadOnly Then
                 lSb.Append(vBodyIndent).Append("Set(value As ").Append(lType).Append(")").Append(Environment.NewLine)
-                lSb.Append(lInnerIndent).Append(Environment.NewLine)
+                lSb.Append(lInnerIndent).Append(lSetBody).Append(Environment.NewLine)
                 lSb.Append(vBodyIndent).Append("End Set")
             End If
 
             lSb.Append(Environment.NewLine).Append(vIndent).Append("End Property")
 
-            InsertBlockText(lSb.ToString(), New EditorPosition(pCursorLine + lCursorLineOffset, lInnerIndent.Length))
+            ' Cursor at the end of the Return/assignment line rather than an empty one, since
+            ' the body is no longer blank
+            Dim lFirstBody As String = If(Not vIsWriteOnly, lGetBody, lSetBody)
+            InsertBlockText(lSb.ToString(), New EditorPosition(pCursorLine + lCursorLineOffset, lInnerIndent.Length + lFirstBody.Length))
         End Sub
+
+        ''' <summary>
+        ''' Extracts the property's own name from its declaration line (the identifier right
+        ''' after the "Property" keyword)
+        ''' </summary>
+        Private Function GetPropertyNameFromDeclaration(vDeclarationCode As String) As String
+            Try
+                Dim lPropIndex As Integer = vDeclarationCode.IndexOf("Property", StringComparison.OrdinalIgnoreCase)
+                If lPropIndex < 0 Then Return ""
+
+                Dim lAfterProperty As String = vDeclarationCode.Substring(lPropIndex + 8).TrimStart()
+                Dim lNameEnd As Integer = 0
+                While lNameEnd < lAfterProperty.Length AndAlso
+                      (Char.IsLetterOrDigit(lAfterProperty(lNameEnd)) OrElse lAfterProperty(lNameEnd) = "_"c)
+                    lNameEnd += 1
+                End While
+
+                Return lAfterProperty.Substring(0, lNameEnd)
+
+            Catch ex As Exception
+                Console.WriteLine($"GetPropertyNameFromDeclaration error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
 
         ''' <summary>
         ''' Extracts the property's declared type from its declaration line (text after the
