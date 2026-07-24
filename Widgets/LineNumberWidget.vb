@@ -314,9 +314,12 @@ Namespace Widgets
                         End If
                         
                         ' Draw fold icon if needed, at the far left of the gutter
+                        ' Anchored to the same lY used for the line-number glyph itself (rather
+                        ' than an independent lLineTop/pLineHeight calculation) so the icon tracks
+                        ' whatever vertical position the text actually renders at for this row
                         Dim lFoldNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lSourceLine)
                         If lFoldNode IsNot Nothing Then
-                            DrawFoldIcon(vContext, pFoldIconLeft, lLineTop + (pLineHeight / 2) - 4, lFoldNode.IsExpanded)
+                            DrawFoldIcon(vContext, pFoldIconLeft, lY - 4, lFoldNode.IsExpanded)
                         End If
                     Next
                 End Using
@@ -451,9 +454,13 @@ Namespace Widgets
                 If pEditor Is Nothing OrElse pLineHeight <= 0 Then Return False
                 
                 ' Calculate which line the mouse is over
+                ' pEditor.FirstVisibleLine and the resulting index are visual line numbers, so
+                ' they must be mapped back to the actual source line to account for any lines
+                ' currently hidden by a collapsed fold
                 Dim lY As Double = vArgs.Event.Y - pTopPadding
-                Dim lHoverLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
-                
+                Dim lHoverVisualLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
+                Dim lHoverLine As Integer = pEditor.VisualToSourceLine(lHoverVisualLine)
+
                 ' Update drag selection if dragging
                 If pEditor.IsLineNumberDragging AndAlso lHoverLine >= 0 AndAlso lHoverLine < pEditor.LineCount Then
                     pEditor.UpdateLineNumberDrag(lHoverLine)

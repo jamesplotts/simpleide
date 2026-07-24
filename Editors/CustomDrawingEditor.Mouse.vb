@@ -191,15 +191,22 @@ Namespace Editors
                 ' Calculate line from Y coordinate
                 ' First subtract top padding to get the actual text area Y
                 Dim lTextAreaY As Double = vY - pTopPadding +10
-                
+
                 ' Y is in widget space, so divide by line height and add first visible line
                 ' Use CInt(Math.Floor(...)) to ensure truncation, not rounding
                 Dim lWidgetLine As Integer = CInt(Math.Floor(lTextAreaY / pLineHeight))
-                Dim lLine As Integer = lWidgetLine + pFirstVisibleLine - 1
-                
-                ' Clamp to valid range
+                Dim lVisualLine As Integer = lWidgetLine + pFirstVisibleLine - 1
+
+                ' pFirstVisibleLine/lVisualLine are visual line indices - lines hidden by a
+                ' collapsed fold are skipped in visual space, so this must be mapped back to
+                ' the actual source line rather than used directly
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                lVisualLine = Math.Max(0, Math.Min(lVisualLine, lVisualLineCount - 1))
+
+                Dim lLine As Integer = VisualToSourceLine(lVisualLine)
+                If lLine < 0 Then lLine = 0
                 lLine = Math.Max(0, Math.Min(lLine, pLineCount - 1))
-                
+
                 ' Calculate column from X coordinate
                 ' X is already relative to the drawing area (line numbers are in a separate widget)
                 ' Just subtract left padding to get position in text area
@@ -221,14 +228,6 @@ Namespace Editors
                     lColumn = 0
                 End If
 
-                ' DEBUG LOGGING
-                Try
-                    Using writer As New System.IO.StreamWriter("/home/jamesp/.gemini/debug_mouse.log", True)
-                        writer.WriteLine($"[{DateTime.Now}] Click: X={vX:F1}, Y={vY:F1}, Padding={pTopPadding}, LineHeight={pLineHeight}, TextAreaY={lTextAreaY:F1}, WidgetLine={lWidgetLine}, Line={lLine}")
-                    End Using
-                Catch
-                End Try
-                
                 Return New EditorPosition(lLine, lColumn)
                 
             Catch ex As Exception
@@ -252,19 +251,23 @@ Namespace Editors
                 ' So we need (vY - pTopPadding) / pLineHeight.
                 
                 Dim lTextAreaY As Double = vY - pTopPadding
-                
+
                 ' Calculate which line this Y coordinate represents
                 Dim lWidgetLine As Integer = CInt(Math.Floor(lTextAreaY / pLineHeight))
-                
+
                 ' Add the first visible line to account for vertical scrolling
-                Dim lLine As Integer = lWidgetLine + pFirstVisibleLine
-                
-                ' Clamp to valid range
+                Dim lVisualLine As Integer = lWidgetLine + pFirstVisibleLine
+
+                ' pFirstVisibleLine/lVisualLine are visual line indices - lines hidden by a
+                ' collapsed fold are skipped in visual space, so this must be mapped back to
+                ' the actual source line rather than used directly
+                Dim lVisualLineCount As Integer = GetVisualLineCount()
+                lVisualLine = Math.Max(0, Math.Min(lVisualLine, lVisualLineCount - 1))
+
+                Dim lLine As Integer = VisualToSourceLine(lVisualLine)
+                If lLine < 0 Then lLine = 0
                 lLine = Math.Max(0, Math.Min(lLine, pLineCount - 1))
-                
-                ' Debug output to verify the calculation
-                Console.WriteLine($"GetLineFromY: Y={vY:F1}, WidgetLine={lWidgetLine}, FirstVisible={pFirstVisibleLine}, Result={lLine}, LineHeight={pLineHeight}")
-                
+
                 Return lLine
                 
             Catch ex As Exception
