@@ -124,6 +124,12 @@ Namespace Models
             
             ' Raise event
             RaiseTextChangedEvent(TextChangeType.eMultipleLines, vStartLine, vStartLine, vEndLine - vStartLine + 1)
+
+            ' Request async parse so the syntax tree (and anything derived from it, like fold
+            ' nodes) doesn't go stale after the deletion - previously this was missing here,
+            ' leaving deleted methods' fold icons/collapsed-indicator rendering after a
+            ' multi-line delete since pRootNode never got refreshed
+            RequestAsyncParse()
             End SyncLock
         End Sub
         

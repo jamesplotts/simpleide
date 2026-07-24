@@ -369,6 +369,10 @@ Namespace Models
                     ' Raise event
                     RaiseTextChangedEvent(TextChangeType.eLineModified, vStartLine, vStartLine, 1)
 
+                    ' Request async parse so the syntax tree (and anything derived from it, like
+                    ' fold nodes) doesn't go stale after the deletion
+                    RequestAsyncParse()
+
                     'DeleteSingleLineTextInternal(vStartLine, vStartColumn, vEndColumn)
                 Else
                     ' Multi-line deletion
