@@ -280,6 +280,13 @@ Namespace Widgets
                         ' Set text (1-based source line numbers)
                         lLayout.SetText((lSourceLine + 1).ToString())
                         
+                        ' Measure the glyph once - both branches below draw identical text/font,
+                        ' and the fold icon centering after them needs this same measurement
+                        Dim lTextWidth As Integer
+                        Dim lTextHeight As Integer
+                        lLayout.GetPixelSize(lTextWidth, lTextHeight)
+                        Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
+
                         ' Highlight current line number if needed
                         If lSourceLine = lCurrentSourceLine Then
                             Dim lCurrentColor As New RGBA()
@@ -288,38 +295,24 @@ Namespace Widgets
                             Else
                                 vContext.SetSourceRgba(0.78, 0.78, 0.78, 1.0) ' Fallback light gray
                             End If
-                            
-                            ' Draw line number right-aligned within the text area (left of padding)
-                            ' pWidth - pRightPadding is the boundary. We subtract text width from there.
-                            Dim lTextWidth As Integer
-                            Dim lTextHeight As Integer
-                            lLayout.GetPixelSize(lTextWidth, lTextHeight)
-                            Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
-                            
+
                             vContext.MoveTo(lX, lY)
                             Pango.CairoHelper.ShowLayout(vContext, lLayout)
-                            
+
                             ' Restore default color
                             vContext.SetSourceRGB(0.5, 0.5, 0.5)
                         Else
-                            ' Draw line number right-aligned within the text area (left of padding)
-                            ' pWidth - pRightPadding is the boundary. We subtract text width from there.
-                            Dim lTextWidth As Integer
-                            Dim lTextHeight As Integer
-                            lLayout.GetPixelSize(lTextWidth, lTextHeight)
-                            Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
-                            
                             vContext.MoveTo(lX, lY)
                             Pango.CairoHelper.ShowLayout(vContext, lLayout)
                         End If
-                        
+
                         ' Draw fold icon if needed, at the far left of the gutter
-                        ' Anchored to the same lY used for the line-number glyph itself (rather
-                        ' than an independent lLineTop/pLineHeight calculation) so the icon tracks
-                        ' whatever vertical position the text actually renders at for this row
+                        ' lY marks the TOP of the glyph box (Pango draws top-down from the
+                        ' MoveTo point), not its vertical center, so the icon must be offset
+                        ' down by half the measured glyph height to land centered on the row
                         Dim lFoldNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lSourceLine)
                         If lFoldNode IsNot Nothing Then
-                            DrawFoldIcon(vContext, pFoldIconLeft, lY - 4, lFoldNode.IsExpanded)
+                            DrawFoldIcon(vContext, pFoldIconLeft, lY + (lTextHeight \ 2) - 4, lFoldNode.IsExpanded)
                         End If
                     Next
                 End Using
