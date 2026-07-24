@@ -85,6 +85,10 @@ Namespace Models
         eEnumValue
         eFile
         eDeclare
+        ''' <summary>Get accessor block of a property</summary>
+        eGetAccessor
+        ''' <summary>Set accessor block of a property</summary>
+        eSetAccessor
         eLastValue
     End Enum
     

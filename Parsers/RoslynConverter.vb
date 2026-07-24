@@ -816,10 +816,10 @@ Namespace Managers
                         lHasSetter = True
                     End If
                 Next
-                
+
                 lPropertyNode.IsReadOnly = lHasGetter AndAlso Not lHasSetter
                 lPropertyNode.IsWriteOnly = lHasSetter AndAlso Not lHasGetter
-                
+
                 ' Extract parameters (for indexed properties)
                 ExtractParameters(vProperty.PropertyStatement.ParameterList, lPropertyNode)
 
@@ -828,6 +828,28 @@ Namespace Managers
 
                 ' Extract XML documentation
                 ExtractXmlDocumentation(DirectCast(vProperty, RoslynSyntaxNode), lPropertyNode)
+
+                ' Create child nodes for Get/Set accessor blocks so they can be folded independently
+                for each lAccessor in vProperty.Accessors
+                    Dim lAccessorType As CodeNodeType
+                    Dim lAccessorName As String
+
+                    If lAccessor.Kind() = SyntaxKind.GetAccessorBlock Then
+                        lAccessorType = CodeNodeType.eGetAccessor
+                        lAccessorName = "Get"
+                    ElseIf lAccessor.Kind() = SyntaxKind.SetAccessorBlock Then
+                        lAccessorType = CodeNodeType.eSetAccessor
+                        lAccessorName = "Set"
+                    Else
+                        Continue For
+                    End If
+
+                    Dim lAccessorNode As New SimpleSyntaxNode(lAccessorType, lAccessorName)
+                    lAccessorNode.FilePath = pCurrentFilePath
+                    SetNodeLocation(lAccessorNode, DirectCast(lAccessor, RoslynSyntaxNode), DirectCast(lAccessor.EndAccessorStatement, RoslynSyntaxNode))
+
+                    lPropertyNode.AddChild(lAccessorNode)
+                Next
 
                 vParent.AddChild(lPropertyNode)
 

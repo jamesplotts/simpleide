@@ -7,6 +7,7 @@ Imports System.Text
 Imports System.Threading.Tasks
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Utilities
 
 Namespace Models
     
@@ -235,6 +236,11 @@ Namespace Models
                     pIsLoaded = True  ' Content is immediately available
                 Else
                     pIsLoaded = False  ' Regular files need LoadContent() to be called
+                End If
+
+                ' Restore any persisted code-folding expansion state for this file
+                If Not IsDemoMode AndAlso Not IsVirtualFile AndAlso Not String.IsNullOrEmpty(pFilePath) Then
+                    pFoldingState = FoldStateStore.Load(pFilePath)
                 End If
             Catch ex As Exception
                 Console.WriteLine($"SourceFileInfo.MakeNew error: {ex.Message}")

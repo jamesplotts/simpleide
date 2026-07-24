@@ -534,12 +534,11 @@ Namespace Syntax
             Get
                 ' Only certain node types are foldable
                 Select Case NodeType
-                    Case CodeNodeType.eNamespace, CodeNodeType.eClass, CodeNodeType.eModule, 
+                    Case CodeNodeType.eNamespace, CodeNodeType.eClass, CodeNodeType.eModule,
                          CodeNodeType.eInterface, CodeNodeType.eStructure, CodeNodeType.eEnum,
                          CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eProperty,
-                         CodeNodeType.eConstructor, CodeNodeType.eOperator, CodeNodeType.eEvent,
-                         CodeNodeType.eRegion
-                        
+                         CodeNodeType.eRegion, CodeNodeType.eGetAccessor, CodeNodeType.eSetAccessor
+
                         ' Must span multiple lines to be foldable
                         Return (EndLine > StartLine)
                     Case Else

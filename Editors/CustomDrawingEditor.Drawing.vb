@@ -234,6 +234,21 @@ Namespace Editors
                             lTextPattern.Dispose()
                         End If
                     Next
+
+                    ' If this line begins a collapsed foldable block, show a "{...}" hint after it
+                    Dim lFoldedNode As SyntaxNode = GetFoldableNodeAtLine(lLineIndex)
+                    If lFoldedNode IsNot Nothing AndAlso Not lFoldedNode.IsExpanded AndAlso lLine.Length >= lFirstColumn Then
+                        Dim lIndicatorColumnIndex As Integer = lLine.Length - lFirstColumn
+                        Dim lIndicatorX As Integer = pLeftPadding + (lIndicatorColumnIndex * pCharWidth)
+                        Dim lIndicatorColor As Cairo.Color = GetCachedTokenColor(SyntaxTokenType.eComment)
+                        Dim lIndicatorPattern As New Cairo.SolidPattern(lIndicatorColor.R, lIndicatorColor.G, lIndicatorColor.B)
+                        vContext.SetSource(lIndicatorPattern)
+                        vContext.MoveTo(lIndicatorX, lY)
+                        lLayout.FontDescription = pFontDescription
+                        lLayout.SetText(" {...}")
+                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                        lIndicatorPattern.Dispose()
+                    End If
                 Next
                 Dim lCursorColor As Cairo.Color
                 

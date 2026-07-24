@@ -4,6 +4,7 @@ Imports System.Collections.Generic
 Imports System.Linq
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     
@@ -74,18 +75,7 @@ Namespace Editors
                 ' Queue redraw
                 If pDrawingArea IsNot Nothing Then pDrawingArea.QueueDraw()
                 If pLineNumberWidget IsNot Nothing Then pLineNumberWidget.QueueDraw()
-                
-                ' DEBUG LOGGING
-                Try
-                    Using writer As New System.IO.StreamWriter("/home/jamesp/.gemini/debug_folding.log", True)
-                        writer.WriteLine($"[{DateTime.Now}] RebuildVisualLineMap: Count={pVisualLineMap.Count}")
-                        For i As Integer = 0 To Math.Min(10, pVisualLineMap.Count - 1)
-                            writer.WriteLine($"  Map[{i}] = {pVisualLineMap(i)}")
-                        Next
-                    End Using
-                Catch
-                End Try
-                
+
             Catch ex As Exception
                 Console.WriteLine($"RebuildVisualLineMap error: {ex.Message}")
             End Try
@@ -148,6 +138,9 @@ Namespace Editors
                     Else
                         pSourceFileInfo.FoldingState.Add(lPath, vNode.IsExpanded)
                     End If
+
+                    ' Persist to disk so the state survives closing/reopening the file
+                    FoldStateStore.Save(pSourceFileInfo.FilePath, pSourceFileInfo.FoldingState)
                 End If
                 
                 RebuildVisualLineMap()
@@ -161,8 +154,65 @@ Namespace Editors
             If pRootNode Is Nothing Then Return Nothing
             Return FindFoldableNodeRecursive(pRootNode, vLine)
         End Function
-        
+
+        ''' <summary>
+        ''' Expands any collapsed fold that is currently hiding the given source line
+        ''' </summary>
+        ''' <param name="vLine">0-based source line that should become visible</param>
+        ''' <remarks>
+        ''' Called before navigating to a line (Go To Definition, Find, bookmarks, etc.) so the
+        ''' destination is never left hidden inside a collapsed block.
+        ''' </remarks>
+        Public Sub EnsureLineVisible(vLine As Integer)
+            Try
+                If pRootNode Is Nothing Then Return
+
+                If ExpandCollapsedAncestorsRecursive(pRootNode, vLine) Then
+                    RebuildVisualLineMap()
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"EnsureLineVisible error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Private Helper Methods =====
+
+        Private Function ExpandCollapsedAncestorsRecursive(vNode As SyntaxNode, vLine As Integer) As Boolean
+            If vNode Is Nothing Then Return False
+
+            Dim lExpandedAny As Boolean = False
+
+            ' The declaration line itself is always visible, so only lines strictly after it
+            ' can be hidden by this node's fold
+            If vNode.IsFoldable AndAlso vLine > vNode.StartLine AndAlso vLine <= vNode.EndLine Then
+                If Not vNode.IsExpanded Then
+                    vNode.IsExpanded = True
+
+                    If pSourceFileInfo IsNot Nothing Then
+                        Dim lPath As String = GetNodePath(vNode)
+                        If pSourceFileInfo.FoldingState.ContainsKey(lPath) Then
+                            pSourceFileInfo.FoldingState(lPath) = True
+                        Else
+                            pSourceFileInfo.FoldingState.Add(lPath, True)
+                        End If
+                        FoldStateStore.Save(pSourceFileInfo.FilePath, pSourceFileInfo.FoldingState)
+                    End If
+
+                    lExpandedAny = True
+                End If
+            End If
+
+            If vNode.Children IsNot Nothing Then
+                For Each lChild As SyntaxNode In vNode.Children
+                    If ExpandCollapsedAncestorsRecursive(lChild, vLine) Then
+                        lExpandedAny = True
+                    End If
+                Next
+            End If
+
+            Return lExpandedAny
+        End Function
         
         Private Sub MarkHiddenLinesRecursive(vNode As SyntaxNode)
             If vNode Is Nothing Then Return

@@ -29,10 +29,13 @@ Namespace Editors
                 
                 ' Clear any existing selection
                 ClearSelection()
-                
+
+                ' Expand any collapsed fold hiding the destination line
+                EnsureLineVisible(lTargetLine)
+
                 ' Position cursor at beginning of the line
                 SetCursorPosition(lTargetLine, 0)
-                
+
                 ' Ensure the line is visible
                 EnsureCursorVisible()
                 
@@ -72,10 +75,13 @@ Namespace Editors
                 
                 ' Clear any existing selection
                 ClearSelection()
-                
+
+                ' Expand any collapsed fold hiding the destination line
+                EnsureLineVisible(lTargetLine)
+
                 ' Set cursor position
                 SetCursorPosition(lTargetLine, lTargetColumn)
-                
+
                 ' Ensure the position is visible
                 EnsureCursorVisible()
                 
@@ -125,9 +131,12 @@ Namespace Editors
                     lLastColumn = TextLines(lLastLine).Length
                 End If
                 
+                ' Expand any collapsed fold hiding the destination line
+                EnsureLineVisible(lLastLine)
+
                 ' Move to end of last line
                 SetCursorPosition(lLastLine, lLastColumn)
-                
+
                 ' Update desired column
                 pDesiredColumn = lLastColumn
                 
@@ -212,10 +221,13 @@ Namespace Editors
                 
                 ' Clear any existing selection
                 ClearSelection()
-                
+
+                ' Expand any collapsed fold hiding the destination line
+                EnsureLineVisible(lTargetLine)
+
                 ' Position cursor at beginning of the target line
                 SetCursorPosition(lTargetLine, 0)
-                
+
                 ' Calculate viewport height in lines
                 Dim lViewportHeightPixels As Integer = If(pDrawingArea?.AllocatedHeight, 400)
                 Dim lViewportLines As Integer = lViewportHeightPixels \ pLineHeight

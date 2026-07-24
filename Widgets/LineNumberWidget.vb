@@ -27,6 +27,8 @@ Namespace Widgets
         Private pTopPadding As Integer = -10
         Private pRightPadding As Integer = 24 ' Increased to accommodate fold icons
         Private pWidth As Integer = 60
+        Private ReadOnly pFoldIconLeft As Integer = 2 ' X offset of the fold icon from the far left of the gutter
+        Private ReadOnly pFoldIconAreaWidth As Integer = 13 ' Click hit-test width for the fold icon column
         
         ' Theme colors
         Private pBackgroundColor As String = "#1E1E1E"
@@ -268,17 +270,7 @@ Namespace Widgets
                         
                         ' Map visual line to source line
                         Dim lSourceLine As Integer = pEditor.VisualToSourceLine(lVisualIndex)
-                        
-                        ' DEBUG LOGGING
-                        If lVisualIndex < 5 Then
-                            Try
-                                Using writer As New System.IO.StreamWriter("/home/jamesp/.gemini/debug_folding.log", True)
-                                    writer.WriteLine($"[{DateTime.Now}] Widget: Visual={lVisualIndex}, Source={lSourceLine}, FirstVisible={lFirstVisibleLine}")
-                                End Using
-                            Catch
-                            End Try
-                        End If
-                        
+
                         ' Fallback: If we get 0 for a non-zero visual line, and the map seems broken, use visual line
                         ' This handles the case where pVisualLineMap might be truncated or invalid
                         If lSourceLine = 0 AndAlso lVisualIndex > 0 AndAlso pEditor.GetVisualLineCount() <= 1 Then
@@ -321,12 +313,10 @@ Namespace Widgets
                             Pango.CairoHelper.ShowLayout(vContext, lLayout)
                         End If
                         
-                        ' Draw fold icon if needed
-                        ' Center it in the right padding area
+                        ' Draw fold icon if needed, at the far left of the gutter
                         Dim lFoldNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lSourceLine)
                         If lFoldNode IsNot Nothing Then
-                            Dim lIconX As Integer = pWidth - (pRightPadding / 2) - 4 ' Center 8px icon
-                            DrawFoldIcon(vContext, lIconX, lLineTop + (pLineHeight / 2) - 4, lFoldNode.IsExpanded)
+                            DrawFoldIcon(vContext, pFoldIconLeft, lLineTop + (pLineHeight / 2) - 4, lFoldNode.IsExpanded)
                         End If
                     Next
                 End Using
@@ -384,8 +374,8 @@ Namespace Widgets
                 
                 Console.WriteLine($"LineNumberWidget.OnButtonPress: Clicked visual line {lClickedVisualLine}, source line {lClickedSourceLine}")
                 
-                ' Check for fold toggle click (right side of widget)
-                If vArgs.Event.X > pWidth - pRightPadding Then
+                ' Check for fold toggle click (far left of widget)
+                If vArgs.Event.X <= pFoldIconAreaWidth Then
                     Dim lNode As SyntaxNode = pEditor.GetFoldableNodeAtLine(lClickedSourceLine)
                     If lNode IsNot Nothing Then
                         pEditor.ToggleFold(lNode)
@@ -855,9 +845,14 @@ Namespace Widgets
         Private Sub DrawFoldIcon(vContext As Cairo.Context, vX As Integer, vY As Integer, vIsExpanded As Boolean)
             Try
                 Dim lSize As Integer = 9
-                
-                ' Draw box
-                vContext.SetSourceRGB(0.5, 0.5, 0.5)
+
+                ' Use the same foreground color as the rest of the gutter
+                Dim lColor As New RGBA()
+                If lColor.Parse(pForegroundColor) Then
+                    vContext.SetSourceRgba(lColor.Red, lColor.Green, lColor.Blue, 1.0)
+                Else
+                    vContext.SetSourceRGB(0.5, 0.5, 0.5) ' Fallback gray
+                End If
                 vContext.LineWidth = 1.0
                 vContext.Rectangle(vX, vY, lSize, lSize)
                 vContext.Stroke()
