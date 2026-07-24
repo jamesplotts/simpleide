@@ -340,11 +340,16 @@ Namespace Editors
                                 ClearSelection()
                             End If
                             
-                            ' Insert the character
-                            pSourceFileInfo.InsertCharacter(pCursorLine, pCursorColumn, lChar)
-                            
-                            ' Move cursor forward
-                            SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                            ' Bracket/quote auto-close - handles skip-over and auto-pairing
+                            ' (including its own cursor movement) when applicable; falls
+                            ' through to normal single-character insertion otherwise
+                            If Not HandleBracketAutoClose(lChar) Then
+                                ' Insert the character
+                                pSourceFileInfo.InsertCharacter(pCursorLine, pCursorColumn, lChar)
+
+                                ' Move cursor forward
+                                SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                            End If
 
                             ' CHECK FOR CODESENSE TRIGGERS
                             CheckCodeSenseTrigger(lChar)
