@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.198.0</AssemblyVersion>
-    <FileVersion>1.1.198.0</FileVersion>
+    <AssemblyVersion>1.1.201.0</AssemblyVersion>
+    <FileVersion>1.1.201.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.198</Version>
+    <Version>1.1.201</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -119,6 +119,7 @@
     <Compile Include="Editors/AIArtifactEditor.vb" />
     <Compile Include="Editors/AssemblySettingsEditor.vb" />
     <Compile Include="Editors/CustomDrawingEditor.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.AutoEndConstruct.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Clipboard.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Codesense.vb" />
     <Compile Include="Editors/CustomDrawingEditor.CodeSensePopup.vb" />

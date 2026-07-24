@@ -135,9 +135,14 @@ Namespace Editors
                 ' Move cursor to beginning of next line
                 SetCursorPosition(pCursorLine + 1, 0)
                 
-                ' Apply auto-indent if enabled
+                ' Apply auto-indent if enabled - block-opening statements (Sub, Function,
+                ' Property, Class, Module, Namespace, Select Case, If...Then, For, Do,
+                ' While, Try, With, Structure, Interface, Enum) get their matching End
+                ' construct auto-inserted instead of plain indent copying
                 If pSettingsManager IsNot Nothing AndAlso pSettingsManager.AutoIndent Then
-                    ApplyAutoIndent(pCursorLine)
+                    If Not TryAutoCompleteBlockStatement(pCursorLine - 1) Then
+                        ApplyAutoIndent(pCursorLine)
+                    End If
                 End If
                 
                 ' Update state
