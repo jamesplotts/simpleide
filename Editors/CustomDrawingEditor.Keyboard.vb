@@ -348,7 +348,10 @@ Namespace Editors
 
                             ' CHECK FOR CODESENSE TRIGGERS
                             CheckCodeSenseTrigger(lChar)
-                            
+
+                            ' Check for XML doc comment stub expansion ("'''" alone on a line)
+                            CheckXmlDocTrigger(lChar)
+
                             ' Track modification
                             OnTextModified()
                             

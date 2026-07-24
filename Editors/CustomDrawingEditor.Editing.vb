@@ -857,7 +857,10 @@ Namespace Editors
 
                 ' CHECK FOR CODESENSE TRIGGERS
                 CheckCodeSenseTrigger(vChar)
-                
+
+                ' Check for XML doc comment stub expansion ("'''" alone on a line)
+                CheckXmlDocTrigger(vChar)
+
                 ' Ensure cursor visible
                 EnsureCursorVisible()
                 
