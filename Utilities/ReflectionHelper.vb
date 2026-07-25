@@ -67,8 +67,19 @@ Namespace Utilities
             End Try
         End Function
         
-        ' Find type by name in loaded assemblies
-        Private Shared Function FindTypeByName(vTypeName As String) As Type
+        ''' <summary>
+        ''' Finds a Type by name across all currently loaded assemblies (BCL, GTK#, and
+        ''' anything else the process has referenced)
+        ''' </summary>
+        ''' <param name="vTypeName">Type name to search for - full name (e.g. "Gtk.Orientation")
+        ''' or, if it happens to match a top-level type in some loaded assembly, a bare name</param>
+        ''' <returns>The matching Type, or Nothing if no loaded assembly has it</returns>
+        ''' <remarks>
+        ''' Friend (not Private) so callers outside this class - e.g.
+        ''' CustomDrawingEditor.EnumParameterHint.vb's system-Enum lookup - can reuse this
+        ''' rather than re-implementing the same loaded-assemblies scan
+        ''' </remarks>
+        Friend Shared Function FindTypeByName(vTypeName As String) As Type
             Try
                 ' Check all loaded assemblies
                 For Each lAssembly In AppDomain.CurrentDomain.GetAssemblies()
