@@ -28,27 +28,7 @@ Namespace Widgets
         ''' Color for hovered tabs
         ''' </summary>
         Public TabHover As Gdk.RGBA
-        
-        ''' <summary>
-        ''' Accent color for special states (dragging, etc.)
-        ''' </summary>
-        Public Sub Accent(vThemeManager As ThemeManager)
-            Try
-                pThemeManager = vThemeManager
-                
-                ' Subscribe to theme change events
-                If pThemeManager IsNot Nothing Then
-                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
-                End If
-                
-                ' Apply current theme
-                ApplyTheme()
-                
-            Catch ex As Exception
-                Console.WriteLine($"SetThemeManager error: {ex.Message}")
-            End Try
-        End Sub
-        
+
         ''' <summary>
         ''' Handles theme change events
         ''' </summary>
@@ -86,6 +66,14 @@ Namespace Widgets
                 pThemeColors.ActiveTab = ParseColor(lTheme.CurrentLineColor)
                 pThemeColors.InactiveTab = DarkenColor(ParseColor(lTheme.BackgroundColor), 0.05)
                 pThemeColors.HoverTab = LightenColor(ParseColor(lTheme.CurrentLineColor), 0.1)
+
+                ' The actual tab-bar drawing code (CustomDrawNotebook.Drawing.vb) reads these
+                ' four properties specifically, not ActiveTab/InactiveTab/HoverTab above - they
+                ' must be kept in sync or tab colors stop updating on theme change
+                pThemeColors.EditorBackground = ParseColor(lTheme.EditorBackgroundColor)
+                pThemeColors.TabInactive = ParseColor(lTheme.TabInactiveColor)
+                pThemeColors.TabHover = ParseColor(lTheme.TabHoverColor)
+                pThemeColors.Accent = ParseColor(lTheme.AccentColor)
                 
                 ' Text colors
                 pThemeColors.Text = ParseColor(lTheme.ForegroundColor)
@@ -135,7 +123,11 @@ Namespace Widgets
                     .Border = New Gdk.RGBA() with {.Red = 0.7, .Green = 0.7, .Blue = 0.7, .Alpha = 1},
                     .ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1},
                     .CloseButton = New Gdk.RGBA() with {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1},
-                    .CloseButtonHover = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1}
+                    .CloseButtonHover = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1},
+                    .EditorBackground = New Gdk.RGBA() with {.Red = 1, .Green = 1, .Blue = 1, .Alpha = 1},
+                    .TabInactive = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1},
+                    .TabHover = New Gdk.RGBA() with {.Red = 0.97, .Green = 0.97, .Blue = 0.97, .Alpha = 1},
+                    .Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1}
                 }
                 
                 pTabBar.QueueDraw()

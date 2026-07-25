@@ -395,9 +395,12 @@ End Function
                     End If
                 Next
                 
-                ' Build unified namespace tree
-                BuildUnifiedNamespaceTree()
-                
+                ' EXPERIMENT (see conversation with James): BuildUnifiedNamespaceTree()
+                ' disabled - see #If False block in ProjectManager.Extension.vb. Also note:
+                ' LoadProjectWithDocuments (this method) currently has no live callers either
+                ' - its only caller, MainWindow.LoadProjectWithProgress, is itself disabled.
+                'BuildUnifiedNamespaceTree()
+
                 ' Raise completion event
                 RaiseEvent AllDocumentsLoaded(pDocumentModels.Count)
                 

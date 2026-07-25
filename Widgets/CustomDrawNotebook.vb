@@ -227,7 +227,9 @@ Namespace Widgets
                 pShowHidePanelButton = False
                 
                 Console.WriteLine("CustomDrawNotebook components initialized with event masks enabled")
-                Accent(pThemeManager)
+                ' Seed default theme colors now; SetThemeManager() will apply the real theme
+                ' once it's actually provided by whoever constructs this widget
+                ApplyTheme()
             Catch ex As Exception
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
             End Try
@@ -995,120 +997,30 @@ Namespace Widgets
         
         
         ''' <summary>
-        ''' Loads theme colors from the theme manager
-        ''' </summary>
-        Private Sub LoadThemeColors()
-            Try
-                ' Initialize with default colors
-                pThemeColors = New ThemeColors()
-                
-                ' Check if we have a theme manager
-                If pThemeManager IsNot Nothing Then
-                    Dim lCurrentTheme As String = pThemeManager.GetCurrentTheme
-                    
-                    Select Case lCurrentTheme.ToLower()
-                        Case "dark", "monokai", "dracula", "one-dark"
-                            ' Dark theme colors
-                            pThemeColors.Background = New Gdk.RGBA() with {.Red = 0.15, .Green = 0.15, .Blue = 0.18, .Alpha = 1}
-                            pThemeColors.EditorBackground = New Gdk.RGBA() with {.Red = 0.12, .Green = 0.12, .Blue = 0.14, .Alpha = 1}
-                            pThemeColors.TabInactive = New Gdk.RGBA() with {.Red = 0.18, .Green = 0.18, .Blue = 0.22, .Alpha = 1}
-                            pThemeColors.TabHover = New Gdk.RGBA() with {.Red = 0.22, .Green = 0.22, .Blue = 0.26, .Alpha = 1}
-                            pThemeColors.Border = New Gdk.RGBA() with {.Red = 0.3, .Green = 0.3, .Blue = 0.35, .Alpha = 1}
-                            pThemeColors.Text = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1}
-                            pThemeColors.TextInactive = New Gdk.RGBA() with {.Red = 0.6, .Green = 0.6, .Blue = 0.6, .Alpha = 1}
-                            pThemeColors.ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.3, .Blue = 0.3, .Alpha = 1}
-                            pThemeColors.Accent = New Gdk.RGBA() with {.Red = 0.3, .Green = 0.6, .Blue = 0.9, .Alpha = 1}
-                            
-                        Case "solarized-dark"
-                            ' Solarized Dark colors
-                            pThemeColors.Background = New Gdk.RGBA() with {.Red = 0.0, .Green = 0.17, .Blue = 0.21, .Alpha = 1}
-                            pThemeColors.EditorBackground = New Gdk.RGBA() with {.Red = 0.0, .Green = 0.13, .Blue = 0.18, .Alpha = 1}
-                            pThemeColors.TabInactive = New Gdk.RGBA() with {.Red = 0.03, .Green = 0.21, .Blue = 0.26, .Alpha = 1}
-                            pThemeColors.TabHover = New Gdk.RGBA() with {.Red = 0.05, .Green = 0.25, .Blue = 0.31, .Alpha = 1}
-                            pThemeColors.Border = New Gdk.RGBA() with {.Red = 0.03, .Green = 0.31, .Blue = 0.36, .Alpha = 1}
-                            pThemeColors.Text = New Gdk.RGBA() with {.Red = 0.51, .Green = 0.58, .Blue = 0.59, .Alpha = 1}
-                            pThemeColors.TextInactive = New Gdk.RGBA() with {.Red = 0.35, .Green = 0.43, .Blue = 0.46, .Alpha = 1}
-                            pThemeColors.ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.86, .Green = 0.2, .Blue = 0.18, .Alpha = 1}
-                            pThemeColors.Accent = New Gdk.RGBA() with {.Red = 0.15, .Green = 0.55, .Blue = 0.82, .Alpha = 1}
-                            
-                        Case Else
-                            ' Light theme colors (default)
-                            pThemeColors.Background = New Gdk.RGBA() with {.Red = 0.94, .Green = 0.94, .Blue = 0.94, .Alpha = 1}
-                            pThemeColors.EditorBackground = New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1}
-                            pThemeColors.TabInactive = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1}
-                            pThemeColors.TabHover = New Gdk.RGBA() with {.Red = 0.96, .Green = 0.96, .Blue = 0.96, .Alpha = 1}
-                            pThemeColors.Border = New Gdk.RGBA() with {.Red = 0.7, .Green = 0.7, .Blue = 0.7, .Alpha = 1}
-                            pThemeColors.Text = New Gdk.RGBA() with {.Red = 0.1, .Green = 0.1, .Blue = 0.1, .Alpha = 1}
-                            pThemeColors.TextInactive = New Gdk.RGBA() with {.Red = 0.4, .Green = 0.4, .Blue = 0.4, .Alpha = 1}
-                            pThemeColors.ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1}
-                            pThemeColors.Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1}
-                    End Select
-                Else
-                    ' Fallback default colors if no theme manager
-                    pThemeColors.Background = New Gdk.RGBA() with {.Red = 0.94, .Green = 0.94, .Blue = 0.94, .Alpha = 1}
-                    pThemeColors.EditorBackground = New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1}
-                    pThemeColors.TabInactive = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1}
-                    pThemeColors.TabHover = New Gdk.RGBA() with {.Red = 0.96, .Green = 0.96, .Blue = 0.96, .Alpha = 1}
-                    pThemeColors.Border = New Gdk.RGBA() with {.Red = 0.7, .Green = 0.7, .Blue = 0.7, .Alpha = 1}
-                    pThemeColors.Text = New Gdk.RGBA() with {.Red = 0.1, .Green = 0.1, .Blue = 0.1, .Alpha = 1}
-                    pThemeColors.TextInactive = New Gdk.RGBA() with {.Red = 0.4, .Green = 0.4, .Blue = 0.4, .Alpha = 1}
-                    pThemeColors.ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1}
-                    pThemeColors.Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1}
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"LoadThemeColors error: {ex.Message}")
-                
-                ' Ensure we have valid colors even if there's an error
-                pThemeColors.Background = New Gdk.RGBA() with {.Red = 0.94, .Green = 0.94, .Blue = 0.94, .Alpha = 1}
-                pThemeColors.EditorBackground = New Gdk.RGBA() with {.Red = 1.0, .Green = 1.0, .Blue = 1.0, .Alpha = 1}
-                pThemeColors.TabInactive = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1}
-                pThemeColors.TabHover = New Gdk.RGBA() with {.Red = 0.96, .Green = 0.96, .Blue = 0.96, .Alpha = 1}
-                pThemeColors.Border = New Gdk.RGBA() with {.Red = 0.7, .Green = 0.7, .Blue = 0.7, .Alpha = 1}
-                pThemeColors.Text = New Gdk.RGBA() with {.Red = 0.1, .Green = 0.1, .Blue = 0.1, .Alpha = 1}
-                pThemeColors.TextInactive = New Gdk.RGBA() with {.Red = 0.4, .Green = 0.4, .Blue = 0.4, .Alpha = 1}
-                pThemeColors.ModifiedIndicator = New Gdk.RGBA() with {.Red = 0.8, .Green = 0.2, .Blue = 0.2, .Alpha = 1}
-                pThemeColors.Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1}
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Sets the theme manager for dynamic theme updates
         ''' </summary>
         ''' <param name="vThemeManager">The theme manager instance</param>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
                 pThemeManager = vThemeManager
-                
+
                 ' Subscribe to theme change events if available
                 If pThemeManager IsNot Nothing Then
                     AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
                 End If
-                
-                ' Load current theme colors
-                LoadThemeColors()
-                
-                ' Redraw with new colors
-                pTabBar?.QueueDraw()
-                
+
+                ' Apply current theme colors (CustomDrawNotebook.Theme.vb) - this is the one
+                ' correct, EditorTheme-object-based implementation; there used to be a second,
+                ' hardcoded-by-theme-name LoadThemeColors() here that only ran once at setup
+                ' and was never called again, leaving several tab colors stuck on their initial
+                ' guess after every subsequent theme change
+                ApplyTheme()
+
             Catch ex As Exception
                 Console.WriteLine($"SetThemeManager error: {ex.Message}")
             End Try
         End Sub
-        
-        ''' <summary>
-        ''' Handles theme change events
-        ''' </summary>
-        Private Sub OnThemeChanged(vThemeName As String)
-            Try
-                LoadThemeColors()
-                pTabBar?.QueueDraw()
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnThemeChanged error: {ex.Message}")
-            End Try
-        End Sub
-        
+
         ''' <summary>
         ''' Gets or sets whether the dropdown button should be shown
         ''' </summary>

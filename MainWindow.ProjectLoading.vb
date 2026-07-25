@@ -93,7 +93,19 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    
+#If False Then
+    ' EXPERIMENT (see conversation with James): this whole cluster - LoadProjectWithProgress
+    ' through EnableProjectMenuItems - is a self-contained, entirely unreferenced alternate
+    ' project-loading implementation built on the legacy DocumentModel/DocumentNode/
+    ' BuildUnifiedNamespaceTree system. Verified via repo-wide grep that nothing calls
+    ' LoadProjectWithProgress, and every helper below it (CreateProgressDialog,
+    ' OnProjectLoadProgress, OnAllDocumentsLoaded, OnProgressCancelClicked,
+    ' UpdateUIForLoadedProject, OpenFileWithDocumentModel, CountNodesRecursive,
+    ' EnableProjectMenuItems) is only ever called from within this same cluster. The real,
+    ' live project-loading path is above this block (uses OnProjectParsingProgressWithBar).
+    ' Disabled with #If False rather than deleted so the compiler immediately flags anything
+    ' this grep-based analysis missed.
+
     ''' <summary>
     ''' Load project with progress dialog and DocumentModel management
     ''' </summary>
@@ -411,6 +423,7 @@ Partial Public Class MainWindow
             Console.WriteLine($"MainWindow.EnableProjectMenuItems error: {ex.Message}")
         End Try
     End Sub
+#End If
     
     ''' <summary>
     ''' Show error dialog

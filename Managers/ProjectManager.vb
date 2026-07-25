@@ -606,10 +606,11 @@ End Sub
                 
                 ' Mark as dirty
                 pIsDirty = True
-                
-                ' Rebuild namespace tree
-                BuildUnifiedNamespaceTree()
-                
+
+                ' EXPERIMENT (see conversation with James): BuildUnifiedNamespaceTree()
+                ' disabled - see #If False block in ProjectManager.Extension.vb
+                'BuildUnifiedNamespaceTree()
+
                 ' Raise events
                 RaiseEvent DocumentModelCreated(lRelativePath, lModel)
                 RaiseEvent FileAdded(vFilePath)
@@ -713,10 +714,11 @@ End Sub
                     pCurrentProjectInfo.CompileItems.Remove(lXmlRelativePath)
                 End If
                 
-                ' Only rebuild namespace tree if we had a DocumentModel
-                If lHadDocumentModel Then
-                    BuildUnifiedNamespaceTree()
-                End If
+                ' EXPERIMENT (see conversation with James): BuildUnifiedNamespaceTree()
+                ' disabled - see #If False block in ProjectManager.Extension.vb
+                'If lHadDocumentModel Then
+                '    BuildUnifiedNamespaceTree()
+                'End If
                 
                 ' Mark as dirty
                 pIsDirty = True

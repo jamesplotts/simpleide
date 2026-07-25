@@ -593,8 +593,21 @@ Namespace Managers
             End Try
         End Sub
         
+#If False Then
+        ' EXPERIMENT (see conversation with James): GetUnifiedNamespaceTree/FindSymbol/
+        ' GetSymbolsOfType have zero live callers repo-wide, and BuildUnifiedNamespaceTree's
+        ' only real consumer of its output (MainWindow.UpdateUIForLoadedProject) is itself
+        ' part of the disabled dead cluster in MainWindow.ProjectLoading.vb. This whole
+        ' DocumentNode-based namespace tree is superseded by the Roslyn-based
+        ' ProjectManager.GetProjectSyntaxTree() used everywhere else. Its 5 call sites
+        ' (here, ProjectManager.vb x2, ProjectManager.Extension2.vb x1) are commented out
+        ' separately rather than disabled, since the surrounding methods (OnDocumentParsed,
+        ' OnDocumentStructureChanged, AddFileToProject, RemoveFileFromProject, document
+        ' loading) are still live for the DocumentModel-per-file bookkeeping those methods
+        ' also do.
+
         ' ===== Public Methods - Namespace Tree =====
-        
+
         ''' <summary>
         ''' Get the unified namespace tree for the entire project
         ''' </summary>
@@ -811,7 +824,8 @@ Namespace Managers
             
             Return String.Join(".", lParts)
         End Function
-        
+#End If
+
         ' ===== Private Methods - Utilities =====
         
         ''' <summary>
@@ -872,20 +886,22 @@ Namespace Managers
         ''' </summary>
         Private Sub OnDocumentParsed(vRootNode As DocumentNode)
             Try
-                ' Rebuild namespace tree when a document is parsed
-                BuildUnifiedNamespaceTree()
+                ' EXPERIMENT (see conversation with James): BuildUnifiedNamespaceTree()
+                ' disabled - see #If False block above
+                'BuildUnifiedNamespaceTree()
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.OnDocumentParsed error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Handle document structure changed event
         ''' </summary>
         Private Sub OnDocumentStructureChanged(vAffectedNodes As List(Of DocumentNode))
             Try
-                ' Rebuild namespace tree when structure changes
-                BuildUnifiedNamespaceTree()
+                ' EXPERIMENT (see conversation with James): BuildUnifiedNamespaceTree()
+                ' disabled - see #If False block above
+                'BuildUnifiedNamespaceTree()
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.OnDocumentStructureChanged error: {ex.Message}")
             End Try
