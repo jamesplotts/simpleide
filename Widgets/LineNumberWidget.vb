@@ -27,8 +27,11 @@ Namespace Widgets
         Private pTopPadding As Integer = -10
         Private pRightPadding As Integer = 24 ' Increased to accommodate fold icons
         Private pWidth As Integer = 60
-        Private ReadOnly pFoldIconLeft As Integer = 2 ' X offset of the fold icon from the far left of the gutter
-        Private ReadOnly pFoldIconAreaWidth As Integer = 13 ' Click hit-test width for the fold icon column
+        ' Kept clear of x=0 because GTK's Paned divider (between the explorer panels and the
+        ' editor) has its own drag-hit region that extends a few pixels into this widget's left
+        ' edge - too close and the two hit regions fight over the same clicks
+        Private ReadOnly pFoldIconLeft As Integer = 8 ' X offset of the fold icon from the far left of the gutter
+        Private ReadOnly pFoldIconAreaWidth As Integer = 20 ' Click hit-test width for the fold icon column
         Private pLastAscent As Integer = 0 ' Ascent used by the last DrawLineNumbers call, reused for hit-testing
         
         ' Theme colors
