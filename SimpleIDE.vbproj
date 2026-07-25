@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.222.0</AssemblyVersion>
-    <FileVersion>1.1.222.0</FileVersion>
+    <AssemblyVersion>1.1.300.0</AssemblyVersion>
+    <FileVersion>1.1.300.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.222</Version>
+    <Version>1.1.300</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -134,6 +134,7 @@
     <Compile Include="Editors/CustomDrawingEditor.DragDrop.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Drawing.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Editing.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.EnumParameterHint.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Folding.vb" />
     <Compile Include="Editors/CustomDrawingEditor.GenerateFieldFromParameter.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Helpers.vb" />

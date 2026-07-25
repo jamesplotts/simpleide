@@ -30,6 +30,12 @@ Namespace Editors
                     Return
                 End If
 
+                ' UpdateParameterHint (CustomDrawingEditor.ParameterHint.vb) runs before this,
+                ' via SetCursorPosition, and already refreshed the Enum-values popup
+                ' (CustomDrawingEditor.EnumParameterHint.vb) for the new cursor position if
+                ' applicable - don't let the generic identifier-based triggers below clobber it
+                If pCursorInEnumParameterSlot Then Return
+
                 ' Store the last typed character
                 pLastTypedChar = vChar
 
@@ -461,7 +467,12 @@ Namespace Editors
             Try
                 ' Cancel any pending CodeSense
                 CancelCodeSenseTrigger()
-                
+
+                ' Same reasoning as CheckCodeSenseTrigger - UpdateParameterHint already ran
+                ' (via HandleBackspace's own SetCursorPosition call) and refreshed/dismissed
+                ' the Enum-values popup as needed
+                If pCursorInEnumParameterSlot Then Return
+
                 ' If CodeSense is showing, update or hide it
                 If pCodeSenseActive Then
                     Dim lCurrentWord As String = GetCurrentWord()

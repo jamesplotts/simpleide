@@ -31,8 +31,11 @@ Namespace Editors
         ''' </summary>
         Private Sub UpdateParameterHint()
             Try
-                ' Don't compete with the CodeSense popup for the same screen space
-                If pCodeSenseActive Then
+                ' Don't compete with an unrelated CodeSense popup for the same screen space -
+                ' but if OUR OWN Enum-values popup (CustomDrawingEditor.EnumParameterHint.vb)
+                ' is what's currently showing, keep going below so it can be refreshed/dismissed
+                ' as the cursor keeps moving, instead of getting stuck open
+                If pCodeSenseActive AndAlso Not pCursorInEnumParameterSlot Then
                     HideParameterHint()
                     Return
                 End If
@@ -42,18 +45,21 @@ Namespace Editors
                 Dim lParamIndex As Integer
                 If Not FindEnclosingCallOpenParen(pCursorLine, pCursorColumn, lOpenLine, lOpenColumn, lParamIndex) Then
                     HideParameterHint()
+                    ExitEnumParameterSlotIfNeeded()
                     Return
                 End If
 
                 Dim lCalleeName As String = GetIdentifierBeforeColumn(lOpenLine, lOpenColumn)
                 If String.IsNullOrEmpty(lCalleeName) Then
                     HideParameterHint()
+                    ExitEnumParameterSlotIfNeeded()
                     Return
                 End If
 
                 Dim lMethodNode As SyntaxNode = FindCallableMemberNode(lCalleeName)
                 If lMethodNode Is Nothing OrElse lMethodNode.Parameters Is Nothing OrElse lMethodNode.Parameters.Count = 0 Then
                     HideParameterHint()
+                    ExitEnumParameterSlotIfNeeded()
                     Return
                 End If
 
@@ -66,9 +72,24 @@ Namespace Editors
                     Dim lLast As ParameterInfo = lMethodNode.Parameters(lMethodNode.Parameters.Count - 1)
                     If Not lLast.IsParamArray Then
                         HideParameterHint()
+                        ExitEnumParameterSlotIfNeeded()
                         Return
                     End If
                     lParam = lLast
+                End If
+
+                ' If this parameter's declared type is a project-defined Enum, auto-popup its
+                ' values (CustomDrawingEditor.EnumParameterHint.vb) instead of the plain
+                ' signature-help tooltip below
+                If TryShowEnumParameterSuggestions(lParam.ParameterType) Then
+                    HideParameterHint()
+                    Return
+                End If
+                ExitEnumParameterSlotIfNeeded()
+
+                If pCodeSenseActive Then
+                    HideParameterHint()
+                    Return
                 End If
 
                 pParamHintText = FormatParameterDeclaration(lParam)
