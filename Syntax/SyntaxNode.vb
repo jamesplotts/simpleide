@@ -528,6 +528,17 @@ Namespace Syntax
         Public Property IsExpanded As Boolean = True
 
         ''' <summary>
+        ''' Gets or sets whether this node's closing statement (End Sub, End Class, etc.) was
+        ''' synthesized by Roslyn's error recovery rather than actually present in the source
+        ''' </summary>
+        ''' <remarks>
+        ''' Set by RoslynConverter.SetNodeLocation from the end syntax node's own IsMissing flag.
+        ''' A block with a missing end statement is broken/incomplete code - it shouldn't offer
+        ''' a fold affordance for a closing keyword that doesn't actually exist in the text.
+        ''' </remarks>
+        Public Property EndIsMissing As Boolean = False
+
+        ''' <summary>
         ''' Gets whether the node is foldable
         ''' </summary>
         Public ReadOnly Property IsFoldable As Boolean
@@ -539,8 +550,8 @@ Namespace Syntax
                          CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eProperty,
                          CodeNodeType.eRegion, CodeNodeType.eGetAccessor, CodeNodeType.eSetAccessor
 
-                        ' Must span multiple lines to be foldable
-                        Return (EndLine > StartLine)
+                        ' Must span multiple lines, and have a real closing statement, to be foldable
+                        Return (EndLine > StartLine) AndAlso Not EndIsMissing
                     Case Else
                         Return False
                 End Select

@@ -1389,6 +1389,11 @@ Namespace Managers
                     vTargetNode.EndColumn = lEndSpan.EndLinePosition.Character
                 End If
 
+                ' A missing end node means Roslyn synthesized it during error recovery (e.g. a
+                ' Sub with no matching End Sub in broken/incomplete code) - track this so such
+                ' blocks don't offer a fold affordance for a closing keyword that isn't real
+                vTargetNode.EndIsMissing = lEndNode.IsMissing
+
             Catch ex As Exception
                 Console.WriteLine($"SetNodeLocation error: {ex.Message}")
             End Try

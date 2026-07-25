@@ -345,6 +345,12 @@ Namespace Editors
                     ' Use the existing parsed structure
                     pRootNode = vSourceFileInfo.SyntaxTree
                     Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
+
+                    ' This tree was parsed before this editor existed (e.g. during initial
+                    ' project load), so the ParseCompleted event that would normally trigger
+                    ' folding-state restoration already fired and was missed - apply it now
+                    ApplyFoldingState()
+                    RebuildVisualLineMap()
                 Else
                     ' REMOVED: Don't request parse here - wait for ProjectManager to be set
                     Console.WriteLine($"No existing parse tree for {vSourceFileInfo.FileName}, will parse when ProjectManager is available")
