@@ -503,16 +503,16 @@ Namespace Editors
                 ' Get the line number where the right-click occurred
                 Dim lLine As Integer = GetLineFromY(pLastRightClickY)
                 If lLine >= 0 AndAlso lLine < pLineCount Then
-                    ' Find the block boundaries (simple implementation)
-                    Dim lStartLine As Integer = FindBlockStart(lLine)
-                    Dim lEndLine As Integer = FindBlockEnd(lLine)
-                    
-                    ' Select the entire block
-                    If lStartLine <= lEndLine Then
-                        SelectLines(lStartLine, lEndLine)
+                    Dim lBlockNode As SyntaxNode = FindContainingBlockNode(pRootNode, lLine)
+                    If lBlockNode IsNot Nothing Then
+                        SelectLines(lBlockNode.StartLine, lBlockNode.EndLine)
+                    Else
+                        ' No enclosing declaration found (e.g. a blank line outside any
+                        ' type/namespace) - just select the clicked line
+                        SelectLines(lLine, lLine)
                     End If
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuSelectBlock error: {ex.Message}")
             End Try
@@ -588,149 +588,37 @@ Namespace Editors
         End Sub
         
         ' ===== Block Detection Helpers =====
-        Private Function FindBlockStart(vLine As Integer) As Integer
-            Try
-                ' Simple block detection - find previous line with same or less indentation
-                If vLine < 0 OrElse vLine >= pLineCount Then Return vLine
-                
-                Dim lCurrentIndent As Integer = GetLineIndentationLevel(vLine)
-                Dim lStartLine As Integer = vLine
-                
-                ' Look backwards for a line with less indentation or block start keywords
-                For i As Integer = vLine - 1 To 0 Step -1
-                    Dim lLineText As String = TextLines(i).Trim().ToLower()
-                    Dim lIndent As Integer = GetLineIndentationLevel(i)
-                    
-                    ' If this line has less indentation, it might be the block start
-                    If lIndent < lCurrentIndent Then
-                        lStartLine = i
-                        Exit For
-                    End If
-                    
-                    ' Check for block keywords
-                    If lLineText.StartsWith("Sub ") OrElse lLineText.StartsWith("Function ") OrElse 
-                       lLineText.StartsWith("If ") OrElse lLineText.StartsWith("Class ") OrElse
-                       lLineText.StartsWith("Module ") OrElse lLineText.StartsWith("Namespace ") Then
-                        lStartLine = i
-                        Exit For
-                    End If
-                Next
-                
-                Return lStartLine
-                
-            Catch ex As Exception
-                Console.WriteLine($"FindBlockStart error: {ex.Message}")
-                Return vLine
-            End Try
-        End Function
-        
-        Private Function FindBlockEnd(vLine As Integer) As Integer
-            Try
-                ' Simple block detection - find next line with same or less indentation
-                If vLine < 0 OrElse vLine >= pLineCount Then Return vLine
-                
-                Dim lCurrentIndent As Integer = GetLineIndentationLevel(vLine)
-                Dim lEndLine As Integer = vLine
-                
-                ' Look forwards for a line with less or equal indentation or block end keywords
-                For i As Integer = vLine + 1 To pLineCount - 1
-                    Dim lLineText As String = TextLines(i).Trim().ToLower()
-                    Dim lIndent As Integer = GetLineIndentationLevel(i)
-                    
-                    ' Check for explicit end keywords first (these ARE part of the block)
-                    If lLineText.StartsWith("End ") OrElse lLineText = "End" OrElse
-                       lLineText.StartsWith("Next") OrElse lLineText.StartsWith("Loop") OrElse
-                       lLineText.StartsWith("Wend") OrElse lLineText.StartsWith("until") Then
-                        lEndLine = i  ' Include the end statement
-                        Exit For
-                    End If
-                    
-                    ' If this line has less indentation and it's not empty, we've found the end of the block
-                    If lIndent < lCurrentIndent AndAlso Not String.IsNullOrWhiteSpace(lLineText) Then
-                        lEndLine = i - 1 ' Previous line was the actual end
-                        Exit For
-                    End If
-                    
-                    ' If this line has equal indentation and it's a new statement (not continuation), end the block
-                    If lIndent = lCurrentIndent AndAlso Not String.IsNullOrWhiteSpace(lLineText) Then
-                        ' Check if it's a continuation of the same block or a new statement
-                        If IsNewStatementStart(lLineText) Then
-                            lEndLine = i - 1 ' Previous line was the actual end
-                            Exit For
-                        End If
-                    End If
-                    
-                    lEndLine = i ' Keep extending if no end found
-                Next
-                
-                Return lEndLine
-                
-            Catch ex As Exception
-                Console.WriteLine($"FindBlockEnd error: {ex.Message}")
-                Return vLine
-            End Try
-        End Function
-        
-        Private Function GetLineIndentationLevel(vLine As Integer) As Integer
-            Try
-                If vLine < 0 OrElse vLine >= pLineCount Then Return 0
-                
-                Dim lLine As String = TextLines(vLine)
-                Dim lIndent As Integer = 0
-                
-                For Each lChar As Char In lLine
-                    If lChar = " "c Then
-                        lIndent += 1
-                    ElseIf lChar = vbTab Then
-                        lIndent += 4 ' Assume tab = 4 spaces
-                    Else
-                        Exit For
-                    End If
-                Next
-                
-                Return lIndent
-                
-            Catch ex As Exception
-                Console.WriteLine($"GetLineIndentationLevel error: {ex.Message}")
-                Return 0
-            End Try
-        End Function
-        
+
         ''' <summary>
-        ''' Check if a line starts a new statement (vs. being part of a multi-line statement)
+        ''' Finds the most specific (deepest) declaration node - method, property,
+        ''' class/module/interface/structure/enum, or namespace - that contains vLine,
+        ''' preferring a nested member over its containing type
         ''' </summary>
-        Private Function IsNewStatementStart(vLineText As String) As Boolean
+        Private Function FindContainingBlockNode(vNode As SyntaxNode, vLine As Integer) As SyntaxNode
+            If vNode Is Nothing Then Return Nothing
             Try
-                If String.IsNullOrWhiteSpace(vLineText) Then Return False
-                
-                ' VB.NET statement starters
-                Dim lStatementStarters As String() = {
-                    "Dim ", "Private ", "Public ", "Protected ", "Friend ", "Shared ",
-                    "Const ", "Static ",
-                    "If ", "for ", "While ", "Do ", "Select ", "Try ", "with ", "Using ",
-                    "Sub ", "Function ", "Property ", "Class ", "Module ", "Interface ",
-                    "Namespace ", "Imports ", "Option ",
-                    "Return", "Exit ", "Continue ", "Throw ", "GoTo ",
-                    "Call ", "Set ", "Get ",
-                    "Else", "ElseIf ", "Case ", "Catch ", "Finally "
-                }
-                
-                Dim lLowerLine As String = vLineText.ToLower()
-                For Each lStarter In lStatementStarters
-                    If lLowerLine.StartsWith(lStarter) Then Return True
-                Next
-                
-                ' Also check for variable assignments (contains "=")
-                If lLowerLine.Contains("=") AndAlso Not lLowerLine.Contains("==") AndAlso Not lLowerLine.Contains("<=") AndAlso Not lLowerLine.Contains(">=") AndAlso Not lLowerLine.Contains("<>") Then
-                    Return True
+                ' Check children first so a nested member wins over its containing type
+                If vNode.Children IsNot Nothing Then
+                    for each lChild As SyntaxNode in vNode.Children
+                        Dim lResult As SyntaxNode = FindContainingBlockNode(lChild, vLine)
+                        If lResult IsNot Nothing Then Return lResult
+                    Next
                 End If
-                
-                Return False
-                
+
+                Select Case vNode.NodeType
+                    Case CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eConstructor,
+                         CodeNodeType.eProperty, CodeNodeType.eClass, CodeNodeType.eModule,
+                         CodeNodeType.eInterface, CodeNodeType.eStructure, CodeNodeType.eEnum,
+                         CodeNodeType.eNamespace
+                        If vNode.StartLine <= vLine AndAlso vNode.EndLine >= vLine Then
+                            Return vNode
+                        End If
+                End Select
+
             Catch ex As Exception
-                Console.WriteLine($"IsNewStatementStart error: {ex.Message}")
-                Return False
+                Console.WriteLine($"FindContainingBlockNode error: {ex.Message}")
             End Try
+            Return Nothing
         End Function
 
         ''' <summary>
