@@ -974,65 +974,6 @@ Namespace Editors
         End Property
 
         ''' <summary>
-        ''' Handles parse completion notification from ProjectManager
-        ''' </summary>
-        ''' <param name="vFile">The source file that was parsed</param>
-        ''' <param name="vResult">The parse result (SyntaxNode)</param>
-        ''' <remarks>
-        ''' This handler updates the local pRootNode, notifies parsing completion,
-        ''' and triggers a redraw to show updated syntax colors.
-        ''' </remarks>
-        Private Sub OnProjectManagerParseCompleted(vFile As SourceFileInfo, vResult As Object)
-            Try
-                ' Verify this is for our file
-                If vFile Is Nothing OrElse vFile IsNot pSourceFileInfo Then
-                    Return
-                End If
-                
-                Console.WriteLine($"CustomDrawingEditor: ParseCompleted received for {pFilePath}")
-                
-                ' Update the root node from the parse result
-                If TypeOf vResult Is SyntaxNode Then
-                    pRootNode = DirectCast(vResult, SyntaxNode)
-                    Console.WriteLine($"CustomDrawingEditor: Updated pRootNode from parse result")
-                ElseIf vResult IsNot Nothing Then
-                    ' Try to extract SyntaxNode from other result types
-                    Dim lResultType = vResult.GetType()
-                    Dim lRootNodeProperty = lResultType.GetProperty("RootNode")
-                    
-                    If lRootNodeProperty IsNot Nothing Then
-                        Dim lNode = lRootNodeProperty.GetValue(vResult)
-                        If TypeOf lNode Is SyntaxNode Then
-                            pRootNode = DirectCast(lNode, SyntaxNode)
-                            Console.WriteLine($"CustomDrawingEditor: Extracted pRootNode from parse result")
-                        End If
-                    End If
-                End If
-                
-                ' The SourceFileInfo should now have updated CharacterColors
-                ' These are used directly by the drawing code for syntax highlighting
-                Console.WriteLine($"CustomDrawingEditor: CharacterColors updated, ready to draw new colors")
-                
-                ' Notify that parsing is complete (raises DocumentParsed event)
-                NotifyParsingComplete()
-                
-                ' Restore folding state from persistence
-                ApplyFoldingState()
-                
-                ' Rebuild visual line map with new syntax tree
-                RebuildVisualLineMap()
-                
-                ' Queue redraw to show the updated colors
-                pDrawingArea?.QueueDraw()
-                
-                Console.WriteLine($"CustomDrawingEditor: Redraw queued for {pFilePath}")
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnProjectManagerParseCompleted error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Handles identifier map updates from ProjectManager
         ''' </summary>
         ''' <remarks>

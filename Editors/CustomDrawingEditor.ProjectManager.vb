@@ -54,7 +54,15 @@ Namespace Editors
                 
                 ' Notify that parsing is complete (raises DocumentParsed event for Object Explorer)
                 NotifyParsingComplete()
-                
+
+                ' Restore folding state from persistence
+                ApplyFoldingState()
+
+                ' Rebuild visual line map with the new syntax tree - without this, fold nodes
+                ' from before the edit (and their gutter icons) keep being used until something
+                ' else happens to trigger a rebuild
+                RebuildVisualLineMap()
+
                 ' Queue redraw to show the updated syntax highlighting
                 pDrawingArea?.QueueDraw()
                 
