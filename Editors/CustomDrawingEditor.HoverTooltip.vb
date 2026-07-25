@@ -307,18 +307,23 @@ Namespace Editors
                 Dim lLine As String = TextLines(vLine)
                 If String.IsNullOrEmpty(lLine) Then Return ""
 
-                ' Don't resolve a word inside a comment (including XML doc tags like
-                ' <summary>) or a string literal as an identifier - "summary", "returns",
-                ' or any word that happens to appear in quoted text can coincidentally
-                ' match a real declaration elsewhere in the project (e.g. SyntaxNode.Summary),
-                ' producing a nonsensical tooltip
+                ' Don't resolve a word inside a comment, a string literal, or a language
+                ' keyword as an identifier - any of these can coincidentally match a real
+                ' declaration elsewhere in the project and produce a nonsensical tooltip.
+                ' Comments: "summary"/"returns" etc. can match SyntaxNode.Summary/.Returns.
+                ' Strings: any quoted word can match some unrelated member by the same name.
+                ' Keywords: constructor nodes are literally named "New" (see
+                ' RoslynConverter.ProcessConstructor), so without this check hovering over the
+                ' New keyword in "New Foo()" anywhere in the file matches the first
+                ' constructor FindProjectMemberNode happens to find in the whole project.
                 If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.CharacterTokens IsNot Nothing AndAlso
                    vLine < pSourceFileInfo.CharacterTokens.Length Then
                     Dim lTokens() As Byte = pSourceFileInfo.CharacterTokens(vLine)
                     Dim lCheckCol As Integer = Math.Min(vColumn, lLine.Length - 1)
                     If lTokens IsNot Nothing AndAlso lCheckCol >= 0 AndAlso lCheckCol < lTokens.Length Then
                         Dim lTokenType As SyntaxTokenType = CharacterToken.GetTokenType(lTokens(lCheckCol))
-                        If lTokenType = SyntaxTokenType.eComment OrElse lTokenType = SyntaxTokenType.eString Then
+                        If lTokenType = SyntaxTokenType.eComment OrElse lTokenType = SyntaxTokenType.eString OrElse
+                           lTokenType = SyntaxTokenType.eKeyword Then
                             Return ""
                         End If
                     End If
