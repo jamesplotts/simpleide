@@ -215,7 +215,7 @@ Partial Public Class MainWindow
             End If
             
             lDialog.Destroy()
-            
+
         Catch ex As Exception
             Console.WriteLine($"ShowGoToLineDialog error: {ex.Message}")
         End Try
@@ -226,12 +226,12 @@ Partial Public Class MainWindow
         Try
             ' Show the existing Go To Line dialog
             ShowGoToLineDialog()
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnEditorGoToLineRequested error: {ex.Message}")
         End Try
     End Sub
-            
+
     ''' <summary>
     ''' Switches to the next tab in the notebook with navigation dropdown support
     ''' </summary>

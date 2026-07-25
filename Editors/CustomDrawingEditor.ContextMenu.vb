@@ -21,9 +21,12 @@ Namespace Editors
         Private pLastRightClickInLineNumbers As Boolean
 
         ' ===== Event Declaration =====
+        ''' <summary>
+        ''' Raised when the text-area context menu's "Go to Line..." item is used, since this
+        ''' editor doesn't have direct access to MainWindow's Go To Line dialog
+        ''' </summary>
         Public Event GoToLineRequested()
 
-        
         ' ===== Context Menu Initialization =====
 
         Private Sub InitializeContextMenus()
@@ -170,22 +173,10 @@ Namespace Editors
                 lSelectBlockItem.Name = "SelectBlockMenuItem"
                 AddHandler lSelectBlockItem.Activated, AddressOf OnContextMenuSelectBlock
                 pLineNumberContextMenu.Append(lSelectBlockItem)
-                
-                ' Go To Line Number menu item
-                Dim lGoToLineItem As New MenuItem("_Go To Line Number...")
-                lGoToLineItem.Name = "GoToLineMenuItem"
-                AddHandler lGoToLineItem.Activated, AddressOf OnContextMenuGoToLine
-                pLineNumberContextMenu.Append(lGoToLineItem)
-                
+
                 ' Separator
                 pLineNumberContextMenu.Append(New SeparatorMenuItem())
-                
-                ' Toggle Breakpoint menu item
-                Dim lToggleBreakpointItem As New MenuItem("Toggle _Breakpoint")
-                lToggleBreakpointItem.Name = "ToggleBreakpointMenuItem"
-                AddHandler lToggleBreakpointItem.Activated, AddressOf OnContextMenuToggleBreakpoint
-                pLineNumberContextMenu.Append(lToggleBreakpointItem)
-                
+
                 ' Insert Line Above menu item
                 Dim lInsertLineAboveItem As New MenuItem("Insert Line _Above")
                 lInsertLineAboveItem.Name = "InsertLineAboveMenuItem"
@@ -517,41 +508,21 @@ Namespace Editors
                 Console.WriteLine($"OnContextMenuSelectBlock error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Handles the text-area context menu's "Go to Line..." item
+        ''' </summary>
         Private Sub OnContextMenuGoToLine(vSender As Object, vArgs As EventArgs)
             Try
                 ' Use the existing Go To Line dialog from MainWindow
                 ' We need to raise an event or call a delegate since we don't have direct access to MainWindow
                 RaiseEvent GoToLineRequested()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuGoToLine error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub OnContextMenuToggleBreakpoint(vSender As Object, vArgs As EventArgs)
-            Try
-                Dim lLine As Integer = GetLineFromY(pLastRightClickY)
-                If lLine >= 0 AndAlso lLine < pLineCount Then
-                    ' TODO: Implement breakpoint functionality
-                    Console.WriteLine($"Toggle breakpoint at line {lLine + 1}")
-                    
-                    ' For now, show a placeholder
-                    Dim lDialog As New MessageDialog(
-                        Nothing,
-                        DialogFlags.Modal,
-                        MessageType.Info,
-                        ButtonsType.Ok,
-                        $"Breakpoint functionality Is Not yet implemented.{Environment.NewLine}Line: {lLine + 1}")
-                    lDialog.Run()
-                    lDialog.Destroy()
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnContextMenuToggleBreakpoint error: {ex.Message}")
-            End Try
-        End Sub
-        
+
         Private Sub OnContextMenuInsertLineAbove(vSender As Object, vArgs As EventArgs)
             Try
                 If pIsReadOnly Then Return
