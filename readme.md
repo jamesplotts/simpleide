@@ -7,7 +7,7 @@ A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0
 ![Last Commit](https://img.shields.io/github/last-commit/jamesplotts/simpleide)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
-![License](https://img.shields.io/badge/license-GPL--3.0-red)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Discord Channel
 
@@ -21,7 +21,7 @@ https://discordapp.com/channels/682603493386747904/1408457691734737007
 - **Line numbers** with click-to-select and drag-to-select functionality
 - **Smart indentation** and automatic bracket matching
 - **Undo/Redo system** (Ctrl+Z, Ctrl+R) with per-character tracking
-- **Code folding** for regions and block structures
+- **Code folding** for classes, methods, properties (including Get/Set), and regions
 - **Intelligent code completion** with hover tooltips and parameter hints
 - **Real-time syntax error detection** with squiggly underlines
 
@@ -59,8 +59,7 @@ https://discordapp.com/channels/682603493386747904/1408457691734737007
 - **Git integration** for version control operations
 - **Find and Replace** with regex support (Ctrl+F)
 - **Go to line** navigation (Ctrl+G)
-- **Block commenting** (Ctrl+')
-- **Smart indentation** (Ctrl+], Ctrl+[)
+- **Block commenting** (Ctrl+/)
 - **Settings persistence** across sessions
 
 ## Installation
@@ -119,126 +118,123 @@ SimpleIDE
 # Open specific project
 SimpleIDE MyProject.vbproj
 
-# Open multiple files
-SimpleIDE Program.vb Module1.vb
-
 # Create new project
 SimpleIDE -n MyApp -t Console
 
-# Show help
+# Show help (lists all available options)
 SimpleIDE --help
+
+# Show version information
+SimpleIDE --version
 ```
+
+Run `SimpleIDE --help` for the full list of options - there are quite a few beyond the basics above (window state, safe mode, settings reset, and several project-maintenance flags).
 
 ### Test Mode for Diagnostics (For Claude/AI Assistants)
 
 **IMPORTANT FOR CLAUDE**: The IDE has a special test mode that allows running it headlessly with automatic exit for diagnostic purposes. This is particularly useful when debugging parsing issues or checking project loading without a display.
 
 ```bash
-# Run in test mode with xvfb (virtual display) - exits after 3 seconds by default
-xvfb-run -a dotnet run -- --test-mode
+# Run in test mode - exits after 5 seconds by default
+dotnet run -- --test-mode
 
 # Run with custom delay (in milliseconds)
-xvfb-run -a dotnet run -- --test-mode --test-delay 5000
+dotnet run -- --test-delay 5000 --test-mode
 
 # Test with a specific project
-xvfb-run -a dotnet run -- --test-mode --project /path/to/project.vbproj
+dotnet run -- --test-mode --project /path/to/project.vbproj
 
 # Build and test
-cd /home/jamesp/Projects/VbIDE
 dotnet build
-xvfb-run -a dotnet run -- --test-mode --test-delay 3000
+dotnet run -- --test-mode --test-delay 3000
 ```
 
+If you're running without a real X11/Wayland display available (e.g. a bare CI container), wrap the command with `xvfb-run -a`. A real display is used directly otherwise - `xvfb` is not a hard requirement.
+
 **What Test Mode Does:**
-- Starts the IDE with a virtual display (no GUI needed)
-- Automatically loads the project (auto-detects or uses --project flag)
+- Starts the IDE and automatically loads the project (auto-detects or uses `--project`)
 - Outputs all parsing and loading diagnostics to console
 - Shows which files are being parsed and any errors
 - Exits automatically after the specified delay
 - Useful for checking if Object Explorer population is working
 - Helps diagnose Roslyn parser initialization issues
 
-**Prerequisites for Test Mode:**
-- xvfb must be installed: `sudo apt-get install xvfb`
-- The IDE must be built first: `dotnet build`
-
-**Example Output:**
-The test mode will show:
-- Project loading progress
-- File parsing status for all source files  
-- Parser initialization errors
-- Object Explorer population status
-- Any runtime exceptions during startup
-
 ### Keyboard Shortcuts
 
 #### File Operations
-- **Ctrl+N** - New file
-- **Ctrl+O** - Open file
 - **Ctrl+S** - Save current file
 - **Ctrl+Shift+S** - Save all files
-- **Ctrl+W** - Close current tab
-- **Ctrl+Q** - Quit application
 
 #### Editing
 - **Ctrl+Z** - Undo
-- **Ctrl+R** / **Ctrl+Y** - Redo
+- **Ctrl+Shift+Z** / **Ctrl+R** - Redo
+- **Ctrl+Y** - Cut current line (VB.NET classic shortcut)
 - **Ctrl+X** - Cut
 - **Ctrl+C** - Copy
 - **Ctrl+V** - Paste
+- **Ctrl+Shift+V** - Smart paste (strips comment markers and re-indents to the paste location)
 - **Ctrl+A** - Select all
 - **Ctrl+F** - Find
 - **Ctrl+H** - Find and replace
 - **Ctrl+G** - Go to line
-- **Ctrl+'** - Toggle comment
-- **Ctrl+]** - Indent
-- **Ctrl+[** - Outdent
+- **Ctrl+/** - Toggle line comment
+- **Tab** / **Shift+Tab** - Indent / outdent the current selection
+- **Ctrl+Space** - Trigger code completion (CodeSense) at the cursor
 
-#### Build and Debug
-- **F5** - Run project
+#### View
+- **Ctrl++** / **Ctrl+-** / **Ctrl+0** - Zoom in / out / reset editor font size
+- **Ctrl+E** - Toggle Project Explorer
+- **F11** - Toggle full screen
+
+#### Build and Run
+- **F5** - Build and run
 - **F6** - Build project
-- **Shift+F6** - Rebuild project
-- **Ctrl+Shift+B** - Build solution
-- **Ctrl+F5** - Run without debugging
+- **Ctrl+B** - Build project
 
 #### Navigation
+- **F1** - Context-sensitive help
+- **F2** - Quick find from clipboard
+- **F3** / **Shift+F3** - Find next / previous
 - **F12** - Go to definition
-- **Ctrl+T** - Go to type
-- **Ctrl+,** - Go to all
-- **Alt+Left** - Navigate back
-- **Alt+Right** - Navigate forward
+- **Ctrl+Tab** - Next tab
+- **Escape** - Context-sensitive close (code completion popup, then Find panel, then clears selection)
+
+Some shortcuts shown in menus (Find in Files, Build Solution, Run without debugging) are wired up but not yet implemented behind the scenes.
 
 ## Project Structure
 
 ```
 SimpleIDE/
-├── Program.vb                  # Entry point
-├── MainWindow.vb              # Main IDE window
-├── MainWindow.*.vb            # Partial classes for main window
+├── Program.vb                        # Entry point
+├── MainWindow.vb                     # Main IDE window
+├── MainWindow.*.vb                   # Partial classes for main window
 ├── Editors/
-│   ├── CustomDrawingEditor.vb # Main code editor implementation
-│   └── EditorTheme.vb         # Theme definitions
+│   ├── CustomDrawingEditor.vb        # Main code editor implementation
+│   └── CustomDrawingEditor.*.vb      # Partial classes (folding, drawing, keyboard, etc.)
 ├── Widgets/
-│   ├── ProjectExplorer.vb    # Project tree view
-│   ├── CustomDrawObjectExplorer.vb # Code structure view
-│   └── BuildOutputPanel.vb   # Build output display
+│   ├── CustomDrawProjectExplorer.vb  # Project tree view
+│   ├── CustomDrawObjectExplorer.vb   # Code structure view
+│   └── BuildOutputPanel.vb           # Build output display
 ├── Models/
-│   ├── SyntaxNode.vb          # Syntax tree representation
-│   ├── SourceFileInfo.vb     # File metadata
-│   └── BuildConfiguration.vb  # Build settings
+│   ├── SourceFileInfo.vb             # File content and metadata
+│   └── EditorTheme.vb                # Theme definitions
 ├── Syntax/
-│   ├── VBSyntaxHighlighter.vb # Syntax highlighting engine
-│   └── VBParser.vb            # VB.NET parser
+│   ├── SyntaxNode.vb                 # Syntax tree node representation
+│   └── VBSyntaxHighlighter.vb        # Syntax highlighting engine
+├── Parsers/
+│   └── RoslynConverter.vb            # Converts Roslyn syntax trees to SimpleIDE's model
 ├── Managers/
-│   ├── ProjectManager.vb      # Project file management
-│   ├── BuildManager.vb        # Build system integration
-│   └── SettingsManager.vb     # Settings persistence
+│   ├── ProjectManager.vb             # Project file management
+│   ├── BuildManager.vb               # Build system integration
+│   └── SettingsManager.vb            # Settings persistence
 ├── Utilities/
-│   ├── FileHelper.vb          # File operations
-│   └── CssHelper.vb           # GTK CSS styling
+│   ├── FileOperations.vb             # File operations
+│   └── CssHelper.vb                  # GTK CSS styling
 └── Resources/
-    └── *.png                  # Embedded icons and images
+    └── *.png                         # Embedded icons and images
 ```
+
+Parsing is Roslyn-based (`Microsoft.CodeAnalysis.VisualBasic`) rather than a hand-written parser.
 
 ## Screenshots
 
@@ -248,26 +244,9 @@ SimpleIDE/
 ## Configuration
 
 ### Settings File Location
-Settings are stored in `~/.config/SimpleIDE/settings.json`
+Settings are stored in `~/.config/SimpleIDE/settings.json`. Code-folding expansion state is stored separately in `~/.config/SimpleIDE/foldstate.json`.
 
-### Theme Configuration
-```json
-{
-  "Theme": "Dark",
-  "EditorTheme": "VS Code Dark",
-  "FontFamily": "Monospace",
-  "FontSize": 12,
-  "ShowLineNumbers": true,
-  "EnableSyntaxHighlighting": true,
-  "TabWidth": 4,
-  "UseSpacesForTabs": true
-}
-```
-
-### Environment Variables
-- `SIMPLEIDE_SETTINGS_PATH` - Override default settings location
-- `SIMPLEIDE_THEME` - Set color theme (Dark|Light|System)
-- `SIMPLEIDE_DEBUG` - Enable debug logging (1|true)
+Settings are managed through the IDE's Settings dialog rather than hand-edited; the file holds properties such as `EditorFont`, `TabWidth`, `UseTabs`, `CurrentTheme`, `ShowLineNumbers`, and `SyntaxHighlighting`.
 
 ## Development
 
@@ -293,21 +272,11 @@ The project follows strict coding conventions:
 # Debug build
 dotnet build --configuration Debug
 
-# Release build with optimizations
-dotnet build --configuration Release -p:Optimize=true
+# Release build
+dotnet build --configuration Release
 
 # Create self-contained executable
 dotnet publish -c Release -r linux-x64 --self-contained
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-dotnet test
-
-# Run with coverage
-dotnet test --collect:"XPlat Code Coverage"
 ```
 
 ## Contributing
@@ -331,11 +300,7 @@ Contributions are welcome! Please follow these guidelines:
 
 ## License
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
-
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with this program. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 

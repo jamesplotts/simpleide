@@ -373,7 +373,7 @@ This format will also enable future AI Assistant integration where these methods
 ## Available Tools for Claude
 
 ### Shell Execution (MCP Shell Server)
-Claude has access to execute bash commands directly in the project directory through the MCP shell server configured in Claude Desktop. This tool is available as `shell:shell_exec` and runs commands with `/home/jamesp/Projects/VbIDE` as the working directory.
+Claude has access to execute bash commands directly in the project directory through the MCP shell server configured in Claude Desktop. This tool is available as `shell:shell_exec` and runs commands with the project's root directory (wherever this repo is checked out) as the working directory.
 
 Common commands:
 - `dotnet build` - Build the project
@@ -420,7 +420,7 @@ DO NOT use `str_replace` - it has issues with file paths in this project.
 The correct syntax is:
 Filesystem:edit_file with parameters:
 
-path: full path to file (e.g., /home/jamesp/Projects/VbIDE/SomeFile.vb)
+path: full path to file (e.g., <project-root>/SomeFile.vb)
 edits: array of {oldText: "exact text to replace", newText: "replacement text"}
 
 
