@@ -494,20 +494,57 @@ Namespace Editors
                 ' Get the line number where the right-click occurred
                 Dim lLine As Integer = GetLineFromY(pLastRightClickY)
                 If lLine >= 0 AndAlso lLine < pLineCount Then
-                    Dim lBlockNode As SyntaxNode = FindContainingBlockNode(pRootNode, lLine)
-                    If lBlockNode IsNot Nothing Then
-                        SelectLines(lBlockNode.StartLine, lBlockNode.EndLine)
-                    Else
-                        ' No enclosing declaration found (e.g. a blank line outside any
-                        ' type/namespace) - just select the clicked line
-                        SelectLines(lLine, lLine)
-                    End If
+                    SelectContainingBlock(lLine)
                 End If
 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuSelectBlock error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Selects the most specific enclosing declaration (method, property, class, etc.)
+        ''' containing vLine, including any XML doc comment immediately above it. Falls back to
+        ''' selecting just vLine if nothing encloses it. Shared by the gutter's "Select Block"
+        ''' context menu item and double-clicking a line number.
+        ''' </summary>
+        ''' <param name="vLine">0-based source line to select the containing block for</param>
+        Public Sub SelectContainingBlock(vLine As Integer)
+            Try
+                If vLine < 0 OrElse vLine >= pLineCount Then Return
+
+                Dim lBlockNode As SyntaxNode = FindContainingBlockNode(pRootNode, vLine)
+                If lBlockNode IsNot Nothing Then
+                    Dim lStartLine As Integer = FindXmlDocStartLine(lBlockNode.StartLine)
+                    SelectLines(lStartLine, lBlockNode.EndLine)
+                Else
+                    ' No enclosing declaration found (e.g. a blank line outside any
+                    ' type/namespace) - just select the clicked line
+                    SelectLines(vLine, vLine)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"SelectContainingBlock error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Walks upward from vDeclarationLine while the immediately preceding lines are XML
+        ''' doc comments (''' ...), so a block selection includes its documentation
+        ''' </summary>
+        Private Function FindXmlDocStartLine(vDeclarationLine As Integer) As Integer
+            Dim lStartLine As Integer = vDeclarationLine
+            for i As Integer = vDeclarationLine - 1 To 0 Step -1
+                If i >= pLineCount Then Continue for
+                Dim lTrimmed As String = TextLines(i).TrimStart()
+                If lTrimmed.StartsWith("'''") Then
+                    lStartLine = i
+                Else
+                    Exit For
+                End If
+            Next
+            Return lStartLine
+        End Function
 
         ''' <summary>
         ''' Handles the text-area context menu's "Go to Line..." item

@@ -436,6 +436,7 @@ Partial Public Class MainWindow
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
                 AddHandler lCustomEditor.NavigationUpdateRequested, AddressOf OnEditorNavigationUpdateRequested
+                AddHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
             End If
 
             Console.WriteLine($"Hooked up all events for editor")
@@ -497,6 +498,7 @@ Partial Public Class MainWindow
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
                 RemoveHandler lCustomEditor.NavigationUpdateRequested, AddressOf OnEditorNavigationUpdateRequested
+                RemoveHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
             End If
             
             Console.WriteLine($"Unhooked all events for editor: {vEditor.DisplayName}")
