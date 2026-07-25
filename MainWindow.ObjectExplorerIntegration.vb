@@ -320,34 +320,4 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ''' <summary>
-    ''' Updated handler for left notebook page changes
-    ''' </summary>
-    Private Sub OnLeftNotebookPageChanged(vSender As Object, vArgs As SwitchPageArgs)
-        Try
-            Dim lNotebook As Notebook = TryCast(vSender, Notebook)
-            If lNotebook Is Nothing Then Return
-            
-            Dim lNewPage As Widget = lNotebook.GetNthPage(CInt(vArgs.PageNum))
-            
-            ' If switching to Object Explorer, ensure it's properly activated
-            If lNewPage Is pObjectExplorer Then
-                Console.WriteLine("Switched To Object Explorer tab")
-                
-                ' Let GTK process the page switch first
-                Application.Invoke(Sub()
-                    ' Ensure the page is shown
-                    lNewPage.ShowAll()
-                    
-                    ' Call OnPageActivated to ensure proper initialization
-                    Console.WriteLine($"OnPageActivated called from MainWindow.OnLeftNotebookPageChanged")
-                    pObjectExplorer.OnPageActivated()
-                End Sub)
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnLeftNotebookPageChanged error: {ex.Message}")
-        End Try
-    End Sub
-
 End Class

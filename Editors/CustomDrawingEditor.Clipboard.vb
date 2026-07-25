@@ -602,13 +602,13 @@ Namespace Editors
                         If Not String.IsNullOrWhiteSpace(lLine) Then
                             ' Check if this is a method/property declaration
                             Dim lTrimmed As String = lLine.TrimStart().ToLower()
-                            If lTrimmed.StartsWith("Public ") OrElse
-                               lTrimmed.StartsWith("Private ") OrElse
-                               lTrimmed.StartsWith("Protected ") OrElse
-                               lTrimmed.StartsWith("Friend ") OrElse
-                               lTrimmed.StartsWith("Sub ") OrElse
-                               lTrimmed.StartsWith("Function ") OrElse
-                               lTrimmed.StartsWith("Property ") Then
+                            If lTrimmed.StartsWith("public ") OrElse
+                               lTrimmed.StartsWith("private ") OrElse
+                               lTrimmed.StartsWith("protected ") OrElse
+                               lTrimmed.StartsWith("friend ") OrElse
+                               lTrimmed.StartsWith("sub ") OrElse
+                               lTrimmed.StartsWith("function ") OrElse
+                               lTrimmed.StartsWith("property ") Then
                                 ' Found a method/property declaration
                                 ' Return its indentation
                                 Return GetLineIndentation(lLine)

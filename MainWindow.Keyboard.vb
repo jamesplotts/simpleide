@@ -534,15 +534,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    Private Sub ShowHelpPanel(vSender As Object, vArgs As EventArgs)
-        Try
-            ' Show help panel
-            ShowContextHelp("")
-        Catch ex As Exception
-            Console.WriteLine($"ShowHelpPanel error: {ex.Message}")
-        End Try
-    End Sub
-
     ''' <summary>
     ''' Handles F1 key press for context-sensitive help
     ''' </summary>

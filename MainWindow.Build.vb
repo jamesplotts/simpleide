@@ -419,30 +419,6 @@ Partial Public Class MainWindow
         End Try
     End Sub 
     
-    ' Handle build completion when building for run
-    Private Sub OnBuildCompletedForRun(vSuccess As Boolean)
-        Try
-            ' Check if we should run after build
-            If pRunAfterBuild Then
-                pRunAfterBuild = False
-                
-                ' Check if build was successful
-                If vSuccess Then
-                    ' Run the project after successful build
-                    Task.Run(Async Function() 
-                        Await RunProject()
-                        Return Nothing  ' Add this return statement
-                    End Function)
-                Else
-                    UpdateStatusBar("Build failed - run cancelled")
-                End If
-            End If
-            pIsBuildingNow = False
-        Catch ex As Exception
-            Console.WriteLine($"OnBuildCompletedForRun error: {ex.Message}")
-        End Try
-    End Sub
-    
     ' Configure build settings
     Public Sub ConfigureBuild()
         Try

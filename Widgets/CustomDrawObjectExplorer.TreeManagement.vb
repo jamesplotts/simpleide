@@ -946,27 +946,6 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' <summary>
         ''' Handle project structure load from ProjectManager
         ''' </summary>
-        ''' <param name="vProjectPath">Path to the loaded project</param>
-        ''' <param name="vRootNode">Root node of the project structure from ProjectParser</param>
-        Private Sub OnProjectStructureLoaded(vProjectPath As String, vRootNode As SyntaxNode)
-            Try
-                Console.WriteLine($"ObjectExplorer received project structure from ProjectParser: {vProjectPath}")
-                
-                If vRootNode IsNot Nothing Then
-                    ' Update the display with the ProjectParser's structure
-                    UpdateStructure(vRootNode)
-                Else
-                    Console.WriteLine("ObjectExplorer: No root node in project structure")
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
-            End Try
-        End Sub
-
-        ''' <summary>
-        ''' Handle project structure load from ProjectManager
-        ''' </summary>
         ''' <param name="vRootNode">Root node of the project structure from ProjectParser</param>
         ''' <remarks>
         ''' The signature matches ProjectManager.ProjectStructureLoaded event which only takes SyntaxNode

@@ -196,25 +196,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-        ''' <summary>
-    ''' Handle parsing progress updates
-    ''' </summary>
-    Private Sub OnProjectParsingProgress(vCurrent As Integer, vTotal As Integer, vFileName As String)
-        Try
-            ' Update status bar with progress
-            Dim lProgress As String = $"Parsing project files... ({vCurrent}/{vTotal}): {vFileName}"
-            UpdateStatusBar(lProgress)
-            
-            ' Process GTK events to keep UI responsive
-            While Application.EventsPending()
-                Application.RunIteration(False)
-            End While
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnProjectParsingProgress error: {ex.Message}")
-        End Try
-    End Sub
-
     ''' <summary>
     ''' Count total nodes in a syntax tree
     ''' </summary>
@@ -590,29 +571,6 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"HideExplorerLoadingState error: {ex.Message}")
-        End Try
-    End Sub
-    
-    ''' <summary>
-    ''' Handles parsing progress updates with smoother progress bar
-    ''' </summary>
-    Private Sub OnProjectParsingProgress(vFilesCompleted As Integer, vTotalFiles As Integer)
-        Try
-            ' Update on UI thread
-            Gtk.Application.Invoke(Sub()
-                If vTotalFiles > 0 Then
-                    ' Calculate percentage (reserve 0-5% for loading, 5-95% for parsing)
-                    Dim lParseProgress As Double = (vFilesCompleted / vTotalFiles) * 90.0
-                    UpdateProgressBar(5 + lParseProgress)
-                    
-                    ' Update status message periodically (not every file to reduce flicker)
-                    If vFilesCompleted Mod 10 = 0 OrElse vFilesCompleted = vTotalFiles Then
-                        UpdateStatusBar($"Parsing files... ({vFilesCompleted}/{vTotalFiles})")
-                    End If
-                End If
-            End Sub)
-        Catch ex As Exception
-            Console.WriteLine($"OnProjectParsingProgress error: {ex.Message}")
         End Try
     End Sub
     

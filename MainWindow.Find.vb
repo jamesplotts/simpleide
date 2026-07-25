@@ -157,16 +157,7 @@ Partial Public Class MainWindow
     End Sub
     
     ' ===== Event Handlers =====
-    
-    Private Sub OnFindPanelRequestCurrentTab(vSender As Object, vArgs As FindReplacePanel.TabInfoEventArgs)
-        Try
-            vArgs.TabInfo = GetCurrentTabInfo()
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnFindPanelRequestCurrentTab error: {ex.Message}")
-        End Try
-    End Sub
-    
+
     Private Sub OnFindPanelRequestOpenTabs(vSender As Object, vArgs As FindReplacePanel.OpenTabsEventArgs)
         Try
             vArgs.OpenTabs = New List(Of TabInfo)(pOpenTabs.Values)

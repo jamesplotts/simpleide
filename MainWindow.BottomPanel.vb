@@ -298,17 +298,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Handle TODO selection
-    Private Sub OnTodoSelected(vFile As String, vLine As Integer, vText As String)
-        Try
-            If Not String.IsNullOrEmpty(vFile) Then
-                OpenSpecificFile(vFile, vLine, 1)
-            End If
-        Catch ex As Exception
-            Console.WriteLine($"OnTodoSelected error: {ex.Message}")
-        End Try
-    End Sub
-    
     ' Handle build error double-click
     Private Sub OnBuildErrorDoubleClicked(vError As BuildError)
         Try
