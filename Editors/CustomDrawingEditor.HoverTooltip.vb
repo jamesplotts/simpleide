@@ -307,6 +307,21 @@ Namespace Editors
                 Dim lLine As String = TextLines(vLine)
                 If String.IsNullOrEmpty(lLine) Then Return ""
 
+                ' Don't resolve a word inside a comment (including XML doc tags like
+                ' <summary>) as an identifier - "summary", "returns", "param", etc. can
+                ' coincidentally match a real declaration elsewhere in the project (e.g.
+                ' SyntaxNode.Summary), producing a nonsensical tooltip
+                If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.CharacterTokens IsNot Nothing AndAlso
+                   vLine < pSourceFileInfo.CharacterTokens.Length Then
+                    Dim lTokens() As Byte = pSourceFileInfo.CharacterTokens(vLine)
+                    Dim lCheckCol As Integer = Math.Min(vColumn, lLine.Length - 1)
+                    If lTokens IsNot Nothing AndAlso lCheckCol >= 0 AndAlso lCheckCol < lTokens.Length Then
+                        If CharacterToken.GetTokenType(lTokens(lCheckCol)) = SyntaxTokenType.eComment Then
+                            Return ""
+                        End If
+                    End If
+                End If
+
                 Dim lStartCol As Integer = vColumn
                 Dim lEndCol As Integer = vColumn
 
