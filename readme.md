@@ -4,7 +4,7 @@ A lightweight, professional VB.NET IDE built with GTK# 3 on Linux using .NET 8.0
 
 ![SimpleIDE Screenshot](screenshots/screenshot1.png)
 
-![SimpleIDE Version](https://img.shields.io/badge/version-1.0.3033.0-blue)
+![Last Commit](https://img.shields.io/github/last-commit/jamesplotts/simpleide)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![GTK#](https://img.shields.io/badge/GTK%23-3.24.24-green)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red)
