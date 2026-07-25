@@ -299,8 +299,12 @@ Namespace Editors
                     vContext.LineTo(lCursorX + lBarLengthHalf, lCursorY + pLineHeight + lTopOffset)
                     vContext.Stroke()
 '                    Pango.CairoHelper.ShowLayout(vContext, lLayout)
-                    lCursorPattern.Dispose()
                 End If
+
+                ' lCursorPattern is always created above regardless of whether the cursor is
+                ' actually drawn this frame (blink-off phase, unfocused editor) - dispose it
+                ' unconditionally or it leaks on every such redraw
+                lCursorPattern.Dispose()
 
                 ' Draw the hover declaration tooltip and parameter hint (if any) before the
                 ' CodeSense popup so the popup - which takes priority when more than one could
