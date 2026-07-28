@@ -80,8 +80,11 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Examines a just-exited line for declarations and, for each one, detects and
-        ''' propagates any casing change against the previously recorded canonical casing
+        ''' Examines a just-exited line: if it's a declaration, detects and propagates any
+        ''' casing change against the previously recorded canonical casing; either way, also
+        ''' corrects any identifier reference on the line whose casing has drifted out of sync
+        ''' with whatever's already known to be canonical (e.g. a usage that was retyped with
+        ''' the wrong case, rather than the declaration itself being renamed)
         ''' </summary>
         ''' <param name="vLineIndex">Zero-based index of the line that was exited</param>
         Private Sub ProcessLineFormattingWithDeclarationTracking(vLineIndex As Integer)
@@ -92,17 +95,79 @@ Namespace Editors
                 Dim lLineText As String = pSourceFileInfo.TextLines(vLineIndex)
                 If String.IsNullOrEmpty(lLineText.Trim()) Then Return
 
-                Dim lDeclarations As List(Of IdentifierDeclaration) = ExtractDeclarations(lLineText)
-                If lDeclarations.Count = 0 Then Return
-
                 Dim lContainingMember As MemberScope = FindContainingMemberScope(vLineIndex)
 
+                Dim lDeclarations As List(Of IdentifierDeclaration) = ExtractDeclarations(lLineText)
                 for each lDecl in lDeclarations
                     DetectAndApplyDeclarationCaseChange(lDecl, lContainingMember)
                 Next
 
+                ' Whether or not this line declared anything, conform any identifier reference
+                ' on it to already-known canonical casing (this also re-checks the declared
+                ' name itself, harmlessly, since propagation above already made it canonical)
+                CorrectUsageCasingOnLine(vLineIndex, lContainingMember)
+
             Catch ex As Exception
                 Console.WriteLine($"ProcessLineFormattingWithDeclarationTracking error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Rewrites any identifier token on the line whose casing doesn't match a
+        ''' already-known canonical casing - the containing member's local map is checked
+        ''' first (locals/parameters shadow same-named members, same as real VB.NET scoping),
+        ''' falling back to the project-wide member map
+        ''' </summary>
+        ''' <remarks>
+        ''' This does NOT update either map or propagate anywhere else - it only ever conforms
+        ''' this one line to what's already canonical, so retyping a mere reference with the
+        ''' wrong case corrects itself instead of being mistaken for a rename
+        ''' </remarks>
+        Private Sub CorrectUsageCasingOnLine(vLineIndex As Integer, vContainingMember As MemberScope)
+            Try
+                If pSourceFileInfo Is Nothing Then Return
+                If vLineIndex < 0 OrElse vLineIndex >= pSourceFileInfo.TextLines.Count Then Return
+
+                Dim lLineText As String = pSourceFileInfo.TextLines(vLineIndex)
+                If String.IsNullOrEmpty(lLineText.Trim()) Then Return
+
+                Dim lTokenizer As New VBTokenizer()
+                Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(lLineText)
+                Dim lResult As New System.Text.StringBuilder()
+                Dim lChanged As Boolean = False
+
+                for each lToken in lTokens
+                    If lToken.Type = TokenType.eIdentifier Then
+                        Dim lCanonical As String = Nothing
+                        Dim lFound As Boolean = False
+
+                        If vContainingMember IsNot Nothing Then
+                            lFound = pLocalIdentifierCaseMap.TryGetValue($"{vContainingMember.ScopeKey}::{lToken.Text}", lCanonical)
+                        End If
+                        If Not lFound Then
+                            lFound = pIdentifierCaseMap.TryGetValue(lToken.Text, lCanonical)
+                        End If
+
+                        If lFound AndAlso Not lCanonical.Equals(lToken.Text, StringComparison.Ordinal) Then
+                            lResult.Append(lCanonical)
+                            lChanged = True
+                        Else
+                            lResult.Append(lToken.Text)
+                        End If
+                    Else
+                        lResult.Append(lToken.Text)
+                    End If
+                Next
+
+                If lChanged Then
+                    pSourceFileInfo.TextLines(vLineIndex) = lResult.ToString()
+                    pLineMetadata(vLineIndex).MarkChanged()
+                    InvalidateLine(vLineIndex)
+                    IsModified = True
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"CorrectUsageCasingOnLine error: {ex.Message}")
             End Try
         End Sub
 
