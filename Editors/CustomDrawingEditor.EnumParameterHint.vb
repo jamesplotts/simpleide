@@ -109,9 +109,10 @@ Namespace Editors
 
         ''' <summary>
         ''' Resolves vName to a loaded .NET Enum type - tried as-written first (handles
-        ''' explicitly-qualified names like "Gtk.Orientation"), then under each of
-        ''' EnumParameterCommonNamespaces (handles a bare name like "Orientation" that relies
-        ''' on an Imports statement in the source)
+        ''' explicitly-qualified names like "Gtk.Orientation"), then under each namespace this
+        ''' file actually imports (the real Imports statements, not a guess), then finally
+        ''' under each of EnumParameterCommonNamespaces as a last-resort safety net for
+        ''' whatever the real-Imports pass doesn't cover
         ''' </summary>
         Private Function FindSystemEnumType(vName As String) As Type
             If String.IsNullOrEmpty(vName) Then Return Nothing
@@ -124,6 +125,13 @@ Namespace Editors
                 ' Already dotted (e.g. "Gtk.Orientation") and still not found - trying it
                 ' again under a namespace prefix below would only produce nonsense
                 If lName.Contains("."c) Then Return Nothing
+
+                If pProjectManager IsNot Nothing Then
+                    for each lCandidate As String in pProjectManager.GetImportsDerivedCandidates(pFilePath, lName)
+                        lType = ReflectionHelper.FindTypeByName(lCandidate)
+                        If lType IsNot Nothing AndAlso lType.IsEnum Then Return lType
+                    Next
+                End If
 
                 for each lNamespace As String in EnumParameterCommonNamespaces
                     lType = ReflectionHelper.FindTypeByName($"{lNamespace}.{lName}")

@@ -1074,15 +1074,22 @@ Namespace Managers
         ''' Finds vWord's definition, preferring the current file
         ''' </summary>
         ''' <remarks>
-        ''' Two passes: first a fast, tree-only sweep (current file first, then every other
-        ''' project file that has a parsed syntax tree - which conclusively covers every
-        ''' definition in a successfully-parsed file, so nothing further is needed for those).
-        ''' Only if that comes back empty everywhere does a second pass fall back to the slower
-        ''' regex text search, and only for files that have no parsed tree at all. Previously
-        ''' every file that simply didn't define the symbol paid for both a tree search AND a
-        ''' full regex-per-line text scan, which is what made "Go to Definition" slow on a
-        ''' project with hundreds of files - this way the common case (the symbol exists in
-        ''' valid, parsed code, which is nearly always true) never touches the text search at all.
+        ''' Fast path first: resolves vWord against the candidate fully-qualified names implied
+        ''' by the current file's own namespace and Imports statements (see
+        ''' GetImportsDerivedCandidates in ProjectManager.SymbolIndex.vb), then looks those up
+        ''' directly in the project-wide symbol index - O(1) regardless of project size, no
+        ''' tree-walking at all. This covers the overwhelming majority of real "Go to
+        ''' Definition" clicks (a type/member reference resolved the normal VB.NET way).
+        '''
+        ''' If that finds nothing (e.g. the word isn't a type/member reachable via Imports -
+        ''' a local variable, or code with a typo), falls back to two slower passes: first a
+        ''' tree-only sweep (current file first, then every other project file that has a
+        ''' parsed syntax tree - which conclusively covers every definition in a successfully-
+        ''' parsed file), and only if THAT finds nothing does a last pass fall back to the
+        ''' regex text search, and only for files with no parsed tree at all. Previously every
+        ''' file that simply didn't define the symbol paid for both a tree search AND a full
+        ''' regex-per-line text scan on every single lookup, which is what made "Go to
+        ''' Definition" slow on a project with hundreds of files.
         ''' </remarks>
         Public Function FindDefinition(vWord As String, vCurrentFilePath As String, vLine As Integer, vColumn As Integer) As DefinitionInfo
             Try
@@ -1091,6 +1098,15 @@ Namespace Managers
                 If String.IsNullOrWhiteSpace(vWord) Then
                     Console.WriteLine("FindDefinition: Empty word")
                     Return Nothing
+                End If
+
+                ' ===== Fast path: Imports/namespace-derived candidates against the symbol index =====
+
+                Dim lCandidates As List(Of String) = GetImportsDerivedCandidates(vCurrentFilePath, vWord)
+                Dim lFastResult As DefinitionInfo = FindDefinitionByFqnCandidates(vWord, lCandidates)
+                If lFastResult IsNot Nothing Then
+                    Console.WriteLine($"FindDefinition: Found '{vWord}' via indexed lookup as '{lFastResult.FullyQualifiedName}'")
+                    Return lFastResult
                 End If
 
                 ' ===== Pass 1: tree search only, current file first =====

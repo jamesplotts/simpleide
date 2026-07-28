@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.317.0</AssemblyVersion>
-    <FileVersion>1.1.317.0</FileVersion>
+    <AssemblyVersion>1.1.349.0</AssemblyVersion>
+    <FileVersion>1.1.349.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.317</Version>
+    <Version>1.1.349</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -207,6 +207,7 @@
     <Compile Include="Managers/ProjectManager.Extension3.vb" />
     <Compile Include="Managers/ProjectManager.Parser.vb" />
     <Compile Include="Managers/ProjectManager.ReferenceManager.vb" />
+    <Compile Include="Managers/ProjectManager.SymbolIndex.vb" />
     <Compile Include="Managers/ReferenceManager.vb" />
     <Compile Include="Managers/ScratchpadManager.vb" />
     <Compile Include="Managers/SettingsManager.vb" />

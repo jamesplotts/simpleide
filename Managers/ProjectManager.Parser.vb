@@ -151,7 +151,13 @@ Namespace Managers
                             If lParseResult IsNot Nothing Then
                                 ' Update syntax tree
                                 lSourceFile.SyntaxTree = lParseResult.RootNode
-                                
+
+                                ' Keep the project-wide symbol index current (see
+                                ' Managers/ProjectManager.SymbolIndex.vb) - this is what lets
+                                ' Go to Definition resolve files that were never individually
+                                ' opened/edited this session
+                                ReindexFile(lSourceFile)
+
                                 ' Store line metadata (no colors yet)
                                 UpdateSourceFileMetadata(lSourceFile, lParseResult)
                                 
@@ -714,7 +720,11 @@ End Function
                         If lParseResult IsNot Nothing Then
                             ' Update syntax tree
                             vFile.SyntaxTree = lParseResult.RootNode
-                            
+
+                            ' Keep the project-wide symbol index (Managers/ProjectManager.SymbolIndex.vb)
+                            ' current for Go to Definition - bounded to this file's own nodes
+                            ReindexFile(vFile)
+
                             ' Update LineMetadata ONLY (not CharacterColors)
                             UpdateSourceFileMetadata(vFile, lParseResult)
                             
