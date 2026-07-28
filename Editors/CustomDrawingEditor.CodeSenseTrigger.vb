@@ -125,18 +125,50 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Triggers/updates CodeSense for the word currently being typed, if it has
-        ''' reached the minimum length
+        ''' Triggers/updates CodeSense for the word currently being typed
         ''' </summary>
+        ''' <remarks>
+        ''' If the cursor sits inside an existing identifier - there's more of the word after
+        ''' the cursor, so this is an edit to something already there rather than fresh typing
+        ''' at a boundary - shows the full candidate set (locals/params/types/keywords) with
+        ''' that identifier's current spelling pre-selected, so the user can arrow to a
+        ''' different suggestion instead of retyping the whole thing. Otherwise (typing new
+        ''' characters at the end of a word) keeps the normal narrow-as-you-type prefix filter.
+        ''' </remarks>
         Private Sub TriggerCodeSenseForCurrentWord()
             Try
-                Dim lCurrentWord As String = GetCurrentWord()
-                If lCurrentWord.Length >= pCodeSenseMinChars Then
-                    TriggerCodeSenseForCompletion(lCurrentWord)
+                Dim lPrefix As String = GetCurrentWord()
+                Dim lFullWord As String = GetWordAtCursor()
+
+                If Not String.IsNullOrEmpty(lFullWord) AndAlso Not lFullWord.Equals(lPrefix, StringComparison.Ordinal) Then
+                    TriggerCodeSenseImmediate(CodeSenseTriggerReason.eManual)
+                    SelectCodeSenseSuggestionMatching(lFullWord)
+                ElseIf lPrefix.Length >= pCodeSenseMinChars Then
+                    TriggerCodeSenseForCompletion(lPrefix)
                 End If
 
             Catch ex As Exception
                 Console.WriteLine($"TriggerCodeSenseForCurrentWord error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Moves the CodeSense selection to the entry whose text exactly matches vWord, if the
+        ''' popup is showing and the current suggestion list has one
+        ''' </summary>
+        Private Sub SelectCodeSenseSuggestionMatching(vWord As String)
+            Try
+                If Not pCodeSenseActive OrElse String.IsNullOrEmpty(vWord) OrElse pCodeSenseSuggestions Is Nothing Then Return
+
+                for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
+                    If String.Equals(pCodeSenseSuggestions(i).Text, vWord, StringComparison.OrdinalIgnoreCase) Then
+                        MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
+                        Exit For
+                    End If
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"SelectCodeSenseSuggestionMatching error: {ex.Message}")
             End Try
         End Sub
 
@@ -165,14 +197,7 @@ Namespace Editors
                 End If
 
                 ' Pre-select the exact word under the cursor, if the resulting list has it
-                If pCodeSenseActive AndAlso Not String.IsNullOrEmpty(lWord) AndAlso pCodeSenseSuggestions IsNot Nothing Then
-                    for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
-                        If String.Equals(pCodeSenseSuggestions(i).Text, lWord, StringComparison.OrdinalIgnoreCase) Then
-                            MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
-                            Exit For
-                        End If
-                    Next
-                End If
+                SelectCodeSenseSuggestionMatching(lWord)
 
             Catch ex As Exception
                 Console.WriteLine($"TriggerCodeSenseManualAtCursor error: {ex.Message}")
