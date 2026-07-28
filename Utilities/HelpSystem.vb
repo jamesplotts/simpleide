@@ -26,7 +26,6 @@ Namespace Utilities
             {"TextBuffer", {"gtk-api", "gtk-devdocs"}},
             {"TreeView", {"gtk-widgets", "gtk-api"}},
             {"BuildManager", {"dotnet-cli", "dotnet-linux"}},
-            {"VBSyntaxHighlighter", {"vb-Reference", "dotnet-api"}},
             {"ProjectExplorer", {"dotnet-overview", "vb-Reference"}},
             {"SettingsWindow", {"gtk-overview", "gtk-widgets"}}
         }

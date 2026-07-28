@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.302.0</AssemblyVersion>
-    <FileVersion>1.1.302.0</FileVersion>
+    <AssemblyVersion>1.1.308.0</AssemblyVersion>
+    <FileVersion>1.1.308.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.302</Version>
+    <Version>1.1.308</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -306,7 +306,6 @@
     <Compile Include="Syntax/CodeSenseSuggestion.vb" />
     <Compile Include="Syntax/SyntaxNode.vb" />
     <Compile Include="Syntax/VBLanguageDefinition.vb" />
-    <Compile Include="Syntax/VBSyntaxHighlighter.vb" />
     <!-- AI Integration -->
     <Compile Include="AI/AIFileSystemBridge.vb" />
     <Compile Include="AI/ClaudeAPIClient.vb" />
