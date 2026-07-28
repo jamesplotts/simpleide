@@ -128,24 +128,18 @@ Namespace Editors
         ''' Triggers/updates CodeSense for the word currently being typed
         ''' </summary>
         ''' <remarks>
-        ''' If the cursor sits inside an existing identifier - there's more of the word after
-        ''' the cursor, so this is an edit to something already there rather than fresh typing
-        ''' at a boundary - shows the full candidate set (locals/params/types/keywords) with
-        ''' that identifier's current spelling pre-selected, so the user can arrow to a
-        ''' different suggestion instead of retyping the whole thing. Otherwise (typing new
-        ''' characters at the end of a word) keeps the normal narrow-as-you-type prefix filter.
+        ''' Shows the full candidate list (locals/params/types/keywords, or the full member
+        ''' list after a dot) rather than narrowing it down as characters are typed - the
+        ''' selection just moves to the best match instead, which keeps the list visually
+        ''' stable while still tracking what's been typed
         ''' </remarks>
         Private Sub TriggerCodeSenseForCurrentWord()
             Try
                 Dim lPrefix As String = GetCurrentWord()
-                Dim lFullWord As String = GetWordAtCursor()
+                If lPrefix.Length < pCodeSenseMinChars Then Return
 
-                If Not String.IsNullOrEmpty(lFullWord) AndAlso Not lFullWord.Equals(lPrefix, StringComparison.Ordinal) Then
-                    TriggerCodeSenseImmediate(CodeSenseTriggerReason.eManual)
-                    SelectCodeSenseSuggestionMatching(lFullWord)
-                ElseIf lPrefix.Length >= pCodeSenseMinChars Then
-                    TriggerCodeSenseForCompletion(lPrefix)
-                End If
+                TriggerCodeSenseForCompletion()
+                SelectCodeSenseSuggestionBestMatch(lPrefix)
 
             Catch ex As Exception
                 Console.WriteLine($"TriggerCodeSenseForCurrentWord error: {ex.Message}")
@@ -153,51 +147,52 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Moves the CodeSense selection to the entry whose text exactly matches vWord, if the
-        ''' popup is showing and the current suggestion list has one
+        ''' Moves the CodeSense selection to the entry that best matches vTypedText: an exact
+        ''' match if the list has one, otherwise the first entry (in the already-sorted list)
+        ''' whose text starts with it
         ''' </summary>
-        Private Sub SelectCodeSenseSuggestionMatching(vWord As String)
+        Private Sub SelectCodeSenseSuggestionBestMatch(vTypedText As String)
             Try
-                If Not pCodeSenseActive OrElse String.IsNullOrEmpty(vWord) OrElse pCodeSenseSuggestions Is Nothing Then Return
+                If Not pCodeSenseActive OrElse String.IsNullOrEmpty(vTypedText) OrElse pCodeSenseSuggestions Is Nothing Then Return
 
+                Dim lBestIndex As Integer = -1
                 for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
-                    If String.Equals(pCodeSenseSuggestions(i).Text, vWord, StringComparison.OrdinalIgnoreCase) Then
-                        MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
+                    Dim lText As String = pCodeSenseSuggestions(i).Text
+                    If lText Is Nothing Then Continue For
+
+                    If String.Equals(lText, vTypedText, StringComparison.OrdinalIgnoreCase) Then
+                        lBestIndex = i
                         Exit For
+                    ElseIf lBestIndex = -1 AndAlso lText.StartsWith(vTypedText, StringComparison.OrdinalIgnoreCase) Then
+                        lBestIndex = i
                     End If
                 Next
 
+                If lBestIndex >= 0 Then
+                    MoveCodeSenseSelection(lBestIndex - pCodeSenseSelectedIndex)
+                End If
+
             Catch ex As Exception
-                Console.WriteLine($"SelectCodeSenseSuggestionMatching error: {ex.Message}")
+                Console.WriteLine($"SelectCodeSenseSuggestionBestMatch error: {ex.Message}")
             End Try
         End Sub
 
         ''' <summary>
         ''' Manually triggers CodeSense at the cursor (Ctrl+Space), regardless of what was
         ''' just typed, and pre-selects whatever best matches the identifier the cursor is
-        ''' currently on: if the cursor sits inside/at a complete, already-known identifier,
-        ''' that exact entry is selected; if only a partial prefix is present, the first
-        ''' prefix-matching entry (already how the filtered/sorted list naturally orders) is
-        ''' left selected
+        ''' currently on
         ''' </summary>
         Private Sub TriggerCodeSenseManualAtCursor()
             Try
                 If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.CodeSenseEnabled Then Return
 
                 Dim lWord As String = GetWordAtCursor()
-                Dim lPrefix As String = GetCurrentWord()
 
-                If String.IsNullOrEmpty(lPrefix) Then
-                    ' Cursor isn't after any already-typed characters of a word (e.g. sitting
-                    ' right at its start, or on whitespace) - fall back to the general/manual
-                    ' suggestion set instead of filtering to nothing
-                    TriggerCodeSenseImmediate(CodeSenseTriggerReason.eManual)
-                Else
-                    TriggerCodeSenseForCompletion(lPrefix)
+                TriggerCodeSenseForCompletion()
+
+                If Not String.IsNullOrEmpty(lWord) Then
+                    SelectCodeSenseSuggestionBestMatch(lWord)
                 End If
-
-                ' Pre-select the exact word under the cursor, if the resulting list has it
-                SelectCodeSenseSuggestionMatching(lWord)
 
             Catch ex As Exception
                 Console.WriteLine($"TriggerCodeSenseManualAtCursor error: {ex.Message}")
@@ -260,15 +255,19 @@ Namespace Editors
         ''' <summary>
         ''' Triggers CodeSense for word completion
         ''' </summary>
-        Private Sub TriggerCodeSenseForCompletion(vCurrentWord As String)
+        ''' <remarks>
+        ''' Deliberately leaves CodeSenseContext.Prefix/CurrentWord unset so
+        ''' CodeSenseEngine.GetSuggestions doesn't narrow the list by what's been typed - the
+        ''' caller tracks the typed text itself and moves the selection instead (see
+        ''' SelectCodeSenseSuggestionBestMatch), so the full candidate list stays visible
+        ''' </remarks>
+        Private Sub TriggerCodeSenseForCompletion()
             Try
                 ' Create context for completion
                 Dim lContext As New CodeSenseContext()
                 lContext.TriggerReason = CodeSenseTriggerReason.eCompletion
                 lContext.TriggerPosition = New EditorPosition(pCursorLine, pCursorColumn)
                 lContext.FileType = "vb"
-                lContext.Prefix = vCurrentWord
-                lContext.CurrentWord = vCurrentWord
 
                 ' If the word being typed is immediately preceded by a dot (e.g. typing "IO"
                 ' in "System.IO"), stay in member-list mode scoped to the identifier before
@@ -560,8 +559,10 @@ Namespace Editors
                         ' Hide CodeSense if word is too short
                         CancelCodeSense()
                     Else
-                        ' Update CodeSense with new prefix
-                        TriggerCodeSenseForCompletion(lCurrentWord)
+                        ' Refresh the (full, unnarrowed) list and re-track the selection
+                        ' against what's left after the deletion
+                        TriggerCodeSenseForCompletion()
+                        SelectCodeSenseSuggestionBestMatch(lCurrentWord)
                     End If
                 End If
                 
