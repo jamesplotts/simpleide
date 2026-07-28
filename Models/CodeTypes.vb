@@ -173,40 +173,6 @@ Namespace Models
         End Property
     End Class
     
-    ' Code template for generation
-    Public Class CodeTemplate
-        Public Property Name As String = ""
-        Public Property TemplateType As CodeTemplateType = CodeTemplateType.eUnspecified
-        Public Property Template As String = ""
-        Public Property Description As String = ""
-        Public Property ShortcutKey As String = ""
-        Public Property InsertLocation As CodeInsertLocation = CodeInsertLocation.eAtCursor
-        
-        ' Placeholders that can be replaced in the template
-        Public Property Placeholders As New Dictionary(Of String, String)()
-    End Class
-    
-    ' Code completion item
-    Public Class CodeCompletionItem
-        Public Property Text As String = ""
-        Public Property DisplayText As String = ""
-        Public Property Description As String = ""
-        Public Property Icon As String = ""
-        Public Property CompletionType As CodeMemberType = CodeMemberType.eUnspecified
-        Public Property Data As Object = Nothing
-    End Class
-    
-    ' Code navigation item
-    Public Class CodeNavigationItem
-        Public Property Name As String = ""
-        Public Property ItemType As String = ""
-        Public Property Line As Integer = 0
-        Public Property Column As Integer = 0
-        Public Property EndLine As Integer = 0
-        Public Property EndColumn As Integer = 0
-        Public Property Children As New List(Of CodeNavigationItem)()
-    End Class
-    
 '    ' Syntax highlight token
 '    Public Class SyntaxToken
 '        Public Property StartOffset As Integer = 0
@@ -244,24 +210,5 @@ Namespace Models
         eWarning
         eError
     End Enum
-    
-    ' Find event arguments
-    Public Class FindEventArgs
-        Inherits EventArgs
-        
-        Public Property SearchText As String
-        Public Property CaseSensitive As Boolean
-        Public Property WholeWord As Boolean
-        Public Property UseRegex As Boolean
-        Public Property SearchBackward As Boolean
-    End Class
-    
-    ' Replace event arguments
-    Public Class ReplaceEventArgs
-        Inherits FindEventArgs
-        
-        Public Property ReplaceText As String
-        Public Property ReplaceAll As Boolean
-    End Class
-    
+
 End Namespace

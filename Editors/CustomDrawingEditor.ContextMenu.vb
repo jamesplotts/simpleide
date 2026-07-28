@@ -643,7 +643,6 @@ Namespace Editors
         
     End Class
 
-    
     ''' <summary>
     ''' Event arguments for Go to Definition requests
     ''' </summary>
@@ -652,31 +651,31 @@ Namespace Editors
     ''' </remarks>
     Public Class GotoDefinitionEventArgs
         Inherits EventArgs
-        
+
         ''' <summary>
         ''' Gets or sets the file path where the request originated
         ''' </summary>
         ''' <value>Full path to the source file</value>
         Public Property FilePath As String
-        
+
         ''' <summary>
         ''' Gets or sets the line number where the word is located (0-based)
         ''' </summary>
         ''' <value>0-based line index</value>
         Public Property LineNumber As Integer
-        
+
         ''' <summary>
         ''' Gets or sets the column position where the word starts (0-based)
         ''' </summary>
         ''' <value>0-based column index</value>
         Public Property ColumnNumber As Integer
-        
+
         ''' <summary>
         ''' Gets or sets the word/symbol for which definition is requested
         ''' </summary>
         ''' <value>The text of the symbol to find</value>
         Public Property Word As String
-        
+
     End Class
-    
+
 End Namespace

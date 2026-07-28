@@ -262,7 +262,6 @@ Namespace Editors
         Public Event SelectionChanged(vHasSelection As Boolean) Implements IEditor.SelectionChanged
         Public Event TextChanged(o As Object, e As EventArgs) Implements IEditor.TextChanged
         Public Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean) Implements IEditor.UndoRedoStateChanged
-        Public Event RequestSourceFiles(vSourceFileRequestor As SourceFileRequestor)
         Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
         Public Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestGotoDefinition
         Public Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext) Implements IEditor.CodeSenseRequested
@@ -276,12 +275,6 @@ Namespace Editors
         ''' to trigger navigation dropdown updates in MainWindow
         ''' </remarks>
         Public Event NavigationUpdateRequested As EventHandler
-
-        ' ===== Event Args =====
-
-        Public Class SourceFileRequestor
-            Public SourceFileInfo As SourceFileInfo
-        End Class
 
         ' ===== Enums =====
 

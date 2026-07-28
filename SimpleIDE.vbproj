@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.308.0</AssemblyVersion>
-    <FileVersion>1.1.308.0</FileVersion>
+    <AssemblyVersion>1.1.312.0</AssemblyVersion>
+    <FileVersion>1.1.312.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.308</Version>
+    <Version>1.1.312</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -230,7 +230,6 @@
     <Compile Include="Utilities/FoldStateStore.vb" />
     <Compile Include="Utilities/FontMetrics.vb" />
     <Compile Include="Utilities/GitIgnoreHelper.vb" />
-    <Compile Include="Utilities/HelpSystem.vb" />
     <Compile Include="Utilities/InputDialog.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="Utilities/ListBoxItem.vb" />
@@ -296,7 +295,6 @@
     <!-- Dialogs -->
     <Compile Include="Dialogs/BuildConfigurationDialog.vb" />
     <Compile Include="Dialogs/EnhancedAISettingsDialog.vb" />
-    <Compile Include="Dialogs/NewPngDialog.vb" />
     <Compile Include="Dialogs/NewProjectDialog.vb" />
     <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
     <Compile Include="Dialogs/GitCommitDialog.vb" />
@@ -305,18 +303,15 @@
     <Compile Include="Syntax/CodeSenseEngine.vb" />
     <Compile Include="Syntax/CodeSenseSuggestion.vb" />
     <Compile Include="Syntax/SyntaxNode.vb" />
-    <Compile Include="Syntax/VBLanguageDefinition.vb" />
     <!-- AI Integration -->
     <Compile Include="AI/AIFileSystemBridge.vb" />
     <Compile Include="AI/ClaudeAPIClient.vb" />
     <Compile Include="AI/Mem0Client.vb" />
     <Compile Include="AI/MemoryManifest.vb" />
     <!-- My Project Files -->
-    <Compile Include="Models/ParseCompletedEventArgs.vb" />
     <Compile Include="Syntax/VBTokenizer.vb" />
     <Compile Include="Syntax/Token.vb" />
     <Compile Include="Syntax/ParseResults.vb" />
-    <Compile Include="Managers/AIManager.vb" />
     <Compile Include="Models/CharacterToken.vb" />
     <Compile Include="Models/SourceFileInfo.AtomicOperations.vb" />
     <Compile Include="Models/SourceFileInfo.InternalOperations.vb" />

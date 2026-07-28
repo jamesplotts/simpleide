@@ -34,32 +34,5 @@ Namespace Models
         End Property
 
     End Class
-    
-    ' Build output event arguments
-    Public Class BuildOutputEventArgs
-        Inherits EventArgs
-        
-        Public Property Text As String
-        Public Property IsError As Boolean
-        
-        Public Sub New(vText As String, vIsError As Boolean)
-            Text = vText
-            IsError = vIsError
-        End Sub
-    End Class
-    
-    ' Build progress event arguments
-    Public Class BuildProgressEventArgs
-        Inherits EventArgs
-        
-        Public Property Progress As Double
-        Public Property Message As String
-        
-        Public Sub New(vProgress As Double, vMessage As String)
-            Progress = vProgress
-            Message = vMessage
-        End Sub
-    End Class
-
 
 End Namespace

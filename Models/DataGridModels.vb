@@ -125,18 +125,6 @@ Namespace Models
         End Sub
     End Class
     
-    ' ===== Filter Models =====
-    
-    ''' <summary>
-    ''' Represents a filter applied to the data grid
-    ''' </summary>
-    Public Class DataGridFilter
-        Public Property ColumnIndex As Integer
-        Public Property FilterType As FilterType
-        Public Property FilterValue As Object
-        Public Property CaseSensitive As Boolean = False
-    End Class
-    
     ''' <summary>
     ''' Specifies the type of filter to apply
     ''' </summary>
