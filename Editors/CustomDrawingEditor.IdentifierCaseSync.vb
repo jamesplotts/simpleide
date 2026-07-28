@@ -51,10 +51,10 @@ Namespace Editors
                 Dim lDeclarations As List(Of IdentifierDeclaration) = ExtractDeclarations(lLineText)
                 If lDeclarations.Count = 0 Then Return
 
-                Dim lContainingMember As SyntaxNode = FindContainingMemberNode(vLineIndex)
+                Dim lContainingMember As MemberScope = FindContainingMemberScope(vLineIndex)
 
                 for each lDecl in lDeclarations
-                    DetectAndApplyDeclarationCaseChange(lDecl, lContainingMember, vLineIndex)
+                    DetectAndApplyDeclarationCaseChange(lDecl, lContainingMember)
                 Next
 
             Catch ex As Exception
@@ -148,17 +148,15 @@ Namespace Editors
         ''' </summary>
         ''' <param name="vDecl">The declaration extracted from the exited line</param>
         ''' <param name="vContainingMember">
-        ''' The innermost method/function/constructor/property node containing the line, or
-        ''' Nothing if the line isn't inside one (e.g. a field declared directly in a class body)
+        ''' The innermost Sub/Function/Property containing the line, or Nothing if the line
+        ''' isn't inside one (e.g. a field declared directly in a class body)
         ''' </param>
-        ''' <param name="vLineIndex">Zero-based index of the line the declaration is on</param>
-        Private Sub DetectAndApplyDeclarationCaseChange(vDecl As IdentifierDeclaration, vContainingMember As SyntaxNode, vLineIndex As Integer)
+        Private Sub DetectAndApplyDeclarationCaseChange(vDecl As IdentifierDeclaration, vContainingMember As MemberScope)
             Try
                 Dim lIsLocalLike As Boolean = IsLocalLikeScope(vDecl.Scope) AndAlso vContainingMember IsNot Nothing
 
                 If lIsLocalLike Then
-                    Dim lScopeKey As String = GetScopeQualifiedKey(vContainingMember)
-                    Dim lKey As String = $"{lScopeKey}::{vDecl.Name}"
+                    Dim lKey As String = $"{vContainingMember.ScopeKey}::{vDecl.Name}"
 
                     Dim lExistingCase As String = Nothing
                     If pLocalIdentifierCaseMap.TryGetValue(lKey, lExistingCase) Then
@@ -203,61 +201,78 @@ Namespace Editors
             End Select
         End Function
 
+        ' Matches a Sub/Function/Property header line, capturing its name
+        Private Shared ReadOnly MemberHeaderPattern As New Regex(
+            "^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:Overrides\s+|Overridable\s+|MustOverride\s+|NotOverridable\s+)?(?:Sub|Function|Property)\s+(\w+)",
+            RegexOptions.IgnoreCase)
+
+        ' Matches the End Sub/Function/Property that closes a member header
+        Private Shared ReadOnly MemberEndPattern As New Regex("^\s*End\s+(?:Sub|Function|Property)\b", RegexOptions.IgnoreCase)
+
+        ' Matches a Class/Module/Structure header line, capturing its name
+        Private Shared ReadOnly TypeHeaderPattern As New Regex(
+            "^\s*(?:Public|Private|Protected|Friend)?\s*(?:Partial\s+)?(?:Class|Module|Structure)\s+(\w+)",
+            RegexOptions.IgnoreCase)
+
         ''' <summary>
-        ''' Finds the innermost method/function/constructor/property node in this file's syntax
-        ''' tree whose line range contains vLineIndex
+        ''' Finds the innermost Sub/Function/Property whose header/End pair encloses vLineIndex,
+        ''' via a plain text scan of the file's own lines - deliberately independent of the
+        ''' (async, sometimes-stale-or-incomplete-while-typing) Roslyn syntax tree, since this
+        ''' needs a stable, synchronous answer at the exact moment a line is exited
         ''' </summary>
-        Private Function FindContainingMemberNode(vLineIndex As Integer) As SyntaxNode
+        Private Function FindContainingMemberScope(vLineIndex As Integer) As MemberScope
             Try
-                If pSourceFileInfo Is Nothing OrElse pSourceFileInfo.SyntaxTree Is Nothing Then Return Nothing
-                Return FindContainingMemberNodeRecursive(pSourceFileInfo.SyntaxTree, vLineIndex)
+                If pSourceFileInfo Is Nothing Then Return Nothing
+                Dim lLines As IList(Of String) = pSourceFileInfo.TextLines
+                If vLineIndex < 0 OrElse vLineIndex >= lLines.Count Then Return Nothing
+
+                Dim lMemberStartLine As Integer = -1
+                Dim lMemberName As String = Nothing
+
+                for i As Integer = vLineIndex To 0 Step -1
+                    Dim lLine As String = lLines(i)
+                    Dim lHeaderMatch As Match = MemberHeaderPattern.Match(lLine)
+                    If lHeaderMatch.Success Then
+                        lMemberStartLine = i
+                        lMemberName = lHeaderMatch.Groups(1).Value
+                        Exit For
+                    End If
+                    ' A bare "End Sub/Function/Property" above vLineIndex (before finding any
+                    ' header) means vLineIndex sits between members, not inside one
+                    If i < vLineIndex AndAlso MemberEndPattern.IsMatch(lLine) Then Return Nothing
+                Next
+
+                If lMemberStartLine = -1 Then Return Nothing
+
+                Dim lMemberEndLine As Integer = lLines.Count - 1
+                for i As Integer = lMemberStartLine To lLines.Count - 1
+                    If MemberEndPattern.IsMatch(lLines(i)) Then
+                        lMemberEndLine = i
+                        Exit For
+                    End If
+                Next
+
+                If vLineIndex > lMemberEndLine Then Return Nothing
+
+                Dim lTypeName As String = Nothing
+                for i As Integer = lMemberStartLine To 0 Step -1
+                    Dim lTypeMatch As Match = TypeHeaderPattern.Match(lLines(i))
+                    If lTypeMatch.Success Then
+                        lTypeName = lTypeMatch.Groups(1).Value
+                        Exit For
+                    End If
+                Next
+
+                Dim lScope As New MemberScope()
+                lScope.StartLine = lMemberStartLine
+                lScope.EndLine = lMemberEndLine
+                lScope.ScopeKey = If(String.IsNullOrEmpty(lTypeName), lMemberName, $"{lTypeName}.{lMemberName}")
+                Return lScope
+
             Catch ex As Exception
-                Console.WriteLine($"FindContainingMemberNode error: {ex.Message}")
+                Console.WriteLine($"FindContainingMemberScope error: {ex.Message}")
                 Return Nothing
             End Try
-        End Function
-
-        Private Function FindContainingMemberNodeRecursive(vNode As SyntaxNode, vLineIndex As Integer) As SyntaxNode
-            If vNode Is Nothing Then Return Nothing
-
-            Dim lBest As SyntaxNode = Nothing
-            If IsScopeContainerType(vNode.NodeType) AndAlso vLineIndex >= vNode.StartLine AndAlso vLineIndex <= vNode.EndLine Then
-                lBest = vNode
-            End If
-
-            If vNode.Children IsNot Nothing Then
-                for each lChild As SyntaxNode in vNode.Children
-                    Dim lDeeper As SyntaxNode = FindContainingMemberNodeRecursive(lChild, vLineIndex)
-                    If lDeeper IsNot Nothing Then lBest = lDeeper ' prefer the innermost match
-                Next
-            End If
-
-            Return lBest
-        End Function
-
-        Private Function IsScopeContainerType(vType As CodeNodeType) As Boolean
-            Select Case vType
-                Case CodeNodeType.eMethod, CodeNodeType.eFunction, CodeNodeType.eConstructor, CodeNodeType.eProperty
-                    Return True
-                Case Else
-                    Return False
-            End Select
-        End Function
-
-        ''' <summary>
-        ''' Builds a scope-qualifying key for a member node by joining its own name with every
-        ''' containing node's name (e.g. "CustomDrawingEditor.OnLineChanged") - stable across
-        ''' cut/paste as long as the code stays within the same member, and naturally treats code
-        ''' moved into a different member as a distinct declaration, which is correct
-        ''' </summary>
-        Private Function GetScopeQualifiedKey(vMemberNode As SyntaxNode) As String
-            Dim lParts As New List(Of String)
-            Dim lNode As SyntaxNode = vMemberNode
-            While lNode IsNot Nothing
-                If Not String.IsNullOrEmpty(lNode.Name) Then lParts.Insert(0, lNode.Name)
-                lNode = lNode.Parent
-            End While
-            Return String.Join(".", lParts)
         End Function
 
         ''' <summary>
@@ -358,6 +373,16 @@ Namespace Editors
                 Scope = vScope
                 Line = vLine
             End Sub
+        End Class
+
+        ''' <summary>
+        ''' A Sub/Function/Property's line range and scope-qualifying key (e.g.
+        ''' "ClassName.MethodName"), found via FindContainingMemberScope
+        ''' </summary>
+        Private Class MemberScope
+            Public Property StartLine As Integer
+            Public Property EndLine As Integer
+            Public Property ScopeKey As String
         End Class
 
     End Class

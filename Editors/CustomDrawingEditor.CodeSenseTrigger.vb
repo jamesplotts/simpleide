@@ -2,18 +2,71 @@
 ' This partial class adds automatic CodeSense triggering when typing
 Imports System
 Imports Gtk
+Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Syntax
 
 Namespace Editors
-    
+
     Partial Public Class CustomDrawingEditor
         Inherits Box
         Implements IEditor
-        
+
         Private pLastTypedChar As Char = " "c
         Private pCodeSenseMinChars As Integer = 2  ' Minimum characters before showing CodeSense
+
+        ''' <summary>
+        ''' Patterns matching the text immediately preceding a NEW name being typed (a Dim/
+        ''' member/Sub/Function/Property/Event/type/For-loop-variable declaration) - anchored to
+        ''' end-of-string since they're matched against the line text up to (not including) the
+        ''' word currently being typed
+        ''' </summary>
+        Private Shared ReadOnly DeclarationNamePatterns As Regex() = {
+            New Regex("^\s*(?:Dim|Private|Public|Protected|Friend|Const)\s+(?:Shared\s+)?(?:ReadOnly\s+)?(?:\w+\s*,\s*)*$", RegexOptions.IgnoreCase),
+            New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:Overrides\s+|Overridable\s+|MustOverride\s+)?(?:Sub|Function)\s+$", RegexOptions.IgnoreCase),
+            New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:ReadOnly\s+|WriteOnly\s+)?Property\s+$", RegexOptions.IgnoreCase),
+            New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*Event\s+$", RegexOptions.IgnoreCase),
+            New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Partial\s+)?(?:Class|Module|Structure|Interface|Enum)\s+$", RegexOptions.IgnoreCase),
+            New Regex("\bFor\s+(?:Each\s+)?$", RegexOptions.IgnoreCase)
+        }
+
+        ''' <summary>
+        ''' True if the cursor is currently positioned where a NEW name is being typed as part
+        ''' of a declaration (Dim/field/Sub/Function/Property/Event/type/For-loop-variable),
+        ''' rather than referencing something that already exists
+        ''' </summary>
+        ''' <remarks>
+        ''' CheckCodeSenseTrigger's generic per-character trigger doesn't distinguish "typing a
+        ''' brand-new identifier" from "typing a reference to an existing one" - popping a
+        ''' completion list open while naming a new Dim/Sub/Property/etc. is just noise, since
+        ''' there's nothing meaningful to complete against yet
+        ''' </remarks>
+        Private Function IsTypingDeclarationName() As Boolean
+            Try
+                If pSourceFileInfo Is Nothing OrElse pCursorLine >= pSourceFileInfo.TextLines.Count Then Return False
+
+                Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                If pCursorColumn > lLine.Length Then Return False
+
+                ' Text before the word currently being typed
+                Dim lWordStart As Integer = pCursorColumn
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                Dim lBeforeWord As String = lLine.Substring(0, lWordStart)
+
+                for each lPattern As Regex in DeclarationNamePatterns
+                    If lPattern.IsMatch(lBeforeWord) Then Return True
+                Next
+
+                Return False
+
+            Catch ex As Exception
+                Console.WriteLine($"IsTypingDeclarationName error: {ex.Message}")
+                Return False
+            End Try
+        End Function
 
         ''' <summary>
         ''' Checks if CodeSense should be triggered based on the typed character
@@ -58,8 +111,10 @@ Namespace Editors
                         CheckKeywordTrigger()
 
                     Case Else
-                        ' Regular characters update the suggestion list immediately
-                        If Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c Then
+                        ' Regular characters update the suggestion list immediately - but not
+                        ' while typing a brand-new declaration name, where there's nothing yet
+                        ' to complete against
+                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso Not IsTypingDeclarationName() Then
                             TriggerCodeSenseForCurrentWord()
                         End If
                 End Select
