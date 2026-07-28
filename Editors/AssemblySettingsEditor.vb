@@ -5,6 +5,7 @@ Imports System.Xml
 Imports System.Text
 Imports System.Reflection
 Imports System.Text.RegularExpressions
+Imports SimpleIDE.Utilities
 
 Namespace Editors
     Public Class AssemblySettingsEditor
@@ -755,17 +756,17 @@ Namespace Editors
                     
                     If lDialog.Run() = CInt(ResponseType.Accept) Then
                         Dim lKeyPath As String = lDialog.FileName
-                        
-                        ' Generate key using sn.exe or create a dummy file
-                        ' For now, create a placeholder
-                        File.WriteAllBytes(lKeyPath, New Byte() {1, 2, 3, 4})
-                        
-                        ' Update key file entry with relative path
-                        Dim lRelativePath As String = GetRelativePath(lKeyPath)
-                        pKeyFileEntry.Text = lRelativePath
-                        
-                        ShowInfoDialog("Strong Name key file Created successfully.")
-                        IsModified = True
+
+                        If StrongNameHelper.GenerateKeyFile(lKeyPath) Then
+                            ' Update key file entry with relative path
+                            Dim lRelativePath As String = GetRelativePath(lKeyPath)
+                            pKeyFileEntry.Text = lRelativePath
+
+                            ShowInfoDialog("Strong Name key file Created successfully.")
+                            IsModified = True
+                        Else
+                            ShowErrorDialog("Failed to generate Strong Name key file. See the console output for details.")
+                        End If
                     End If
                     
                     lDialog.Destroy()
