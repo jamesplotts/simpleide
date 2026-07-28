@@ -856,13 +856,17 @@ Namespace Syntax
         Private Function GetMemberSuggestions(vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             Try
                 Dim lSuggestions As New List(Of CodeSenseSuggestion)()
-                
-                ' Get the identifier before the dot
+
+                ' Get the identifier (or dotted chain, e.g. "lCurrentTab.Editor") before the dot
                 Dim lTarget As String = vContext.MemberAccessTarget
                 If String.IsNullOrEmpty(lTarget) Then
                     Return lSuggestions
                 End If
-                
+
+                If lTarget.Contains("."c) Then
+                    Return GetChainedMemberSuggestions(lTarget, vContext)
+                End If
+
                 Dim lNode As SyntaxNode = Nothing
 
                 ' Handle "Me" keyword
@@ -910,13 +914,85 @@ Namespace Syntax
                 AddTypeMemberSuggestions(lTarget, lSuggestions)
 
                 Return lSuggestions
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetMemberSuggestions error: {ex.Message}")
                 Return New List(Of CodeSenseSuggestion)()
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Resolves a dotted member-access chain (e.g. "lCurrentTab.Editor") by resolving the
+        ''' first segment's declared type, then walking each remaining segment as a member
+        ''' lookup on the type resolved so far, and returns the members of the LAST segment's
+        ''' own resolved type (e.g. IEditor's members, for "lCurrentTab.Editor" where Editor is
+        ''' declared "As IEditor")
+        ''' </summary>
+        Private Function GetChainedMemberSuggestions(vTarget As String, vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)()
+            Try
+                Dim lSegments() As String = vTarget.Split("."c)
+                If lSegments.Length < 2 Then Return lSuggestions
+
+                ' Resolve the first segment as a variable's declared type; if it isn't one
+                ' (e.g. a static/shared access like "Console.Out"), fall back to treating the
+                ' segment text itself as a type name
+                Dim lCurrentType As String = ResolveVariableType(lSegments(0), vContext)
+                If String.IsNullOrEmpty(lCurrentType) Then
+                    lCurrentType = lSegments(0)
+                End If
+
+                ' Walk every segment except the last as a member lookup on the type resolved
+                ' so far
+                for i As Integer = 1 To lSegments.Length - 2
+                    Dim lNextType As String = ResolveMemberTypeOnType(lCurrentType, lSegments(i))
+                    If String.IsNullOrEmpty(lNextType) Then Return lSuggestions
+                    lCurrentType = lNextType
+                Next
+
+                ' The final segment is itself a member - its OWN declared type is what we want
+                ' the member list for
+                Dim lFinalType As String = ResolveMemberTypeOnType(lCurrentType, lSegments(lSegments.Length - 1))
+                If String.IsNullOrEmpty(lFinalType) Then Return lSuggestions
+
+                Dim lTypeNode As SyntaxNode = FindTypeNodeByName(lFinalType)
+                If lTypeNode IsNot Nothing Then
+                    AddNodeMemberSuggestions(lTypeNode, lSuggestions)
+                End If
+                AddTypeMemberSuggestions(lFinalType, lSuggestions)
+
+                Return lSuggestions
+
+            Catch ex As Exception
+                Console.WriteLine($"GetChainedMemberSuggestions error: {ex.Message}")
+                Return lSuggestions
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Finds vMemberName's declared type among vTypeName's property/field members
+        ''' </summary>
+        Private Function ResolveMemberTypeOnType(vTypeName As String, vMemberName As String) As String
+            Try
+                Dim lTypeNode As SyntaxNode = FindTypeNodeByName(vTypeName)
+                If lTypeNode Is Nothing OrElse lTypeNode.Children Is Nothing Then Return Nothing
+
+                for each lChild in lTypeNode.Children
+                    If (lChild.NodeType = CodeNodeType.eProperty OrElse lChild.NodeType = CodeNodeType.eField OrElse
+                        lChild.NodeType = CodeNodeType.eVariable) AndAlso
+                       String.Equals(lChild.Name, vMemberName, StringComparison.OrdinalIgnoreCase) Then
+                        Return If(Not String.IsNullOrEmpty(lChild.DataType), lChild.DataType, lChild.ReturnType)
+                    End If
+                Next
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"ResolveMemberTypeOnType error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
         ''' <summary>
         ''' Get contextual suggestions based on current line
         ''' </summary>

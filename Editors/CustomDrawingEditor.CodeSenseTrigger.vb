@@ -2,6 +2,7 @@
 ' This partial class adds automatic CodeSense triggering when typing
 Imports System
 Imports Gtk
+Imports System.Collections.Generic
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
@@ -14,7 +15,7 @@ Namespace Editors
         Implements IEditor
 
         Private pLastTypedChar As Char = " "c
-        Private pCodeSenseMinChars As Integer = 2  ' Minimum characters before showing CodeSense
+        Private pCodeSenseMinChars As Integer = 1  ' Minimum characters before showing CodeSense
 
         ''' <summary>
         ''' Patterns matching the text immediately preceding a NEW name being typed (a Dim/
@@ -391,43 +392,58 @@ Namespace Editors
         End Function
         
         ''' <summary>
-        ''' Gets the identifier before a period (for member list)
+        ''' Gets the dotted member-access chain before a period (for member list) - e.g. for
+        ''' "lCurrentTab.Editor." returns "lCurrentTab.Editor", not just "Editor", so a chained
+        ''' access can be resolved segment by segment instead of losing everything but the last
+        ''' identifier
         ''' </summary>
         Private Function GetObjectBeforePeriod() As String
             Try
                 If pSourceFileInfo Is Nothing OrElse pCursorLine >= pSourceFileInfo.TextLines.Count Then
                     Return ""
                 End If
-                
+
                 Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
                 If pCursorColumn <= 1 Then Return ""
-                
+
                 ' Make sure we just typed a period
                 If lLine(pCursorColumn - 1) <> "."c Then Return ""
-                
-                ' Find the identifier before the period
+
+                Dim lSegments As New List(Of String)
                 Dim lEnd As Integer = pCursorColumn - 1
-                
-                ' Skip any whitespace before the period
-                While lEnd > 0 AndAlso Char.IsWhiteSpace(lLine(lEnd - 1))
-                    lEnd -= 1
-                End While
-                
-                If lEnd = 0 Then Return ""
-                
-                ' Find identifier start
-                Dim lStart As Integer = lEnd
-                While lStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lStart - 1)) OrElse lLine(lStart - 1) = "_"c)
-                    lStart -= 1
-                End While
-                
-                ' Extract the identifier
-                If lStart < lEnd Then
-                    Return lLine.Substring(lStart, lEnd - lStart)
-                End If
-                
-                Return ""
-                
+
+                Do
+                    ' Skip whitespace before this dot/segment
+                    While lEnd > 0 AndAlso Char.IsWhiteSpace(lLine(lEnd - 1))
+                        lEnd -= 1
+                    End While
+                    If lEnd = 0 Then Exit Do
+
+                    ' Find this segment's start
+                    Dim lStart As Integer = lEnd
+                    While lStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lStart - 1)) OrElse lLine(lStart - 1) = "_"c)
+                        lStart -= 1
+                    End While
+
+                    If lStart >= lEnd Then Exit Do ' no identifier here (e.g. right after "(" or ")") - stop
+
+                    lSegments.Insert(0, lLine.Substring(lStart, lEnd - lStart))
+
+                    ' Skip whitespace before this segment to see if another dot precedes it
+                    Dim lBeforeSegment As Integer = lStart
+                    While lBeforeSegment > 0 AndAlso Char.IsWhiteSpace(lLine(lBeforeSegment - 1))
+                        lBeforeSegment -= 1
+                    End While
+
+                    If lBeforeSegment > 0 AndAlso lLine(lBeforeSegment - 1) = "."c Then
+                        lEnd = lBeforeSegment - 1 ' continue walking past this earlier dot
+                    Else
+                        Exit Do
+                    End If
+                Loop
+
+                Return String.Join(".", lSegments)
+
             Catch ex As Exception
                 Console.WriteLine($"GetObjectBeforePeriod error: {ex.Message}")
                 Return ""
