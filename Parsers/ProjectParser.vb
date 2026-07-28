@@ -367,9 +367,11 @@ Namespace Managers
                     Next
                 End If
                 
+                ' SourceFileInfo.SyntaxTree's setter keeps the project-wide symbol index
+                ' current (see Managers/ProjectManager.SymbolIndex.vb) on every assignment
                 vSourceFile.SyntaxTree = lSimpleIDETree
                 vSourceFile.ParseResult = lSimpleIDETree
-                
+
                 ' Update CharacterColors from LineMetadata
                 If lLineMetadata IsNot Nothing Then
                     ReDim vSourceFile.CharacterColors(lLineMetadata.Length - 1)

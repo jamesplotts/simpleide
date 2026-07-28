@@ -149,14 +149,10 @@ Namespace Managers
                             Dim lParseResult As ParseResult = ParseFileContent(lSourceFile)
                             
                             If lParseResult IsNot Nothing Then
-                                ' Update syntax tree
+                                ' Update syntax tree - SourceFileInfo.SyntaxTree's setter keeps
+                                ' the project-wide symbol index current (see
+                                ' Managers/ProjectManager.SymbolIndex.vb) on every assignment
                                 lSourceFile.SyntaxTree = lParseResult.RootNode
-
-                                ' Keep the project-wide symbol index current (see
-                                ' Managers/ProjectManager.SymbolIndex.vb) - this is what lets
-                                ' Go to Definition resolve files that were never individually
-                                ' opened/edited this session
-                                ReindexFile(lSourceFile)
 
                                 ' Store line metadata (no colors yet)
                                 UpdateSourceFileMetadata(lSourceFile, lParseResult)
@@ -718,12 +714,10 @@ End Function
                         
                         ' Update SourceFileInfo on the background thread
                         If lParseResult IsNot Nothing Then
-                            ' Update syntax tree
+                            ' Update syntax tree - SourceFileInfo.SyntaxTree's setter keeps
+                            ' the project-wide symbol index current (see
+                            ' Managers/ProjectManager.SymbolIndex.vb) on every assignment
                             vFile.SyntaxTree = lParseResult.RootNode
-
-                            ' Keep the project-wide symbol index (Managers/ProjectManager.SymbolIndex.vb)
-                            ' current for Go to Definition - bounded to this file's own nodes
-                            ReindexFile(vFile)
 
                             ' Update LineMetadata ONLY (not CharacterColors)
                             UpdateSourceFileMetadata(vFile, lParseResult)

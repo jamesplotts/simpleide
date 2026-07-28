@@ -380,12 +380,24 @@ Namespace Models
         ''' <summary>
         ''' Gets or sets the syntax tree for this file
         ''' </summary>
+        ''' <remarks>
+        ''' Setting this keeps ProjectManager's project-wide symbol index (Managers/
+        ''' ProjectManager.SymbolIndex.vb) current, regardless of which of this codebase's
+        ''' several parsing pathways (live-edit reparse, whole-project batch parse, on-demand
+        ''' single-file parse) is the one doing the assigning - a single choke point here is far
+        ''' more robust than hooking every call site individually and hoping none are missed.
+        ''' Checks both pProjectManager (the private field RequestAsyncParse etc. use) and the
+        ''' separate public ProjectManager field (which WireSourceFileInfoEvents sets instead,
+        ''' during whole-project load) since the two aren't kept in sync with each other.
+        ''' </remarks>
         Public Property SyntaxTree As SyntaxNode
             Get
                 Return pSyntaxTree
             End Get
             Set(value As SyntaxNode)
                 pSyntaxTree = value
+                Dim lProjectManager As Managers.ProjectManager = If(pProjectManager, ProjectManager)
+                lProjectManager?.ReindexFile(Me)
             End Set
         End Property
         
