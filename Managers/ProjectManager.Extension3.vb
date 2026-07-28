@@ -1070,69 +1070,85 @@ Namespace Managers
         ''' Searches through the project files using both syntax trees and direct text search
         ''' to find where the symbol is defined.
         ''' </remarks>
+        ''' <summary>
+        ''' Finds vWord's definition, preferring the current file
+        ''' </summary>
+        ''' <remarks>
+        ''' Two passes: first a fast, tree-only sweep (current file first, then every other
+        ''' project file that has a parsed syntax tree - which conclusively covers every
+        ''' definition in a successfully-parsed file, so nothing further is needed for those).
+        ''' Only if that comes back empty everywhere does a second pass fall back to the slower
+        ''' regex text search, and only for files that have no parsed tree at all. Previously
+        ''' every file that simply didn't define the symbol paid for both a tree search AND a
+        ''' full regex-per-line text scan, which is what made "Go to Definition" slow on a
+        ''' project with hundreds of files - this way the common case (the symbol exists in
+        ''' valid, parsed code, which is nearly always true) never touches the text search at all.
+        ''' </remarks>
         Public Function FindDefinition(vWord As String, vCurrentFilePath As String, vLine As Integer, vColumn As Integer) As DefinitionInfo
             Try
                 Console.WriteLine($"FindDefinition: Searching for '{vWord}' from {vCurrentFilePath}:{vLine}:{vColumn}")
-                
+
                 If String.IsNullOrWhiteSpace(vWord) Then
                     Console.WriteLine("FindDefinition: Empty word")
                     Return Nothing
                 End If
-                
-                ' First, try to find in the current file's SourceFileInfo
+
+                ' ===== Pass 1: tree search only, current file first =====
+
                 Dim lCurrentFileInfo As SourceFileInfo = Nothing
-                If pSourceFiles.TryGetValue(vCurrentFilePath, lCurrentFileInfo) Then
-                    ' Try syntax tree search first
-                    If lCurrentFileInfo.SyntaxTree IsNot Nothing Then
-                        Console.WriteLine($"FindDefinition: Searching in current file's syntax tree")
-                        Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lCurrentFileInfo.SyntaxTree, vWord, True)
-                        
-                        If lDefinitionNode IsNot Nothing Then
-                            Console.WriteLine($"FindDefinition: Found in current file at line {lDefinitionNode.StartLine}")
-                            Return New DefinitionInfo(lDefinitionNode, vCurrentFilePath)
-                        End If
+                If pSourceFiles.TryGetValue(vCurrentFilePath, lCurrentFileInfo) AndAlso lCurrentFileInfo.SyntaxTree IsNot Nothing Then
+                    Console.WriteLine($"FindDefinition: Searching in current file's syntax tree")
+                    Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lCurrentFileInfo.SyntaxTree, vWord, True)
+
+                    If lDefinitionNode IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Found in current file at line {lDefinitionNode.StartLine}")
+                        Return New DefinitionInfo(lDefinitionNode, vCurrentFilePath)
                     End If
-                    
-                    ' Try direct text search in current file
+                End If
+
+                Console.WriteLine("FindDefinition: Searching project-wide syntax trees")
+                for each lFileEntry in pSourceFiles
+                    Dim lFilePath As String = lFileEntry.Key
+                    Dim lFileInfo As SourceFileInfo = lFileEntry.Value
+
+                    If lFilePath = vCurrentFilePath Then Continue for ' already searched above
+                    If lFileInfo.SyntaxTree Is Nothing Then Continue for ' handled in pass 2
+
+                    Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lFileInfo.SyntaxTree, vWord, True)
+                    If lDefinitionNode IsNot Nothing Then
+                        Console.WriteLine($"FindDefinition: Found in {lFilePath} at line {lDefinitionNode.StartLine}")
+                        Return New DefinitionInfo(lDefinitionNode, lFilePath)
+                    End If
+                Next
+
+                ' ===== Pass 2: text-search fallback, only for files with no parsed tree =====
+
+                If lCurrentFileInfo IsNot Nothing AndAlso lCurrentFileInfo.SyntaxTree Is Nothing Then
                     Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lCurrentFileInfo, vWord)
                     If lDefInfo IsNot Nothing Then
                         Console.WriteLine($"FindDefinition: Found in current file via text search at line {lDefInfo.Line}")
                         Return lDefInfo
                     End If
                 End If
-                
-                ' Search through all source files
-                Console.WriteLine("FindDefinition: Searching project-wide")
+
+                Console.WriteLine("FindDefinition: Searching project-wide via text search (unparsed files only)")
                 for each lFileEntry in pSourceFiles
                     Dim lFilePath As String = lFileEntry.Key
                     Dim lFileInfo As SourceFileInfo = lFileEntry.Value
-                    
-                    ' Skip the current file (already searched)
+
                     If lFilePath = vCurrentFilePath Then Continue for
-                    
-                    ' Try syntax tree search
-                    If lFileInfo.SyntaxTree IsNot Nothing Then
-                        Console.WriteLine($"FindDefinition: Searching syntax tree in {lFilePath}")
-                        
-                        Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lFileInfo.SyntaxTree, vWord, True)
-                        
-                        If lDefinitionNode IsNot Nothing Then
-                            Console.WriteLine($"FindDefinition: Found in {lFilePath} at line {lDefinitionNode.StartLine}")
-                            Return New DefinitionInfo(lDefinitionNode, lFilePath)
-                        End If
-                    End If
-                    
-                    ' Try direct text search
+                    If lFileInfo.SyntaxTree IsNot Nothing Then Continue for ' already conclusively searched in pass 1
+
                     Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lFileInfo, vWord)
                     If lDefInfo IsNot Nothing Then
                         Console.WriteLine($"FindDefinition: Found in {lFilePath} via text search at line {lDefInfo.Line}")
                         Return lDefInfo
                     End If
                 Next
-                
+
                 Console.WriteLine($"FindDefinition: Definition not found for '{vWord}'")
                 Return Nothing
-                
+
             Catch ex As Exception
                 Console.WriteLine($"FindDefinition error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
@@ -1152,26 +1168,26 @@ Namespace Managers
                     Return Nothing
                 End If
                 
-                ' Regular expressions for different definition patterns
-                Dim lPatterns As New List(Of String) From {
-                    $"^\s*(Public |Private |Protected |Friend |Partial |MustInherit |NotInheritable )*\s*(Class|Module|Interface|Structure)\s+{vSymbolName}\b",
-                    $"^\s*(Public |Private |Protected |Friend |Shared |Overridable |Overrides |MustOverride |NotOverridable )*\s*(Sub|Function)\s+{vSymbolName}\s*\(",
-                    $"^\s*(Public |Private |Protected |Friend |ReadOnly |WriteOnly |Default |Shared )*\s*Property\s+{vSymbolName}\b",
-                    $"^\s*(Public |Private |Protected |Friend |WithEvents |Dim |Const )*\s*{vSymbolName}\s+(As|=)",
-                    $"^\s*(Public |Private |Protected |Friend )*\s*Event\s+{vSymbolName}\b",
-                    $"^\s*(Public |Private |Protected |Friend )*\s*Enum\s+{vSymbolName}\b",
-                    $"^\s*(Public |Private |Protected |Friend )*\s*Delegate\s+(Sub|Function)\s+{vSymbolName}\b"
+                ' Regular expressions for different definition patterns - compiled once per
+                ' call rather than once per (line x pattern), which previously meant up to
+                ' 7 fresh Regex compilations for EVERY line of EVERY file with no cached parse
+                ' tree; across a project this size that dwarfed the actual matching cost
+                Dim lPatterns As New List(Of System.Text.RegularExpressions.Regex) From {
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend |Partial |MustInherit |NotInheritable )*\s*(Class|Module|Interface|Structure)\s+{vSymbolName}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend |Shared |Overridable |Overrides |MustOverride |NotOverridable )*\s*(Sub|Function)\s+{vSymbolName}\s*\(", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend |ReadOnly |WriteOnly |Default |Shared )*\s*Property\s+{vSymbolName}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend |WithEvents |Dim |Const )*\s*{vSymbolName}\s+(As|=)", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend )*\s*Event\s+{vSymbolName}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend )*\s*Enum\s+{vSymbolName}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                    New System.Text.RegularExpressions.Regex($"^\s*(Public |Private |Protected |Friend )*\s*Delegate\s+(Sub|Function)\s+{vSymbolName}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                 }
-                
+
                 ' Search through lines
                 For i As Integer = 0 To vFileInfo.TextLines.Count - 1
                     Dim lLine As String = vFileInfo.TextLines(i)
-                    
+
                     ' Try each pattern
-                    For Each lPattern In lPatterns
-                        Dim lRegex As New System.Text.RegularExpressions.Regex(lPattern, 
-                            System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-                        
+                    For Each lRegex In lPatterns
                         Dim lMatch = lRegex.Match(lLine)
                         If lMatch.Success Then
                             ' Found a definition - calculate column position
