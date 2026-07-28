@@ -36,6 +36,50 @@ Namespace Editors
         ' ===== Identifier Case Synchronization =====
 
         ''' <summary>
+        ''' Scans the file's content once, right after it loads, and records each declaration's
+        ''' AS-LOADED casing as canonical - before the user has had any chance to edit anything
+        ''' </summary>
+        ''' <remarks>
+        ''' Without this, the map is only ever seeded lazily the first time a given declaration
+        ''' line is exited (see ProcessLineFormattingWithDeclarationTracking). If that first exit
+        ''' happens to be right after the user's own rename - which is exactly what happens for
+        ''' any declaration nobody has visited-and-left yet this session - there's nothing to
+        ''' compare the new casing against, so it silently gets recorded as the baseline instead
+        ''' of being recognized as a change. Eager seeding closes that gap.
+        ''' </remarks>
+        Private Sub SeedIdentifierCaseMapsFromCurrentContent()
+            Try
+                If pSourceFileInfo Is Nothing Then Return
+                Dim lLines As IList(Of String) = pSourceFileInfo.TextLines
+                If lLines Is Nothing Then Return
+
+                for i As Integer = 0 To lLines.Count - 1
+                    Dim lDeclarations As List(Of IdentifierDeclaration) = ExtractDeclarations(lLines(i))
+                    If lDeclarations.Count = 0 Then Continue For
+
+                    Dim lContainingMember As MemberScope = FindContainingMemberScope(i)
+
+                    for each lDecl in lDeclarations
+                        Dim lIsLocalLike As Boolean = IsLocalLikeScope(lDecl.Scope) AndAlso lContainingMember IsNot Nothing
+                        If lIsLocalLike Then
+                            Dim lKey As String = $"{lContainingMember.ScopeKey}::{lDecl.Name}"
+                            If Not pLocalIdentifierCaseMap.ContainsKey(lKey) Then
+                                pLocalIdentifierCaseMap(lKey) = lDecl.Name
+                            End If
+                        Else
+                            If Not pIdentifierCaseMap.ContainsKey(lDecl.Name) Then
+                                UpdateIdentifierCaseMap(lDecl.Name, lDecl.Name)
+                            End If
+                        End If
+                    Next
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"SeedIdentifierCaseMapsFromCurrentContent error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
         ''' Examines a just-exited line for declarations and, for each one, detects and
         ''' propagates any casing change against the previously recorded canonical casing
         ''' </summary>

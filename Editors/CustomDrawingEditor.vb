@@ -353,7 +353,11 @@ Namespace Editors
                 If vSourceFileInfo.IsLoaded Then
                     pIsModified = False
                 End If
-                
+
+                ' Record each declaration's as-loaded casing as canonical before any edits
+                ' happen (see CustomDrawingEditor.IdentifierCaseSync.vb)
+                SeedIdentifierCaseMapsFromCurrentContent()
+
                 Console.WriteLine($"Editor initialized for: {pFilePath}")
                 Console.WriteLine($"  Lines: {pLineCount}, Loaded: {vSourceFileInfo.IsLoaded}")
                 Console.WriteLine($"  Using tokens: {If(vSourceFileInfo.CharacterTokens IsNot Nothing, "Yes", "No")}")
