@@ -217,20 +217,32 @@ Namespace Editors
         ''' <summary>
         ''' Raise the LineExited event for a specific line
         ''' </summary>
+        ''' <remarks>
+        ''' Also runs declaration-case tracking for the exited line (see
+        ''' ProcessLineFormattingWithDeclarationTracking in
+        ''' CustomDrawingEditor.IdentifierCaseSync.vb) - if a declaration's name was retyped
+        ''' with different casing on this line, that new casing gets propagated to every other
+        ''' reference project-wide, matching classic VS VB.NET identifier-case behavior. This
+        ''' used to be wired through a dedicated "capitalization manager" subscriber to
+        ''' LineExited that no longer exists, so it's called directly here instead.
+        ''' </remarks>
         Private Sub RaiseLineExitedEvent(vLineNumber As Integer)
             Try
                 ' Validate line number
                 If vLineNumber < 0 OrElse vLineNumber >= pLineCount Then Return
-                
+
                 ' Get the text of the line that was exited
                 Dim lLineText As String = GetLineText(vLineNumber)
-                
+
                 ' Create event args
                 Dim lArgs As New LineExitedEventArgs(vLineNumber, lLineText)
-                
+
                 ' Raise the event
                 RaiseEvent LineExited(Me, lArgs)
-                
+
+                ' Detect and propagate any declaration-case change on this line
+                ProcessLineFormattingWithDeclarationTracking(vLineNumber)
+
             Catch ex As Exception
                 Console.WriteLine($"RaiseLineExitedEvent error: {ex.Message}")
             End Try
