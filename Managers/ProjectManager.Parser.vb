@@ -4,22 +4,48 @@
 Imports System
 Imports System.IO
 Imports System.Collections.Generic
+Imports System.Collections.Concurrent
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Utilities
 
 Namespace Managers
-    
+
     ''' <summary>
     ''' ProjectManager extension for project-wide parsing functionality
     ''' </summary>
     Partial Public Class ProjectManager
-        
+
         ' ===== Private Fields =====
         Private pProjectParser As ProjectParser
         'Private pProjectSyntaxTree As SyntaxNode
         Private pLastParseTime As DateTime
         Private pParseErrors As List(Of String)
+
+        ''' <summary>
+        ''' Per-file cache of the exact line texts and resulting LineMetadata from the most
+        ''' recent call to ParseFileContent, keyed by file path - lets ParseFileContent reuse a
+        ''' line's already-tokenized LineMetadata instead of calling TokenizeLine again when that
+        ''' line's text hasn't changed since the last parse (i.e. every line except the one(s)
+        ''' actually just edited, on a typical keystroke)
+        ''' </summary>
+        ''' <remarks>
+        ''' Deliberately independent of SourceFileInfo.LineMetadata's own LineHash bookkeeping:
+        ''' InsertCharacter/DeleteCharacter already write an approximate, immediate token guess
+        ''' into LineMetadata for instant visual feedback before this async pass ever runs, so
+        ''' comparing against that hash can't tell "really re-tokenized" apart from "text
+        ''' unchanged". Comparing full line strings against our own previous-parse snapshot side-
+        ''' steps that entirely.
+        ''' </remarks>
+        Private pFileTokenCache As New ConcurrentDictionary(Of String, FileTokenCacheEntry)
+
+        ''' <summary>
+        ''' One file's cached per-line tokenize state from the last ParseFileContent call
+        ''' </summary>
+        Private Class FileTokenCacheEntry
+            Public Lines As String()
+            Public Metadata As LineMetadata()
+        End Class
         
         ' ===== Events =====
 
@@ -787,6 +813,12 @@ End Function
         ''' </summary>
         ''' <param name="vFile">The source file to parse</param>
         ''' <returns>ParseResult containing tokens and metadata (no colors)</returns>
+        ''' <remarks>
+        ''' Only lines whose text actually changed since the previous call for this file get
+        ''' retokenized - unchanged lines reuse their previously-computed LineMetadata via
+        ''' pFileTokenCache. On a typical single-keystroke edit this is one line out of however
+        ''' many the file has, instead of every line, every time.
+        ''' </remarks>
         Private Function ParseFileContent(vFile As SourceFileInfo) As Syntax.ParseResult
             Try
                 Dim lResult As New ParseResult()
@@ -803,21 +835,41 @@ End Function
                 Dim lLineCount As Integer = lLines.Count
                 ReDim lResult.LineMetadata(Math.Max(0, lLineCount - 1))
 
-                ' Parse each line
+                Dim lCacheKey As String = If(vFile.FilePath, "")
+                Dim lPrevEntry As FileTokenCacheEntry = Nothing
+                If Not String.IsNullOrEmpty(lCacheKey) Then
+                    pFileTokenCache.TryGetValue(lCacheKey, lPrevEntry)
+                End If
+
+                ' Parse each line, reusing the previous tokenize result wherever the line's
+                ' text is unchanged from the last time this file was parsed
                 for i As Integer = 0 To lLineCount - 1
                     Dim lLineText As String = lLines(i)
-                    Dim lMetadata As New LineMetadata()
-                    
-                    ' Tokenize the line (without colors)
-                    Dim lTokens As List(Of SyntaxToken) = TokenizeLine(lLineText, i)
-                    lMetadata.SyntaxTokens = lTokens
-                    lMetadata.UpdateHash(lLineText)
-                    lMetadata.ParseState = LineParseState.eParsed
-                    
+                    Dim lMetadata As LineMetadata = Nothing
+
+                    If lPrevEntry IsNot Nothing AndAlso i < lPrevEntry.Lines.Length AndAlso
+                       i < lPrevEntry.Metadata.Length AndAlso lPrevEntry.Metadata(i) IsNot Nothing AndAlso
+                       String.Equals(lPrevEntry.Lines(i), lLineText, StringComparison.Ordinal) Then
+                        lMetadata = lPrevEntry.Metadata(i)
+                    Else
+                        lMetadata = New LineMetadata()
+                        Dim lTokens As List(Of SyntaxToken) = TokenizeLine(lLineText, i)
+                        lMetadata.SyntaxTokens = lTokens
+                        lMetadata.UpdateHash(lLineText)
+                        lMetadata.ParseState = LineParseState.eParsed
+                    End If
+
                     ' Store in result
                     lResult.LineMetadata(i) = lMetadata
                 Next
-                
+
+                If Not String.IsNullOrEmpty(lCacheKey) Then
+                    pFileTokenCache(lCacheKey) = New FileTokenCacheEntry With {
+                        .Lines = lLines.ToArray(),
+                        .Metadata = lResult.LineMetadata
+                    }
+                End If
+
                 ' Parse overall structure for SyntaxNode tree
                 If Parser IsNot Nothing Then
                     ' Use the snapshot rather than vFile.TextContent so this doesn't re-read
