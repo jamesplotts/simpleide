@@ -214,7 +214,7 @@ Partial Public Class MainWindow
                 ' vPosition is already 0-based from EditorPosition
                 lCurrentTab.Editor.NavigateToLineNumberForPresentment(vPosition.Line)
                 lCurrentTab.Editor.SelectLine(vPosition.Line + 1)  ' SelectLine expects 1-based
-                lCurrentTab.Editor.Widget.GrabFocus()
+                lCurrentTab.Editor.GrabFocus()
                 
                 UpdateStatusBar($"Ready - {lFileName} at line {vPosition.Line + 1}")
             End If

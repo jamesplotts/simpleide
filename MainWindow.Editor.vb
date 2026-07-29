@@ -280,14 +280,14 @@ Partial Public Class MainWindow
                     pNotebook.CurrentPage = i
                     
                     ' Focus editor
-                    If lTabInfo.Editor?.Widget IsNot Nothing Then
-                        lTabInfo.Editor.Widget.GrabFocus()
+                    If lTabInfo.Editor IsNot Nothing Then
+                        lTabInfo.Editor.GrabFocus()
                     End If
-                    
+
                     Exit for
                 End If
             Next
-            
+
         Catch ex As Exception
             Console.WriteLine($"SwitchToTab error: {ex.Message}")
         End Try
@@ -384,10 +384,10 @@ Partial Public Class MainWindow
             pNotebook.CurrentPage = pNotebook.NPages - 1
             
             ' Focus editor
-            If lTabInfo.Editor?.Widget IsNot Nothing Then
-                lTabInfo.Editor.Widget.GrabFocus()
+            If lTabInfo.Editor IsNot Nothing Then
+                lTabInfo.Editor.GrabFocus()
             End If
-            
+
             ' Update UI
             UpdateWindowTitle()
             UpdateStatusBar("")
@@ -1205,8 +1205,8 @@ End Function
             
             ' ===== 7. Ensure Editor Focus =====
             ' Give focus to the editor widget for keyboard input
-            If lCurrentTab.Editor.Widget IsNot Nothing Then
-                lCurrentTab.Editor.Widget.GrabFocus()
+            If lCurrentTab.Editor IsNot Nothing Then
+                lCurrentTab.Editor.GrabFocus()
             End If
             
             ' ===== 8. Update Status Bar with File Info =====

@@ -563,8 +563,8 @@ Partial Public Class MainWindow
                         UpdateObjectExplorerForActiveTab()
                         
                         ' Focus the editor
-                        If lTabInfo.Editor?.Widget IsNot Nothing Then
-                            lTabInfo.Editor.Widget.GrabFocus()
+                        If lTabInfo.Editor IsNot Nothing Then
+                            lTabInfo.Editor.GrabFocus()
                         End If
                         
                         Exit for

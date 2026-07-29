@@ -1082,7 +1082,7 @@ Namespace Widgets
                 pStatusLabel.Text = $"Match {vIndex + 1} Of {pCurrentMatches.Count}"
                 
                 ' Ensure editor has focus
-                pCurrentEditor.Widget.GrabFocus()
+                pCurrentEditor.GrabFocus()
                 
             Catch ex As Exception
                 Console.WriteLine($"NavigateToMatch error: {ex.Message}")

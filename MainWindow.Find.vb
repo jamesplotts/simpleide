@@ -197,9 +197,9 @@ Partial Public Class MainWindow
                 End If
                 
                 ' Ensure the editor has focus
-                lEditor.Widget.GrabFocus()
+                lEditor.GrabFocus()
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnFindResultSelected error: {ex.Message}")
         End Try

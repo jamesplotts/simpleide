@@ -17,7 +17,7 @@ Partial Public Class MainWindow
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
                 lEditor.GoToLine(vLine)
-                lEditor.Widget.GrabFocus()
+                lEditor.GrabFocus()
             End If
             
         Catch ex As Exception
@@ -264,8 +264,8 @@ Partial Public Class MainWindow
             Dim lTabInfo As TabInfo = GetTabInfo(lNextPage)
             If lTabInfo IsNot Nothing Then
                 ' Ensure the editor gets focus
-                If lTabInfo.Editor?.Widget IsNot Nothing Then
-                    lTabInfo.Editor.Widget.GrabFocus()
+                If lTabInfo.Editor IsNot Nothing Then
+                    lTabInfo.Editor.GrabFocus()
                 End If
                 
                 ' Update status bar with current file
@@ -314,8 +314,8 @@ Partial Public Class MainWindow
             Dim lTabInfo As TabInfo = GetTabInfo(lPreviousPage)
             If lTabInfo IsNot Nothing Then
                 ' Ensure the editor gets focus
-                If lTabInfo.Editor?.Widget IsNot Nothing Then
-                    lTabInfo.Editor.Widget.GrabFocus()
+                If lTabInfo.Editor IsNot Nothing Then
+                    lTabInfo.Editor.GrabFocus()
                 End If
                 
                 ' Update status bar with current file
@@ -362,8 +362,8 @@ Partial Public Class MainWindow
                 lCustomEditor.ScrollToLine(vLine)
                 
                 ' Give focus to the editor
-                lCustomEditor.Widget.GrabFocus()
-                
+                lCustomEditor.GrabFocus()
+
                 Console.WriteLine($"OnNavigationRequested: Successfully navigated To line {vLine}")
             End If
             

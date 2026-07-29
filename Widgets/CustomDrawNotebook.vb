@@ -725,12 +725,11 @@ Namespace Widgets
                 
                 ' Special handling for common containers
                 If TypeOf vContainer Is CustomDrawingEditor Then
-                    ' For custom editor, focus the main widget
+                    ' For custom editor, focus its actual focusable drawing area (not .Widget,
+                    ' which is the outer container Box and generally isn't CanFocus itself)
                     Dim lEditor As CustomDrawingEditor = CType(vContainer, CustomDrawingEditor)
-                    If lEditor.Widget IsNot Nothing AndAlso lEditor.Widget.CanFocus Then
-                        lEditor.Widget.GrabFocus()
-                        Return True
-                    End If
+                    lEditor.GrabFocus()
+                    Return True
                     
                 ElseIf TypeOf vContainer Is CustomDrawDataGrid Then
                     ' For custom data grid, grab focus directly
