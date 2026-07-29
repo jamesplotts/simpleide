@@ -1717,8 +1717,14 @@ End Function
                     ' Briefly highlight the identifier so the eye finds it immediately
                     lTabInfo.Editor.FlashIdentifierAt(lDefinitionInfo.Line, lIdentifierColumn, lIdentifierEndColumn)
 
-                    ' Focus the editor
-                    lTabInfo.Editor.Widget.GrabFocus()
+                    ' Focus the editor - IEditor.GrabFocus() (not .Widget.GrabFocus(), which
+                    ' focuses the outer container Box and never reaches the actual focusable
+                    ' drawing area, since CustomDrawingEditor.GrabFocus() is Shadows rather than
+                    ' Overrides and .Widget is statically typed as the base Gtk.Widget) is what
+                    ' actually grabs focus on the inner DrawingArea - the cursor is only drawn
+                    ' when THAT widget reports HasFocus, which is why the cursor showed up in
+                    ' the right place but sat there solid/non-blinking until manually clicked
+                    lTabInfo.Editor.GrabFocus()
 
                     ' Update status bar
                     Dim lFileName As String = System.IO.Path.GetFileName(lTargetFilePath)
