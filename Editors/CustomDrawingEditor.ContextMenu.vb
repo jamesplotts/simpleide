@@ -399,37 +399,49 @@ Namespace Editors
         ''' <remarks>
         ''' Extracts the word at the cursor position and raises the RequestGotoDefinition event
         ''' </remarks>
+        ''' <remarks>
+        ''' Resolves the target word from wherever the mouse was when the right-click that
+        ''' opened this menu happened (pLastRightClickX/Y, captured by ShowTextAreaContextMenu),
+        ''' not from the blinking text cursor - right-clicking never moves the cursor, so using
+        ''' the cursor position here would act on whatever was last clicked/typed instead of
+        ''' what's actually under the pointer
+        ''' </remarks>
         Private Sub OnContextMenuGoToDefinition(vSender As Object, vArgs As EventArgs)
             Try
                 Console.WriteLine("OnContextMenuGoToDefinition: Started")
-                
+
                 ' First try to get selected text
                 Dim lSelectedText As String = GetSelectedText()
                 Dim lWord As String = ""
+                Dim lLineNumber As Integer = 0
                 Dim lColumnNumber As Integer = 0
-                
+
                 If Not String.IsNullOrWhiteSpace(lSelectedText) Then
                     ' Use the selected text as the word
                     lWord = lSelectedText.Trim()
+                    lLineNumber = pSelectionStartLine
                     lColumnNumber = Math.Min(pSelectionStartColumn, pSelectionEndColumn)
                     Console.WriteLine($"OnContextMenuGoToDefinition: Using selected text '{lWord}'")
                 Else
-                    ' No selection, get the word at cursor position
-                    Console.WriteLine($"OnContextMenuGoToDefinition: No selection, getting word at cursor {pCursorLinep}:{pCursorColumn}")
-                    
+                    ' No selection - resolve the word under the mouse at the right-click
+                    ' location, not the text cursor
+                    Dim lClickPos As EditorPosition = GetPositionFromCoordinates(pLastRightClickX, pLastRightClickY)
+                    lLineNumber = lClickPos.Line
+                    Console.WriteLine($"OnContextMenuGoToDefinition: No selection, getting word at click {lLineNumber}:{lClickPos.Column}")
+
                     ' Check if we have a valid line
-                    If pCursorLinep >= 0 AndAlso pCursorLinep < TextLines.Count Then
-                        Dim lLine As String = TextLines(pCursorLinep)
-                        
-                        ' Use tokenizer to find the word at cursor
+                    If lLineNumber >= 0 AndAlso lLineNumber < TextLines.Count Then
+                        Dim lLine As String = TextLines(lLineNumber)
+
+                        ' Use tokenizer to find the word at the click position
                         Dim lTokenizer As New VBTokenizer()
                         Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(lLine)
-                        
-                        ' Find the token at cursor position
+
+                        ' Find the token at the click column
                         For Each lToken In lTokens
-                            If pCursorColumn >= lToken.StartColumn AndAlso pCursorColumn <= lToken.EndColumn Then
+                            If lClickPos.Column >= lToken.StartColumn AndAlso lClickPos.Column <= lToken.EndColumn Then
                                 ' Check if it's an identifier token
-                                If lToken.Type = TokenType.eIdentifier OrElse 
+                                If lToken.Type = TokenType.eIdentifier OrElse
                                    lToken.Type = TokenType.eKeyword OrElse
                                    lToken.Type = TokenType.eType Then
                                     lWord = lToken.Text
@@ -441,25 +453,25 @@ Namespace Editors
                         Next
                     End If
                 End If
-                
+
                 ' Check if we found a word
                 If String.IsNullOrWhiteSpace(lWord) Then
-                    Console.WriteLine("OnContextMenuGoToDefinition: No word found at cursor position")
+                    Console.WriteLine("OnContextMenuGoToDefinition: No word found at click position")
                     Return
                 End If
-                
+
                 ' Create event arguments
                 Dim lEventArgs As New GoToDefinitionEventArgs()
                 lEventArgs.FilePath = pSourceFileInfo.FilePath
-                lEventArgs.LineNumber = pCursorLinep
+                lEventArgs.LineNumber = lLineNumber
                 lEventArgs.ColumnNumber = lColumnNumber
                 lEventArgs.Word = lWord
-                
+
                 Console.WriteLine($"OnContextMenuGoToDefinition: Raising event for word '{lWord}' at {lEventArgs.FilePath}:{lEventArgs.LineNumber}:{lEventArgs.ColumnNumber}")
-                
+
                 ' Raise the event
                 RaiseEvent RequestGotoDefinition(Me, lEventArgs)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuGoToDefinition error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
