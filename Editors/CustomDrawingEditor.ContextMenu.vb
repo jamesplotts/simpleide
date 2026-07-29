@@ -130,6 +130,14 @@ Namespace Editors
                 AddHandler lImplementInterfaceItem.Activated, AddressOf OnContextMenuImplementInterface
                 pContextMenu.Append(lImplementInterfaceItem)
 
+                ' Add Missing Doc Tags menu item (conditional - only shown when the right-click
+                ' landed on an XML doc comment block whose declaration has a parameter (or,
+                ' for a Function/Property, a return value) not yet documented)
+                Dim lAddMissingDocTagsItem As New MenuItem("Add _Missing Doc Tags")
+                lAddMissingDocTagsItem.Name = "AddMissingDocTagsMenuItem"
+                AddHandler lAddMissingDocTagsItem.Activated, AddressOf OnContextMenuAddMissingDocTags
+                pContextMenu.Append(lAddMissingDocTagsItem)
+
                 ' Surround Selection With submenu (conditional - only shown when there's a
                 ' selection)
                 Dim lSurroundWithItem As New MenuItem("Su_rround Selection With")
@@ -274,6 +282,10 @@ Namespace Editors
 
                             Case "ImplementInterfaceMenuItem"
                                 lMenuItem.Visible = GetUnimplementedInterfaceMembers().Count > 0
+
+                            Case "AddMissingDocTagsMenuItem"
+                                Dim lClickLine As Integer = GetLineFromY(pLastRightClickY)
+                                lMenuItem.Visible = FindMissingDocTags(lClickLine) IsNot Nothing
 
                             Case "SurroundWithMenuItem"
                                 lMenuItem.Visible = lHasSelection

@@ -5,6 +5,7 @@
 Imports Gtk
 Imports System
 Imports System.Collections.Generic
+Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 
@@ -210,6 +211,178 @@ Namespace Editors
             End Try
             Return lResult
         End Function
+
+        ' ===== Add Missing Doc Tags (context menu) =====
+
+        ''' <summary>
+        ''' What FindMissingDocTags found is missing from an existing XML doc comment block,
+        ''' and where to insert the fix
+        ''' </summary>
+        Private Class MissingDocTagsInfo
+            ''' <summary>Zero-based line to insert the new tag(s) immediately after</summary>
+            Public Property InsertAfterLine As Integer
+            Public Property MissingParams As New List(Of String)
+            Public Property NeedsReturns As Boolean
+            Public Property NeedsValue As Boolean
+            Public Property Indent As String = ""
+        End Class
+
+        ''' <summary>
+        ''' Regex matching a "&lt;param name="x"&gt;" tag's name attribute, used to find which
+        ''' parameters an existing XML doc block already documents
+        ''' </summary>
+        Private Shared ReadOnly ExistingParamNameRegex As New Regex("<param\s+name\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase)
+
+        ''' <summary>
+        ''' If vClickLine is part of an XML doc comment block ("'''"-prefixed lines)
+        ''' immediately above a Sub/Function/Property/Event/Delegate declaration, checks the
+        ''' declaration's actual parameter list (and, for a Function/Property, whether a return
+        ''' value is documented) against what the doc block already has, and returns what's
+        ''' missing - or Nothing if vClickLine isn't such a block, or nothing is missing
+        ''' </summary>
+        Private Function FindMissingDocTags(vClickLine As Integer) As MissingDocTagsInfo
+            Try
+                If vClickLine < 0 OrElse vClickLine >= pLineCount Then Return Nothing
+                If Not TextLines(vClickLine).TrimStart().StartsWith("'''") Then Return Nothing
+
+                ' Find the full extent of this contiguous "'''" block
+                Dim lBlockStart As Integer = vClickLine
+                While lBlockStart > 0 AndAlso TextLines(lBlockStart - 1).TrimStart().StartsWith("'''")
+                    lBlockStart -= 1
+                End While
+                Dim lBlockEnd As Integer = vClickLine
+                While lBlockEnd < pLineCount - 1 AndAlso TextLines(lBlockEnd + 1).TrimStart().StartsWith("'''")
+                    lBlockEnd += 1
+                End While
+
+                ' The declaration this block documents must be the very next line
+                Dim lDeclLine As Integer = lBlockEnd + 1
+                If lDeclLine >= pLineCount Then Return Nothing
+                Dim lDeclCode As String = StripLineComment(TextLines(lDeclLine)).Trim()
+                If lDeclCode.Length = 0 Then Return Nothing
+
+                Dim lWords As String() = lDeclCode.Split(New Char() {" "c, ControlChars.Tab}, StringSplitOptions.RemoveEmptyEntries)
+                If lWords.Length = 0 Then Return Nothing
+                Dim lIdx As Integer = 0
+                While lIdx < lWords.Length AndAlso AutoEndModifierKeywords.Contains(lWords(lIdx))
+                    lIdx += 1
+                End While
+                If lIdx >= lWords.Length Then Return Nothing
+                Dim lKeyword As String = lWords(lIdx)
+
+                Dim lIsFunction As Boolean = String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase)
+                Dim lIsProperty As Boolean = String.Equals(lKeyword, "Property", StringComparison.OrdinalIgnoreCase)
+                Dim lHasParams As Boolean = String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase) OrElse
+                                             lIsFunction OrElse lIsProperty OrElse
+                                             String.Equals(lKeyword, "Event", StringComparison.OrdinalIgnoreCase) OrElse
+                                             String.Equals(lKeyword, "Delegate", StringComparison.OrdinalIgnoreCase)
+                If Not lHasParams Then Return Nothing ' nothing param/returns/value-worthy about this kind of declaration
+
+                ' Concatenate a multi-line parameter list, same as CheckXmlDocTrigger does
+                Dim lFullSignatureText As String = lDeclCode
+                If lDeclCode.Contains("("c) Then
+                    Dim lSigEndLine As Integer = FindSignatureEndLine(lDeclLine)
+                    If lSigEndLine > lDeclLine Then
+                        Dim lParts As New List(Of String) From {lDeclCode}
+                        for lLine As Integer = lDeclLine + 1 To lSigEndLine
+                            lParts.Add(StripLineComment(TextLines(lLine)).Trim())
+                        Next
+                        lFullSignatureText = String.Join(" ", lParts)
+                    End If
+                End If
+
+                Dim lSignatureParams As List(Of String) = GetParameterNamesFromSignature(lFullSignatureText)
+
+                ' Scan the existing doc block for what it already documents
+                Dim lExistingParams As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                Dim lSummaryEndLine As Integer = -1
+                Dim lLastParamLine As Integer = -1
+                Dim lHasReturns As Boolean = False
+                Dim lHasValue As Boolean = False
+                for lLine As Integer = lBlockStart To lBlockEnd
+                    Dim lLineText As String = TextLines(lLine)
+                    If lLineText.IndexOf("</summary>", StringComparison.OrdinalIgnoreCase) >= 0 Then lSummaryEndLine = lLine
+                    Dim lMatch As Match = ExistingParamNameRegex.Match(lLineText)
+                    If lMatch.Success Then
+                        lExistingParams.Add(lMatch.Groups(1).Value)
+                        lLastParamLine = lLine
+                    End If
+                    If lLineText.IndexOf("<returns", StringComparison.OrdinalIgnoreCase) >= 0 Then lHasReturns = True
+                    If lLineText.IndexOf("<value", StringComparison.OrdinalIgnoreCase) >= 0 Then lHasValue = True
+                Next
+
+                Dim lMissingParams As New List(Of String)
+                for each lParamName As String in lSignatureParams
+                    If Not lExistingParams.Contains(lParamName) Then lMissingParams.Add(lParamName)
+                Next
+
+                Dim lNeedsReturns As Boolean = lIsFunction AndAlso Not lHasReturns
+                Dim lNeedsValue As Boolean = lIsProperty AndAlso Not lHasValue
+
+                If lMissingParams.Count = 0 AndAlso Not lNeedsReturns AndAlso Not lNeedsValue Then Return Nothing
+
+                Dim lInfo As New MissingDocTagsInfo()
+                ' New params go right after the last existing param, or after </summary> if
+                ' there are none yet, so they land before any existing <returns>/<value> tag
+                lInfo.InsertAfterLine = If(lLastParamLine >= 0, lLastParamLine, If(lSummaryEndLine >= 0, lSummaryEndLine, lBlockEnd))
+                lInfo.MissingParams = lMissingParams
+                lInfo.NeedsReturns = lNeedsReturns
+                lInfo.NeedsValue = lNeedsValue
+                lInfo.Indent = GetLineIndentation(lBlockStart)
+                Return lInfo
+
+            Catch ex As Exception
+                Console.WriteLine($"FindMissingDocTags error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Handles the "Add Missing Doc Tags" context menu item - inserts a "&lt;param&gt;" for
+        ''' each undocumented parameter (and a "&lt;returns&gt;"/"&lt;value&gt;" if the
+        ''' Function/Property doesn't have one yet) into the XML doc block that was right-clicked
+        ''' </summary>
+        Private Sub OnContextMenuAddMissingDocTags(vSender As Object, vArgs As EventArgs)
+            Try
+                Dim lClickLine As Integer = GetLineFromY(pLastRightClickY)
+                Dim lInfo As MissingDocTagsInfo = FindMissingDocTags(lClickLine)
+                If lInfo Is Nothing Then Return
+
+                Dim lPrefix As String = lInfo.Indent & "''' "
+                Dim lNewLines As New List(Of String)()
+                for each lParamName As String in lInfo.MissingParams
+                    lNewLines.Add(lPrefix & $"<param name=""{lParamName}"">Description of parameter purpose and valid values</param>")
+                Next
+                If lInfo.NeedsReturns Then
+                    lNewLines.Add(lPrefix & "<returns>Description of return value</returns>")
+                ElseIf lInfo.NeedsValue Then
+                    lNewLines.Add(lPrefix & "<value>Description of the property's value</value>")
+                End If
+                If lNewLines.Count = 0 Then Return
+
+                Dim lInsertLine As Integer = lInfo.InsertAfterLine
+                Dim lInsertColumn As Integer = TextLines(lInsertLine).Length
+                Dim lInsertText As String = Environment.NewLine & String.Join(Environment.NewLine, lNewLines)
+
+                Dim lInsertPos As New EditorPosition(lInsertLine, lInsertColumn)
+                If pUndoRedoManager IsNot Nothing Then
+                    Dim lSegments As String() = lInsertText.Split(New String() {Environment.NewLine}, StringSplitOptions.None)
+                    Dim lEndPos As New EditorPosition(lInsertLine + lSegments.Length - 1, lSegments(lSegments.Length - 1).Length)
+                    pUndoRedoManager.RecordInsertText(lInsertPos, lInsertText, lEndPos)
+                End If
+                pSourceFileInfo.InsertText(lInsertLine, lInsertColumn, lInsertText)
+
+                IsModified = True
+                RaiseEvent TextChanged(Me, EventArgs.Empty)
+                UpdateLineNumberWidth()
+                UpdateScrollbars()
+                EnsureCursorVisible()
+                pDrawingArea?.QueueDraw()
+
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuAddMissingDocTags error: {ex.Message}")
+            End Try
+        End Sub
 
     End Class
 
