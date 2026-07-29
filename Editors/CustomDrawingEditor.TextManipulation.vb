@@ -464,11 +464,27 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         Dim lEndLine As Integer
         
         If pHasSelection Then
-            ' Get selection bounds
-            Dim lStart As EditorPosition = GetSelectionStart()
-            Dim lEnd As EditorPosition = GetSelectionEnd()
-            lStartLine = lStart.Line
-            lEndLine = lEnd.Line
+            ' Get selection bounds - normalize first, since pSelectionStartLine/Column and
+            ' pSelectionEndLine/Column are just the anchor and current edge and can be in
+            ' either order (e.g. SelectLine's gutter-click selection stores the anchor on
+            ' the line AFTER the one it selected, and dragging upward puts the anchor below
+            ' the current edge too) - using them unnormalized made the For loop below run
+            ' zero iterations whenever the anchor line was numerically after the edge line
+            Dim lStartLineTmp As Integer = pSelectionStartLine
+            Dim lStartColumnTmp As Integer = pSelectionStartColumn
+            Dim lEndLineTmp As Integer = pSelectionEndLine
+            Dim lEndColumnTmp As Integer = pSelectionEndColumn
+            NormalizeSelection(lStartLineTmp, lStartColumnTmp, lEndLineTmp, lEndColumnTmp)
+            lStartLine = lStartLineTmp
+            lEndLine = lEndLineTmp
+
+            ' If the selection ends exactly at column 0 of a later line, nothing on that
+            ' line is actually selected (the selection only reaches its leading edge, e.g.
+            ' to include the previous line's trailing newline) - exclude it from the range
+            If lEndLine > lStartLine AndAlso lEndColumnTmp = 0 Then
+                lEndLine -= 1
+            End If
+
             Console.WriteLine($"IndentSelection: Selection from line {lStartLine} To {lEndLine}")
         Else
             ' Just indent current line
@@ -591,11 +607,24 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
         Dim lEndLine As Integer
         
         If pHasSelection Then
-            ' Get selection bounds
-            Dim lStart As EditorPosition = GetSelectionStart()
-            Dim lEnd As EditorPosition = GetSelectionEnd()
-            lStartLine = lStart.Line
-            lEndLine = lEnd.Line
+            ' Get selection bounds - normalize first; see the matching comment in
+            ' IndentSelection for why pSelectionStartLine/EndLine can't be trusted to
+            ' already be in start-before-end order
+            Dim lStartLineTmp As Integer = pSelectionStartLine
+            Dim lStartColumnTmp As Integer = pSelectionStartColumn
+            Dim lEndLineTmp As Integer = pSelectionEndLine
+            Dim lEndColumnTmp As Integer = pSelectionEndColumn
+            NormalizeSelection(lStartLineTmp, lStartColumnTmp, lEndLineTmp, lEndColumnTmp)
+            lStartLine = lStartLineTmp
+            lEndLine = lEndLineTmp
+
+            ' If the selection ends exactly at column 0 of a later line, nothing on that
+            ' line is actually selected (the selection only reaches its leading edge, e.g.
+            ' to include the previous line's trailing newline) - exclude it from the range
+            If lEndLine > lStartLine AndAlso lEndColumnTmp = 0 Then
+                lEndLine -= 1
+            End If
+
             Console.WriteLine($"OutdentSelection: Selection from line {lStartLine} To {lEndLine}")
         Else
             ' Just outdent current line
