@@ -193,7 +193,19 @@ Namespace Editors
                             vContext.Fill()
                             lSelPattern.Dispose()
                         End If
-                        
+
+                        ' Briefly flash the destination identifier after Go to Definition
+                        ' (FlashIdentifierAt in CustomDrawingEditor.Navigation.vb)
+                        If pFlashHighlightActive AndAlso lLineIndex = pFlashHighlightLine AndAlso
+                           lColIndex >= pFlashHighlightStartColumn AndAlso lColIndex < pFlashHighlightEndColumn Then
+                            Dim lFlashColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eAccentColor)
+                            Dim lFlashPattern As New Cairo.SolidPattern(lFlashColor.R, lFlashColor.G, lFlashColor.B, 0.45)
+                            vContext.SetSource(lFlashPattern)
+                            vContext.Rectangle(lX, lLineTop + lAscent + 1, pCharWidth, pLineHeight)
+                            vContext.Fill()
+                            lFlashPattern.Dispose()
+                        End If
+
                         ' FIXED: Don't skip spaces - we still need to draw them (even if invisible)
                         ' to maintain proper selection background
                         If lChar <> " " Then

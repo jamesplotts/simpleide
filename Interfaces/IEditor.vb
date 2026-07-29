@@ -82,6 +82,16 @@ Namespace Interfaces
         ' Navigation - Updated to use EditorPosition
         Sub GoToLine(vLine As Integer)
         Sub GoToPosition(vPosition As EditorPosition)
+
+        ''' <summary>
+        ''' Briefly highlights a character range (e.g. after Go to Definition) to draw the
+        ''' eye to it, then clears itself automatically
+        ''' </summary>
+        ''' <param name="vLine">Zero-based line to flash</param>
+        ''' <param name="vStartColumn">Zero-based start column (inclusive)</param>
+        ''' <param name="vEndColumn">Zero-based end column (exclusive)</param>
+        Sub FlashIdentifierAt(vLine As Integer, vStartColumn As Integer, vEndColumn As Integer)
+
         Sub MoveToDocumentStart()
         Sub MoveToDocumentEnd()
         Sub MoveToLineStart()

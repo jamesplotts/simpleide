@@ -91,7 +91,18 @@ Namespace Editors
                             ' Timer may have already expired - this is OK
                         End Try
                     End If
-        
+
+                    ' Stop the Go to Definition flash-highlight timer
+                    If pFlashHighlightTimerId <> 0 Then
+                        Dim lFlashTimerId As UInteger = pFlashHighlightTimerId
+                        pFlashHighlightTimerId = 0  ' Clear BEFORE removing
+                        Try
+                            GLib.Source.Remove(lFlashTimerId)
+                        Catch
+                            ' Timer may have already expired - this is OK
+                        End Try
+                    End If
+
                     ' Unsubscribe from ProjectManager
                     If pProjectManager IsNot Nothing Then
                         RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted

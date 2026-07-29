@@ -1678,17 +1678,48 @@ End Function
             Dim lTabInfo As TabInfo = Nothing
             If pOpenTabs.TryGetValue(lTargetFilePath, lTabInfo) Then
                 If lTabInfo.Editor IsNot Nothing Then
-                    ' Create EditorPosition for navigation
-                    Dim lPosition As New EditorPosition(lDefinitionInfo.Line, lDefinitionInfo.Column)
-                    
+                    ' lDefinitionInfo.Line/Column are 0-based (from SyntaxNode.StartLine/
+                    ' StartColumn or a 0-based text-search match), but GoToPosition/EditorPosition
+                    ' take 1-based coordinates (see GoToLine/GoToPosition and every other correct
+                    ' caller, e.g. MainWindow.LeftPanel.vb's "+ 1" conversions) - passing the raw
+                    ' 0-based values here landed one line/column short of the real target, which
+                    ' is why the view scrolled to roughly the right place but the cursor didn't
+                    ' end up on it.
+                    '
+                    ' lDefinitionInfo.Column also generally points at the start of the whole
+                    ' declaration (e.g. the "Public" in "Public Class TabInfo"), not the
+                    ' identifier itself, since that's what the underlying SyntaxNode spans - find
+                    ' the identifier's own column on that line so the cursor (and flash) land
+                    ' exactly on "TabInfo", not on "Public".
+                    Dim lIdentifierColumn As Integer = lDefinitionInfo.Column
+                    Dim lIdentifierEndColumn As Integer = lDefinitionInfo.Column + vArgs.Word.Length
+                    If lDefinitionInfo.Line >= 0 AndAlso lDefinitionInfo.Line < lTabInfo.Editor.TextLines.Count Then
+                        Dim lDestLine As String = lTabInfo.Editor.TextLines(lDefinitionInfo.Line)
+                        Dim lTokenizer As New VBTokenizer()
+                        for each lToken As Token in lTokenizer.TokenizeLine(lDestLine)
+                            If lToken.StartColumn >= lDefinitionInfo.Column AndAlso
+                               String.Equals(lToken.Text, vArgs.Word, StringComparison.OrdinalIgnoreCase) Then
+                                lIdentifierColumn = lToken.StartColumn
+                                lIdentifierEndColumn = lToken.EndColumn + 1
+                                Exit for
+                            End If
+                        Next
+                    End If
+
+                    ' Create EditorPosition for navigation (1-based)
+                    Dim lPosition As New EditorPosition(lDefinitionInfo.Line + 1, lIdentifierColumn + 1)
+
                     Console.WriteLine($"OnRequestGotoDefinition: Navigating to position {lPosition}")
-                    
+
                     ' Navigate to the position
                     lTabInfo.Editor.GoToPosition(lPosition)
-                    
+
+                    ' Briefly highlight the identifier so the eye finds it immediately
+                    lTabInfo.Editor.FlashIdentifierAt(lDefinitionInfo.Line, lIdentifierColumn, lIdentifierEndColumn)
+
                     ' Focus the editor
                     lTabInfo.Editor.Widget.GrabFocus()
-                    
+
                     ' Update status bar
                     Dim lFileName As String = System.IO.Path.GetFileName(lTargetFilePath)
                     UpdateStatusBar($"Navigated to definition of '{vArgs.Word}' in {lFileName} at line {lDefinitionInfo.Line + 1}")

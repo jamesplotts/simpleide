@@ -87,12 +87,55 @@ Namespace Editors
                 
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GoToPosition error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ' ===== Flash Highlight (e.g. after Go to Definition) =====
+
+        Private pFlashHighlightActive As Boolean = False
+        Private pFlashHighlightLine As Integer = -1
+        Private pFlashHighlightStartColumn As Integer = 0
+        Private pFlashHighlightEndColumn As Integer = 0
+        Private pFlashHighlightTimerId As UInteger = 0
+
+        ''' <summary>
+        ''' Briefly highlights a character range to draw the eye to it, then clears itself
+        ''' </summary>
+        ''' <param name="vLine">Zero-based line to flash</param>
+        ''' <param name="vStartColumn">Zero-based start column (inclusive)</param>
+        ''' <param name="vEndColumn">Zero-based end column (exclusive)</param>
+        ''' <remarks>
+        ''' Drawn in CustomDrawingEditor.Drawing.vb alongside the selection-background pass,
+        ''' using EditorTheme's AccentColor so it reads as distinct from an actual selection
+        ''' </remarks>
+        Public Sub FlashIdentifierAt(vLine As Integer, vStartColumn As Integer, vEndColumn As Integer) Implements IEditor.FlashIdentifierAt
+            Try
+                If pFlashHighlightTimerId <> 0 Then
+                    GLib.Source.Remove(pFlashHighlightTimerId)
+                    pFlashHighlightTimerId = 0
+                End If
+
+                pFlashHighlightActive = True
+                pFlashHighlightLine = vLine
+                pFlashHighlightStartColumn = vStartColumn
+                pFlashHighlightEndColumn = vEndColumn
+                pDrawingArea?.QueueDraw()
+
+                pFlashHighlightTimerId = GLib.Timeout.Add(700, Function()
+                    pFlashHighlightActive = False
+                    pFlashHighlightTimerId = 0
+                    pDrawingArea?.QueueDraw()
+                    Return False
+                End Function)
+
+            Catch ex As Exception
+                Console.WriteLine($"FlashIdentifierAt error: {ex.Message}")
+            End Try
+        End Sub
+
         ' Move cursor to the beginning of the document
         Public Sub MoveToDocumentStart() Implements IEditor.MoveToDocumentStart
             Try
