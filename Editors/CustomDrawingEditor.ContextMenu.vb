@@ -245,12 +245,24 @@ Namespace Editors
                 Dim lHasSelection As Boolean = pHasSelection
                 Dim lHasClipboard As Boolean = CheckClipboardHasText()
                 Dim lSelectedWord As String = ""
-                
+
                 ' Get selected word if there's a selection
                 If lHasSelection Then
                     lSelectedWord = GetSelectedText()
                 End If
-                
+
+                ' Resolve the identifier that Go To Definition would actually act on:
+                ' the selection if there is one, otherwise the word at the click position -
+                ' keeps the menu's visibility consistent with what the action will do
+                Dim lGoToDefWord As String = lSelectedWord.Trim()
+                If lHasSelection Then
+                    ' lGoToDefWord already set above
+                Else
+                    Dim lClickLine, lClickColumn As Integer
+                    lGoToDefWord = GetWordAtClickPosition(lClickLine, lClickColumn)
+                End If
+                Dim lHasGoToDefTarget As Boolean = IsValidIdentifier(lGoToDefWord)
+
                 ' Update Cut/Copy availability
                 for each lChild As Widget in pContextMenu.Children
                     If TypeOf lChild Is MenuItem Then
@@ -265,14 +277,13 @@ Namespace Editors
                                 lMenuItem.Sensitive = lHasClipboard AndAlso Not pIsReadOnly
                                 
                             Case "GoToDefinitionMenuItem"
-                                ' Show Go To Definition only if we have a selected identifier
-                                Dim lShowGoToDef As Boolean = lHasSelection AndAlso IsValidIdentifier(lSelectedWord.Trim())
-                                lMenuItem.Visible = lShowGoToDef
-                                
+                                ' Show Go To Definition if there's a selected identifier, or a
+                                ' valid identifier under the mouse at the click position
+                                lMenuItem.Visible = lHasGoToDefTarget
+
                             Case "ConditionalSeparator"
                                 ' Show separator only if we have conditional items visible
-                                Dim lHasConditionalItems As Boolean = lHasSelection AndAlso IsValidIdentifier(lSelectedWord.Trim())
-                                lMenuItem.Visible = lHasConditionalItems
+                                lMenuItem.Visible = lHasGoToDefTarget
 
                             Case "SmartPasteMenuItem"
                                 lMenuItem.Sensitive = lHasClipboard AndAlso Not pIsReadOnly
@@ -404,19 +415,57 @@ Namespace Editors
         End Sub
         
         ''' <summary>
+        ''' Finds the identifier/keyword/type word at the last right-click position
+        ''' (pLastRightClickX/Y), independent of the text cursor and any selection - right-
+        ''' clicking never moves the cursor, so resolving from the cursor here would act on
+        ''' whatever was last clicked/typed rather than what's actually under the pointer
+        ''' </summary>
+        ''' <param name="vLine">Receives the 0-based line the click landed on</param>
+        ''' <param name="vColumn">Receives the 0-based column the found word starts at</param>
+        ''' <returns>The word at the click position, or "" if it wasn't on a recognized token</returns>
+        ''' <remarks>
+        ''' Shared by OnContextMenuGoToDefinition (so the action always resolves the same word
+        ''' the menu was shown for) and UpdateTextAreaContextMenuStates (so the menu item's
+        ''' visibility matches what clicking it will actually do)
+        ''' </remarks>
+        Private Function GetWordAtClickPosition(ByRef vLine As Integer, ByRef vColumn As Integer) As String
+            vLine = 0
+            vColumn = 0
+            Try
+                Dim lClickPos As EditorPosition = GetPositionFromCoordinates(pLastRightClickX, pLastRightClickY)
+                vLine = lClickPos.Line
+                If vLine < 0 OrElse vLine >= TextLines.Count Then Return ""
+
+                Dim lLine As String = TextLines(vLine)
+                Dim lTokenizer As New VBTokenizer()
+                Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(lLine)
+
+                For Each lToken In lTokens
+                    If lClickPos.Column >= lToken.StartColumn AndAlso lClickPos.Column <= lToken.EndColumn Then
+                        If lToken.Type = TokenType.eIdentifier OrElse
+                           lToken.Type = TokenType.eKeyword OrElse
+                           lToken.Type = TokenType.eType Then
+                            vColumn = lToken.StartColumn
+                            Return lToken.Text
+                        End If
+                    End If
+                Next
+
+                Return ""
+
+            Catch ex As Exception
+                Console.WriteLine($"GetWordAtClickPosition error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Handles the Go to Definition context menu item click
         ''' </summary>
         ''' <param name="vSender">The menu item that was clicked</param>
         ''' <param name="vArgs">Event arguments</param>
         ''' <remarks>
         ''' Extracts the word at the cursor position and raises the RequestGotoDefinition event
-        ''' </remarks>
-        ''' <remarks>
-        ''' Resolves the target word from wherever the mouse was when the right-click that
-        ''' opened this menu happened (pLastRightClickX/Y, captured by ShowTextAreaContextMenu),
-        ''' not from the blinking text cursor - right-clicking never moves the cursor, so using
-        ''' the cursor position here would act on whatever was last clicked/typed instead of
-        ''' what's actually under the pointer
         ''' </remarks>
         Private Sub OnContextMenuGoToDefinition(vSender As Object, vArgs As EventArgs)
             Try
@@ -437,33 +486,8 @@ Namespace Editors
                 Else
                     ' No selection - resolve the word under the mouse at the right-click
                     ' location, not the text cursor
-                    Dim lClickPos As EditorPosition = GetPositionFromCoordinates(pLastRightClickX, pLastRightClickY)
-                    lLineNumber = lClickPos.Line
-                    Console.WriteLine($"OnContextMenuGoToDefinition: No selection, getting word at click {lLineNumber}:{lClickPos.Column}")
-
-                    ' Check if we have a valid line
-                    If lLineNumber >= 0 AndAlso lLineNumber < TextLines.Count Then
-                        Dim lLine As String = TextLines(lLineNumber)
-
-                        ' Use tokenizer to find the word at the click position
-                        Dim lTokenizer As New VBTokenizer()
-                        Dim lTokens As List(Of Token) = lTokenizer.TokenizeLine(lLine)
-
-                        ' Find the token at the click column
-                        For Each lToken In lTokens
-                            If lClickPos.Column >= lToken.StartColumn AndAlso lClickPos.Column <= lToken.EndColumn Then
-                                ' Check if it's an identifier token
-                                If lToken.Type = TokenType.eIdentifier OrElse
-                                   lToken.Type = TokenType.eKeyword OrElse
-                                   lToken.Type = TokenType.eType Then
-                                    lWord = lToken.Text
-                                    lColumnNumber = lToken.StartColumn
-                                    Console.WriteLine($"OnContextMenuGoToDefinition: Found word '{lWord}' at column {lColumnNumber}")
-                                    Exit For
-                                End If
-                            End If
-                        Next
-                    End If
+                    lWord = GetWordAtClickPosition(lLineNumber, lColumnNumber)
+                    Console.WriteLine($"OnContextMenuGoToDefinition: No selection, word at click = '{lWord}' at {lLineNumber}:{lColumnNumber}")
                 End If
 
                 ' Check if we found a word
