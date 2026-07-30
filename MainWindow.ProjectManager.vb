@@ -639,7 +639,7 @@ Partial Public Class MainWindow
             UpdateStatusBar("Loading: " + vFilePath)
             
             ' Create new tab
-            CreateNewTab(vFilePath, lSourceFileInfo, lIsNewFile)
+            CreateNewTab(vFilePath, lSourceFileInfo, Not lIsNewFile)
 
         Catch ex As Exception
             Console.WriteLine($"OpenFileWithProjectIntegration error: {ex.Message}")
