@@ -474,57 +474,15 @@ Namespace Widgets
                     ' Determine the line to navigate to based on node type
                     Dim lNavigationLine As Integer = vNode.Node.StartLine
                     
-                    ' Adjust for different node types
-                    Select Case vNode.Node.NodeType
-                        Case CodeNodeType.eClass, 
-                             CodeNodeType.eModule,
-                             CodeNodeType.eInterface,
-                             CodeNodeType.eStructure,
-                             CodeNodeType.eEnum
-                            ' For type declarations, StartLine should already point to the declaration
-                            ' Use it as-is
-                            Console.WriteLine($"Navigating to type declaration: {vNode.Node.Name} at line {lNavigationLine + 1}")
-                            
-                        Case CodeNodeType.eMethod, 
-                             CodeNodeType.eFunction, 
-                             CodeNodeType.eProperty,
-                             CodeNodeType.eConstructor,
-                             CodeNodeType.eOperator
-                            ' For methods and similar constructs, the parser might point to the first line
-                            ' of code inside the method rather than the declaration line
-                            ' We need to go back to find the actual declaration
-                            
-                            ' Check if this is likely pointing to the body rather than the declaration
-                            ' For the "New" constructor, if StartLine points to "MyBase.New", we need to go back
-                            If lNavigationLine > 0 Then
-                                ' Go back one line to get to the declaration
-                                ' This handles cases like:
-                                ' Line 65: Public Sub New()
-                                ' Line 66:     MyBase.New(WINDOW_TITLE)  <-- StartLine points here
-                                lNavigationLine -= 1
-                            End If
-                            
-                            Console.WriteLine($"Navigating to method: {vNode.Node.Name} at line {lNavigationLine + 1}")
-                            
-                        Case CodeNodeType.eField
-                            ' Fields often have StartLine pointing to the line after declaration
-                            ' Go back one line to get the actual declaration
-                            If lNavigationLine > 0 Then
-                                lNavigationLine -= 1
-                            End If
-                            Console.WriteLine($"Navigating to field: {vNode.Node.Name} at line {lNavigationLine + 1}")
-                            
-                        Case CodeNodeType.eEvent
-                            ' Events might also need adjustment
-                            If lNavigationLine > 0 Then
-                                lNavigationLine -= 1
-                            End If
-                            Console.WriteLine($"Navigating to event: {vNode.Node.Name} at line {lNavigationLine + 1}")
-                            
-                        Case Else
-                            ' For other node types (delegates, etc.), use StartLine as-is
-                            Console.WriteLine($"Navigating to {vNode.Node.NodeType}: {vNode.Node.Name} at line {lNavigationLine + 1}")
-                    End Select
+                    ' StartLine already points at each node's own declaration statement for
+                    ' every node type here (SetNodeLocation in RoslynConverter always uses the
+                    ' whole declaration/block as the start node - e.g. ProcessMethodBlock,
+                    ' ProcessConstructor, and ProcessField all pass the entire
+                    ' MethodBlockSyntax/ConstructorBlockSyntax/FieldDeclarationSyntax, not a
+                    ' node from inside the body) - matches what the hover tooltip shows
+                    ' (CustomDrawObjectExplorer.ContextMenu.vb uses vNode.StartLine + 1
+                    ' directly with no adjustment), so no per-type adjustment is needed here
+                    Console.WriteLine($"Navigating to {vNode.Node.NodeType}: {vNode.Node.Name} at line {lNavigationLine + 1}")
                     
                     ' Raise the NavigateToFile event with the adjusted line number
                     ' EditorPosition uses 0-based line numbers
