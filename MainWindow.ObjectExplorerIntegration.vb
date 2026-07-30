@@ -207,8 +207,17 @@ Partial Public Class MainWindow
             If lNeedToOpenFile Then
                 OpenFileWithProjectIntegration(vFilePath)
                 lCurrentTab = GetCurrentTabInfo()
+
+                ' A brand-new editor widget hasn't been through a GTK size-allocate pass
+                ' yet, so its viewport dimensions are still 0 - EnsureCursorVisible (called
+                ' below via NavigateToLineNumberForPresentment) silently no-ops when that's
+                ' the case, leaving the view scrolled to the top with the cursor positioned
+                ' correctly but off-screen. Pump the event loop so layout completes first.
+                While Gtk.Application.EventsPending()
+                    Gtk.Application.RunIteration()
+                End While
             End If
-            
+
             ' Navigate to the position
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
                 ' vPosition is 0-based (per EditorPosition), but NavigateToLineNumberForPresentment
