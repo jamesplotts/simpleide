@@ -71,11 +71,44 @@ Partial Public Class MainWindow
             ' Extract classes and members
             Dim lClasses As New List(Of CodeObject)()
             Dim lRootMembers As New List(Of CodeMember)()
+
+            ' Almost every VB.NET file wraps its types in a single Namespace block (per this
+            ' project's convention, only root-namespace files like Program.vb have none) - the
+            ' actual Class/Module/etc. is a child of that Namespace node, not a direct child of
+            ' the document root, so this has to recurse through Namespace nodes rather than
+            ' only looking at lRootNode.Children directly
+            CollectNavigationNodes(lRootNode, lClasses, lRootMembers)
+
+            Console.WriteLine($"UpdateNavigationDropdowns: Found {lClasses.Count} classes and {lRootMembers.Count} root members")
             
-            ' Process top-level nodes
-            For Each lNode In lRootNode.Children
+            ' Update dropdowns
+            lTabInfo.NavigationDropdowns.SetNavigationData(lClasses, lRootMembers)
+            
+            ' Update current position
+            Dim lCurrentLine As Integer = lEditor.CurrentLine
+            Console.WriteLine($"UpdateNavigationDropdowns: Updating position to line {lCurrentLine}")
+            lTabInfo.NavigationDropdowns.UpdatePosition(lCurrentLine)
+            
+        Catch ex As Exception
+            Console.WriteLine($"UpdateNavigationDropdowns error: {ex.Message}")
+            Console.WriteLine($"  Stack: {ex.StackTrace}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Recursively walks a syntax tree collecting Class/Module/Interface/Structure/Enum
+    ''' nodes (with their members) and any member-like nodes declared outside a type,
+    ''' descending through Namespace (and Document) nodes since they aren't classes or
+    ''' members themselves but the actual types live inside them
+    ''' </summary>
+    ''' <param name="vNode">The node whose children should be processed</param>
+    ''' <param name="vClasses">Accumulates discovered classes/modules/etc.</param>
+    ''' <param name="vRootMembers">Accumulates members found outside any type</param>
+    Private Sub CollectNavigationNodes(vNode As SyntaxNode, vClasses As List(Of CodeObject), vRootMembers As List(Of CodeMember))
+        Try
+            For Each lNode In vNode.Children
                 Console.WriteLine($"  Processing node: {lNode.Name} (Type: {lNode.NodeType})")
-                
+
                 Select Case lNode.NodeType
                     Case CodeNodeType.eClass, CodeNodeType.eModule,
                          CodeNodeType.eInterface, CodeNodeType.eStructure,
@@ -107,7 +140,11 @@ Partial Public Class MainWindow
                             End If
                         Next
 
-                        lClasses.Add(lClass)
+                        vClasses.Add(lClass)
+
+                    Case CodeNodeType.eNamespace, CodeNodeType.eDocument
+                        ' Not a class and not a member - the real content is inside it
+                        CollectNavigationNodes(lNode, vClasses, vRootMembers)
 
                     Case Else
                         ' Root-level members (not in a class)
@@ -118,28 +155,17 @@ Partial Public Class MainWindow
                             lMember.StartLine = lNode.StartLine + 1
                             lMember.EndLine = If(lNode.EndLine > 0, lNode.EndLine + 1, lMember.StartLine)
                             lMember.LineNumber = lMember.StartLine
-                            lRootMembers.Add(lMember)
+                            vRootMembers.Add(lMember)
                             Console.WriteLine($"    Found root member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
                         End If
                 End Select
             Next
-            
-            Console.WriteLine($"UpdateNavigationDropdowns: Found {lClasses.Count} classes and {lRootMembers.Count} root members")
-            
-            ' Update dropdowns
-            lTabInfo.NavigationDropdowns.SetNavigationData(lClasses, lRootMembers)
-            
-            ' Update current position
-            Dim lCurrentLine As Integer = lEditor.CurrentLine
-            Console.WriteLine($"UpdateNavigationDropdowns: Updating position to line {lCurrentLine}")
-            lTabInfo.NavigationDropdowns.UpdatePosition(lCurrentLine)
-            
+
         Catch ex As Exception
-            Console.WriteLine($"UpdateNavigationDropdowns error: {ex.Message}")
-            Console.WriteLine($"  Stack: {ex.StackTrace}")
+            Console.WriteLine($"CollectNavigationNodes error: {ex.Message}")
         End Try
     End Sub
-    
+
     ' Convert node type to object type
     Private Function ConvertNodeTypeToObjectType(vNodeType As CodeNodeType) As CodeObjectType
         Select Case vNodeType
