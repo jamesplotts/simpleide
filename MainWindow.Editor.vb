@@ -300,9 +300,6 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub CreateNewTab(vFilePath As String, vSourceFileInfo As SourceFileInfo, vIsExistingFile As Boolean)
         Try
-            ' Close welcome tab if it exists
-            CloseWelcomeTab()
-            
             Dim lTabInfo As New TabInfo()
             lTabInfo.FilePath = vFilePath
             lTabInfo.Modified = Not vIsExistingFile
@@ -376,7 +373,13 @@ Partial Public Class MainWindow
             ' Add to notebook
             pNotebook.AppendPage(lTabInfo.EditorContainer, System.IO.Path.GetFileName(vFilePath))
             pNotebook.ShowAll()
-            
+
+            ' Close the welcome tab (if any) now that the real tab is already in place -
+            ' closing it first would transiently drop the notebook to 0 pages, which
+            ' OnCustomNotebookTabClosed treats as "all tabs closed" and reacts to by
+            ' clearing the Object Explorer's entire tree/expanded-node state
+            CloseWelcomeTab()
+
             ' Add to open tabs dictionary
             pOpenTabs(vFilePath) = lTabInfo
             
