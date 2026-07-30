@@ -32,7 +32,7 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-
+    
     
     ' Find start of line containing position
     Private Function FindLineStart(vContent As String, vPosition As Integer) As Integer
