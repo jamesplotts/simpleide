@@ -213,43 +213,29 @@ Namespace Widgets
             Try
                 pMemberCombo.RemoveAll()
                 pCurrentMembers.Clear()
-                
-                If pCurrentClass = GENERAL_ITEM Then
-                    ' Show (Declarations) and root-level members
-                    pMemberCombo.AppendText(DECLARATIONS_ITEM)
-                    
-                    ' Add root-level members
-                    If pRootMembers.Count > 0 Then
-                        for each lMember in pRootMembers
-                            pMemberCombo.AppendText(lMember.DisplayText)
-                            pCurrentMembers.Add(lMember)
-                        Next
-                        pMemberCombo.Sensitive = True
-                    Else
-                        pMemberCombo.Sensitive = True ' Still sensitive for (Declarations)
-                    End If
-                    
-                    ' Select (Declarations) by default
-                    pMemberCombo.Active = 0
-                    pCurrentMember = DECLARATIONS_ITEM
-                    
-                Else
-                    ' Show members of the selected class
-                    Dim lSelectedClass As CodeObject = FindClassByDisplayText(pCurrentClass)
-                    If lSelectedClass IsNot Nothing AndAlso lSelectedClass.members.Count > 0 Then
-                        for each lMember in lSelectedClass.members
-                            pMemberCombo.AppendText(lMember.DisplayText)
-                            pCurrentMembers.Add(lMember)
-                        Next
-                        pMemberCombo.Sensitive = True
-                        pMemberCombo.Active = 0
-                    Else
-                        pMemberCombo.AppendText(NO_MEMBERS_ITEM)
-                        pMemberCombo.Active = 0
-                        pMemberCombo.Sensitive = False
-                    End If
+
+                ' (Declarations) is always the first entry, for both (General) and a real
+                ' class - it's what should end up selected when the cursor is somewhere in
+                ' the class/file body that isn't inside any recognized member (the
+                ' declaration line itself, a nested type's body, blank space between
+                ' members, etc.), so UpdatePosition always has something valid to fall back
+                ' to via SelectMemberByDisplayText(DECLARATIONS_ITEM)
+                pMemberCombo.AppendText(DECLARATIONS_ITEM)
+
+                Dim lMembers As List(Of CodeMember) =
+                    If(pCurrentClass = GENERAL_ITEM, pRootMembers, FindClassByDisplayText(pCurrentClass)?.members)
+
+                If lMembers IsNot Nothing Then
+                    for each lMember in lMembers
+                        pMemberCombo.AppendText(lMember.DisplayText)
+                        pCurrentMembers.Add(lMember)
+                    Next
                 End If
-                
+
+                pMemberCombo.Sensitive = True
+                pMemberCombo.Active = 0
+                pCurrentMember = DECLARATIONS_ITEM
+
             Catch ex As Exception
                 Console.WriteLine($"UpdateMemberDropdown error: {ex.Message}")
             End Try
@@ -342,8 +328,15 @@ Namespace Widgets
                     
                     If lContainingMember IsNot Nothing Then
                         SelectMemberByDisplayText(lContainingMember.DisplayText)
+                    Else
+                        ' Cursor isn't inside any recognized member of this class (e.g. it's
+                        ' on the class declaration line itself, inside a nested type's body,
+                        ' or on a blank line between members) - fall back to (Declarations)
+                        ' rather than leaving whatever member SelectClassByDisplayText's
+                        ' UpdateMemberDropdown() defaulted to (always index 0) selected
+                        SelectMemberByDisplayText(DECLARATIONS_ITEM)
                     End If
-                    
+
                 Else
                     ' Not in any class - select (General)
                     SelectClassByDisplayText(GENERAL_ITEM)
