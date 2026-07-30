@@ -211,9 +211,11 @@ Partial Public Class MainWindow
             
             ' Navigate to the position
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
-                ' vPosition is already 0-based from EditorPosition
-                lCurrentTab.Editor.NavigateToLineNumberForPresentment(vPosition.Line)
-                lCurrentTab.Editor.SelectLine(vPosition.Line + 1)  ' SelectLine expects 1-based
+                ' vPosition is 0-based (per EditorPosition), but NavigateToLineNumberForPresentment
+                ' takes a 1-based line number, while SelectLine takes a 0-based line index -
+                ' each call must be converted to what it actually expects
+                lCurrentTab.Editor.NavigateToLineNumberForPresentment(vPosition.Line + 1)
+                lCurrentTab.Editor.SelectLine(vPosition.Line)
                 lCurrentTab.Editor.GrabFocus()
                 
                 UpdateStatusBar($"Ready - {lFileName} at line {vPosition.Line + 1}")
