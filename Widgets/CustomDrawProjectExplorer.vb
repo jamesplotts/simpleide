@@ -630,14 +630,17 @@ Namespace Widgets
                 
                 ' Re-create references node
                 CreateReferencesNode()
-                
+                pRootNode?.SortChildren()
+
                 ' Rebuild visual tree and refresh display
                 RebuildVisualTree()
                 pDrawingArea?.QueueDraw()
-                
-                ' Raise event to notify listeners
-                RaiseEvent ReferencesChanged()
-                
+
+                ' NOTE: Deliberately not raising ReferencesChanged here - this method is
+                ' itself invoked (via MainWindow.OnReferencesChanged) in response to that
+                ' same event firing elsewhere (e.g. the Reference Manager dialog), so
+                ' re-raising it would call this method again indefinitely
+
             Catch ex As Exception
                 Console.WriteLine($"RefreshReferences error: {ex.Message}")
             End Try

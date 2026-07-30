@@ -402,6 +402,10 @@ Namespace Widgets
                     If vNode.Node.NodeType = ProjectNodeType.eManifest Then
                         RaiseEvent ManifestSelected()
                     End If
+                ElseIf vNode.Node.NodeType = ProjectNodeType.eReferences Then
+                    ' Open the Reference Manager rather than trying to expand/collapse -
+                    ' the node's children are just a read-only mirror of the project file
+                    ShowReferenceManagerDialog()
                 Else
                     ' Toggle folder expansion
                     ToggleNodeExpansion(vNode)

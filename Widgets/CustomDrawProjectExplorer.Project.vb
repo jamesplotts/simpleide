@@ -7,6 +7,8 @@ Imports System.Xml
 Imports System.Collections.Generic
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
+Imports SimpleIDE.Managers
+Imports SimpleIDE.Dialogs
 
 Namespace Widgets
     
@@ -331,11 +333,84 @@ Namespace Widgets
                 End If
                 
                 pHasReferencesNode = True
-                
-                ' TODO: Load actual references from project file
-                
+
+                PopulateReferencesNode()
+
             Catch ex As Exception
                 Console.WriteLine($"CreateReferencesNode error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Populates the References node with a child node for each of the
+        ''' project's assembly, NuGet package, and project references
+        ''' </summary>
+        Private Sub PopulateReferencesNode()
+            Try
+                If pReferencesNode Is Nothing OrElse pProjectManager Is Nothing OrElse
+                   Not pProjectManager.IsProjectOpen Then Return
+
+                pReferencesNode.Children.Clear()
+
+                ' References are only loaded on demand by ProjectManager - load them now
+                ' if this is the first time we're displaying the node
+                If pProjectManager.ProjectReferences.Count = 0 Then
+                    pProjectManager.LoadProjectReferences()
+                End If
+
+                for each lRef in pProjectManager.ProjectReferences
+                    Dim lRefNode As New ProjectNode() With {
+                        .Name = lRef.Name,
+                        .Path = If(lRef.Path, ""),
+                        .NodeType = ProjectNodeType.eReference,
+                        .IsFile = True,
+                        .IconName = GetReferenceIconName(lRef.Type),
+                        .ToolTip = If(String.IsNullOrEmpty(lRef.Path),
+                                      $"{lRef.Type}: {lRef.Name}",
+                                      $"{lRef.Type}: {lRef.Path}")
+                    }
+                    pReferencesNode.AddChild(lRefNode)
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"PopulateReferencesNode error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Gets the icon theme name to use for a reference tree node
+        ''' </summary>
+        ''' <param name="vType">The kind of reference (assembly, NuGet package, or project)</param>
+        ''' <returns>A GTK icon theme name appropriate for the reference type</returns>
+        Private Function GetReferenceIconName(vType As ReferenceManager.ReferenceType) As String
+            Select Case vType
+                Case ReferenceManager.ReferenceType.eAssembly
+                    Return "application-x-sharedlib"
+                Case ReferenceManager.ReferenceType.ePackage
+                    Return "package-x-generic"
+                Case ReferenceManager.ReferenceType.eProject
+                    Return "folder-remote"
+                Case Else
+                    Return "text-x-generic"
+            End Select
+        End Function
+
+        ''' <summary>
+        ''' Shows the Reference Manager dialog and refreshes the References node
+        ''' with whatever changes the user made
+        ''' </summary>
+        Private Sub ShowReferenceManagerDialog()
+            Try
+                If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then Return
+
+                Dim lDialog As New ReferenceManagerDialog(GetTopLevelWindow(), pProjectManager.CurrentProjectPath, pProjectManager, pThemeManager)
+                AddHandler lDialog.ReferencesChanged, AddressOf RefreshReferences
+
+                lDialog.Run()
+                lDialog.Destroy()
+
+            Catch ex As Exception
+                Console.WriteLine($"ShowReferenceManagerDialog error: {ex.Message}")
             End Try
         End Sub
         

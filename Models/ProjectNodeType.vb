@@ -26,6 +26,8 @@ Namespace Models
         eImageFile
         ''' <summary>References node (special folder)</summary>
         eReferences
+        ''' <summary>A single reference (assembly, package, or project) under the References node</summary>
+        eReference
         ''' <summary>Assembly manifest node</summary>
         eManifest
         ''' <summary>Resources folder (special folder)</summary>
