@@ -79,8 +79,12 @@ Namespace Editors
                     ' Invalidate new cursor position
                     InvalidateLine(pCursorLine)
                     
-                    ' Raise cursor position changed event (1-based for UI)
-                    RaiseEvent CursorPositionChanged(pCursorLine + 1, pCursorColumn + 1)
+                    ' Raise cursor position changed event (0-based, matching IEditor.CurrentLine
+                    ' and the other CursorPositionChanged emission site in
+                    ' CustomDrawingEditor.IO.vb - NavigationDropdowns.UpdatePosition expects a
+                    ' 0-based line and converts internally, so sending 1-based here double-
+                    ' converted and threw off the class/member sync by one line)
+                    RaiseEvent CursorPositionChanged(pCursorLine, pCursorColumn)
                     
                     ' Raise navigation update event for dropdown context updates
                     ' This fires when cursor position changes to update navigation dropdowns

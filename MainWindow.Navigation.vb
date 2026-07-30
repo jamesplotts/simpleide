@@ -77,42 +77,47 @@ Partial Public Class MainWindow
                 Console.WriteLine($"  Processing node: {lNode.Name} (Type: {lNode.NodeType})")
                 
                 Select Case lNode.NodeType
-                    Case CodeNodeType.eClass, CodeNodeType.eModule, 
-                         CodeNodeType.eInterface, CodeNodeType.eStructure
+                    Case CodeNodeType.eClass, CodeNodeType.eModule,
+                         CodeNodeType.eInterface, CodeNodeType.eStructure,
+                         CodeNodeType.eEnum
                         ' Create class object
+                        ' CodeObject.StartLine/EndLine are documented as 1-based
+                        ' (Models/CodeTypes.vb), but SyntaxNode.StartLine/EndLine are 0-based -
+                        ' convert here so UpdatePosition's bounds check and the click-to-navigate
+                        ' "StartLine - 1" math elsewhere in this class both work correctly
                         Dim lClass As New CodeObject()
                         lClass.Name = lNode.Name
                         lClass.ObjectType = ConvertNodeTypeToObjectType(lNode.NodeType)
-                        lClass.StartLine = lNode.StartLine
-                        lClass.EndLine = If(lNode.EndLine > 0, lNode.EndLine, lNode.StartLine + 1)
-                        
+                        lClass.StartLine = lNode.StartLine + 1
+                        lClass.EndLine = If(lNode.EndLine > 0, lNode.EndLine + 1, lClass.StartLine + 1)
+
                         Console.WriteLine($"    Found class/module: {lClass.Name} (Lines {lClass.StartLine}-{lClass.EndLine})")
-                        
+
                         ' Add members
                         For Each lChild In lNode.Children
                             If IsMemberNode(lChild.NodeType) Then
                                 Dim lMember As New CodeMember()
                                 lMember.Name = lChild.Name
                                 lMember.MemberType = ConvertNodeTypeToMemberType(lChild.NodeType)
-                                lMember.StartLine = lChild.StartLine
-                                lMember.EndLine = If(lChild.EndLine > 0, lChild.EndLine, lChild.StartLine)
-                                lMember.LineNumber = lChild.StartLine + 1 ' 1-based for display
+                                lMember.StartLine = lChild.StartLine + 1
+                                lMember.EndLine = If(lChild.EndLine > 0, lChild.EndLine + 1, lMember.StartLine)
+                                lMember.LineNumber = lMember.StartLine
                                 lClass.Members.Add(lMember)
                                 Console.WriteLine($"      Added member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
                             End If
                         Next
-                        
+
                         lClasses.Add(lClass)
-                        
+
                     Case Else
                         ' Root-level members (not in a class)
                         If IsMemberNode(lNode.NodeType) Then
                             Dim lMember As New CodeMember()
                             lMember.Name = lNode.Name
                             lMember.MemberType = ConvertNodeTypeToMemberType(lNode.NodeType)
-                            lMember.StartLine = lNode.StartLine
-                            lMember.EndLine = If(lNode.EndLine > 0, lNode.EndLine, lNode.StartLine)
-                            lMember.LineNumber = lNode.StartLine + 1 ' 1-based for display
+                            lMember.StartLine = lNode.StartLine + 1
+                            lMember.EndLine = If(lNode.EndLine > 0, lNode.EndLine + 1, lMember.StartLine)
+                            lMember.LineNumber = lMember.StartLine
                             lRootMembers.Add(lMember)
                             Console.WriteLine($"    Found root member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
                         End If
