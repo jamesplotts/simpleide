@@ -24,10 +24,20 @@ Namespace Widgets
         Private pDrawingArea As DrawingArea
         Private pVScrollbar As Scrollbar
         Private pItems As New List(Of ListBoxItem)
+
+        ''' <summary>The subset/order of pItems actually shown, after collapsing any group
+        ''' headers whose IsExpanded is False - all drawing, hit-testing, scrolling, and
+        ''' index-based public APIs (SelectedIndex, RemoveItem, EnsureVisible, SelectByText)
+        ''' operate against this list, not pItems directly. For a flat list with no group
+        ''' headers this is always identical to pItems, so existing non-grouped consumers
+        ''' see no behavior change.</summary>
+        Private pDisplayItems As New List(Of ListBoxItem)
         Private pSelectedIndex As Integer = -1
         Private pHoverIndex As Integer = -1
         Private pScrollOffset As Integer = 0
         Private pItemHeight As Integer = 24
+        Private pIndentWidth As Integer = 16
+        Private pExpanderSize As Integer = 10
         Private pVisibleItems As Integer = 0
         Private pNeedsRedraw As Boolean = True
         Private pThemeContextMenu As Menu
@@ -60,27 +70,27 @@ Namespace Widgets
                 Return pSelectedIndex
             End Get
             Set(value As Integer)
-                If value <> pSelectedIndex AndAlso value >= -1 AndAlso value < pItems.Count Then
+                If value <> pSelectedIndex AndAlso value >= -1 AndAlso value < pDisplayItems.Count Then
                     pSelectedIndex = value
                     pNeedsRedraw = True
                     pDrawingArea?.QueueDraw()
-                    
+
                     If pSelectedIndex >= 0 Then
-                        RaiseEvent SelectionChanged(pSelectedIndex, pItems(pSelectedIndex))
+                        RaiseEvent SelectionChanged(pSelectedIndex, pDisplayItems(pSelectedIndex))
                     Else
                         RaiseEvent SelectionChanged(-1, Nothing)
                     End If
                 End If
             End Set
         End Property
-        
+
         ''' <summary>
         ''' Gets the selected item
         ''' </summary>
         Public ReadOnly Property SelectedItem As ListBoxItem
             Get
-                If pSelectedIndex >= 0 AndAlso pSelectedIndex < pItems.Count Then
-                    Return pItems(pSelectedIndex)
+                If pSelectedIndex >= 0 AndAlso pSelectedIndex < pDisplayItems.Count Then
+                    Return pDisplayItems(pSelectedIndex)
                 End If
                 Return Nothing
             End Get
@@ -202,7 +212,7 @@ Namespace Widgets
                 
                 ' Calculate visible range
                 Dim lStartIndex As Integer = pScrollOffset \ pItemHeight
-                Dim lEndIndex As Integer = Math.Min(lStartIndex + pVisibleItems + 1, pItems.Count - 1)
+                Dim lEndIndex As Integer = Math.Min(lStartIndex + pVisibleItems + 1, pDisplayItems.Count - 1)
                 
                 ' Draw items
                 for i As Integer = lStartIndex To lEndIndex
@@ -221,14 +231,14 @@ Namespace Widgets
         ''' </summary>
         Private Sub DrawItem(vContext As Context, vIndex As Integer, vWidth As Integer)
             Try
-                If vIndex < 0 OrElse vIndex >= pItems.Count Then Return
-                
-                Dim lItem As ListBoxItem = pItems(vIndex)
+                If vIndex < 0 OrElse vIndex >= pDisplayItems.Count Then Return
+
+                Dim lItem As ListBoxItem = pDisplayItems(vIndex)
                 Dim lY As Integer = (vIndex * pItemHeight) - pScrollOffset
-                
+
                 ' Skip if outside visible area
                 If lY + pItemHeight < 0 OrElse lY > pDrawingArea.AllocatedHeight Then Return
-                
+
                 ' Draw selection background
                 If vIndex = pSelectedIndex Then
                     SetSourceColor(vContext, pSelectionColor)
@@ -239,27 +249,86 @@ Namespace Widgets
                     vContext.Rectangle(0, lY, vWidth, pItemHeight)
                     vContext.Fill()
                 End If
-                
-                ' Draw text with theme-appropriate font size
-                vContext.SelectFontFace(pFontFamily, FontSlant.Normal, FontWeight.Normal)
+
+                Dim lX As Integer = 8 + (lItem.IndentLevel * pIndentWidth)
+                Dim lCenterY As Integer = lY + pItemHeight \ 2
+
+                ' Group header expand/collapse indicator
+                If lItem.IsGroupHeader Then
+                    DrawExpanderBox(vContext, lX, lCenterY, lItem.IsExpanded)
+                    lX += pExpanderSize + 4
+                End If
+
+                ' Leading icons
+                For Each lIcon In lItem.Icons
+                    If lIcon IsNot Nothing Then
+                        Dim lIconY As Integer = lY + (pItemHeight - lIcon.Height) \ 2
+                        vContext.Save()
+                        Gdk.CairoHelper.SetSourcePixbuf(vContext, lIcon, lX, lIconY)
+                        vContext.Paint()
+                        vContext.Restore()
+                        lX += lIcon.Width + 4
+                    End If
+                Next
+
+                ' Draw text with theme-appropriate font size - group headers render bold
+                vContext.SelectFontFace(pFontFamily, FontSlant.Normal, If(lItem.IsGroupHeader, FontWeight.Bold, FontWeight.Normal))
                 vContext.SetFontSize(pFontSize)
-                
+
                 If vIndex = pSelectedIndex Then
                     SetSourceColor(vContext, pSelectionTextColor)
                 Else
                     SetSourceColor(vContext, pForegroundColor)
                 End If
-                
+
                 ' Center text vertically in the item height
                 Dim lTextY As Integer = lY + (pItemHeight + pFontSize) \ 2 - 2
-                vContext.MoveTo(8, lTextY)  ' Increased left padding
+                vContext.MoveTo(lX, lTextY)
                 vContext.ShowText(lItem.Text)
-                
+
+                ' Optional right-aligned detail text (status, timestamp, etc.)
+                If Not String.IsNullOrEmpty(lItem.SecondaryText) Then
+                    vContext.SelectFontFace(pFontFamily, FontSlant.Normal, FontWeight.Normal)
+                    Dim lExtents As TextExtents = vContext.TextExtents(lItem.SecondaryText)
+                    vContext.MoveTo(vWidth - lExtents.Width - 8, lTextY)
+                    vContext.ShowText(lItem.SecondaryText)
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.DrawItem error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Draws a small +/- box used as the expand/collapse indicator for group header rows
+        ''' </summary>
+        ''' <param name="vX">Left edge of the box</param>
+        ''' <param name="vCenterY">Vertical center of the row the box belongs to</param>
+        ''' <param name="vIsExpanded">Draws a minus when True, a plus when False</param>
+        Private Sub DrawExpanderBox(vContext As Context, vX As Integer, vCenterY As Integer, vIsExpanded As Boolean)
+            Try
+                Dim lHalfSize As Integer = pExpanderSize \ 2
+
+                SetSourceColor(vContext, pForegroundColor)
+                vContext.LineWidth = 1
+                vContext.Rectangle(vX, vCenterY - lHalfSize, pExpanderSize, pExpanderSize)
+                vContext.Stroke()
+
+                vContext.MoveTo(vX + 2, vCenterY)
+                vContext.LineTo(vX + pExpanderSize - 2, vCenterY)
+                vContext.Stroke()
+
+                If Not vIsExpanded Then
+                    vContext.MoveTo(vX + lHalfSize, vCenterY - lHalfSize + 2)
+                    vContext.LineTo(vX + lHalfSize, vCenterY + lHalfSize - 2)
+                    vContext.Stroke()
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.DrawExpanderBox error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Size Handling =====
         
         ''' <summary>
@@ -295,27 +364,36 @@ Namespace Widgets
         Private Sub OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
             Try
                 pDrawingArea.GrabFocus()
-                
+
                 Dim lIndex As Integer = GetItemIndexAt(CInt(vArgs.Event.Y))
-                
+
                 If vArgs.Event.Button = 1 Then ' Left click
                     If lIndex >= 0 Then
-                        SelectedIndex = lIndex
-                        
-                        ' Check for double-click
-                        If vArgs.Event.Type = EventType.TwoButtonPress Then
-                            RaiseEvent ItemDoubleClicked(lIndex, pItems(lIndex))
+                        Dim lItem As ListBoxItem = pDisplayItems(lIndex)
+
+                        ' Clicking anywhere on a group header row toggles its expand state
+                        ' rather than selecting it as a normal item
+                        If lItem.IsGroupHeader Then
+                            lItem.IsExpanded = Not lItem.IsExpanded
+                            RecomputeDisplayItems()
+                        Else
+                            SelectedIndex = lIndex
+
+                            ' Check for double-click
+                            If vArgs.Event.Type = EventType.TwoButtonPress Then
+                                RaiseEvent ItemDoubleClicked(lIndex, lItem)
+                            End If
                         End If
                     End If
                 ElseIf vArgs.Event.Button = 3 Then ' Right click
-                    If lIndex >= 0 Then
+                    If lIndex >= 0 AndAlso Not pDisplayItems(lIndex).IsGroupHeader Then
                         SelectedIndex = lIndex
-                        RaiseEvent ContextMenuRequested(lIndex, pItems(lIndex), vArgs.Event)
+                        RaiseEvent ContextMenuRequested(lIndex, pDisplayItems(lIndex), vArgs.Event)
                     End If
                 End If
-                
+
                 vArgs.RetVal = True
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.OnButtonPress error: {ex.Message}")
             End Try
@@ -381,34 +459,34 @@ Namespace Widgets
                         vArgs.RetVal = True
                         
                     Case Gdk.Key.Down, Gdk.Key.KP_Down
-                        If pSelectedIndex < pItems.Count - 1 Then
+                        If pSelectedIndex < pDisplayItems.Count - 1 Then
                             SelectedIndex = pSelectedIndex + 1
                             EnsureVisible(pSelectedIndex)
                         End If
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.Home, Gdk.Key.KP_Home
-                        If pItems.Count > 0 Then
+                        If pDisplayItems.Count > 0 Then
                             SelectedIndex = 0
                             EnsureVisible(0)
                         End If
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.End, Gdk.Key.KP_End
-                        If pItems.Count > 0 Then
-                            SelectedIndex = pItems.Count - 1
+                        If pDisplayItems.Count > 0 Then
+                            SelectedIndex = pDisplayItems.Count - 1
                             EnsureVisible(pSelectedIndex)
                         End If
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.Page_Up, Gdk.Key.KP_Page_Up
                         Dim lNewIndex As Integer = Math.Max(0, pSelectedIndex - pVisibleItems)
                         SelectedIndex = lNewIndex
                         EnsureVisible(lNewIndex)
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.Page_Down, Gdk.Key.KP_Page_Down
-                        Dim lNewIndex As Integer = Math.Min(pItems.Count - 1, pSelectedIndex + pVisibleItems)
+                        Dim lNewIndex As Integer = Math.Min(pDisplayItems.Count - 1, pSelectedIndex + pVisibleItems)
                         SelectedIndex = lNewIndex
                         EnsureVisible(lNewIndex)
                         vArgs.RetVal = True
@@ -457,7 +535,7 @@ Namespace Widgets
         ''' </summary>
         Private Sub UpdateScrollbar()
             Try
-                Dim lTotalHeight As Integer = pItems.Count * pItemHeight
+                Dim lTotalHeight As Integer = pDisplayItems.Count * pItemHeight
                 Dim lVisibleHeight As Integer = pDrawingArea.AllocatedHeight
                 
                 pVScrollbar.Adjustment.Lower = 0
@@ -482,41 +560,44 @@ Namespace Widgets
         ' ===== Public Methods =====
         
         ''' <summary>
-        ''' Adds an item to the list
+        ''' Adds a plain text item to the list
         ''' </summary>
         Public Sub AddItem(vText As String, Optional vData As Object = Nothing)
+            AddItem(New ListBoxItem(vText, vData))
+        End Sub
+
+        ''' <summary>
+        ''' Adds a fully-configured item (grouping, icons, secondary text, etc.) to the list
+        ''' </summary>
+        Public Sub AddItem(vItem As ListBoxItem)
             Try
-                pItems.Add(New ListBoxItem(vText, vData))
-                UpdateScrollbar()
-                pDrawingArea.QueueDraw()
-                
+                pItems.Add(vItem)
+                RecomputeDisplayItems()
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.AddItem error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Removes an item at the specified index
+        ''' Removes the currently-displayed item at the given (visible) index
         ''' </summary>
         Public Sub RemoveItem(vIndex As Integer)
             Try
-                If vIndex >= 0 AndAlso vIndex < pItems.Count Then
-                    pItems.RemoveAt(vIndex)
-                    
-                    ' Adjust selection
-                    If pSelectedIndex >= pItems.Count Then
-                        pSelectedIndex = pItems.Count - 1
-                    End If
-                    
-                    UpdateScrollbar()
-                    pDrawingArea.QueueDraw()
+                If vIndex >= 0 AndAlso vIndex < pDisplayItems.Count Then
+                    pItems.Remove(pDisplayItems(vIndex))
+
+                    ' RecomputeDisplayItems() below clamps pSelectedIndex against the
+                    ' post-removal display count itself, so no separate adjustment is needed
+                    ' here
+                    RecomputeDisplayItems()
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.RemoveItem error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Clears all items
         ''' </summary>
@@ -526,11 +607,68 @@ Namespace Widgets
                 pSelectedIndex = -1
                 pHoverIndex = -1
                 pScrollOffset = 0
-                UpdateScrollbar()
-                pDrawingArea.QueueDraw()
-                
+                RecomputeDisplayItems()
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawListBox.Clear error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Programmatically expands or collapses a group header item and refreshes the
+        ''' visible list accordingly
+        ''' </summary>
+        ''' <param name="vGroupItem">A ListBoxItem previously added with IsGroupHeader = True</param>
+        ''' <param name="vExpanded">True to show its children, False to collapse them</param>
+        Public Sub SetExpanded(vGroupItem As ListBoxItem, vExpanded As Boolean)
+            Try
+                If vGroupItem Is Nothing OrElse Not vGroupItem.IsGroupHeader Then Return
+                vGroupItem.IsExpanded = vExpanded
+                RecomputeDisplayItems()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.SetExpanded error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Rebuilds pDisplayItems from pItems, skipping any item nested under a collapsed
+        ''' group header, then refreshes the scrollbar and redraws
+        ''' </summary>
+        Private Sub RecomputeDisplayItems()
+            Try
+                pDisplayItems.Clear()
+
+                ' -1 means "not currently skipping"; otherwise holds the IndentLevel of the
+                ' collapsed group header whose children (anything indented deeper than it)
+                ' are being hidden
+                Dim lSkipBelowIndent As Integer = -1
+
+                For Each lItem In pItems
+                    If lSkipBelowIndent >= 0 Then
+                        If lItem.IndentLevel > lSkipBelowIndent Then
+                            Continue For
+                        Else
+                            lSkipBelowIndent = -1
+                        End If
+                    End If
+
+                    pDisplayItems.Add(lItem)
+
+                    If lItem.IsGroupHeader AndAlso Not lItem.IsExpanded Then
+                        lSkipBelowIndent = lItem.IndentLevel
+                    End If
+                Next
+
+                If pSelectedIndex >= pDisplayItems.Count Then
+                    pSelectedIndex = pDisplayItems.Count - 1
+                End If
+
+                UpdateScrollbar()
+                pDrawingArea?.QueueDraw()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawListBox.RecomputeDisplayItems error: {ex.Message}")
             End Try
         End Sub
         
@@ -591,7 +729,7 @@ Namespace Widgets
         ''' </summary>
         Public Sub EnsureVisible(vIndex As Integer)
             Try
-                If vIndex < 0 OrElse vIndex >= pItems.Count Then Return
+                If vIndex < 0 OrElse vIndex >= pDisplayItems.Count Then Return
                 
                 Dim lItemTop As Integer = vIndex * pItemHeight
                 Dim lItemBottom As Integer = lItemTop + pItemHeight
@@ -616,8 +754,8 @@ Namespace Widgets
         ''' </summary>
         Public Function SelectByText(vText As String) As Boolean
             Try
-                for i As Integer = 0 To pItems.Count - 1
-                    If pItems(i).Text = vText Then
+                for i As Integer = 0 To pDisplayItems.Count - 1
+                    If pDisplayItems(i).Text = vText Then
                         SelectedIndex = i
                         EnsureVisible(i)
                         Return True
@@ -642,7 +780,7 @@ Namespace Widgets
                 Dim lAdjustedY As Integer = vY + pScrollOffset
                 Dim lIndex As Integer = lAdjustedY \ pItemHeight
                 
-                If lIndex >= 0 AndAlso lIndex < pItems.Count Then
+                If lIndex >= 0 AndAlso lIndex < pDisplayItems.Count Then
                     Return lIndex
                 End If
                 
@@ -699,7 +837,7 @@ Namespace Widgets
                 Console.WriteLine($"OnThemeContextMenuRequested error: {ex.Message}")
             End Try
         End Sub
-        
+
     End Class
     
 End Namespace

@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports System.Collections.Generic
 Imports System.Linq
+Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 
@@ -13,9 +14,7 @@ Namespace Widgets
         ' Private fields - UI
         Private pToolbar As Toolbar
         Private pFilterToolbar As Toolbar
-        Private pTreeView As TreeView
-        Private pTreeStore As TreeStore
-        Private pScrolledWindow As ScrolledWindow
+        Private pListBox As CustomDrawListBox
         Private pContextMenu As Menu
         Private pStatusBar As Label
 
@@ -191,13 +190,8 @@ Namespace Widgets
             pScopeToggle.TooltipText = "Show only TODOs from the currently active file"
             pFilterToolbar.Insert(pScopeToggle, -1)
 
-            ' Scrolled window for tree view
-            pScrolledWindow = New ScrolledWindow()
-            pScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-            
-            ' Create tree view and list store (must be done before adding to scrolled window)
-            CreateTreeView()
-            pScrolledWindow.Add(pTreeView)
+            ' Custom-drawn list (owns its own DrawingArea + Scrollbar internally)
+            CreateListBox()
 
             ' Status bar
             pStatusBar = New Label("Ready")
@@ -206,98 +200,32 @@ Namespace Widgets
             pStatusBar.MarginEnd = 6
             pStatusBar.MarginTop = 3
             pStatusBar.MarginBottom = 3
-            
+
             ' Pack components
             PackStart(pToolbar, False, False, 0)
             PackStart(pFilterToolbar, False, False, 0)
             PackStart(New Separator(Orientation.Horizontal), False, False, 0)
-            PackStart(pScrolledWindow, True, True, 0)
+            PackStart(pListBox, True, True, 0)
             PackStart(pStatusBar, False, False, 0)
-            
+
             'ShowAll()
         End Sub
 
         
-        Private Sub CreateTreeView()
-            Console.WriteLine($"TodoPanel.vb - CreateTreeView()")
-            ' Create tree store: Priority Icon, Category Icon, Title, Priority Text, Category Text, Status, Due Date, Description, ID
-            ' Top-level rows are file (or "Manual Tasks") group headers; child rows are TODO
-            ' items. Group rows carry an empty Id (column 8) so selection/activation code can
-            ' tell them apart from real items. Rows are inserted in the fixed display order
-            ' (file groups alphabetical, items sequential by line) rather than relying on
-            ' column-click sorting, so no SortColumnId is set on any column.
-            pTreeStore = New TreeStore(
-                GetType(Gdk.Pixbuf),     ' 0: Priority Icon (group rows: folder/list icon)
-                GetType(Gdk.Pixbuf),     ' 1: Category Icon
-                GetType(String),         ' 2: Title (with Progress indicators)
-                GetType(String),         ' 3: Priority Text
-                GetType(String),         ' 4: Category Text
-                GetType(String),         ' 5: Status
-                GetType(String),         ' 6: Due date
-                GetType(String),         ' 7: Description (hidden)
-                GetType(String)          ' 8: Id (hidden)
-            )
+        ''' <summary>
+        ''' Creates the custom-drawn list that replaces the old GTK TreeView. Each
+        ''' ListBoxItem's Data holds the TODOItem's Id for real rows, or Nothing for file/
+        ''' "Manual Tasks" group header rows (IsGroupHeader = True), which
+        ''' CustomDrawListBox already excludes from selection/activation/context-menu
+        ''' events on its own.
+        ''' </summary>
+        Private Sub CreateListBox()
+            Console.WriteLine($"TodoPanel.vb - CreateListBox()")
+            pListBox = New CustomDrawListBox()
 
-            pTreeView = New TreeView(pTreeStore)
-            pTreeView.HeadersVisible = True
-            pTreeView.EnableSearch = True
-            pTreeView.SearchColumn = 2  ' Search by Title
-
-            ' Priority column (icon)
-            Dim lPriorityColumn As New TreeViewColumn()
-            lPriorityColumn.Title = "Pri"
-            Dim lPriorityRenderer As New CellRendererPixbuf()
-            lPriorityColumn.PackStart(lPriorityRenderer, False)
-            lPriorityColumn.AddAttribute(lPriorityRenderer, "pixbuf", 0)
-            lPriorityColumn.Resizable = True
-            lPriorityColumn.MinWidth = 40
-            pTreeView.AppendColumn(lPriorityColumn)
-
-            ' Category column (icon)
-            Dim lCategoryColumn As New TreeViewColumn()
-            lCategoryColumn.Title = "Cat"
-            Dim lCategoryRenderer As New CellRendererPixbuf()
-            lCategoryColumn.PackStart(lCategoryRenderer, False)
-            lCategoryColumn.AddAttribute(lCategoryRenderer, "pixbuf", 1)
-            lCategoryColumn.Resizable = True
-            lCategoryColumn.MinWidth = 40
-            pTreeView.AppendColumn(lCategoryColumn)
-
-            ' Title column
-            Dim lTitleColumn As New TreeViewColumn()
-            lTitleColumn.Title = "Title"
-            Dim lTitleRenderer As New CellRendererText()
-            lTitleColumn.PackStart(lTitleRenderer, True)
-            lTitleColumn.AddAttribute(lTitleRenderer, "text", 2)
-            lTitleColumn.Resizable = True
-            lTitleColumn.Expand = True
-            pTreeView.AppendColumn(lTitleColumn)
-
-            ' Status column
-            Dim lStatusColumn As New TreeViewColumn()
-            lStatusColumn.Title = "Status"
-            Dim lStatusRenderer As New CellRendererText()
-            lStatusColumn.PackStart(lStatusRenderer, False)
-            lStatusColumn.AddAttribute(lStatusRenderer, "text", 5)
-            lStatusColumn.Resizable = True
-            lStatusColumn.MinWidth = 80
-            pTreeView.AppendColumn(lStatusColumn)
-
-            ' Due Date column
-            Dim lDueDateColumn As New TreeViewColumn()
-            lDueDateColumn.Title = "Due Date"
-            Dim lDueDateRenderer As New CellRendererText()
-            lDueDateColumn.PackStart(lDueDateRenderer, False)
-            lDueDateColumn.AddAttribute(lDueDateRenderer, "text", 6)
-            lDueDateColumn.Resizable = True
-            lDueDateColumn.MinWidth = 100
-            pTreeView.AppendColumn(lDueDateColumn)
-
-            ' Connect events
-            AddHandler pTreeView.Selection.Changed, AddressOf OnSelectionChanged
-            AddHandler pTreeView.RowActivated, AddressOf OnRowActivated
-            AddHandler pTreeView.ButtonReleaseEvent, AddressOf OnTreeViewButtonRelease
-
+            AddHandler pListBox.SelectionChanged, AddressOf OnListBoxSelectionChanged
+            AddHandler pListBox.ItemDoubleClicked, AddressOf OnListBoxItemDoubleClicked
+            AddHandler pListBox.ContextMenuRequested, AddressOf OnListBoxContextMenuRequested
         End Sub
         
         Private Sub CreateContextMenu()
@@ -363,73 +291,48 @@ Namespace Widgets
                 AddHandler pShowManualToggle.Toggled, AddressOf OnFilterChanged
                 AddHandler pScopeToggle.Toggled, AddressOf OnFilterChanged
 
-                ' Connect tree view events
-                AddHandler pTreeView.RowActivated, AddressOf OnRowActivated
-                AddHandler pTreeView.ButtonReleaseEvent, AddressOf OnTreeViewButtonRelease
-
-                ' Connect selection change
-                Dim lSelection As TreeSelection = pTreeView.Selection
-                AddHandler lSelection.Changed, AddressOf OnSelectionChanged
-
             Catch ex As Exception
                 Console.WriteLine($"error connecting events: {ex.Message}")
             End Try
         End Sub
         
-        Private Sub OnRowActivated(vSender As Object, vE As RowActivatedArgs)
+        ''' <summary>
+        ''' Handles double-click on a list row - group header rows never reach here since
+        ''' CustomDrawListBox toggles their expand state instead of raising this event
+        ''' </summary>
+        Private Sub OnListBoxItemDoubleClicked(vIndex As Integer, vItem As ListBoxItem)
             Try
-                Dim lIter As TreeIter
-                If pTreeStore.GetIter(lIter, vE.Path) Then
-                    Dim lId As String = CStr(pTreeStore.GetValue(lIter, 8))
+                Dim lId As String = TryCast(vItem?.Data, String)
+                If String.IsNullOrEmpty(lId) Then Return
 
-                    ' Empty Id means this is a file/"Manual Tasks" group header row, not a
-                    ' real TODO item - GTK already handles expand/collapse for it
-                    If Not String.IsNullOrEmpty(lId) Then
-                        pSelectedTODO = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
-                        If pSelectedTODO IsNot Nothing Then
-                            RaiseEvent TODODoubleClicked(pSelectedTODO)
-                        End If
-                    End If
+                Dim lTODO As TODOItem = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
+                If lTODO IsNot Nothing Then
+                    RaiseEvent TODODoubleClicked(lTODO)
                 End If
-                
+
             Catch ex As Exception
-                Console.WriteLine($"error handling row activation: {ex.Message}")
+                Console.WriteLine($"error handling item activation: {ex.Message}")
             End Try
         End Sub
-        
-        Private Function OnTreeViewButtonRelease(vSender As Object, vE As ButtonReleaseEventArgs) As Boolean
-            Try
-                If vE.Event.Button = 3 Then ' Right click
-                    Dim lPath As TreePath = Nothing
-                    
-                    If pTreeView.GetPathAtPos(CInt(vE.Event.x), CInt(vE.Event.y), lPath) Then
-                        ' CRITICAL: Grab focus first - this fixes the double-click issue
-                        If Not pTreeView.HasFocus Then
-                            pTreeView.GrabFocus()
-                        End If
-                        
-                        ' Set cursor to clicked item
-                        pTreeView.SetCursor(lPath, Nothing, False)
 
-                        ' Only show the context menu for real TODO items, not file/
-                        ' "Manual Tasks" group header rows (SetCursor above updates
-                        ' pSelectedTODO via OnSelectionChanged, clearing it for group rows)
-                        If pSelectedTODO IsNot Nothing Then
-                            UpdateContextMenuForTODO()
-                            pContextMenu.ShowAll()
-                            pContextMenu.PopupAtPointer(vE.Event)
-                        End If
-                    End If
-                    
-                    Return True
-                End If
+        ''' <summary>
+        ''' Handles a right-click context menu request - CustomDrawListBox only raises this
+        ''' for real item rows (already selected via SelectedIndex by the time this fires),
+        ''' never for group header rows
+        ''' </summary>
+        Private Sub OnListBoxContextMenuRequested(vIndex As Integer, vItem As ListBoxItem, vEvent As Gdk.EventButton)
+            Try
+                If pSelectedTODO Is Nothing Then Return
+
+                UpdateContextMenuForTODO()
+                pContextMenu.ShowAll()
+                pContextMenu.PopupAtPointer(vEvent)
+
             Catch ex As Exception
-                Console.WriteLine($"error handling tree view button press: {ex.Message}")
+                Console.WriteLine($"error handling context menu request: {ex.Message}")
             End Try
-            
-            Return False
-        End Function
-        
+        End Sub
+
         Private Sub UpdateContextMenuForTODO()
             Try
                 If pSelectedTODO Is Nothing Then Return
@@ -456,23 +359,22 @@ Namespace Widgets
             End Try
         End Sub
         
-        Private Sub OnSelectionChanged(vSender As Object, vE As EventArgs)
+        ''' <summary>
+        ''' Handles list selection changes - a Nothing/non-matching Data means the
+        ''' selection landed on a group header row (reachable via keyboard navigation,
+        ''' since arrow keys don't skip header rows) rather than a real TODO item
+        ''' </summary>
+        Private Sub OnListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)
             Try
-                Dim lSelection As TreeSelection = CType(vSender, TreeSelection)
-                Dim lIter As TreeIter
+                Dim lId As String = TryCast(vItem?.Data, String)
 
-                If lSelection.GetSelected(lIter) Then
-                    Dim lId As String = CStr(pTreeStore.GetValue(lIter, 8))
-
-                    If Not String.IsNullOrEmpty(lId) Then
-                        pSelectedTODO = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
-                        If pSelectedTODO IsNot Nothing Then
-                            RaiseEvent TodoSelected(pSelectedTODO)
-                        End If
-                    Else
-                        ' Selected a file/"Manual Tasks" group header row, not a real item
-                        pSelectedTODO = Nothing
+                If Not String.IsNullOrEmpty(lId) Then
+                    pSelectedTODO = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
+                    If pSelectedTODO IsNot Nothing Then
+                        RaiseEvent TodoSelected(pSelectedTODO)
                     End If
+                Else
+                    pSelectedTODO = Nothing
                 End If
 
             Catch ex As Exception
@@ -606,7 +508,20 @@ Namespace Widgets
         Private Sub OnFilterChanged(vSender As Object, vE As EventArgs)
             ApplyFilters()
         End Sub
-        
+
+        ''' <summary>
+        ''' Applies the current editor theme's colors to the custom-drawn list
+        ''' </summary>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                If pListBox IsNot Nothing Then
+                    pListBox.ThemeManager = vThemeManager
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"error setting theme manager: {ex.Message}")
+            End Try
+        End Sub
+
         ' Then update the SetProjectRoot method:
         Public Sub SetProjectRoot(vProjectRoot As String)
             Try
@@ -718,7 +633,7 @@ Namespace Widgets
 
                 pFilteredTODOs = lFiltered
 
-                UpdateTreeView()
+                UpdateListBox()
                 UpdateStatusBar()
 
             Catch ex As Exception
@@ -786,9 +701,9 @@ Namespace Widgets
         ''' sequential by line number within each file), with manually-added tasks in
         ''' their own trailing "Manual Tasks" group
         ''' </summary>
-        Private Sub UpdateTreeView()
+        Private Sub UpdateListBox()
             Try
-                pTreeStore.Clear()
+                pListBox.Clear()
 
                 ' Show empty state if no TODOs or no manager
                 If pTODOManager Is Nothing OrElse pFilteredTODOs.Count = 0 Then
@@ -806,10 +721,15 @@ Namespace Widgets
                 For Each lGroup In lFileGroups
                     Dim lItems As List(Of TODOItem) = lGroup.OrderBy(Function(t) t.SourceLine).ToList()
                     Dim lRelativePath As String = GetRelativeDisplayPath(lGroup.Key)
-                    Dim lGroupIter As TreeIter = pTreeStore.AppendValues(
-                        lFolderIcon, Nothing, $"{lRelativePath}  ({lItems.Count})", "", "", "", "", "", "")
+                    Dim lGroupItem As New ListBoxItem($"{lRelativePath}  ({lItems.Count})") With {
+                        .IsGroupHeader = True,
+                        .IndentLevel = 0
+                    }
+                    If lFolderIcon IsNot Nothing Then lGroupItem.Icons.Add(lFolderIcon)
+                    pListBox.AddItem(lGroupItem)
+
                     For Each lTODO In lItems
-                        AppendItemRow(lGroupIter, lTODO)
+                        AppendItemRow(lTODO)
                     Next
                 Next
 
@@ -821,14 +741,17 @@ Namespace Widgets
 
                 If lManualItems.Count > 0 Then
                     Dim lManualIcon As Gdk.Pixbuf = CreateGroupIcon("view-list-symbolic")
-                    Dim lManualIter As TreeIter = pTreeStore.AppendValues(
-                        lManualIcon, Nothing, $"Manual Tasks  ({lManualItems.Count})", "", "", "", "", "", "")
+                    Dim lManualGroupItem As New ListBoxItem($"Manual Tasks  ({lManualItems.Count})") With {
+                        .IsGroupHeader = True,
+                        .IndentLevel = 0
+                    }
+                    If lManualIcon IsNot Nothing Then lManualGroupItem.Icons.Add(lManualIcon)
+                    pListBox.AddItem(lManualGroupItem)
+
                     For Each lTODO In lManualItems
-                        AppendItemRow(lManualIter, lTODO)
+                        AppendItemRow(lTODO)
                     Next
                 End If
-
-                pTreeView.ExpandAll()
 
             Catch ex As Exception
                 Console.WriteLine($"error updating tree view: {ex.Message}")
@@ -836,26 +759,28 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Appends a single TODO item as a child row under the given file/"Manual Tasks"
-        ''' group row
+        ''' Appends a single TODO item as a child row under whichever file/"Manual Tasks"
+        ''' group header was most recently added
         ''' </summary>
-        Private Sub AppendItemRow(vParentIter As TreeIter, vTODO As TODOItem)
+        Private Sub AppendItemRow(vTODO As TODOItem)
             Try
                 Dim lPriorityIcon As Gdk.Pixbuf = CreatePriorityIcon(vTODO.Priority)
                 Dim lCategoryIcon As Gdk.Pixbuf = CreateCategoryIcon(vTODO.Category)
                 Dim lDueDateText As String = If(vTODO.DueDate.HasValue, vTODO.DueDate.Value.ToString("yyyy-MM-dd"), "")
 
-                pTreeStore.AppendValues(vParentIter,
-                    lPriorityIcon,
-                    lCategoryIcon,
-                    vTODO.GetDisplayTitle(),
-                    vTODO.GetPriorityDisplayText(),
-                    vTODO.GetCategoryDisplayText(),
-                    vTODO.GetStatusDisplayText(),
-                    lDueDateText,
-                    vTODO.GetFormattedDescription(),
-                    vTODO.Id
-                )
+                Dim lSecondaryText As String = vTODO.GetStatusDisplayText()
+                If Not String.IsNullOrEmpty(lDueDateText) Then
+                    lSecondaryText &= $"  ({lDueDateText})"
+                End If
+
+                Dim lItem As New ListBoxItem(vTODO.GetDisplayTitle(), vTODO.Id) With {
+                    .IndentLevel = 1,
+                    .SecondaryText = lSecondaryText
+                }
+                If lPriorityIcon IsNot Nothing Then lItem.Icons.Add(lPriorityIcon)
+                If lCategoryIcon IsNot Nothing Then lItem.Icons.Add(lCategoryIcon)
+
+                pListBox.AddItem(lItem)
             Catch ex As Exception
                 Console.WriteLine($"error appending TODO item row: {ex.Message}")
             End Try
@@ -981,26 +906,14 @@ Namespace Widgets
         
         Private Sub ShowEmptyState()
             Try
-                pTreeStore.Clear()
-                
-                ' Add a helpful message row
-                Dim lMessage As String = If(pTODOManager Is Nothing, 
+                pListBox.Clear()
+
+                Dim lMessage As String = If(pTODOManager Is Nothing,
                     "No project loaded - Open a project To view TODOs",
                     "No TODOs found - Click Add To create a New TODO")
-                
-                ' Use empty pixbufs for icons
-                pTreeStore.AppendValues(
-                    Nothing,  ' Priority Icon
-                    Nothing,  ' Category Icon
-                    lMessage, ' Title
-                    "",       ' Priority Text
-                    "",       ' Category Text
-                    "",       ' Status
-                    "",       ' Due date
-                    "",       ' Description
-                    ""        ' Id
-                )
-                
+
+                pListBox.AddItem(lMessage)
+
             Catch ex As Exception
                 Console.WriteLine($"error showing empty state: {ex.Message}")
             End Try

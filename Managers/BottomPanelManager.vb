@@ -1062,10 +1062,14 @@ Namespace Managers
                 If pGitPanel IsNot Nothing Then
                     pGitPanel.SetThemeManager(vThemeManager)
                 End If
-                
+
+                If pTodoPanel IsNot Nothing Then
+                    pTodoPanel.SetThemeManager(vThemeManager)
+                End If
+
                 ' Pass to other panels that might need it
                 ' (Future: other panels can get theme support too)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.SetThemeManager error: {ex.Message}")
             End Try
