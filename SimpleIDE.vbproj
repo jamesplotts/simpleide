@@ -143,6 +143,7 @@
     <Compile Include="Editors/CustomDrawingEditor.IdentifierCaseSync.vb" />
     <Compile Include="Editors/CustomDrawingEditor.IO.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Keyboard.vb" />
+    <Compile Include="Editors/CustomDrawingEditor.KeywordPairHighlight.vb" />
     <Compile Include="Editors/CustomDrawingEditor.LineExitedEventArgs.vb" />
     <Compile Include="Editors/CustomDrawingEditor.LineTracking.vb" />
     <Compile Include="Editors/CustomDrawingEditor.Mouse.vb" />

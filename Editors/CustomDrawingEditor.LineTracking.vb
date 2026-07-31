@@ -76,8 +76,10 @@ Namespace Editors
                 
                 ' Update previous line tracker
                 pPreviousLine = vNewLine
-                
-                
+
+                ' Recompute the matching block-keyword highlight for the new line
+                UpdateKeywordPairHighlight()
+
                 Console.WriteLine($"OnLineChanged: Moved from line {vOldLine} to line {vNewLine}")
                 
             Catch ex As Exception

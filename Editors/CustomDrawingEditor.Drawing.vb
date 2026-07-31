@@ -206,6 +206,19 @@ Namespace Editors
                             lFlashPattern.Dispose()
                         End If
 
+                        ' Highlight the matching block-keyword pair for the cursor's current
+                        ' line (UpdateKeywordPairHighlight in CustomDrawingEditor.KeywordPairHighlight.vb)
+                        If pKeywordPairActive AndAlso
+                           ((lLineIndex = pKeywordPairLine1 AndAlso lColIndex >= pKeywordPairStartCol1 AndAlso lColIndex < pKeywordPairEndCol1) OrElse
+                            (lLineIndex = pKeywordPairLine2 AndAlso lColIndex >= pKeywordPairStartCol2 AndAlso lColIndex < pKeywordPairEndCol2)) Then
+                            Dim lPairColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eAccentColor)
+                            Dim lPairPattern As New Cairo.SolidPattern(lPairColor.R, lPairColor.G, lPairColor.B, 0.3)
+                            vContext.SetSource(lPairPattern)
+                            vContext.Rectangle(lX, lLineTop + lAscent + 1, pCharWidth, pLineHeight)
+                            vContext.Fill()
+                            lPairPattern.Dispose()
+                        End If
+
                         ' FIXED: Don't skip spaces - we still need to draw them (even if invisible)
                         ' to maintain proper selection background
                         If lChar <> " " Then
