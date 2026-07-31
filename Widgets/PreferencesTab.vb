@@ -57,16 +57,16 @@ Namespace Widgets
         
         ' Git tab controls
         Private pGitEnabledCheck As CheckButton
-        Private pGitUserNameEntry As Entry
-        Private pGitEmailEntry As Entry
-        Private pDefaultBranchEntry As Entry
+        Private pGitUserNameEntry As CustomDrawTextBox
+        Private pGitEmailEntry As CustomDrawTextBox
+        Private pDefaultBranchEntry As CustomDrawTextBox
         Private pAutoFetchCheck As CheckButton
         Private pFetchIntervalSpin As SpinButton
         Private pGitCredentialStorageCombo As ComboBoxText
         Private pGitCredentialTypeCombo As ComboBoxText
-        Private pGitTokenEntry As Entry
+        Private pGitTokenEntry As CustomDrawTextBox
         Private pGitTokenVisibleCheck As CheckButton
-        Private pGitRemoteUrlEntry As Entry
+        Private pGitRemoteUrlEntry As CustomDrawTextBox
         Private pCredentialManager As CredentialManager
         
         ' AI tab controls
@@ -528,7 +528,8 @@ Namespace Widgets
             
             Dim lUserBox As New Box(Orientation.Horizontal, 10)
             lUserBox.PackStart(New Label("User name:"), False, False, 0)
-            pGitUserNameEntry = New Entry()
+            pGitUserNameEntry = New CustomDrawTextBox()
+            pGitUserNameEntry.ThemeManager = pThemeManager
             pGitUserNameEntry.TooltipText = "Your name for Git commits"
             AddHandler pGitUserNameEntry.Changed, AddressOf OnSettingChanged
             lUserBox.PackStart(pGitUserNameEntry, True, True, 0)
@@ -536,7 +537,8 @@ Namespace Widgets
             
             Dim lEmailBox As New Box(Orientation.Horizontal, 10)
             lEmailBox.PackStart(New Label("Email:"), False, False, 0)
-            pGitEmailEntry = New Entry()
+            pGitEmailEntry = New CustomDrawTextBox()
+            pGitEmailEntry.ThemeManager = pThemeManager
             pGitEmailEntry.TooltipText = "Your email for Git commits"
             AddHandler pGitEmailEntry.Changed, AddressOf OnSettingChanged
             lEmailBox.PackStart(pGitEmailEntry, True, True, 0)
@@ -544,7 +546,8 @@ Namespace Widgets
             
             Dim lBranchBox As New Box(Orientation.Horizontal, 10)
             lBranchBox.PackStart(New Label("Default branch:"), False, False, 0)
-            pDefaultBranchEntry = New Entry()
+            pDefaultBranchEntry = New CustomDrawTextBox()
+            pDefaultBranchEntry.ThemeManager = pThemeManager
             pDefaultBranchEntry.Text = "main"
             AddHandler pDefaultBranchEntry.Changed, AddressOf OnSettingChanged
             lBranchBox.PackStart(pDefaultBranchEntry, True, True, 0)
@@ -561,7 +564,8 @@ Namespace Widgets
             ' Remote URL
             Dim lRemoteBox As New Box(Orientation.Horizontal, 10)
             lRemoteBox.PackStart(New Label("Remote URL:"), False, False, 0)
-            pGitRemoteUrlEntry = New Entry()
+            pGitRemoteUrlEntry = New CustomDrawTextBox()
+            pGitRemoteUrlEntry.ThemeManager = pThemeManager
             pGitRemoteUrlEntry.TooltipText = "Git remote URL (e.g., https://github.com/username/repo.git)"
             pGitRemoteUrlEntry.WidthRequest = 350
             AddHandler pGitRemoteUrlEntry.Changed, AddressOf OnSettingChanged
@@ -595,8 +599,9 @@ Namespace Widgets
             ' Token/Password
             Dim lTokenBox As New Box(Orientation.Horizontal, 10)
             lTokenBox.PackStart(New Label("Token/Password:"), False, False, 0)
-            pGitTokenEntry = New Entry()
-            pGitTokenEntry.Visibility = False  ' Hide password by default
+            pGitTokenEntry = New CustomDrawTextBox()
+            pGitTokenEntry.ThemeManager = pThemeManager
+            pGitTokenEntry.InnerEntry.Visibility = False  ' Hide password by default
             pGitTokenEntry.TooltipText = "Personal access token or OAuth token for authentication"
             pGitTokenEntry.Sensitive = False  ' Disabled by default
             AddHandler pGitTokenEntry.Changed, AddressOf OnSettingChanged
@@ -1288,7 +1293,7 @@ Namespace Widgets
         ''' Handles Git token visibility toggle
         ''' </summary>
         Private Sub OnGitTokenVisibleToggled(vSender As Object, vArgs As EventArgs)
-            pGitTokenEntry.Visibility = pGitTokenVisibleCheck.Active
+            pGitTokenEntry.InnerEntry.Visibility = pGitTokenVisibleCheck.Active
         End Sub
         
         ''' <summary>

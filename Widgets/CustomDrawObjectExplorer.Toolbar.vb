@@ -21,7 +21,7 @@ Namespace Widgets
         Private pExpandButton As ToolButton
         Private pCollapseButton As ToolButton
         Private pRefreshButton As ToolButton
-        Private pSearchEntry As SearchEntry
+        Private pSearchEntry As CustomDrawTextBox
         Private pSearchItem As ToolItem
         Private pScaleCombo As ComboBoxText
         Private pScaleItem As ToolItem
@@ -131,18 +131,19 @@ Namespace Widgets
         Private Sub CreateSearchControls()
             Try
                 ' Create search entry
-                pSearchEntry = New SearchEntry()
-                pSearchEntry.PlaceholderText = "Search (use dots for FQN)"
+                pSearchEntry = New CustomDrawTextBox("Search (use dots for FQN)")
                 pSearchEntry.WidthRequest = 200
                 pSearchEntry.TooltipText = "Search by name or fully qualified name (e.g., SimpleIDE.ClassName.Method)"
-                
-                ' Hook up enhanced search events
+                pSearchEntry.ThemeManager = pThemeManager
+
+                ' Hook up enhanced search events - StopSearch (GtkSearchEntry-specific,
+                ' unavailable on the wrapped plain Entry) is dropped since the KeyPressEvent
+                ' handler below already handles Escape by calling ClearSearch() itself
                 AddHandler pSearchEntry.Changed, AddressOf OnSearchTextChangedEnhanced
                 AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
-                AddHandler pSearchEntry.StopSearch, AddressOf OnSearchStopped
-                
+
                 ' Handle arrow keys for search navigation
-                AddHandler pSearchEntry.KeyPressEvent, Sub(sender As Object, e As KeyPressEventArgs)
+                AddHandler pSearchEntry.InnerEntry.KeyPressEvent, Sub(sender As Object, e As KeyPressEventArgs)
                     Try
                         If e.Event.Key = Gdk.Key.Down Then
                             NavigateToNextSearchResult()

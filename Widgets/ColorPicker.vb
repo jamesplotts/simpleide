@@ -61,7 +61,7 @@ Namespace Widgets
         Private pRedEntry As SpinButton
         Private pGreenEntry As SpinButton
         Private pBlueEntry As SpinButton
-        Private pHexEntry As Entry
+        Private pHexEntry As CustomDrawTextBox
         Private pColorPreview As DrawingArea
         Private pAddToCustomButton As Button
         
@@ -203,8 +203,8 @@ Namespace Widgets
                 ' Hex value
                 Dim lHexBox As New Box(Orientation.Vertical, 2)
                 lHexBox.PackStart(New Label("Hex:"), False, False, 0)
-                pHexEntry = New Entry()
-                pHexEntry.WidthChars = 8
+                pHexEntry = New CustomDrawTextBox()
+                pHexEntry.InnerEntry.WidthChars = 8
                 AddHandler pHexEntry.Changed, AddressOf OnHexChanged
                 lHexBox.PackStart(pHexEntry, False, False, 0)
                 lPreviewBox.PackStart(lHexBox, False, False, 0)
@@ -266,8 +266,8 @@ Namespace Widgets
                 
                 ' Hex and preview
                 lValuesGrid.Attach(New Label("Hex:"), 0, 1, 1, 1)
-                pHexEntry = New Entry()
-                pHexEntry.WidthChars = 7
+                pHexEntry = New CustomDrawTextBox()
+                pHexEntry.InnerEntry.WidthChars = 7
                 AddHandler pHexEntry.Changed, AddressOf OnHexChanged
                 lValuesGrid.Attach(pHexEntry, 1, 1, 2, 1)
                 

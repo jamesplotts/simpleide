@@ -58,12 +58,28 @@ Namespace Widgets
         End Property
 
         ''' <summary>Gets the wrapped native Entry, for anything not exposed here directly
-        ''' (e.g. WidthRequest, IsEditable, MaxLength)</summary>
+        ''' (e.g. WidthRequest, MaxLength, SelectRegion, Position, GetSelectionBounds,
+        ''' KeyPressEvent)</summary>
         Public ReadOnly Property InnerEntry As Entry
             Get
                 Return pEntry
             End Get
         End Property
+
+        ''' <summary>Whether the wrapped Entry (not the outer Overlay) currently has
+        ''' keyboard focus - shadows Widget.HasFocus, which would otherwise reflect the
+        ''' Overlay's own focus state rather than the Entry's</summary>
+        Public Shadows ReadOnly Property HasFocus As Boolean
+            Get
+                Return pEntry IsNot Nothing AndAlso pEntry.HasFocus
+            End Get
+        End Property
+
+        ''' <summary>Focuses the wrapped Entry - shadows Widget.GrabFocus, which would
+        ''' otherwise try to focus the outer Overlay itself rather than the Entry</summary>
+        Public Shadows Sub GrabFocus()
+            pEntry?.GrabFocus()
+        End Sub
 
         Public Property ThemeManager As ThemeManager
             Get

@@ -11,8 +11,8 @@ Namespace Widgets
         
         ' Private fields
         Private pWebView As WebView
-        Private pUrlBar As Entry
-        Private pSearchEntry As Entry
+        Private pUrlBar As CustomDrawTextBox
+        Private pSearchEntry As CustomDrawTextBox
         Private pBackButton As ToolButton
         Private pForwardButton As ToolButton
         Private pRefreshButton As ToolButton
@@ -515,17 +515,15 @@ Namespace Widgets
                 lToolbar.Add(New SeparatorToolItem())
                 
                 ' URL bar
-                pUrlBar = New Entry()
-                pUrlBar.PlaceholderText = "Enter URL or search term..."
+                pUrlBar = New CustomDrawTextBox("Enter URL or search term...")
                 pUrlBar.WidthRequest = 400
-                
+
                 ' Search box
                 Dim lSearchLabel As New Label("Search:")
                 lSearchLabel.MarginStart = 5
                 lSearchLabel.MarginEnd = 5
-                
-                pSearchEntry = New Entry()
-                pSearchEntry.PlaceholderText = "Search documentation..."
+
+                pSearchEntry = New CustomDrawTextBox("Search documentation...")
                 pSearchEntry.WidthRequest = 200
                 
                 ' URL bar tool item

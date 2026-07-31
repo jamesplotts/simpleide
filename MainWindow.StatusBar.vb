@@ -7,12 +7,13 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
 
 
 Partial Public Class MainWindow
 
     ' Add new private field for the line number entry
-    Private pLineNumberEntry As Entry
+    Private pLineNumberEntry As CustomDrawTextBox
     Private pColumnLabel As Label
     Private pLineNumberUpdateInProgress As Boolean = False
     ' Status Bar private fields
@@ -85,17 +86,18 @@ Partial Public Class MainWindow
         CssHelper.ApplyCssToWidget(lLnLabel, lPanelLabelCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
         
         ' Line number entry
-        pLineNumberEntry = New Entry()
+        pLineNumberEntry = New CustomDrawTextBox()
         pLineNumberEntry.Text = "1"
-        pLineNumberEntry.WidthChars = 5
-        pLineNumberEntry.MaxLength = 6  ' Support up to 999999 lines
+        pLineNumberEntry.InnerEntry.WidthChars = 5
+        pLineNumberEntry.InnerEntry.MaxLength = 6  ' Support up to 999999 lines
         pLineNumberEntry.Halign = Align.Center
-        CssHelper.ApplyCssToWidget(pLineNumberEntry, lEntryBoxCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-        
+        pLineNumberEntry.ThemeManager = pThemeManager
+        CssHelper.ApplyCssToWidget(pLineNumberEntry.InnerEntry, lEntryBoxCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
         ' Connect events for line number entry
         AddHandler pLineNumberEntry.Activated, AddressOf OnLineNumberEntryActivated
-        AddHandler pLineNumberEntry.FocusOutEvent, AddressOf OnLineNumberEntryFocusOut
-        AddHandler pLineNumberEntry.KeyPressEvent, AddressOf OnLineNumberEntryKeyPress
+        AddHandler pLineNumberEntry.InnerEntry.FocusOutEvent, AddressOf OnLineNumberEntryFocusOut
+        AddHandler pLineNumberEntry.InnerEntry.KeyPressEvent, AddressOf OnLineNumberEntryKeyPress
         
         ' Column label
         pColumnLabel = New Label(", Col 1")
@@ -327,13 +329,13 @@ Partial Public Class MainWindow
                     "border: 2px solid #007ACC; " & _
                     "font-weight: bold; " & _
                     "}"
-                CssHelper.ApplyCssToWidget(pLineNumberEntry, lHighlightCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-                
+                CssHelper.ApplyCssToWidget(pLineNumberEntry.InnerEntry, lHighlightCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
                 ' Focus the entry
                 pLineNumberEntry.GrabFocus()
-                
+
                 ' Select all text so user can type to replace
-                pLineNumberEntry.SelectRegion(0, -1)
+                pLineNumberEntry.InnerEntry.SelectRegion(0, -1)
                 
                 ' Update status bar message to inform user
                 Dim lContext As UInteger = pStatusBar.GetContextId("goto")

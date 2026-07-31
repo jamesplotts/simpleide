@@ -13,8 +13,8 @@ Namespace Widgets
         Inherits Box
 
         ' UI Controls
-        Private pFindEntry As Entry
-        Private pReplaceEntry As Entry
+        Private pFindEntry As CustomDrawTextBox
+        Private pReplaceEntry As CustomDrawTextBox
         Private pFindButton As Button
         Private pReplaceButton As Button
         Private pReplaceAllButton As Button
@@ -294,12 +294,12 @@ Namespace Widgets
             Try
                 ' Connect ESC handler to search entry
                 If pFindEntry IsNot Nothing Then
-                    AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                    AddHandler pFindEntry.InnerEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
                 End If
                 
                 ' Connect ESC handler to replace entry
                 If pReplaceEntry IsNot Nothing Then
-                    AddHandler pReplaceEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                    AddHandler pReplaceEntry.InnerEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
                 End If
                 
                 ' Connect ESC handler to results tree view
@@ -343,7 +343,7 @@ Namespace Widgets
             lFindLabel.Xalign = 0
             lFindBox.PackStart(lFindLabel, False, False, 0)
             
-            pFindEntry = New Entry()
+            pFindEntry = New CustomDrawTextBox()
             pFindEntry.PlaceholderText = "Enter search text..."
             lFindBox.PackStart(pFindEntry, True, True, 0)
             
@@ -370,7 +370,7 @@ Namespace Widgets
             lReplaceLabel.Xalign = 0
             lReplaceBox.PackStart(lReplaceLabel, False, False, 0)
             
-            pReplaceEntry = New Entry()
+            pReplaceEntry = New CustomDrawTextBox()
             pReplaceEntry.PlaceholderText = "Enter replacement text..."
             lReplaceBox.PackStart(pReplaceEntry, True, True, 0)
             
@@ -529,7 +529,7 @@ Namespace Widgets
                 ' Find entry events
                 AddHandler pFindEntry.Changed, AddressOf OnFindEntryChanged
                 AddHandler pFindEntry.Activated, AddressOf OnFindEntryActivated
-                AddHandler pFindEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
+                AddHandler pFindEntry.InnerEntry.KeyPressEvent, AddressOf OnFindEntryKeyPress
                 
                 ' Replace entry events
                 AddHandler pReplaceEntry.Activated, AddressOf OnReplaceEntryActivated
@@ -1128,7 +1128,7 @@ Namespace Widgets
         
         Public Sub FocusSearchEntry()
             pFindEntry.GrabFocus()
-            pFindEntry.SelectRegion(0, -1)
+            pFindEntry.InnerEntry.SelectRegion(0, -1)
         End Sub
         
         Public Sub SetSearchText(vText As String)
@@ -1167,7 +1167,7 @@ Namespace Widgets
         
         Public Sub FocusReplaceEntry()
             pReplaceEntry.GrabFocus()
-            pReplaceEntry.SelectRegion(0, -1)
+            pReplaceEntry.InnerEntry.SelectRegion(0, -1)
         End Sub
         
         Public ReadOnly Property IsSearching As Boolean
@@ -1195,7 +1195,7 @@ Namespace Widgets
             Try
                 pFindEntry.GrabFocus()
                 ' Move cursor to end of text without selecting
-                pFindEntry.Position = pFindEntry.Text.Length
+                pFindEntry.InnerEntry.Position = pFindEntry.Text.Length
             Catch ex As Exception
                 Console.WriteLine($"FocusSearchEntryNoSelect error: {ex.Message}")
             End Try
@@ -1240,9 +1240,9 @@ Namespace Widgets
                 ' If search entry has focus and has selection, clear selection first
                 If pFindEntry IsNot Nothing AndAlso pFindEntry.HasFocus Then
                     Dim lBounds As Integer() = {0, 0}
-                    If pFindEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
+                    If pFindEntry.InnerEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
                         ' Clear selection
-                        pFindEntry.SelectRegion(0, 0)
+                        pFindEntry.InnerEntry.SelectRegion(0, 0)
                         Return True ' Handled internally
                     End If
                 End If
@@ -1250,9 +1250,9 @@ Namespace Widgets
                 ' If replace entry has focus and has selection, clear selection first
                 If pReplaceEntry IsNot Nothing AndAlso pReplaceEntry.HasFocus Then
                     Dim lBounds As Integer() = {0, 0}
-                    If pReplaceEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
+                    If pReplaceEntry.InnerEntry.GetSelectionBounds(lBounds(0), lBounds(1)) Then
                         ' Clear selection
-                        pReplaceEntry.SelectRegion(0, 0)
+                        pReplaceEntry.InnerEntry.SelectRegion(0, 0)
                         Return True ' Handled internally
                     End If
                 End If

@@ -753,7 +753,14 @@ Namespace Widgets
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
                 pThemeManager = vThemeManager
-                
+
+                ' The search entry is custom-drawn and isn't driven by native GTK CSS
+                ' theming the way the old SearchEntry was, so it needs an explicit
+                ' re-application here to pick up a live theme switch
+                If pSearchEntry IsNot Nothing Then
+                    pSearchEntry.ThemeManager = vThemeManager
+                End If
+
                 ' Refresh display with new theme
                 RefreshTheme()
                 

@@ -6,6 +6,7 @@ Imports System.Text
 Imports System.Reflection
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
 
 Namespace Editors
     Public Class AssemblySettingsEditor
@@ -18,22 +19,22 @@ Namespace Editors
         Private pGenerateKeyButton As Button
         
         ' Assembly information entries
-        Private pTitleEntry As Entry
-        Private pDescriptionEntry As Entry
-        Private pCompanyEntry As Entry
-        Private pProductEntry As Entry
-        Private pCopyrightEntry As Entry
-        Private pTrademarkEntry As Entry
-        
+        Private pTitleEntry As CustomDrawTextBox
+        Private pDescriptionEntry As CustomDrawTextBox
+        Private pCompanyEntry As CustomDrawTextBox
+        Private pProductEntry As CustomDrawTextBox
+        Private pCopyrightEntry As CustomDrawTextBox
+        Private pTrademarkEntry As CustomDrawTextBox
+
         ' Version entries
-        Private pAssemblyVersionEntry As Entry
-        Private pFileVersionEntry As Entry
-        Private pInformationalVersionEntry As Entry
+        Private pAssemblyVersionEntry As CustomDrawTextBox
+        Private pFileVersionEntry As CustomDrawTextBox
+        Private pInformationalVersionEntry As CustomDrawTextBox
         Private pAutoIncrementCheck As CheckButton
-        
+
         ' Signing
         Private pSignAssemblyCheck As CheckButton
-        Private pKeyFileEntry As Entry
+        Private pKeyFileEntry As CustomDrawTextBox
         Private pKeyFileBrowseButton As Button
         Private pDelaySignCheck As CheckButton
         
@@ -160,7 +161,7 @@ Namespace Editors
                 pGrid.Attach(lKeyFileLabel, 0, lRow, 1, 1)
                 
                 Dim lKeyFileBox As New Box(Orientation.Horizontal, 6)
-                pKeyFileEntry = New Entry()
+                pKeyFileEntry = New CustomDrawTextBox()
                 pKeyFileEntry.Hexpand = True
                 pKeyFileEntry.Sensitive = False
                 AddHandler pKeyFileEntry.Changed, AddressOf OnFieldChanged
@@ -254,12 +255,12 @@ Namespace Editors
             pGrid.Attach(lLabel, 0, vRow, 2, 1)
         End Sub
         
-        Private Sub AddLabeledEntry(vLabelText As String, ByRef vEntry As Entry, vRow As Integer, vTooltip As String)
+        Private Sub AddLabeledEntry(vLabelText As String, ByRef vEntry As CustomDrawTextBox, vRow As Integer, vTooltip As String)
             Dim lLabel As New Label(vLabelText)
             lLabel.Halign = Align.Start
             pGrid.Attach(lLabel, 0, vRow, 1, 1)
-            
-            vEntry = New Entry()
+
+            vEntry = New CustomDrawTextBox()
             vEntry.Hexpand = True
             If Not String.IsNullOrEmpty(vTooltip) Then
                 vEntry.TooltipText = vTooltip
