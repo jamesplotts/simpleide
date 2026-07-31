@@ -248,6 +248,7 @@
     <Compile Include="Widgets/BuildOutputPanel.vb" />
     <Compile Include="Widgets/BuildOutputPanel.DataGrid.vb" />
     <Compile Include="Widgets/ColorPicker.vb" />
+    <Compile Include="Widgets/CustomDrawButton.vb" />
     <Compile Include="Widgets/CustomDrawListBox.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.Drawing.vb" />

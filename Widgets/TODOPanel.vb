@@ -12,8 +12,8 @@ Namespace Widgets
         Inherits Box
         
         ' Private fields - UI
-        Private pToolbar As Toolbar
-        Private pFilterToolbar As Toolbar
+        Private pToolbar As Box
+        Private pFilterToolbar As Box
         Private pListBox As CustomDrawListBox
         Private pContextMenu As Menu
         Private pStatusBar As Label
@@ -24,18 +24,18 @@ Namespace Widgets
         Private pPriorityCombo As ComboBoxText
         Private pCategoryCombo As ComboBoxText
         Private pStatusCombo As ComboBoxText
-        Private pOverdueToggle As ToggleToolButton
-        Private pRefreshButton As ToolButton
-        Private pAddButton As ToolButton
+        Private pOverdueToggle As CustomDrawToggleButton
+        Private pRefreshButton As CustomDrawButton
+        Private pAddButton As CustomDrawButton
 
         ' Comment-tag visibility toggles (TODO/FIXED/NOTE/Manual)
-        Private pShowTodoToggle As ToggleToolButton
-        Private pShowFixedToggle As ToggleToolButton
-        Private pShowNoteToggle As ToggleToolButton
-        Private pShowManualToggle As ToggleToolButton
+        Private pShowTodoToggle As CustomDrawToggleButton
+        Private pShowFixedToggle As CustomDrawToggleButton
+        Private pShowNoteToggle As CustomDrawToggleButton
+        Private pShowManualToggle As CustomDrawToggleButton
 
         ' Whole Project / Current File Only scope toggle
-        Private pScopeToggle As ToggleToolButton
+        Private pScopeToggle As CustomDrawToggleButton
 
         ' Private fields - Data
         Private pTODOManager As TODOManager = Nothing
@@ -74,37 +74,30 @@ Namespace Widgets
         
         Private Sub BuildUI()
             Console.WriteLine($"TodoPanel.vb - BuildUI()")
-            ' Main toolbar
-            pToolbar = New Toolbar()
-            pToolbar.ToolbarStyle = ToolbarStyle.Icons
-            pToolbar.IconSize = IconSize.SmallToolbar
-            
-            ' Add TODO button
-            pAddButton = New ToolButton(Nothing, "Add")
-            pAddButton.IconWidget = Image.NewFromIconName("list-add-symbolic", IconSize.SmallToolbar)
+            ' Main toolbar row - a plain Box holding CustomDrawButtons rather than a
+            ' Gtk.Toolbar, since CustomDrawButton isn't a ToolItem
+            pToolbar = New Box(Orientation.Horizontal, 4)
+            pToolbar.MarginStart = 4
+            pToolbar.MarginTop = 3
+            pToolbar.MarginBottom = 3
+
+            pAddButton = New CustomDrawButton("Add", LoadIconByName("list-add-symbolic"))
             pAddButton.TooltipText = "Add New TODO item"
-            pToolbar.Insert(pAddButton, -1)
-            
-            ' Refresh button
-            pRefreshButton = New ToolButton(Nothing, "Refresh")
-            pRefreshButton.IconWidget = Image.NewFromIconName("view-Refresh-symbolic", IconSize.SmallToolbar)
+            pToolbar.PackStart(pAddButton, False, False, 0)
+
+            pRefreshButton = New CustomDrawButton("Refresh", LoadIconByName("view-refresh-symbolic"))
             pRefreshButton.TooltipText = "Refresh TODO list and scan codebase"
-            pToolbar.Insert(pRefreshButton, -1)
-            
-            ' Separator
-            pToolbar.Insert(New SeparatorToolItem(), -1)
-            
-            
+            pToolbar.PackStart(pRefreshButton, False, False, 0)
+
+            pToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Search entry
-            Dim lSearchItem As New ToolItem()
             pSearchEntry = New SearchEntry()
             pSearchEntry.PlaceholderText = "Search TODOs..."
             pSearchEntry.WidthRequest = 150
-            lSearchItem.Add(pSearchEntry)
-            pToolbar.Insert(lSearchItem, -1)
-            
+            pToolbar.PackStart(pSearchEntry, False, False, 0)
+
             ' Priority filter
-            Dim lPriorityItem As New ToolItem()
             pPriorityCombo = New ComboBoxText()
             pPriorityCombo.AppendText("All Priorities")
             pPriorityCombo.AppendText("Critical")
@@ -113,11 +106,9 @@ Namespace Widgets
             pPriorityCombo.AppendText("Low")
             pPriorityCombo.Active = 0
             pPriorityCombo.WidthRequest = 120
-            lPriorityItem.Add(pPriorityCombo)
-            pToolbar.Insert(lPriorityItem, -1)
-            
+            pToolbar.PackStart(pPriorityCombo, False, False, 0)
+
             ' Category filter
-            Dim lCategoryItem As New ToolItem()
             pCategoryCombo = New ComboBoxText()
             pCategoryCombo.AppendText("All Categories")
             pCategoryCombo.AppendText("Bug")
@@ -131,11 +122,9 @@ Namespace Widgets
             pCategoryCombo.AppendText("Other")
             pCategoryCombo.Active = 0
             pCategoryCombo.WidthRequest = 120
-            lCategoryItem.Add(pCategoryCombo)
-            pToolbar.Insert(lCategoryItem, -1)
-            
+            pToolbar.PackStart(pCategoryCombo, False, False, 0)
+
             ' Status filter
-            Dim lStatusItem As New ToolItem()
             pStatusCombo = New ComboBoxText()
             pStatusCombo.AppendText("All Status")
             pStatusCombo.AppendText("Pending")
@@ -144,51 +133,44 @@ Namespace Widgets
             pStatusCombo.AppendText("Cancelled")
             pStatusCombo.Active = 0
             pStatusCombo.WidthRequest = 120
-            lStatusItem.Add(pStatusCombo)
-            pToolbar.Insert(lStatusItem, -1)
-            
+            pToolbar.PackStart(pStatusCombo, False, False, 0)
+
             ' Overdue toggle
-            pOverdueToggle = New ToggleToolButton()
-            pOverdueToggle.IconWidget = Image.NewFromIconName("alarm-symbolic", IconSize.SmallToolbar)
+            pOverdueToggle = New CustomDrawToggleButton("", LoadIconByName("alarm-symbolic"))
             pOverdueToggle.TooltipText = "Show only overdue items"
-            pToolbar.Insert(pOverdueToggle, -1)
+            pToolbar.PackStart(pOverdueToggle, False, False, 0)
 
             ' Second toolbar row: comment-tag visibility toggles and view scope
-            pFilterToolbar = New Toolbar()
-            pFilterToolbar.ToolbarStyle = ToolbarStyle.Text
-            pFilterToolbar.IconSize = IconSize.SmallToolbar
+            pFilterToolbar = New Box(Orientation.Horizontal, 4)
+            pFilterToolbar.MarginStart = 4
+            pFilterToolbar.MarginBottom = 3
 
-            pShowTodoToggle = New ToggleToolButton()
-            pShowTodoToggle.Label = "TODO"
+            pShowTodoToggle = New CustomDrawToggleButton("TODO")
             pShowTodoToggle.Active = True
             pShowTodoToggle.TooltipText = "Show items from ' TODO:' comments"
-            pFilterToolbar.Insert(pShowTodoToggle, -1)
+            pFilterToolbar.PackStart(pShowTodoToggle, False, False, 0)
 
-            pShowFixedToggle = New ToggleToolButton()
-            pShowFixedToggle.Label = "FIXED"
+            pShowFixedToggle = New CustomDrawToggleButton("FIXED")
             pShowFixedToggle.Active = True
             pShowFixedToggle.TooltipText = "Show items from ' FIXED:' comments"
-            pFilterToolbar.Insert(pShowFixedToggle, -1)
+            pFilterToolbar.PackStart(pShowFixedToggle, False, False, 0)
 
-            pShowNoteToggle = New ToggleToolButton()
-            pShowNoteToggle.Label = "NOTE"
+            pShowNoteToggle = New CustomDrawToggleButton("NOTE")
             pShowNoteToggle.Active = True
             pShowNoteToggle.TooltipText = "Show items from ' NOTE:' comments"
-            pFilterToolbar.Insert(pShowNoteToggle, -1)
+            pFilterToolbar.PackStart(pShowNoteToggle, False, False, 0)
 
-            pShowManualToggle = New ToggleToolButton()
-            pShowManualToggle.Label = "Manual"
+            pShowManualToggle = New CustomDrawToggleButton("Manual")
             pShowManualToggle.Active = True
             pShowManualToggle.TooltipText = "Show manually-added tasks"
-            pFilterToolbar.Insert(pShowManualToggle, -1)
+            pFilterToolbar.PackStart(pShowManualToggle, False, False, 0)
 
-            pFilterToolbar.Insert(New SeparatorToolItem(), -1)
+            pFilterToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
 
-            pScopeToggle = New ToggleToolButton()
-            pScopeToggle.Label = "Current File Only"
+            pScopeToggle = New CustomDrawToggleButton("Current File Only")
             pScopeToggle.Active = False
             pScopeToggle.TooltipText = "Show only TODOs from the currently active file"
-            pFilterToolbar.Insert(pScopeToggle, -1)
+            pFilterToolbar.PackStart(pScopeToggle, False, False, 0)
 
             ' Custom-drawn list (owns its own DrawingArea + Scrollbar internally)
             CreateListBox()
@@ -517,6 +499,15 @@ Namespace Widgets
                 If pListBox IsNot Nothing Then
                     pListBox.ThemeManager = vThemeManager
                 End If
+
+                For Each lButton As CustomDrawButton In New CustomDrawButton() {
+                    pAddButton, pRefreshButton, pOverdueToggle,
+                    pShowTodoToggle, pShowFixedToggle, pShowNoteToggle, pShowManualToggle, pScopeToggle
+                }
+                    If lButton IsNot Nothing Then
+                        lButton.ThemeManager = vThemeManager
+                    End If
+                Next
             Catch ex As Exception
                 Console.WriteLine($"error setting theme manager: {ex.Message}")
             End Try
@@ -716,7 +707,7 @@ Namespace Widgets
                     GroupBy(Function(t) t.SourceFile).
                     OrderBy(Function(g) GetRelativeDisplayPath(g.Key), StringComparer.OrdinalIgnoreCase)
 
-                Dim lFolderIcon As Gdk.Pixbuf = CreateGroupIcon("folder-symbolic")
+                Dim lFolderIcon As Gdk.Pixbuf = LoadIconByName("folder-symbolic")
 
                 For Each lGroup In lFileGroups
                     Dim lItems As List(Of TODOItem) = lGroup.OrderBy(Function(t) t.SourceLine).ToList()
@@ -740,7 +731,7 @@ Namespace Widgets
                     ToList()
 
                 If lManualItems.Count > 0 Then
-                    Dim lManualIcon As Gdk.Pixbuf = CreateGroupIcon("view-list-symbolic")
+                    Dim lManualIcon As Gdk.Pixbuf = LoadIconByName("view-list-symbolic")
                     Dim lManualGroupItem As New ListBoxItem($"Manual Tasks  ({lManualItems.Count})") With {
                         .IsGroupHeader = True,
                         .IndentLevel = 0
@@ -799,7 +790,7 @@ Namespace Widgets
             End Try
         End Function
 
-        Private Function CreateGroupIcon(vIconName As String) As Gdk.Pixbuf
+        Private Function LoadIconByName(vIconName As String) As Gdk.Pixbuf
             Try
                 Dim lIconTheme As Gtk.IconTheme = Gtk.IconTheme.Default
                 Return lIconTheme.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
