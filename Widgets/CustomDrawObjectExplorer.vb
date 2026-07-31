@@ -79,8 +79,8 @@ Namespace Widgets
         
         ' ===== Private Fields - UI Components =====
         Private pDrawingArea As DrawingArea
-        Private pHScrollBar As Scrollbar
-        Private pVScrollBar As Scrollbar
+        Private pHScrollBar As CustomDrawScrollbar
+        Private pVScrollBar As CustomDrawScrollbar
         Private pCornerBox As DrawingArea
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
@@ -247,10 +247,10 @@ Namespace Widgets
                 pDrawingArea.Expand = True
                 
                 ' Create vertical scrollbar
-                pVScrollBar = New Scrollbar(Orientation.Vertical, Nothing)
-                
+                pVScrollBar = New CustomDrawScrollbar(Orientation.Vertical)
+
                 ' Create horizontal scrollbar
-                pHScrollBar = New Scrollbar(Orientation.Horizontal, Nothing)
+                pHScrollBar = New CustomDrawScrollbar(Orientation.Horizontal)
                 
                 ' Create corner box
                 pCornerBox = New DrawingArea()
@@ -760,6 +760,10 @@ Namespace Widgets
                 If pSearchEntry IsNot Nothing Then
                     pSearchEntry.ThemeManager = vThemeManager
                 End If
+
+                ' Custom-drawn scrollbars similarly need explicit re-theming
+                If pVScrollBar IsNot Nothing Then pVScrollBar.ThemeManager = vThemeManager
+                If pHScrollBar IsNot Nothing Then pHScrollBar.ThemeManager = vThemeManager
 
                 ' Refresh display with new theme
                 RefreshTheme()

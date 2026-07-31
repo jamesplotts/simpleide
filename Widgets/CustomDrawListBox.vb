@@ -22,7 +22,7 @@ Namespace Widgets
         ' ===== Private Fields =====
         
         Private pDrawingArea As DrawingArea
-        Private pVScrollbar As Scrollbar
+        Private pVScrollbar As CustomDrawScrollbar
         Private pItems As New List(Of ListBoxItem)
 
         ''' <summary>The subset/order of pItems actually shown, after collapsing any group
@@ -145,7 +145,7 @@ Namespace Widgets
                 PackStart(pDrawingArea, True, True, 0)
                 
                 ' Create scrollbar
-                pVScrollbar = New Scrollbar(Orientation.Vertical, New Adjustment(0, 0, 100, 1, 10, 10))
+                pVScrollbar = New CustomDrawScrollbar()
                 PackStart(pVScrollbar, False, False, 0)
                 
                 ShowAll()
@@ -693,13 +693,15 @@ Namespace Widgets
                 
                 Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
                 If lTheme Is Nothing Then Return
-                
+
                 ' Update colors from theme
                 pBackgroundColor = lTheme.BackgroundColor
                 pForegroundColor = lTheme.ForegroundColor
                 pSelectionColor = lTheme.SelectionColor
                 pSelectionTextColor = "#FFFFFF"  ' Usually white for selections
                 pHoverColor = lTheme.CurrentLineColor
+
+                If pVScrollbar IsNot Nothing Then pVScrollbar.ThemeManager = pThemeManager
                 
                 ' Update font size based on theme (you might want to get this from settings)
                 ' For now, use a reasonable default that matches the editor
