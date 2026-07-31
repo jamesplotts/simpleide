@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.417.0</AssemblyVersion>
-    <FileVersion>1.1.417.0</FileVersion>
+    <AssemblyVersion>1.1.423.0</AssemblyVersion>
+    <FileVersion>1.1.423.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.417</Version>
+    <Version>1.1.423</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -249,6 +249,7 @@
     <Compile Include="Widgets/BuildOutputPanel.DataGrid.vb" />
     <Compile Include="Widgets/ColorPicker.vb" />
     <Compile Include="Widgets/CustomDrawButton.vb" />
+    <Compile Include="Widgets/CustomDrawCheckBox.vb" />
     <Compile Include="Widgets/CustomDrawListBox.vb" />
     <Compile Include="Widgets/CustomDrawTextBox.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.vb" />

@@ -28,7 +28,7 @@ Namespace Widgets
         Private pFilePath As String = "Preferences"  ' Virtual file path for tab
         
         ' General tab controls
-        Private pShowSplashCheck As CheckButton
+        Private pShowSplashCheck As CustomDrawCheckBox
         Private pRestoreLayoutCheck As CheckButton
         Private pAutoSaveCheck As CheckButton
         Private pAutoSaveIntervalSpin As SpinButton
@@ -323,7 +323,8 @@ Namespace Widgets
             Dim lAppBox As New Box(Orientation.Vertical, 5)
             lAppBox.BorderWidth = 10
             
-            pShowSplashCheck = New CheckButton("Show splash screen on startup")
+            pShowSplashCheck = New CustomDrawCheckBox("Show splash screen on startup")
+            pShowSplashCheck.ThemeManager = pThemeManager
             AddHandler pShowSplashCheck.Toggled, AddressOf OnSettingChanged
             lAppBox.PackStart(pShowSplashCheck, False, False, 0)
             
