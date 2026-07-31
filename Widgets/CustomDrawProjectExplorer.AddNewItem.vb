@@ -162,41 +162,50 @@ Namespace Widgets
                 lNameLabel.Halign = Align.Start
                 lVBox.PackStart(lNameLabel, False, False, 0)
                 
-                Dim lNameEntry As New Entry()
-                lNameEntry.PlaceholderText = $"Enter {vItemType.ToLower()} name"
-                ' Enable Enter key to activate default button
-                lNameEntry.ActivatesDefault = True
+                Dim lNameEntry As New CustomDrawTextBox($"Enter {vItemType.ToLower()} name")
+                lNameEntry.ThemeManager = pThemeManager
                 lVBox.PackStart(lNameEntry, False, False, 0)
-                
+
                 ' Location label
                 Dim lLocationLabel As New Label("Location:")
                 lLocationLabel.Halign = Align.Start
                 lVBox.PackStart(lLocationLabel, False, False, 0)
-                
+
                 ' Get selected folder path
                 Dim lSelectedPath As String = GetSelectedFolderPath()
-                Dim lLocationEntry As New Entry()
+                Dim lLocationEntry As New CustomDrawTextBox()
                 lLocationEntry.Text = lSelectedPath
                 lLocationEntry.Sensitive = False
+                lLocationEntry.ThemeManager = pThemeManager
                 lVBox.PackStart(lLocationEntry, False, False, 0)
-                
+
                 ' Add to content area
                 lDialog.ContentArea.Add(lVBox)
-                
-                ' Add buttons
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                Dim lAddButton As Widget = lDialog.AddButton("Add", ResponseType.Ok)
-                
-                ' Set default button
-                lDialog.DefaultResponse = ResponseType.Ok
-                lAddButton.CanDefault = True
-                lAddButton.GrabDefault()
-                
-                ' Focus name entry
-                lNameEntry.GrabFocus()
-                
+
+                ' Add buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lAddButton As New CustomDrawButton("Add")
+                lAddButton.ThemeManager = pThemeManager
+                AddHandler lAddButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lAddButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+
+                ' Pressing Enter submits - wire straight to Respond() since a custom-drawn
+                ' button has no default-widget mechanism for ActivatesDefault to target
+                AddHandler lNameEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
                 ' Show all
                 lDialog.ShowAll()
+
+                ' Focus name entry
+                lNameEntry.GrabFocus()
                 
                 ' Keep dialog open until valid input or cancel
                 Dim lDone As Boolean = False
@@ -211,7 +220,7 @@ Namespace Widgets
                             ShowErrorDialog($"Please enter a {vItemType.ToLower()} name.")
                             ' Re-focus the entry and select all text for easy correction
                             lNameEntry.GrabFocus()
-                            lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                            lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                             Continue While
                         End If
                         
@@ -220,7 +229,7 @@ Namespace Widgets
                             ShowErrorDialog($"Invalid {vItemType.ToLower()} name. Use only letters, numbers, underscores, and dots (for namespaces).")
                             ' Re-focus and select for correction
                             lNameEntry.GrabFocus()
-                            lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                            lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                             Continue While
                         End If
                         
@@ -243,7 +252,7 @@ Namespace Widgets
                             ShowErrorDialog($"A file named '{lFileName}' already exists in this location.")
                             ' Re-focus and select for correction
                             lNameEntry.GrabFocus()
-                            lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                            lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                             Continue While
                         End If
                         
@@ -284,29 +293,34 @@ Namespace Widgets
                 lNameLabel.Halign = Align.Start
                 lVBox.PackStart(lNameLabel, False, False, 0)
                 
-                Dim lNameEntry As New Entry()
-                lNameEntry.PlaceholderText = "Enter folder name"
-                ' Enable Enter key to activate default button
-                lNameEntry.ActivatesDefault = True
+                Dim lNameEntry As New CustomDrawTextBox("Enter folder name")
+                lNameEntry.ThemeManager = pThemeManager
                 lVBox.PackStart(lNameEntry, False, False, 0)
-                
+
                 ' Add to content area
                 lDialog.ContentArea.Add(lVBox)
-                
-                ' Add buttons
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                Dim lCreateButton As Widget = lDialog.AddButton("Create", ResponseType.Ok)
-                
-                ' Set default button
-                lDialog.DefaultResponse = ResponseType.Ok
-                lCreateButton.CanDefault = True
-                lCreateButton.GrabDefault()
-                
-                ' Focus name entry
-                lNameEntry.GrabFocus()
-                
+
+                ' Add buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lCreateButton As New CustomDrawButton("Create")
+                lCreateButton.ThemeManager = pThemeManager
+                AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lCreateButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+                AddHandler lNameEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
                 ' Show all
                 lDialog.ShowAll()
+
+                ' Focus name entry
+                lNameEntry.GrabFocus()
                 
                 ' Keep dialog open until valid input or cancel
                 Dim lDone As Boolean = False
@@ -321,7 +335,7 @@ Namespace Widgets
                             ShowErrorDialog("Please enter a folder name.")
                             ' Re-focus the entry and select all text for easy correction
                             lNameEntry.GrabFocus()
-                            lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                            lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                             Continue While
                         End If
                         
@@ -332,7 +346,7 @@ Namespace Widgets
                             If lChar <> System.IO.Path.DirectorySeparatorChar AndAlso lName.Contains(lChar) Then
                                 ShowErrorDialog($"Folder name contains invalid character: '{lChar}'")
                                 lNameEntry.GrabFocus()
-                                lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                                lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                                 Continue While
                             End If
                         Next
@@ -347,7 +361,7 @@ Namespace Widgets
                         If System.IO.Directory.Exists(lFullPath) Then
                             ShowErrorDialog($"A folder named '{lName}' already exists in this location.")
                             lNameEntry.GrabFocus()
-                            lNameEntry.SelectRegion(0, lNameEntry.Text.Length)
+                            lNameEntry.InnerEntry.SelectRegion(0, lNameEntry.Text.Length)
                             Continue While
                         End If
                         
@@ -472,11 +486,21 @@ Namespace Widgets
                 ' Add to dialog
                 lDialog.ContentArea.PackStart(lScrolled, True, True, 0)
                 
-                ' Add buttons
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                Dim lNextButton As Widget = lDialog.AddButton("Next", ResponseType.Ok)
-                lDialog.DefaultResponse = ResponseType.Ok
-                
+                ' Add buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lNextButton As New CustomDrawButton("Next")
+                lNextButton.ThemeManager = pThemeManager
+                AddHandler lNextButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lNextButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+
                 ' Enable double-click to select - use Respond method instead of Response event
                 AddHandler lTreeView.RowActivated, Sub(sender, args)
                     lDialog.Respond(ResponseType.Ok)
@@ -1583,9 +1607,8 @@ Namespace Widgets
                 lNameLabel.Halign = Align.Start
                 lVBox.PackStart(lNameLabel, False, False, 0)
                 
-                Dim lFilenameEntry As New Entry()
-                lFilenameEntry.PlaceholderText = "MyFile.vb"
-                lFilenameEntry.ActivatesDefault = True
+                Dim lFilenameEntry As New CustomDrawTextBox("MyFile.vb")
+                lFilenameEntry.ThemeManager = pThemeManager
                 lVBox.PackStart(lFilenameEntry, False, False, 0)
                 
                 ' Add note about partial classes
@@ -1599,26 +1622,37 @@ Namespace Widgets
                 lVBox.PackStart(lNoteLabel, False, False, 0)
                 
                 lDialog.ContentArea.Add(lVBox)
-                
-                ' Add buttons
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                Dim lOkButton As Widget = lDialog.AddButton("Create", ResponseType.Ok)
-                lDialog.DefaultResponse = ResponseType.Ok
-                
+
+                ' Add buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lOkButton As New CustomDrawButton("Create")
+                lOkButton.ThemeManager = pThemeManager
+                AddHandler lOkButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lOkButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+                AddHandler lFilenameEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
                 ' Focus entry
                 lFilenameEntry.GrabFocus()
-                
+
                 ' Enable/disable OK button based on entry
                 ' Direct implementation - no lambda needed
                 AddHandler lFilenameEntry.Changed, Sub(sender As Object, e As EventArgs)
                     Dim lText As String = lFilenameEntry.Text.Trim()
                     lOkButton.Sensitive = Not String.IsNullOrEmpty(lText)
                 End Sub
-                
+
                 ' Initial state - set directly
                 lOkButton.Sensitive = Not String.IsNullOrEmpty(lFilenameEntry.Text.Trim())
 
-                
+
                 lDialog.ShowAll()
                 
                 ' Handle dialog response
