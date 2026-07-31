@@ -361,17 +361,27 @@ Namespace Widgets
         End Function
 
         ''' <summary>
-        ''' Shows the Class popup below its trigger button
+        ''' Shows the Class popup below its trigger button, closing the Member popup first
+        ''' if it happened to be open
         ''' </summary>
         Private Sub OpenClassPopup()
+            If pMemberPopup.Visible Then
+                pMemberPopup.HidePopup(False)
+                pMemberTrigger.Active = False
+            End If
             pClassPopup.ShowFor(pClassTrigger, BuildClassPopupItems(), pCurrentClassTag)
             pClassTrigger.Active = True
         End Sub
 
         ''' <summary>
-        ''' Shows the Member popup below its trigger button
+        ''' Shows the Member popup below its trigger button, closing the Class popup first
+        ''' if it happened to be open
         ''' </summary>
         Private Sub OpenMemberPopup()
+            If pClassPopup.Visible Then
+                pClassPopup.HidePopup(False)
+                pClassTrigger.Active = False
+            End If
             pMemberPopup.ShowFor(pMemberTrigger, BuildMemberPopupItems(), pCurrentMemberTag)
             pMemberTrigger.Active = True
         End Sub
@@ -414,7 +424,9 @@ Namespace Widgets
         ''' Handles a commit (Enter or click) in the Class popup: selects the class,
         ''' navigates to its declaration, then - per James's requested keyboard flow -
         ''' shifts focus to the Member trigger and immediately opens its popup so a member
-        ''' can be picked right away without an extra click
+        ''' can be picked right away without an extra click. An Enum has no methods/
+        ''' properties/etc. of its own to pick from (its values aren't tracked as
+        ''' CodeMembers), so selecting one just navigates instead.
         ''' </summary>
         Private Sub OnClassPopupItemSelected(vTag As Object)
             Try
@@ -431,8 +443,10 @@ Namespace Widgets
                     RaiseEvent NavigationRequested(lClass.StartLine - 1)
                 End If
 
-                pMemberTrigger.GrabFocus()
-                OpenMemberPopup()
+                If lClass Is Nothing OrElse lClass.ObjectType <> CodeObjectType.eEnum Then
+                    pMemberTrigger.GrabFocus()
+                    OpenMemberPopup()
+                End If
 
             Catch ex As Exception
                 Console.WriteLine($"OnClassPopupItemSelected error: {ex.Message}")
