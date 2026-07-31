@@ -68,11 +68,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub ShowGenerateCodeDialog()
         Try
-            Dim lDialog As New Dialog("Generate Code with AI", Me, 
-                                    DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                                    Stock.Cancel, ResponseType.Cancel,
-                                    Stock.Ok, ResponseType.Ok)
-            
+            Dim lDialog As New Dialog("Generate Code with AI", Me,
+                                    DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
             lDialog.SetDefaultSize(600, 400)
             
             ' Create dialog content
@@ -132,8 +130,23 @@ Partial Public Class MainWindow
             lVBox.PackStart(lScrolled, True, True, 0)
             
             lDialog.ContentArea.Add(lVBox)
+
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+            Dim lOkButton As New CustomDrawButton("OK")
+            lOkButton.ThemeManager = pThemeManager
+            AddHandler lOkButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lOkButton, False, False, 0)
+            Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+
             lDialog.ShowAll()
-            
+
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 ' Build prompt based on selections
                 Dim lPrompt As New StringBuilder()

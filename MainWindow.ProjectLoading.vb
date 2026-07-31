@@ -9,6 +9,7 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Syntax
+Imports SimpleIDE.Widgets
 Imports SimpleIDE.Utilities
 
 ' MainWindow.ProjectLoading.vb
@@ -21,7 +22,7 @@ Partial Public Class MainWindow
     Private pProgressDialog As Dialog
     'Private pProgressBar As ProgressBar
     Private pProgressLabel As Label
-    Private pCancelButton As Button
+    Private pCancelButton As CustomDrawButton
     Private pLoadCancellationToken As CancellationTokenSource
     
     ' ===== Enhanced Project Loading Methods =====
@@ -205,9 +206,16 @@ Partial Public Class MainWindow
             ' Add to dialog content area
             pProgressDialog.ContentArea.PackStart(lVBox, True, True, 0)
             
-            ' Add cancel button
-            pCancelButton = CType(pProgressDialog.AddButton("Cancel", ResponseType.Cancel), Button)
+            ' Add cancel button - custom-drawn, wired directly to Respond()
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+            pCancelButton = New CustomDrawButton("Cancel")
+            pCancelButton.ThemeManager = pThemeManager
             AddHandler pCancelButton.Clicked, AddressOf OnProgressCancelClicked
+            lButtonBox.PackStart(pCancelButton, False, False, 0)
+            Dim lContentBox As Box = TryCast(pProgressDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
             
             ' Show all widgets
             pProgressDialog.ShowAll()
