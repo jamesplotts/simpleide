@@ -878,7 +878,7 @@ Namespace Widgets
                 Case TODOItem.eCategory.eUI
                     Return "applications-graphics-symbolic"
                 Case Else
-                    Return "Text-x-generic-symbolic"
+                    Return "text-x-generic-symbolic"
             End Select
         End Function
         

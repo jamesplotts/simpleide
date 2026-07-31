@@ -189,10 +189,10 @@ Namespace Models
                 Case eCategory.eUI
                     Return "applications-graphics-symbolic"
                 Case Else
-                    Return "Text-x-generic-symbolic"
+                    Return "text-x-generic-symbolic"
             End Select
         End Function
-        
+
         Public Function IsOverdue() As Boolean
             Return DueDate.HasValue AndAlso DueDate.Value < DateTime.Now AndAlso Status <> eStatus.eCompleted
         End Function

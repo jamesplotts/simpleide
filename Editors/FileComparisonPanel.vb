@@ -349,7 +349,7 @@ Namespace Editors
                 pLeftHeader.BorderWidth = 5
                 
                 Dim lIcon As New Image()
-                lIcon.SetFromIconName("Text-x-generic", IconSize.Menu)
+                lIcon.SetFromIconName("text-x-generic", IconSize.Menu)
                 pLeftHeader.PackStart(lIcon, False, False, 0)
                 
                 pLeftFileLabel = New Label("No file loaded")
@@ -367,7 +367,7 @@ Namespace Editors
                 pRightHeader.BorderWidth = 5
                 
                 Dim lIcon As New Image()
-                lIcon.SetFromIconName("Text-x-generic", IconSize.Menu)
+                lIcon.SetFromIconName("text-x-generic", IconSize.Menu)
                 pRightHeader.PackStart(lIcon, False, False, 0)
                 
                 pRightFileLabel = New Label("No file loaded")

@@ -182,7 +182,7 @@ What would you like to work on?")
                 
                 ' Toggle buttons for context
                 pCurrentFileButton = New ToggleToolButton()
-                pCurrentFileButton.IconName = "Text-x-generic"
+                pCurrentFileButton.IconName = "text-x-generic"
                 pCurrentFileButton.Label = "current File"
                 pCurrentFileButton.TooltipText = "Include current file in Context"
                 pCurrentFileButton.Active = pIncludeCurrentFile

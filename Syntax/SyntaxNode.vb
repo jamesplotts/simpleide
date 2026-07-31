@@ -211,7 +211,7 @@ Namespace Syntax
                 Case CodeNodeType.eClass
                     Return "application-x-executable-symbolic"
                 Case CodeNodeType.eModule
-                    Return "Package-x-generic-symbolic"
+                    Return "package-x-generic-symbolic"
                 Case CodeNodeType.eInterface
                     Return "emblem-shared-symbolic"
                 Case CodeNodeType.eStructure
@@ -231,10 +231,10 @@ Namespace Syntax
                 Case CodeNodeType.eVariable, CodeNodeType.eParameter
                     Return "format-indent-more-symbolic"
                 Case Else
-                    Return "Text-x-generic-symbolic"
+                    Return "text-x-generic-symbolic"
             End Select
         End Function
-        
+
         ' Clone the node (shallow copy)
         Public Function Clone() As SyntaxNode
             Dim lClone As New SyntaxNode()
