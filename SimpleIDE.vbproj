@@ -281,6 +281,7 @@
     <Compile Include="Widgets/HelpViewerPanel.vb" />
     <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
+    <Compile Include="Widgets/NavigationDropdownPopup.vb" />
     <Compile Include="Widgets/NavigationDropdowns.vb" />
     <Compile Include="Widgets/PreferencesTab.vb" />
     <Compile Include="Widgets/ThemeEditor.vb" />

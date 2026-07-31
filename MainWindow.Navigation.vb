@@ -121,7 +121,7 @@ Partial Public Class MainWindow
                         ' GitManager.vb nests GitFileInfo/CommitInfo/BranchInfo classes and a
                         ' FileStatus enum inside GitManager) - those need their own dropdown
                         ' entries too, not just as invisible content of the outer type
-                        CollectNestedTypes(lNode, vClasses)
+                        CollectNestedTypes(lNode, lClass, vClasses)
 
                     Case CodeNodeType.eNamespace, CodeNodeType.eDocument
                         ' Not a class and not a member - the real content is inside it
@@ -143,11 +143,13 @@ Partial Public Class MainWindow
 
     ''' <summary>
     ''' Recursively finds Class/Module/Interface/Structure/Enum nodes nested inside a
-    ''' type (at any depth) and adds each as its own dropdown entry
+    ''' type (at any depth) and adds each as its own dropdown entry, with Parent/
+    ''' NestingLevel set so the dropdown can render proper tree indentation
     ''' </summary>
     ''' <param name="vTypeNode">The containing type node to search inside</param>
+    ''' <param name="vParent">The CodeObject for vTypeNode, becomes each direct child's Parent</param>
     ''' <param name="vClasses">Accumulates discovered nested types</param>
-    Private Sub CollectNestedTypes(vTypeNode As SyntaxNode, vClasses As List(Of CodeObject))
+    Private Sub CollectNestedTypes(vTypeNode As SyntaxNode, vParent As CodeObject, vClasses As List(Of CodeObject))
         Try
             For Each lChild In vTypeNode.Children
                 Select Case lChild.NodeType
@@ -155,9 +157,11 @@ Partial Public Class MainWindow
                          CodeNodeType.eInterface, CodeNodeType.eStructure,
                          CodeNodeType.eEnum
                         Dim lNested As CodeObject = BuildClassObject(lChild)
-                        Console.WriteLine($"    Found nested type: {lNested.Name} (Lines {lNested.StartLine}-{lNested.EndLine})")
+                        lNested.Parent = vParent
+                        lNested.NestingLevel = vParent.NestingLevel + 1
+                        Console.WriteLine($"    Found nested type: {lNested.Name} (Lines {lNested.StartLine}-{lNested.EndLine}, Level {lNested.NestingLevel})")
                         vClasses.Add(lNested)
-                        CollectNestedTypes(lChild, vClasses)
+                        CollectNestedTypes(lChild, lNested, vClasses)
                 End Select
             Next
 

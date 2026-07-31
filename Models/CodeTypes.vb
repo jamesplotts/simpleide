@@ -96,6 +96,10 @@ Namespace Models
     Public Class CodeObject
         Public Property Name As String = ""
         Public Property ObjectType As CodeObjectType = CodeObjectType.eUnspecified
+        ''' <summary>The immediately containing type, or Nothing for a top-level type</summary>
+        Public Property Parent As CodeObject = Nothing
+        ''' <summary>Nesting depth - 0 for top-level types, 1 for a type nested directly inside one, etc.</summary>
+        Public Property NestingLevel As Integer = 0
         Public Property StartLine As Integer = 0      ' 1-based Line number
         Public Property EndLine As Integer = 0        ' 1-based Line number
         Public Property StartColumn As Integer = 0

@@ -351,6 +351,9 @@ Partial Public Class MainWindow
                 ' Create navigation dropdowns for code files
                 Dim lNavigationDropdowns As New NavigationDropdowns()
                 lNavigationDropdowns.SetEditor(lEditor)
+                If pThemeManager IsNot Nothing Then
+                    lNavigationDropdowns.SetThemeManager(pThemeManager)
+                End If
                 
                 ' Hook up navigation event
                 AddHandler lNavigationDropdowns.NavigationRequested, AddressOf OnNavigationRequested
