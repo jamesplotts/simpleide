@@ -131,8 +131,17 @@ Namespace Widgets
         ''' </summary>
         Private Sub ApplyEntryCss()
             Try
+                ' GTK's default entry theming reserves its own padding and a minimum
+                ' content height on top of our outer bevel margins - left alone, that
+                ' extra reserved space pushes the entry's natural height past what a
+                ' compact host (e.g. a toolbar row) allocates, so the real Entry gets
+                ' squeezed and its text/placeholder renders low enough to clip into the
+                ' bottom bevel line instead of sitting centered. Zeroing both here makes
+                ' our own margins the only spacing, so text stays centered in whatever
+                ' room is actually available
                 Dim lCss As String =
                     "entry { border: none; background-image: none; box-shadow: none; " &
+                    "padding: 0px 2px; min-height: 0px; " &
                     $"background-color: {pFillColor}; }}"
                 CssHelper.ApplyCssToWidget(pEntry, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
             Catch ex As Exception
@@ -187,21 +196,30 @@ Namespace Widgets
             Try
                 Dim lWidth As Integer = pBackgroundArea.AllocatedWidth
                 Dim lHeight As Integer = pBackgroundArea.AllocatedHeight
+                If lWidth <= 0 OrElse lHeight <= 0 Then Return
 
                 SetSourceColor(vContext, pFillColor)
                 vContext.Rectangle(0, 0, lWidth, lHeight)
                 vContext.Fill()
 
+                ' Bounds check: on a very short/narrow allocation (e.g. a compact toolbar
+                ' row) a full-width bevel edge would overlap its opposite edge or spill
+                ' past the widget entirely, so clamp the edge thickness to at most half
+                ' the available dimension rather than assuming BEVEL_WIDTH always fits
+                Dim lVBevel As Integer = Math.Min(BEVEL_WIDTH, lHeight \ 2)
+                Dim lHBevel As Integer = Math.Min(BEVEL_WIDTH, lWidth \ 2)
+                If lVBevel <= 0 OrElse lHBevel <= 0 Then Return
+
                 SetSourceColor(vContext, pTopLeftColor)
-                vContext.Rectangle(0, 0, lWidth, BEVEL_WIDTH)                  ' top
+                vContext.Rectangle(0, 0, lWidth, lVBevel)                      ' top
                 vContext.Fill()
-                vContext.Rectangle(0, 0, BEVEL_WIDTH, lHeight)                 ' left
+                vContext.Rectangle(0, 0, lHBevel, lHeight)                     ' left
                 vContext.Fill()
 
                 SetSourceColor(vContext, pBottomRightColor)
-                vContext.Rectangle(0, lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)      ' bottom
+                vContext.Rectangle(0, lHeight - lVBevel, lWidth, lVBevel)               ' bottom
                 vContext.Fill()
-                vContext.Rectangle(lWidth - BEVEL_WIDTH, 0, BEVEL_WIDTH, lHeight)      ' right
+                vContext.Rectangle(lWidth - lHBevel, 0, lHBevel, lHeight)               ' right
                 vContext.Fill()
 
             Catch ex As Exception
