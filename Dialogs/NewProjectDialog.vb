@@ -13,13 +13,13 @@ Namespace Dialogs
         Inherits Dialog
         
         ' Private fields
-        Private pProjectNameEntry As Entry
-        Private pLocationEntry As Entry
-        Private pBrowseButton As Button
+        Private pProjectNameEntry As CustomDrawTextBox
+        Private pLocationEntry As CustomDrawTextBox
+        Private pBrowseButton As CustomDrawButton
         Private pProjectTypeCombo As ComboBoxText
         Private pCreateDirectoryCheck As CheckButton
         Private pInitializeGitCheck As CheckButton
-        Private pSolutionNameEntry As Entry
+        Private pSolutionNameEntry As CustomDrawTextBox
         Private pCreateSolutionCheck As CheckButton
         Private pThemeManager As ThemeManager
         
@@ -137,8 +137,8 @@ Namespace Dialogs
                 Dim lNameBox As New Box(Orientation.Vertical, 5)
                 lNameBox.BorderWidth = 10
                 
-                pProjectNameEntry = New Entry()
-                pProjectNameEntry.PlaceholderText = "Enter project Name"
+                pProjectNameEntry = New CustomDrawTextBox("Enter project Name")
+                pProjectNameEntry.ThemeManager = pThemeManager
                 lNameBox.PackStart(pProjectNameEntry, False, False, 0)
                 
                 lNameFrame.Add(lNameBox)
@@ -150,10 +150,12 @@ Namespace Dialogs
                 lLocationBox.BorderWidth = 10
                 
                 Dim lLocationHBox As New Box(Orientation.Horizontal, 5)
-                pLocationEntry = New Entry()
+                pLocationEntry = New CustomDrawTextBox()
                 pLocationEntry.Text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-                pBrowseButton = New Button("Browse...")
-                
+                pLocationEntry.ThemeManager = pThemeManager
+                pBrowseButton = New CustomDrawButton("Browse...")
+                pBrowseButton.ThemeManager = pThemeManager
+
                 lLocationHBox.PackStart(pLocationEntry, True, True, 0)
                 lLocationHBox.PackStart(pBrowseButton, False, False, 0)
                 lLocationBox.PackStart(lLocationHBox, False, False, 0)
@@ -204,8 +206,9 @@ Namespace Dialogs
                 Dim lSolutionHBox As New Box(Orientation.Horizontal, 5)
                 Dim lSolutionLabel As New Label("Solution Name:")
                 lSolutionLabel.SetSizeRequest(100, -1)
-                pSolutionNameEntry = New Entry()
-                
+                pSolutionNameEntry = New CustomDrawTextBox()
+                pSolutionNameEntry.ThemeManager = pThemeManager
+
                 lSolutionHBox.PackStart(lSolutionLabel, False, False, 0)
                 lSolutionHBox.PackStart(pSolutionNameEntry, True, True, 0)
                 lSolutionBox.PackStart(lSolutionHBox, False, False, 0)
@@ -232,11 +235,28 @@ Namespace Dialogs
                 
                 ' Add tabs using string labels
                 lNotebook.AppendPage(lProjectBox, "Project")
-                lNotebook.AppendPage(lAdvancedBox, "Advanced")        
-                
-                ' Dialog buttons
-                AddButton("Cancel", ResponseType.Cancel)
-                AddButton("Create", ResponseType.Ok)
+                lNotebook.AppendPage(lAdvancedBox, "Advanced")
+
+                ' FIXED: the notebook was built but never packed into the content area,
+                ' leaving the dialog showing no tab content at all
+                lContentArea.PackStart(lNotebook, True, True, 0)
+
+                ' Dialog buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+                Dim lCreateButton As New CustomDrawButton("Create")
+                lCreateButton.ThemeManager = pThemeManager
+                AddHandler lCreateButton.Clicked, Sub() Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lCreateButton, False, False, 0)
+
+                lContentArea.PackStart(lButtonBox, False, False, 0)
                 
                 ' Update template description when combo changes
                 AddHandler pProjectTypeCombo.Changed, Sub()
@@ -258,7 +278,7 @@ Namespace Dialogs
                 
                 ' Focus project name entry
                 pProjectNameEntry.GrabFocus()
-                pProjectNameEntry.SelectRegion(0, -1)
+                pProjectNameEntry.InnerEntry.SelectRegion(0, -1)
                 
             Catch ex As Exception
                 Console.WriteLine($"NewProjectDialog.SetDefaults error: {ex.Message}")
