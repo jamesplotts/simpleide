@@ -604,7 +604,10 @@ Namespace Managers
             Try
                 If Not String.IsNullOrEmpty(vProjectRoot) Then
                     pProjectRoot = vProjectRoot
-                    pGitPanel.ProjectRoot = System.IO.Path.GetDirectoryName(vProjectRoot)
+                    Dim lProjectDirectory As String = System.IO.Path.GetDirectoryName(vProjectRoot)
+                    pGitPanel.ProjectRoot = lProjectDirectory
+                    pFindPanel?.SetProjectRoot(lProjectDirectory)
+                    pTodoPanel?.SetProjectRoot(lProjectDirectory)
                 End If
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.SetProjectRoot error: {ex.Message}")
@@ -810,17 +813,6 @@ Namespace Managers
                 End If
             Catch ex As Exception
                 Console.WriteLine($"AppendToConsole error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Update project root for panels that need it
-        Public Sub UpdateProjectRoot(vProjectRoot As String)
-            Try
-                pFindPanel?.SetProjectRoot(vProjectRoot)
-                pTodoPanel?.SetProjectRoot(vProjectRoot)
-                pGitPanel?.SetProjectRoot(vProjectRoot)
-            Catch ex As Exception
-                Console.WriteLine($"UpdateProjectRoot error: {ex.Message}")
             End Try
         End Sub
         

@@ -525,18 +525,6 @@ Partial Public Class MainWindow
     Public Function GetSettingsManager() As SettingsManager
         Return pSettingsManager
     End Function
-    
-    ' Update project root when project changes
-    Private Sub UpdateProjectRootForPanels()
-        Try
-            If pBottomPanelManager IsNot Nothing AndAlso Not String.IsNullOrEmpty(pCurrentProject) Then
-                Dim lProjectRoot As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-                pBottomPanelManager.UpdateProjectRoot(lProjectRoot)
-            End If
-        Catch ex As Exception
-            Console.WriteLine($"UpdateProjectRootForPanels error: {ex.Message}")
-        End Try
-    End Sub
 
     Private Sub OnMainNotebookPageSwitched(vOldIndex As Integer, vNewIndex As Integer)
         Try
