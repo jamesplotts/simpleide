@@ -47,9 +47,9 @@ Namespace Widgets
         Private pShowEndOfLineCheck As CheckButton
         
         ' Build tab controls
-        Private pDefaultConfigCombo As ComboBoxText
-        Private pDefaultPlatformCombo As ComboBoxText
-        Private pVerbosityCombo As ComboBoxText
+        Private pDefaultConfigCombo As CustomDrawComboBox
+        Private pDefaultPlatformCombo As CustomDrawComboBox
+        Private pVerbosityCombo As CustomDrawComboBox
         Private pParallelBuildCheck As CheckButton
         Private pRestorePackagesCheck As CheckButton
         Private pShowOutputCheck As CheckButton
@@ -451,26 +451,29 @@ Namespace Widgets
             
             Dim lDefaultConfigBox As New Box(Orientation.Horizontal, 10)
             lDefaultConfigBox.PackStart(New Label("Default configuration:"), False, False, 0)
-            pDefaultConfigCombo = New ComboBoxText()
+            pDefaultConfigCombo = New CustomDrawComboBox()
+            pDefaultConfigCombo.ThemeManager = pThemeManager
             pDefaultConfigCombo.AppendText("Debug")
             pDefaultConfigCombo.AppendText("Release")
             AddHandler pDefaultConfigCombo.Changed, AddressOf OnSettingChanged
             lDefaultConfigBox.PackStart(pDefaultConfigCombo, True, True, 0)
             lConfigBox.PackStart(lDefaultConfigBox, False, False, 0)
-            
+
             Dim lDefaultPlatformBox As New Box(Orientation.Horizontal, 10)
             lDefaultPlatformBox.PackStart(New Label("Default platform:"), False, False, 0)
-            pDefaultPlatformCombo = New ComboBoxText()
+            pDefaultPlatformCombo = New CustomDrawComboBox()
+            pDefaultPlatformCombo.ThemeManager = pThemeManager
             pDefaultPlatformCombo.AppendText("Any CPU")
             pDefaultPlatformCombo.AppendText("x86")
             pDefaultPlatformCombo.AppendText("x64")
             AddHandler pDefaultPlatformCombo.Changed, AddressOf OnSettingChanged
             lDefaultPlatformBox.PackStart(pDefaultPlatformCombo, True, True, 0)
             lConfigBox.PackStart(lDefaultPlatformBox, False, False, 0)
-            
+
             Dim lVerbosityBox As New Box(Orientation.Horizontal, 10)
             lVerbosityBox.PackStart(New Label("Verbosity:"), False, False, 0)
-            pVerbosityCombo = New ComboBoxText()
+            pVerbosityCombo = New CustomDrawComboBox()
+            pVerbosityCombo.ThemeManager = pThemeManager
             pVerbosityCombo.AppendText("Quiet")
             pVerbosityCombo.AppendText("Minimal")
             pVerbosityCombo.AppendText("Normal")
