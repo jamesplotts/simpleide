@@ -478,7 +478,7 @@ Module Program
                 Case "--test-mode"
                     lTestMode = True
                     Console.WriteLine("Running in test mode - will exit automatically")
-                    
+
                 Case "--test-delay"
                     If i + 1 < vArgs.Length Then
                         i += 1
