@@ -32,19 +32,19 @@ Namespace Dialogs
         ' Assembly tab components
         Private pAssemblyTreeView As TreeView
         Private pAssemblyListStore As ListStore
-        Private pAssemblySearchEntry As SearchEntry
-        Private pAssemblyAddButton As Button
-        Private pAssemblyRemoveButton As Button
-        Private pBrowseAssemblyButton As Button
-        
+        Private pAssemblySearchEntry As CustomDrawTextBox
+        Private pAssemblyAddButton As CustomDrawButton
+        Private pAssemblyRemoveButton As CustomDrawButton
+        Private pBrowseAssemblyButton As CustomDrawButton
+
         ' NuGet tab components
         Private pNuGetTreeView As TreeView
         Private pNuGetListStore As ListStore
-        Private pNuGetSearchEntry As SearchEntry
-        Private pNuGetSearchButton As Button
-        Private pNuGetAddButton As Button
-        Private pNuGetRemoveButton As Button
-        Private pNuGetUpdateButton As Button
+        Private pNuGetSearchEntry As CustomDrawTextBox
+        Private pNuGetSearchButton As CustomDrawButton
+        Private pNuGetAddButton As CustomDrawButton
+        Private pNuGetRemoveButton As CustomDrawButton
+        Private pNuGetUpdateButton As CustomDrawButton
         Private pNuGetVersionCombo As ComboBoxText
         Private pNuGetSpinner As Spinner
         Private pNuGetStatusLabel As Label
@@ -53,9 +53,9 @@ Namespace Dialogs
         ' Project tab components
         Private pProjectTreeView As TreeView
         Private pProjectListStore As ListStore
-        Private pProjectAddButton As Button
-        Private pProjectRemoveButton As Button
-        Private pProjectBrowseButton As Button
+        Private pProjectAddButton As CustomDrawButton
+        Private pProjectRemoveButton As CustomDrawButton
+        Private pProjectBrowseButton As CustomDrawButton
         
         ' Current references
         Private pCurrentReferences As List(Of ReferenceManager.ReferenceInfo)
@@ -125,10 +125,21 @@ Namespace Dialogs
                 
                 ' Add to content area
                 ContentArea.Add(lVBox)
-                
-                ' Add dialog buttons
-                AddButton("Close", ResponseType.Close)
-                
+
+                ' Add dialog buttons - custom-drawn, wired directly to Respond() since a
+                ' custom-drawn widget can't participate in the stock AddButton mechanism
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCloseButton As New CustomDrawButton("Close")
+                lCloseButton.ThemeManager = pThemeManager
+                AddHandler lCloseButton.Clicked, Sub() Respond(ResponseType.Close)
+                lButtonBox.PackStart(lCloseButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(ContentArea, Box)
+                If lContentBox IsNot Nothing Then
+                    lContentBox.PackStart(lButtonBox, False, False, 0)
+                End If
+
                 ShowAll()
                 
             Catch ex As Exception
@@ -144,8 +155,8 @@ Namespace Dialogs
             Dim lSearchBox As New Box(Orientation.Horizontal, 5)
             lSearchBox.PackStart(New Label("Filter:"), False, False, 0)
             
-            pAssemblySearchEntry = New SearchEntry()
-            pAssemblySearchEntry.PlaceholderText = "Type to filter assemblies..."
+            pAssemblySearchEntry = New CustomDrawTextBox("Type to filter assemblies...")
+            pAssemblySearchEntry.ThemeManager = pThemeManager
             AddHandler pAssemblySearchEntry.Changed, AddressOf OnAssemblySearchChanged
             lSearchBox.PackStart(pAssemblySearchEntry, True, True, 0)
             
@@ -191,18 +202,21 @@ Namespace Dialogs
             ' Button box
             Dim lButtonBox As New Box(Orientation.Horizontal, 5)
             
-            pBrowseAssemblyButton = New Button("Browse...")
+            pBrowseAssemblyButton = New CustomDrawButton("Browse...")
+            pBrowseAssemblyButton.ThemeManager = pThemeManager
             AddHandler pBrowseAssemblyButton.Clicked, AddressOf OnBrowseAssembly
             lButtonBox.PackStart(pBrowseAssemblyButton, False, False, 0)
-            
+
             lButtonBox.PackStart(New Label(""), True, True, 0) ' Spacer
-            
-            pAssemblyAddButton = New Button("Add Selected")
+
+            pAssemblyAddButton = New CustomDrawButton("Add Selected")
+            pAssemblyAddButton.ThemeManager = pThemeManager
             pAssemblyAddButton.Sensitive = False
             AddHandler pAssemblyAddButton.Clicked, AddressOf OnAddAssemblies
             lButtonBox.PackStart(pAssemblyAddButton, False, False, 0)
-            
-            pAssemblyRemoveButton = New Button("Remove Selected")
+
+            pAssemblyRemoveButton = New CustomDrawButton("Remove Selected")
+            pAssemblyRemoveButton.ThemeManager = pThemeManager
             pAssemblyRemoveButton.Sensitive = False
             AddHandler pAssemblyRemoveButton.Clicked, AddressOf OnRemoveAssemblies
             lButtonBox.PackStart(pAssemblyRemoveButton, False, False, 0)
@@ -223,12 +237,13 @@ Namespace Dialogs
             Dim lSearchBox As New Box(Orientation.Horizontal, 5)
             lSearchBox.PackStart(New Label("Search:"), False, False, 0)
             
-            pNuGetSearchEntry = New SearchEntry()
-            pNuGetSearchEntry.PlaceholderText = "Search NuGet Packages..."
+            pNuGetSearchEntry = New CustomDrawTextBox("Search NuGet Packages...")
+            pNuGetSearchEntry.ThemeManager = pThemeManager
             AddHandler pNuGetSearchEntry.Activated, AddressOf OnNuGetSearch
             lSearchBox.PackStart(pNuGetSearchEntry, True, True, 0)
-            
-            pNuGetSearchButton = New Button("Search")
+
+            pNuGetSearchButton = New CustomDrawButton("Search")
+            pNuGetSearchButton.ThemeManager = pThemeManager
             AddHandler pNuGetSearchButton.Clicked, AddressOf OnNuGetSearch
             lSearchBox.PackStart(pNuGetSearchButton, False, False, 0)
             
@@ -294,17 +309,20 @@ Namespace Dialogs
             
             lButtonBox.PackStart(New Label(""), True, True, 0) ' Spacer
             
-            pNuGetAddButton = New Button("Install")
+            pNuGetAddButton = New CustomDrawButton("Install")
+            pNuGetAddButton.ThemeManager = pThemeManager
             pNuGetAddButton.Sensitive = False
             AddHandler pNuGetAddButton.Clicked, AddressOf OnInstallPackage
             lButtonBox.PackStart(pNuGetAddButton, False, False, 0)
-            
-            pNuGetUpdateButton = New Button("Update")
+
+            pNuGetUpdateButton = New CustomDrawButton("Update")
+            pNuGetUpdateButton.ThemeManager = pThemeManager
             pNuGetUpdateButton.Sensitive = False
             AddHandler pNuGetUpdateButton.Clicked, AddressOf OnUpdatePackage
             lButtonBox.PackStart(pNuGetUpdateButton, False, False, 0)
-            
-            pNuGetRemoveButton = New Button("Uninstall")
+
+            pNuGetRemoveButton = New CustomDrawButton("Uninstall")
+            pNuGetRemoveButton.ThemeManager = pThemeManager
             pNuGetRemoveButton.Sensitive = False
             AddHandler pNuGetRemoveButton.Clicked, AddressOf OnUninstallPackage
             lButtonBox.PackStart(pNuGetRemoveButton, False, False, 0)
@@ -350,18 +368,21 @@ Namespace Dialogs
             ' Button box
             Dim lButtonBox As New Box(Orientation.Horizontal, 5)
             
-            pProjectBrowseButton = New Button("Browse...")
+            pProjectBrowseButton = New CustomDrawButton("Browse...")
+            pProjectBrowseButton.ThemeManager = pThemeManager
             AddHandler pProjectBrowseButton.Clicked, AddressOf OnBrowseProject
             lButtonBox.PackStart(pProjectBrowseButton, False, False, 0)
-            
+
             lButtonBox.PackStart(New Label(""), True, True, 0) ' Spacer
-            
-            pProjectAddButton = New Button("Add Reference")
+
+            pProjectAddButton = New CustomDrawButton("Add Reference")
+            pProjectAddButton.ThemeManager = pThemeManager
             pProjectAddButton.Sensitive = False
             AddHandler pProjectAddButton.Clicked, AddressOf OnAddProject
             lButtonBox.PackStart(pProjectAddButton, False, False, 0)
-            
-            pProjectRemoveButton = New Button("Remove")
+
+            pProjectRemoveButton = New CustomDrawButton("Remove")
+            pProjectRemoveButton.ThemeManager = pThemeManager
             pProjectRemoveButton.Sensitive = False
             AddHandler pProjectRemoveButton.Clicked, AddressOf OnRemoveProject
             lButtonBox.PackStart(pProjectRemoveButton, False, False, 0)
