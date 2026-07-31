@@ -1,58 +1,76 @@
- 
+
 ' Dialogs/BuildConfigurationDialog.vb - Build configuration dialog
 Imports Gtk
 Imports System
 Imports System.IO
+Imports SimpleIDE.Widgets
+Imports SimpleIDE.Managers
 
 Namespace Dialogs
 
     Public Class BuildConfigurationDialog
         Inherits Dialog
-        
+
         ' Private fields
         Private pConfigurationCombo As ComboBoxText
         Private pPlatformCombo As ComboBoxText
         Private pVerbosityCombo As ComboBoxText
-        Private pOutputPathEntry As Entry
-        Private pAdditionalArgsEntry As Entry
+        Private pOutputPathEntry As CustomDrawTextBox
+        Private pAdditionalArgsEntry As CustomDrawTextBox
         Private pRestorePackagesCheck As CheckButton
         Private pCleanBeforeBuildCheck As CheckButton
         Private pBuildConfiguration As Models.BuildConfiguration
-        
+        Private pThemeManager As ThemeManager
+
         Public ReadOnly Property BuildConfiguration As Models.BuildConfiguration
             Get
                 Return pBuildConfiguration
             End Get
         End Property
-        
-        Public Sub New(vParent As Window, vCurrentConfig As Models.BuildConfiguration)
+
+        Public Sub New(vParent As Window, vCurrentConfig As Models.BuildConfiguration, Optional vThemeManager As ThemeManager = Nothing)
             MyBase.New("Build Configuration", vParent, DialogFlags.Modal)
-            
+
+            pThemeManager = vThemeManager
+
             ' Clone the configuration to avoid modifying the original
             pBuildConfiguration = New Models.BuildConfiguration()
             CopyConfiguration(vCurrentConfig, pBuildConfiguration)
-            
+
             ' Window setup
             SetDefaultSize(500, 400)
             SetPosition(WindowPosition.CenterOnParent)
             BorderWidth = 10
-            
+
             ' Build UI
             BuildUI()
-            
+
             ' Load current settings
             LoadSettings()
-            
-            ' Add buttons
-            AddButton("_Cancel", ResponseType.Cancel)
-            AddButton("_OK", ResponseType.Ok)
-            
-            ' Set default button
-            DefaultResponse = ResponseType.Ok
-            
+
+            ' Add buttons - custom-drawn, wired directly to the dialog's Response mechanism
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+            Dim lOkButton As New CustomDrawButton("OK")
+            lOkButton.ThemeManager = pThemeManager
+            AddHandler lOkButton.Clicked, Sub() Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lOkButton, False, False, 0)
+
+            Dim lContentBox As Box = TryCast(ContentArea, Box)
+            If lContentBox IsNot Nothing Then
+                lContentBox.PackStart(lButtonBox, False, False, 0)
+            End If
+
             ' Connect response handler
             AddHandler Me.Response, AddressOf OnResponse
-            
+
             ShowAll()
         End Sub
         
@@ -109,11 +127,12 @@ Namespace Dialogs
             lBuildGrid.Attach(lOutputLabel, 0, 3, 1, 1)
             
             Dim lOutputHBox As New Box(Orientation.Horizontal, 5)
-            pOutputPathEntry = New Entry()
-            pOutputPathEntry.PlaceholderText = "Leave empty for default"
+            pOutputPathEntry = New CustomDrawTextBox("Leave empty for default")
+            pOutputPathEntry.ThemeManager = pThemeManager
             lOutputHBox.PackStart(pOutputPathEntry, True, True, 0)
-            
-            Dim lBrowseButton As New Button("Browse...")
+
+            Dim lBrowseButton As New CustomDrawButton("Browse...")
+            lBrowseButton.ThemeManager = pThemeManager
             AddHandler lBrowseButton.Clicked, AddressOf OnBrowseOutputPath
             lOutputHBox.PackStart(lBrowseButton, False, False, 0)
             
@@ -124,8 +143,8 @@ Namespace Dialogs
             lArgsLabel.Halign = Align.Start
             lBuildGrid.Attach(lArgsLabel, 0, 4, 1, 1)
             
-            pAdditionalArgsEntry = New Entry()
-            pAdditionalArgsEntry.PlaceholderText = "e.g., --no-restore --force"
+            pAdditionalArgsEntry = New CustomDrawTextBox("e.g., --no-restore --force")
+            pAdditionalArgsEntry.ThemeManager = pThemeManager
             lBuildGrid.Attach(pAdditionalArgsEntry, 1, 4, 1, 1)
             
             lBuildFrame.Add(lBuildGrid)

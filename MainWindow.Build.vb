@@ -422,7 +422,7 @@ Partial Public Class MainWindow
     ' Configure build settings
     Public Sub ConfigureBuild()
         Try
-            Using lDialog As New BuildConfigurationDialog(Me, pBuildConfiguration)
+            Using lDialog As New BuildConfigurationDialog(Me, pBuildConfiguration, pThemeManager)
                 If lDialog.Run() = CInt(ResponseType.Ok) Then
                     ' Update configuration
                     pBuildConfiguration = lDialog.BuildConfiguration
