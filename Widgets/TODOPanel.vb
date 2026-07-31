@@ -197,7 +197,8 @@ Namespace Widgets
             
             ' Create tree view and list store (must be done before adding to scrolled window)
             CreateTreeView()
-            
+            pScrolledWindow.Add(pTreeView)
+
             ' Status bar
             pStatusBar = New Label("Ready")
             pStatusBar.Halign = Align.Start
