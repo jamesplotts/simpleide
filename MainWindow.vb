@@ -67,6 +67,7 @@ Partial Public Class MainWindow
         Try
             ' Initialize settings FIRST
             pSettingsManager = New SettingsManager()
+            ProjectFileScanner.Initialize(pSettingsManager)
             pProjectManager = New ProjectManager()
             pThemeManager = New ThemeManager(pSettingsManager)
 

@@ -145,6 +145,13 @@ Namespace Widgets
 
                 pFillColor = lTheme.LineNumberBackgroundColor
                 pTextColor = lTheme.ForegroundColor
+
+                ' Bevel edges derived relative to the face color (lightened/darkened by a
+                ' fixed amount) rather than fixed white/black, so the highlight and shadow
+                ' edges both stay visible whether the theme's face color itself lands near
+                ' the light or dark end of the range
+                pLightEdgeColor = LightenColor(pFillColor, 0.30)
+                pDarkEdgeColor = DarkenColor(pFillColor, 0.30)
                 QueueDraw()
 
             Catch ex As Exception
@@ -306,6 +313,22 @@ Namespace Widgets
                 Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawButton.LightenColor error: {ex.Message}")
+                Return vHexColor
+            End Try
+        End Function
+
+        Protected Function DarkenColor(vHexColor As String, vAmount As Double) As String
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If Not lColor.Parse(vHexColor) Then Return vHexColor
+
+                Dim lR As Double = Math.Max(0.0, lColor.Red - vAmount)
+                Dim lG As Double = Math.Max(0.0, lColor.Green - vAmount)
+                Dim lB As Double = Math.Max(0.0, lColor.Blue - vAmount)
+
+                Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawButton.DarkenColor error: {ex.Message}")
                 Return vHexColor
             End Try
         End Function
