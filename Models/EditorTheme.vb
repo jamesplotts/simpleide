@@ -44,6 +44,22 @@ Namespace Models
         ''' Accent color for special UI states (dragging, focus indicators, etc.)
         ''' </summary>
         Public Property AccentColor As String
+
+        ''' <summary>
+        ''' Light bevel edge color for CustomDraw* retro 3D controls (CustomDrawButton's
+        ''' raised top/left, CustomDrawTextBox's sunken bottom/right). Empty means "derive
+        ''' automatically from the control's face color" (Lighten by a fixed amount) -
+        ''' set explicitly to override, e.g. for themes whose face color already sits near
+        ''' a luminance extreme and loses contrast on one auto-derived edge
+        ''' </summary>
+        Public Property BevelLightColor As String
+
+        ''' <summary>
+        ''' Dark bevel edge color for CustomDraw* retro 3D controls (CustomDrawButton's
+        ''' raised bottom/right, CustomDrawTextBox's sunken top/left). Empty means "derive
+        ''' automatically from the control's face color" (Darken by a fixed amount)
+        ''' </summary>
+        Public Property BevelDarkColor As String
         
         ' Syntax colors
         Public Property SyntaxColors As New Dictionary(Of SyntaxColorSet.Tags, String)
@@ -75,6 +91,8 @@ Namespace Models
             eTabInactiveColor
             eTabHoverColor
             eAccentColor
+            eBevelLightColor
+            eBevelDarkColor
 
             eKeywordText
             eTypeText
@@ -122,7 +140,9 @@ Namespace Models
             TabInactiveColor = "#252526"       ' Slightly lighter than background
             TabHoverColor = "#2D2D30"          ' Even lighter for hover
             AccentColor = "#007ACC"            ' VS Code blue accent
-            
+            BevelLightColor = ""               ' "" = auto-derive from face color
+            BevelDarkColor = ""                ' "" = auto-derive from face color
+
             
             ' Status colors
             ErrorColor = "#FF6B6B"
@@ -196,7 +216,16 @@ Namespace Models
             lNewTheme.LineNumberBackgroundColor = LineNumberBackgroundColor
             lNewTheme.CurrentLineNumberColor = CurrentLineNumberColor
             lNewTheme.CursorColor = CursorColor
-            
+
+            ' Copy tab/accent/bevel colors (previously missing from Clone - a theme
+            ' "Save As Copy" would silently revert these to SetDefaults' hardcoded values)
+            lNewTheme.EditorBackgroundColor = EditorBackgroundColor
+            lNewTheme.TabInactiveColor = TabInactiveColor
+            lNewTheme.TabHoverColor = TabHoverColor
+            lNewTheme.AccentColor = AccentColor
+            lNewTheme.BevelLightColor = BevelLightColor
+            lNewTheme.BevelDarkColor = BevelDarkColor
+
             ' Copy status colors
             lNewTheme.ErrorColor = ErrorColor
             lNewTheme.WarningColor = WarningColor
@@ -311,7 +340,10 @@ Namespace Models
                         Return If(String.IsNullOrEmpty(TabHoverColor), "#2D2D30", TabHoverColor)
                     Case EditorTheme.Tags.eAccentColor
                         Return If(String.IsNullOrEmpty(AccentColor), "#007ACC", AccentColor)
-
+                    Case EditorTheme.Tags.eBevelLightColor
+                        Return BevelLightColor
+                    Case EditorTheme.Tags.eBevelDarkColor
+                        Return BevelDarkColor
 
                     Case EditorTheme.Tags.eKeywordText
                         Return SyntaxColors(SyntaxColorSet.Tags.eKeyword)

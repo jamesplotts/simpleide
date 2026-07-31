@@ -139,11 +139,13 @@ Namespace Widgets
                 pFillColor = lTheme.BackgroundColor
 
                 ' Sunken look: dark top/left, light bottom/right - the inverse of
-                ' CustomDrawButton's raised bevel - derived relative to the face color for
-                ' the same reason (stays visible whether the theme's face color itself
-                ' lands near the light or dark end of the range)
-                pTopLeftColor = DarkenColor(pFillColor, 0.30)
-                pBottomRightColor = LightenColor(pFillColor, 0.30)
+                ' CustomDrawButton's raised bevel. Uses the theme's explicit
+                ' BevelDarkColor/BevelLightColor override if set (the same pair
+                ' CustomDrawButton reads, just assigned to opposite corners since this
+                ' widget is sunken rather than raised), otherwise derives relative to the
+                ' face color as CustomDrawButton does, for the same reasoning
+                pTopLeftColor = If(String.IsNullOrEmpty(lTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), lTheme.BevelDarkColor)
+                pBottomRightColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pFillColor, 0.30), lTheme.BevelLightColor)
 
                 ApplyEntryCss()
                 pBackgroundArea?.QueueDraw()

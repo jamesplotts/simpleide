@@ -316,6 +316,12 @@ Namespace Widgets
                 Case EditorTheme.Tags.eLineNumberBackgroundColor : Return "Line Number Background"
                 Case EditorTheme.Tags.eCurrentLineNumberColor : Return "current Line Number Color"
                 Case EditorTheme.Tags.eCursorColor : Return "Cursor Color"
+                Case EditorTheme.Tags.eEditorBackgroundColor : Return "Editor Background Color"
+                Case EditorTheme.Tags.eTabInactiveColor : Return "Inactive Tab Color"
+                Case EditorTheme.Tags.eTabHoverColor : Return "Tab Hover Color"
+                Case EditorTheme.Tags.eAccentColor : Return "Accent Color"
+                Case EditorTheme.Tags.eBevelLightColor : Return "Bevel Light Edge (blank = auto)"
+                Case EditorTheme.Tags.eBevelDarkColor : Return "Bevel Dark Edge (blank = auto)"
                 Case EditorTheme.Tags.eKeywordText : Return "Keyword Color"
                 Case EditorTheme.Tags.eTypeText : Return "Type Color"
                 Case EditorTheme.Tags.eStringText : Return "String Color"
@@ -411,6 +417,18 @@ Namespace Widgets
                         pCurrentTheme.CurrentLineNumberColor = vColorHex
                     Case EditorTheme.Tags.eCursorColor
                         pCurrentTheme.CursorColor = vColorHex
+                    Case EditorTheme.Tags.eEditorBackgroundColor
+                        pCurrentTheme.EditorBackgroundColor = vColorHex
+                    Case EditorTheme.Tags.eTabInactiveColor
+                        pCurrentTheme.TabInactiveColor = vColorHex
+                    Case EditorTheme.Tags.eTabHoverColor
+                        pCurrentTheme.TabHoverColor = vColorHex
+                    Case EditorTheme.Tags.eAccentColor
+                        pCurrentTheme.AccentColor = vColorHex
+                    Case EditorTheme.Tags.eBevelLightColor
+                        pCurrentTheme.BevelLightColor = vColorHex
+                    Case EditorTheme.Tags.eBevelDarkColor
+                        pCurrentTheme.BevelDarkColor = vColorHex
                     Case EditorTheme.Tags.eErrorColor
                         pCurrentTheme.ErrorColor = vColorHex
                     Case EditorTheme.Tags.eWarningColor
@@ -1248,7 +1266,10 @@ Namespace Widgets
                         Return pCurrentTheme.TabHoverColor
                     Case EditorTheme.Tags.eAccentColor
                         Return pCurrentTheme.AccentColor
-
+                    Case EditorTheme.Tags.eBevelLightColor
+                        Return If(String.IsNullOrEmpty(pCurrentTheme.BevelLightColor), pCurrentTheme.BackgroundColor, pCurrentTheme.BevelLightColor)
+                    Case EditorTheme.Tags.eBevelDarkColor
+                        Return If(String.IsNullOrEmpty(pCurrentTheme.BevelDarkColor), pCurrentTheme.BackgroundColor, pCurrentTheme.BevelDarkColor)
 
                     Case EditorTheme.Tags.eErrorColor
                         Return pCurrentTheme.ErrorColor

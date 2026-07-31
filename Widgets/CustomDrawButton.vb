@@ -146,12 +146,15 @@ Namespace Widgets
                 pFillColor = lTheme.LineNumberBackgroundColor
                 pTextColor = lTheme.ForegroundColor
 
-                ' Bevel edges derived relative to the face color (lightened/darkened by a
-                ' fixed amount) rather than fixed white/black, so the highlight and shadow
-                ' edges both stay visible whether the theme's face color itself lands near
-                ' the light or dark end of the range
-                pLightEdgeColor = LightenColor(pFillColor, 0.30)
-                pDarkEdgeColor = DarkenColor(pFillColor, 0.30)
+                ' Bevel edges: use the theme's explicit override if set, otherwise derive
+                ' relative to the face color (lightened/darkened by a fixed amount) rather
+                ' than fixed white/black, so the highlight and shadow edges both stay
+                ' visible whether the theme's face color itself lands near the light or
+                ' dark end of the range. A theme with an already-extreme face color (e.g.
+                ' Solarized Dark/Light) can set BevelLightColor/BevelDarkColor explicitly
+                ' to override the auto-derived value that loses contrast on one edge.
+                pLightEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pFillColor, 0.30), lTheme.BevelLightColor)
+                pDarkEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), lTheme.BevelDarkColor)
                 QueueDraw()
 
             Catch ex As Exception
