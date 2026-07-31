@@ -388,47 +388,59 @@ Namespace Widgets
         Private Sub OnNewScratchpad(vSender As Object, vArgs As EventArgs)
             Try
                 ' Show dialog to get name and scope
-                Dim lDialog As New Dialog("New Scratchpad", 
-                                        CType(Me.Toplevel, Window), 
-                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                                        "Cancel", ResponseType.Cancel,
-                                        "Create", ResponseType.Accept)
-                
+                Dim lDialog As New Dialog("New Scratchpad",
+                                        CType(Me.Toplevel, Window),
+                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
                 lDialog.SetDefaultSize(400, 200)
-                
+
                 ' Create content
                 Dim lVBox As New Box(Orientation.Vertical, 10)
                 lVBox.MarginStart = 10
                 lVBox.MarginEnd = 10
                 lVBox.MarginTop = 10
                 lVBox.MarginBottom = 10
-                
+
                 ' Name entry
                 Dim lNameBox As New Box(Orientation.Horizontal, 10)
                 lNameBox.PackStart(New Label("Name:"), False, False, 0)
-                Dim lNameEntry As New Entry()
+                Dim lNameEntry As New CustomDrawTextBox()
                 lNameEntry.Text = "New Scratchpad"
                 lNameBox.PackStart(lNameEntry, True, True, 0)
                 lVBox.PackStart(lNameBox, False, False, 0)
-                
+
                 ' Scope radio buttons
                 Dim lScopeBox As New Box(Orientation.Vertical, 5)
                 Dim lGlobalRadio As New RadioButton("Global (available in all projects)")
                 Dim lProjectRadio As New RadioButton(lGlobalRadio, "project (only in current project)")
-                
+
                 ' Disable project option if no project is open
-                If String.IsNullOrEmpty(pScratchpadManager.GetType().GetField("pCurrentProjectPath", 
+                If String.IsNullOrEmpty(pScratchpadManager.GetType().GetField("pCurrentProjectPath",
                     Reflection.BindingFlags.NonPublic Or Reflection.BindingFlags.Instance).GetValue(pScratchpadManager).ToString()) Then
                     lProjectRadio.Sensitive = False
                 End If
-                
+
                 lScopeBox.PackStart(lGlobalRadio, False, False, 0)
                 lScopeBox.PackStart(lProjectRadio, False, False, 0)
                 lVBox.PackStart(New Label("Scope:"), False, False, 0)
                 lVBox.PackStart(lScopeBox, False, False, 0)
-                
+
                 lDialog.ContentArea.Add(lVBox)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lCreateButton As New CustomDrawButton("Create")
+                AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Accept)
+                lButtonBox.PackStart(lCreateButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+                AddHandler lNameEntry.Activated, Sub() lDialog.Respond(ResponseType.Accept)
+
                 lDialog.ShowAll()
+                lNameEntry.GrabFocus()
                 
                 If lDialog.Run() = CInt(ResponseType.Accept) Then
                     Dim lName As String = lNameEntry.Text.Trim()
@@ -590,26 +602,38 @@ Namespace Widgets
         Private Sub OnSearch(vSender As Object, vArgs As EventArgs)
             Try
                 ' Create simple search dialog
-                Dim lDialog As New Dialog("Search", 
-                                        CType(Me.Toplevel, Window), 
-                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                                        "Close", ResponseType.Close,
-                                        "Find Next", ResponseType.Accept)
-                
+                Dim lDialog As New Dialog("Search",
+                                        CType(Me.Toplevel, Window),
+                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
                 lDialog.SetDefaultSize(400, 150)
-                
+
                 Dim lBox As New Box(Orientation.Horizontal, 10)
                 lBox.MarginStart = 10
                 lBox.MarginEnd = 10
                 lBox.MarginTop = 10
                 lBox.MarginBottom = 10
-                
+
                 lBox.PackStart(New Label("Search:"), False, False, 0)
-                Dim lSearchEntry As New Entry()
+                Dim lSearchEntry As New CustomDrawTextBox()
                 lBox.PackStart(lSearchEntry, True, True, 0)
-                
+
                 lDialog.ContentArea.Add(lBox)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                Dim lCloseButton As New CustomDrawButton("Close")
+                AddHandler lCloseButton.Clicked, Sub() lDialog.Respond(ResponseType.Close)
+                lButtonBox.PackStart(lCloseButton, False, False, 0)
+                Dim lFindButton As New CustomDrawButton("Find Next")
+                AddHandler lFindButton.Clicked, Sub() lDialog.Respond(ResponseType.Accept)
+                lButtonBox.PackStart(lFindButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+                AddHandler lSearchEntry.Activated, Sub() lDialog.Respond(ResponseType.Accept)
+
                 lDialog.ShowAll()
+                lSearchEntry.GrabFocus()
                 
                 ' Simple search implementation
                 Dim lLastPos As TextIter = pTextBuffer.StartIter
