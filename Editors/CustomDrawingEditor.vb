@@ -14,6 +14,7 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Editors
     
@@ -25,8 +26,8 @@ Namespace Editors
         ' ===== Core Components =====
         Private pMainGrid As Grid
         Private pDrawingArea As DrawingArea
-        Private pVScrollbar As Scrollbar
-        Private pHScrollbar As Scrollbar
+        Private pVScrollbar As CustomDrawScrollbar
+        Private pHScrollbar As CustomDrawScrollbar
         Private pCornerBox As DrawingArea  ' Bottom-right corner
         Private pSourceFileInfo As SourceFileInfo
         
@@ -409,17 +410,11 @@ Namespace Editors
                                            EventMask.LeaveNotifyMask Or
                                            EventMask.ExposureMask))
                 
-                ' Create scrollbars
-                pHScrollbar = New Scrollbar(Orientation.Horizontal, Nothing)
-                pVScrollbar = New Scrollbar(Orientation.Vertical, Nothing)
-                
-                ' Set up adjustments for scrollbars
-                If pHScrollbar.Adjustment Is Nothing Then
-                    pHScrollbar.Adjustment = New Adjustment(0, 0, 100, 1, 10, 10)
-                End If
-                If pVScrollbar.Adjustment Is Nothing Then
-                    pVScrollbar.Adjustment = New Adjustment(0, 0, 100, 1, 10, 10)
-                End If
+                ' Create scrollbars - CustomDrawScrollbar always owns a real Adjustment
+                ' internally (exposed read-only), so there's no Nothing-adjustment case to
+                ' guard against here the way native Gtk.Scrollbar had
+                pHScrollbar = New CustomDrawScrollbar(Orientation.Horizontal)
+                pVScrollbar = New CustomDrawScrollbar(Orientation.Vertical)
                 
                 ' Layout grid (2x2)
                 ' [0,0] = LineNumbers | [1,0] = DrawingArea
@@ -545,6 +540,11 @@ Namespace Editors
 
         Public Sub SetThemeManager(vThemeManager As ThemeManager) Implements IEditor.SetThemeManager
             pThemeManager = vThemeManager
+
+            ' The scrollbars are custom-drawn and aren't driven by native GTK CSS theming,
+            ' so they need an explicit re-application here to pick up a live theme switch
+            If pVScrollbar IsNot Nothing Then pVScrollbar.ThemeManager = vThemeManager
+            If pHScrollbar IsNot Nothing Then pHScrollbar.ThemeManager = vThemeManager
         End Sub
 
         

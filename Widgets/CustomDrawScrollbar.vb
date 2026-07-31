@@ -18,10 +18,25 @@ Namespace Widgets
     Public Class CustomDrawScrollbar
         Inherits DrawingArea
 
+        ''' <summary>
+        ''' Visual style for a CustomDrawScrollbar
+        ''' </summary>
+        Public Enum eScrollbarStyle
+            ''' <summary>Unknown or unspecified style</summary>
+            eUnspecified
+            ''' <summary>Retro AmigaOS Workbench raised-bevel thumb over a recessed track (default)</summary>
+            eBevel
+            ''' <summary>Thin, flat, translucent overlay-style thumb with no bevel edges</summary>
+            eFlat
+            ''' <summary>Sentinel value for enum bounds checking</summary>
+            eLastValue
+        End Enum
+
         ' ===== Private Fields =====
         Private pOrientation As Orientation
         Private pAdjustment As Adjustment
         Private pThemeManager As ThemeManager
+        Private pStyle As eScrollbarStyle = eScrollbarStyle.eBevel
 
         Private pIsDraggingThumb As Boolean = False
         Private pDragStartMousePos As Double = 0
@@ -33,15 +48,36 @@ Namespace Widgets
         Private pTextColor As String = "#000000"
         Private pLightEdgeColor As String = "#FFFFFF"
         Private pDarkEdgeColor As String = "#000000"
+        Private pFlatTrackColor As String = "#1E1E1E"
+        Private pFlatThumbColor As String = "#007ACC"
 
         Private Const BEVEL_WIDTH As Integer = 2
         Private Const MIN_THUMB_SIZE As Integer = 20
-        Private Const SCROLLBAR_THICKNESS As Integer = 14
+        Private Const BEVEL_THICKNESS As Integer = 14
+        Private Const FLAT_THICKNESS As Integer = 10
+        Private Const FLAT_MARGIN As Integer = 2
+        Private Const FLAT_ALPHA_NORMAL As Double = 0.45
+        Private Const FLAT_ALPHA_HOVER As Double = 0.7
+        Private Const FLAT_ALPHA_DRAGGING As Double = 0.95
 
         ' ===== Events =====
-        Public Event ValueChanged(vSender As Object, vArgs As EventArgs)
+        Public Event ValueChanged As EventHandler
 
         ' ===== Public Properties =====
+
+        ''' <summary>
+        ''' Gets or sets the visual style (raised bevel vs. thin flat overlay)
+        ''' </summary>
+        Public Property Style As eScrollbarStyle
+            Get
+                Return pStyle
+            End Get
+            Set(value As eScrollbarStyle)
+                pStyle = value
+                UpdateSizeForStyle()
+                QueueDraw()
+            End Set
+        End Property
 
         ''' <summary>Gets the underlying Adjustment - set its Lower/Upper/PageSize/
         ''' StepIncrement/PageIncrement exactly as with a native Gtk.Scrollbar</summary>
@@ -95,11 +131,7 @@ Namespace Widgets
                          EventMask.PointerMotionMask Or EventMask.EnterNotifyMask Or
                          EventMask.LeaveNotifyMask
 
-                If pOrientation = Orientation.Vertical Then
-                    SetSizeRequest(SCROLLBAR_THICKNESS, -1)
-                Else
-                    SetSizeRequest(-1, SCROLLBAR_THICKNESS)
-                End If
+                UpdateSizeForStyle()
 
                 AddHandler Me.Drawn, AddressOf OnCustomDraw
                 AddHandler Me.ButtonPressEvent, AddressOf OnButtonPress
@@ -110,6 +142,22 @@ Namespace Widgets
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawScrollbar.New error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Applies the thickness appropriate to the current Style
+        ''' </summary>
+        Private Sub UpdateSizeForStyle()
+            Try
+                Dim lThickness As Integer = If(pStyle = eScrollbarStyle.eFlat, FLAT_THICKNESS, BEVEL_THICKNESS)
+                If pOrientation = Orientation.Vertical Then
+                    SetSizeRequest(lThickness, -1)
+                Else
+                    SetSizeRequest(-1, lThickness)
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawScrollbar.UpdateSizeForStyle error: {ex.Message}")
             End Try
         End Sub
 
@@ -136,6 +184,9 @@ Namespace Widgets
 
                 pLightEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pThumbColor, 0.30), lTheme.BevelLightColor)
                 pDarkEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelDarkColor), DarkenColor(pThumbColor, 0.30), lTheme.BevelDarkColor)
+
+                pFlatTrackColor = If(String.IsNullOrEmpty(lTheme.EditorBackgroundColor), lTheme.BackgroundColor, lTheme.EditorBackgroundColor)
+                pFlatThumbColor = If(String.IsNullOrEmpty(lTheme.AccentColor), pThumbColor, lTheme.AccentColor)
                 QueueDraw()
 
             Catch ex As Exception
@@ -198,6 +249,26 @@ Namespace Widgets
 
         Private Sub DrawScrollbar(vContext As Context)
             Try
+                Dim lBounds = GetThumbBounds()
+                Dim lThumbPos As Integer = lBounds.Item1
+                Dim lThumbSize As Integer = lBounds.Item2
+
+                If pStyle = eScrollbarStyle.eFlat Then
+                    DrawFlatScrollbar(vContext, lThumbPos, lThumbSize)
+                Else
+                    DrawBevelScrollbar(vContext, lThumbPos, lThumbSize)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawScrollbar.DrawScrollbar error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Draws the retro AmigaOS-style raised-bevel thumb over a recessed track
+        ''' </summary>
+        Private Sub DrawBevelScrollbar(vContext As Context, vThumbPos As Integer, vThumbSize As Integer)
+            Try
                 Dim lWidth As Integer = AllocatedWidth
                 Dim lHeight As Integer = AllocatedHeight
 
@@ -206,10 +277,7 @@ Namespace Widgets
                 vContext.Rectangle(0, 0, lWidth, lHeight)
                 vContext.Fill()
 
-                Dim lBounds = GetThumbBounds()
-                Dim lThumbPos As Integer = lBounds.Item1
-                Dim lThumbSize As Integer = lBounds.Item2
-                If lThumbSize >= TrackExtent Then Return ' nothing to scroll - track only
+                If vThumbSize >= TrackExtent Then Return ' nothing to scroll - track only
 
                 Dim lPressed As Boolean = pIsDraggingThumb
 
@@ -218,9 +286,9 @@ Namespace Widgets
 
                 Dim lThumbX, lThumbY, lThumbW, lThumbH As Integer
                 If pOrientation = Orientation.Vertical Then
-                    lThumbX = 0 : lThumbY = lThumbPos : lThumbW = lWidth : lThumbH = lThumbSize
+                    lThumbX = 0 : lThumbY = vThumbPos : lThumbW = lWidth : lThumbH = vThumbSize
                 Else
-                    lThumbX = lThumbPos : lThumbY = 0 : lThumbW = lThumbSize : lThumbH = lHeight
+                    lThumbX = vThumbPos : lThumbY = 0 : lThumbW = vThumbSize : lThumbH = lHeight
                 End If
                 vContext.Rectangle(lThumbX, lThumbY, lThumbW, lThumbH)
                 vContext.Fill()
@@ -241,8 +309,61 @@ Namespace Widgets
                 vContext.Fill()
 
             Catch ex As Exception
-                Console.WriteLine($"CustomDrawScrollbar.DrawScrollbar error: {ex.Message}")
+                Console.WriteLine($"CustomDrawScrollbar.DrawBevelScrollbar error: {ex.Message}")
             End Try
+        End Sub
+
+        ''' <summary>
+        ''' Draws a thin, flat, translucent overlay-style thumb with rounded ends and no
+        ''' visible track - the thumb brightens as the mouse hovers/drags it
+        ''' </summary>
+        Private Sub DrawFlatScrollbar(vContext As Context, vThumbPos As Integer, vThumbSize As Integer)
+            Try
+                Dim lWidth As Integer = AllocatedWidth
+                Dim lHeight As Integer = AllocatedHeight
+
+                ' Track blends with the surrounding content - no visible bar
+                SetSourceColor(vContext, pFlatTrackColor)
+                vContext.Rectangle(0, 0, lWidth, lHeight)
+                vContext.Fill()
+
+                If vThumbSize >= TrackExtent Then Return ' nothing to scroll - track only
+
+                Dim lAlpha As Double = FLAT_ALPHA_NORMAL
+                If pIsDraggingThumb Then
+                    lAlpha = FLAT_ALPHA_DRAGGING
+                ElseIf pIsHoveringThumb Then
+                    lAlpha = FLAT_ALPHA_HOVER
+                End If
+
+                Dim lThumbX, lThumbY, lThumbW, lThumbH As Integer
+                If pOrientation = Orientation.Vertical Then
+                    lThumbX = FLAT_MARGIN : lThumbY = vThumbPos : lThumbW = lWidth - (FLAT_MARGIN * 2) : lThumbH = vThumbSize
+                Else
+                    lThumbX = vThumbPos : lThumbY = FLAT_MARGIN : lThumbW = vThumbSize : lThumbH = lHeight - (FLAT_MARGIN * 2)
+                End If
+
+                Dim lRadius As Double = Math.Min(lThumbW, lThumbH) / 2.0
+                DrawRoundedRect(vContext, lThumbX, lThumbY, lThumbW, lThumbH, lRadius)
+                SetSourceColor(vContext, pFlatThumbColor, lAlpha)
+                vContext.Fill()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawScrollbar.DrawFlatScrollbar error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Traces a rounded-rectangle path (does not fill/stroke)
+        ''' </summary>
+        Private Sub DrawRoundedRect(vContext As Context, vX As Double, vY As Double, vWidth As Double, vHeight As Double, vRadius As Double)
+            Dim lRadius As Double = Math.Max(0, Math.Min(vRadius, Math.Min(vWidth, vHeight) / 2.0))
+            vContext.NewPath()
+            vContext.Arc(vX + vWidth - lRadius, vY + lRadius, lRadius, -Math.PI / 2, 0)
+            vContext.Arc(vX + vWidth - lRadius, vY + vHeight - lRadius, lRadius, 0, Math.PI / 2)
+            vContext.Arc(vX + lRadius, vY + vHeight - lRadius, lRadius, Math.PI / 2, Math.PI)
+            vContext.Arc(vX + lRadius, vY + lRadius, lRadius, Math.PI, 3 * Math.PI / 2)
+            vContext.ClosePath()
         End Sub
 
         ' ===== Mouse Handling =====
@@ -333,11 +454,11 @@ Namespace Widgets
 
         ' ===== Helpers =====
 
-        Private Sub SetSourceColor(vContext As Context, vHexColor As String)
+        Private Sub SetSourceColor(vContext As Context, vHexColor As String, Optional vAlpha As Double = 1.0)
             Try
                 Dim lColor As New Gdk.RGBA()
                 If lColor.Parse(vHexColor) Then
-                    vContext.SetSourceRGBA(lColor.Red, lColor.Green, lColor.Blue, lColor.Alpha)
+                    vContext.SetSourceRGBA(lColor.Red, lColor.Green, lColor.Blue, vAlpha)
                 End If
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawScrollbar.SetSourceColor error: {ex.Message}")
