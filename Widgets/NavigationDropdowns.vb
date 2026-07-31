@@ -304,12 +304,18 @@ Namespace Widgets
                 ' Convert to 1-based line number for comparison
                 Dim lLine As Integer = vCurrentLine + 1
                 
-                ' Find containing class
+                ' Find containing class - pClasses is a flat list that includes nested types
+                ' alongside their outer container (e.g. a Class nested inside another Class),
+                ' so a line inside the nested type also falls within the outer type's wider
+                ' range; pick the narrowest (most specific) matching range rather than the
+                ' first one found, so nested types correctly take priority over their parent
                 Dim lContainingClass As CodeObject = Nothing
                 for each lClass in pClasses
                     If lLine >= lClass.StartLine AndAlso lLine <= lClass.EndLine Then
-                        lContainingClass = lClass
-                        Exit for
+                        If lContainingClass Is Nothing OrElse
+                           (lClass.EndLine - lClass.StartLine) < (lContainingClass.EndLine - lContainingClass.StartLine) Then
+                            lContainingClass = lClass
+                        End If
                     End If
                 Next
                 

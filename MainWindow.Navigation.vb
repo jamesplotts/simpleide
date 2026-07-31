@@ -113,34 +113,15 @@ Partial Public Class MainWindow
                     Case CodeNodeType.eClass, CodeNodeType.eModule,
                          CodeNodeType.eInterface, CodeNodeType.eStructure,
                          CodeNodeType.eEnum
-                        ' Create class object
-                        ' CodeObject.StartLine/EndLine are documented as 1-based
-                        ' (Models/CodeTypes.vb), but SyntaxNode.StartLine/EndLine are 0-based -
-                        ' convert here so UpdatePosition's bounds check and the click-to-navigate
-                        ' "StartLine - 1" math elsewhere in this class both work correctly
-                        Dim lClass As New CodeObject()
-                        lClass.Name = lNode.Name
-                        lClass.ObjectType = ConvertNodeTypeToObjectType(lNode.NodeType)
-                        lClass.StartLine = lNode.StartLine + 1
-                        lClass.EndLine = If(lNode.EndLine > 0, lNode.EndLine + 1, lClass.StartLine + 1)
-
+                        Dim lClass As CodeObject = BuildClassObject(lNode)
                         Console.WriteLine($"    Found class/module: {lClass.Name} (Lines {lClass.StartLine}-{lClass.EndLine})")
-
-                        ' Add members
-                        For Each lChild In lNode.Children
-                            If IsMemberNode(lChild.NodeType) Then
-                                Dim lMember As New CodeMember()
-                                lMember.Name = lChild.Name
-                                lMember.MemberType = ConvertNodeTypeToMemberType(lChild.NodeType)
-                                lMember.StartLine = lChild.StartLine + 1
-                                lMember.EndLine = If(lChild.EndLine > 0, lChild.EndLine + 1, lMember.StartLine)
-                                lMember.LineNumber = lMember.StartLine
-                                lClass.Members.Add(lMember)
-                                Console.WriteLine($"      Added member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
-                            End If
-                        Next
-
                         vClasses.Add(lClass)
+
+                        ' A Class/Module/Structure can itself declare nested types (e.g.
+                        ' GitManager.vb nests GitFileInfo/CommitInfo/BranchInfo classes and a
+                        ' FileStatus enum inside GitManager) - those need their own dropdown
+                        ' entries too, not just as invisible content of the outer type
+                        CollectNestedTypes(lNode, vClasses)
 
                     Case CodeNodeType.eNamespace, CodeNodeType.eDocument
                         ' Not a class and not a member - the real content is inside it
@@ -149,14 +130,8 @@ Partial Public Class MainWindow
                     Case Else
                         ' Root-level members (not in a class)
                         If IsMemberNode(lNode.NodeType) Then
-                            Dim lMember As New CodeMember()
-                            lMember.Name = lNode.Name
-                            lMember.MemberType = ConvertNodeTypeToMemberType(lNode.NodeType)
-                            lMember.StartLine = lNode.StartLine + 1
-                            lMember.EndLine = If(lNode.EndLine > 0, lNode.EndLine + 1, lMember.StartLine)
-                            lMember.LineNumber = lMember.StartLine
-                            vRootMembers.Add(lMember)
-                            Console.WriteLine($"    Found root member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
+                            vRootMembers.Add(BuildMember(lNode))
+                            Console.WriteLine($"    Found root member: {lNode.Name}")
                         End If
                 End Select
             Next
@@ -165,6 +140,70 @@ Partial Public Class MainWindow
             Console.WriteLine($"CollectNavigationNodes error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Recursively finds Class/Module/Interface/Structure/Enum nodes nested inside a
+    ''' type (at any depth) and adds each as its own dropdown entry
+    ''' </summary>
+    ''' <param name="vTypeNode">The containing type node to search inside</param>
+    ''' <param name="vClasses">Accumulates discovered nested types</param>
+    Private Sub CollectNestedTypes(vTypeNode As SyntaxNode, vClasses As List(Of CodeObject))
+        Try
+            For Each lChild In vTypeNode.Children
+                Select Case lChild.NodeType
+                    Case CodeNodeType.eClass, CodeNodeType.eModule,
+                         CodeNodeType.eInterface, CodeNodeType.eStructure,
+                         CodeNodeType.eEnum
+                        Dim lNested As CodeObject = BuildClassObject(lChild)
+                        Console.WriteLine($"    Found nested type: {lNested.Name} (Lines {lNested.StartLine}-{lNested.EndLine})")
+                        vClasses.Add(lNested)
+                        CollectNestedTypes(lChild, vClasses)
+                End Select
+            Next
+
+        Catch ex As Exception
+            Console.WriteLine($"CollectNestedTypes error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Builds a CodeObject for a Class/Module/Interface/Structure/Enum node, including
+    ''' its own direct members (not nested types - see CollectNestedTypes for those)
+    ''' </summary>
+    Private Function BuildClassObject(vNode As SyntaxNode) As CodeObject
+        ' CodeObject.StartLine/EndLine are documented as 1-based (Models/CodeTypes.vb),
+        ' but SyntaxNode.StartLine/EndLine are 0-based - convert here so UpdatePosition's
+        ' bounds check and the click-to-navigate "StartLine - 1" math elsewhere in that
+        ' class both work correctly
+        Dim lClass As New CodeObject()
+        lClass.Name = vNode.Name
+        lClass.ObjectType = ConvertNodeTypeToObjectType(vNode.NodeType)
+        lClass.StartLine = vNode.StartLine + 1
+        lClass.EndLine = If(vNode.EndLine > 0, vNode.EndLine + 1, lClass.StartLine + 1)
+
+        For Each lChild In vNode.Children
+            If IsMemberNode(lChild.NodeType) Then
+                Dim lMember As CodeMember = BuildMember(lChild)
+                lClass.Members.Add(lMember)
+                Console.WriteLine($"      Added member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
+            End If
+        Next
+
+        Return lClass
+    End Function
+
+    ''' <summary>
+    ''' Builds a CodeMember for a method/function/property/field/event/constructor node
+    ''' </summary>
+    Private Function BuildMember(vNode As SyntaxNode) As CodeMember
+        Dim lMember As New CodeMember()
+        lMember.Name = vNode.Name
+        lMember.MemberType = ConvertNodeTypeToMemberType(vNode.NodeType)
+        lMember.StartLine = vNode.StartLine + 1
+        lMember.EndLine = If(vNode.EndLine > 0, vNode.EndLine + 1, lMember.StartLine)
+        lMember.LineNumber = lMember.StartLine
+        Return lMember
+    End Function
 
     ' Convert node type to object type
     Private Function ConvertNodeTypeToObjectType(vNodeType As CodeNodeType) As CodeObjectType
