@@ -23,34 +23,34 @@ Namespace Dialogs
         Private pThemeManager as ThemeManager
         
         ' Claude API tab controls
-        Private pClaudeApiKeyEntry As Entry
-        Private pClaudeApiKeyShowButton As ToggleButton
+        Private pClaudeApiKeyEntry As CustomDrawTextBox
+        Private pClaudeApiKeyShowButton As CustomDrawToggleButton
         Private pModelCombo As ComboBoxText
         Private pMaxTokensSpinButton As SpinButton
         Private pTemperatureSpinButton As SpinButton
         Private pStreamResponsesCheckButton As CheckButton
-        Private pTestClaudeButton As Button
+        Private pTestClaudeButton As CustomDrawButton
         Private pClaudeStatusLabel As Label
-        
+
         ' Mem0 tab controls
         Private pMem0EnabledCheck As CheckButton
-        Private pMem0ApiKeyEntry As Entry
-        Private pMem0ApiKeyShowButton As ToggleButton
-        Private pMem0UserIdEntry As Entry
-        Private pMem0AppIdEntry As Entry
+        Private pMem0ApiKeyEntry As CustomDrawTextBox
+        Private pMem0ApiKeyShowButton As CustomDrawToggleButton
+        Private pMem0UserIdEntry As CustomDrawTextBox
+        Private pMem0AppIdEntry As CustomDrawTextBox
         Private pAutoStoreInteractionsCheck As CheckButton
         Private pStoreCodePatternsCheck As CheckButton
         Private pMaxMemoriesSpinButton As SpinButton
-        Private pTestMem0Button As Button
+        Private pTestMem0Button As CustomDrawButton
         Private pMem0StatusLabel As Label
-        Private pClearMem0Button As Button
-        
+        Private pClearMem0Button As CustomDrawButton
+
         ' Artifact tab controls
         Private pAutoAcceptArtifactsCheck As CheckButton
         Private pPreferArtifactsCheck As CheckButton
         Private pArtifactAutoSaveCheck As CheckButton
-        Private pArtifactSavePathEntry As Entry
-        Private pArtifactBrowseButton As Button
+        Private pArtifactSavePathEntry As CustomDrawTextBox
+        Private pArtifactBrowseButton As CustomDrawButton
         Private pShowDiffByDefaultCheck As CheckButton
         Private pMaxArtifactSizeSpinButton As SpinButton
         
@@ -73,31 +73,66 @@ Namespace Dialogs
         
         ' ===== Constructor =====
         Public Sub New(vParent As Window, vSettingsManager As SettingsManager, vThemeManager As ThemeManager)
-            MyBase.New("AI Assistant Settings", vParent, 
-                       DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                       Stock.Cancel, ResponseType.Cancel,
-                       Stock.Apply, ResponseType.Apply,
-                       Stock.Ok, ResponseType.Ok)
-            
+            MyBase.New("AI Assistant Settings", vParent,
+                       DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
             pSettingsManager = vSettingsManager
             pThemeManager = vThemeManager
-            
+
             Try
                 ' Set dialog properties
                 SetDefaultSize(600, 500)
                 BorderWidth = 5
-                
+
                 ' Build UI
                 BuildUI()
-                
+                BuildActionButtons()
+
                 ' Load current settings
                 LoadSettings()
-                
+
                 ' Show all
                 ShowAll()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"EnhancedAISettingsDialog constructor error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Builds the Cancel/Apply/OK buttons as custom-drawn bevel buttons wired directly
+        ''' to this dialog's Response mechanism, replacing the stock action-area buttons.
+        ''' Respond() still routes through the existing OnResponse override below, so the
+        ''' Apply-doesn't-close/Ok-and-Cancel-close behavior is unchanged
+        ''' </summary>
+        Private Sub BuildActionButtons()
+            Try
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+                Dim lApplyButton As New CustomDrawButton("Apply")
+                lApplyButton.ThemeManager = pThemeManager
+                AddHandler lApplyButton.Clicked, Sub() Respond(ResponseType.Apply)
+                lButtonBox.PackStart(lApplyButton, False, False, 0)
+
+                Dim lOkButton As New CustomDrawButton("OK")
+                lOkButton.ThemeManager = pThemeManager
+                AddHandler lOkButton.Clicked, Sub() Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lOkButton, False, False, 0)
+
+                Dim lContentBox As Box = TryCast(ContentArea, Box)
+                If lContentBox IsNot Nothing Then
+                    lContentBox.PackStart(lButtonBox, False, False, 0)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"BuildActionButtons error: {ex.Message}")
             End Try
         End Sub
         
@@ -145,19 +180,22 @@ Namespace Dialogs
             Dim lApiKeyBox As New Box(Orientation.Horizontal, 6)
             lApiKeyBox.PackStart(New Label("API key:"), False, False, 0)
             
-            pClaudeApiKeyEntry = New Entry()
-            pClaudeApiKeyEntry.Visibility = False
+            pClaudeApiKeyEntry = New CustomDrawTextBox()
+            pClaudeApiKeyEntry.InnerEntry.Visibility = False
             pClaudeApiKeyEntry.WidthRequest = 300
+            pClaudeApiKeyEntry.ThemeManager = pThemeManager
             lApiKeyBox.PackStart(pClaudeApiKeyEntry, True, True, 0)
-            
-            pClaudeApiKeyShowButton = New ToggleButton("Show")
+
+            pClaudeApiKeyShowButton = New CustomDrawToggleButton("Show")
+            pClaudeApiKeyShowButton.ThemeManager = pThemeManager
             AddHandler pClaudeApiKeyShowButton.Toggled, Sub()
-                pClaudeApiKeyEntry.Visibility = pClaudeApiKeyShowButton.Active
+                pClaudeApiKeyEntry.InnerEntry.Visibility = pClaudeApiKeyShowButton.Active
                 pClaudeApiKeyShowButton.Label = If(pClaudeApiKeyShowButton.Active, "Hide", "Show")
             End Sub
             lApiKeyBox.PackStart(pClaudeApiKeyShowButton, False, False, 0)
             
-            pTestClaudeButton = New Button("Test")
+            pTestClaudeButton = New CustomDrawButton("Test")
+            pTestClaudeButton.ThemeManager = pThemeManager
             AddHandler pTestClaudeButton.Clicked, AddressOf OnTestClaudeClicked
             lApiKeyBox.PackStart(pTestClaudeButton, False, False, 0)
             
@@ -245,19 +283,22 @@ Namespace Dialogs
             Dim lApiKeyBox As New Box(Orientation.Horizontal, 6)
             lApiKeyBox.PackStart(New Label("Mem0 API key:"), False, False, 0)
             
-            pMem0ApiKeyEntry = New Entry()
-            pMem0ApiKeyEntry.Visibility = False
+            pMem0ApiKeyEntry = New CustomDrawTextBox()
+            pMem0ApiKeyEntry.InnerEntry.Visibility = False
             pMem0ApiKeyEntry.WidthRequest = 250
+            pMem0ApiKeyEntry.ThemeManager = pThemeManager
             lApiKeyBox.PackStart(pMem0ApiKeyEntry, True, True, 0)
-            
-            pMem0ApiKeyShowButton = New ToggleButton("Show")
+
+            pMem0ApiKeyShowButton = New CustomDrawToggleButton("Show")
+            pMem0ApiKeyShowButton.ThemeManager = pThemeManager
             AddHandler pMem0ApiKeyShowButton.Toggled, Sub()
-                pMem0ApiKeyEntry.Visibility = pMem0ApiKeyShowButton.Active
+                pMem0ApiKeyEntry.InnerEntry.Visibility = pMem0ApiKeyShowButton.Active
                 pMem0ApiKeyShowButton.Label = If(pMem0ApiKeyShowButton.Active, "Hide", "Show")
             End Sub
             lApiKeyBox.PackStart(pMem0ApiKeyShowButton, False, False, 0)
-            
-            pTestMem0Button = New Button("Test")
+
+            pTestMem0Button = New CustomDrawButton("Test")
+            pTestMem0Button.ThemeManager = pThemeManager
             AddHandler pTestMem0Button.Clicked, AddressOf OnTestMem0Clicked
             lApiKeyBox.PackStart(pTestMem0Button, False, False, 0)
             
@@ -272,8 +313,8 @@ Namespace Dialogs
             Dim lUserIdBox As New Box(Orientation.Horizontal, 6)
             lUserIdBox.PackStart(New Label("User Id:"), False, False, 0)
             
-            pMem0UserIdEntry = New Entry()
-            pMem0UserIdEntry.PlaceholderText = "Optional - defaults to system user"
+            pMem0UserIdEntry = New CustomDrawTextBox("Optional - defaults to system user")
+            pMem0UserIdEntry.ThemeManager = pThemeManager
             lUserIdBox.PackStart(pMem0UserIdEntry, True, True, 0)
             
             lConfigBox.PackStart(lUserIdBox, False, False, 0)
@@ -282,8 +323,8 @@ Namespace Dialogs
             Dim lAppIdBox As New Box(Orientation.Horizontal, 6)
             lAppIdBox.PackStart(New Label("App Id:"), False, False, 0)
             
-            pMem0AppIdEntry = New Entry()
-            pMem0AppIdEntry.PlaceholderText = "Optional - defaults to VbIDE"
+            pMem0AppIdEntry = New CustomDrawTextBox("Optional - defaults to VbIDE")
+            pMem0AppIdEntry.ThemeManager = pThemeManager
             lAppIdBox.PackStart(pMem0AppIdEntry, True, True, 0)
             
             lConfigBox.PackStart(lAppIdBox, False, False, 0)
@@ -323,7 +364,8 @@ Namespace Dialogs
             Dim lButtonBox As New Box(Orientation.Horizontal, 6)
             lButtonBox.PackStart(New Label(""), True, True, 0) ' Spacer
             
-            pClearMem0Button = New Button("Clear All Memories")
+            pClearMem0Button = New CustomDrawButton("Clear All Memories")
+            pClearMem0Button.ThemeManager = pThemeManager
             pClearMem0Button.TooltipText = "Delete all stored memories from Mem0"
             AddHandler pClearMem0Button.Clicked, AddressOf OnClearMem0Clicked
             lButtonBox.PackStart(pClearMem0Button, False, False, 0)
@@ -371,12 +413,14 @@ Namespace Dialogs
             Dim lPathBox As New Box(Orientation.Horizontal, 6)
             lPathBox.PackStart(New Label("Save Path:"), False, False, 0)
             
-            pArtifactSavePathEntry = New Entry()
+            pArtifactSavePathEntry = New CustomDrawTextBox()
             pArtifactSavePathEntry.Text = "~/Documents/VbIDE/Artifacts"
             pArtifactSavePathEntry.Sensitive = False
+            pArtifactSavePathEntry.ThemeManager = pThemeManager
             lPathBox.PackStart(pArtifactSavePathEntry, True, True, 0)
-            
-            pArtifactBrowseButton = New Button("Browse...")
+
+            pArtifactBrowseButton = New CustomDrawButton("Browse...")
+            pArtifactBrowseButton.ThemeManager = pThemeManager
             pArtifactBrowseButton.Sensitive = False
             AddHandler pArtifactBrowseButton.Clicked, AddressOf OnArtifactBrowseClicked
             lPathBox.PackStart(pArtifactBrowseButton, False, False, 0)
