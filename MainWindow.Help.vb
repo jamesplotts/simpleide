@@ -213,9 +213,6 @@ Partial Public Class MainWindow
     ''' <param name="vHtmlContent">HTML content to display</param>
     Private Sub OpenHelpTabWithHtml(vTitle As String, vHtmlContent As String)
         Try
-            ' Close welcome tab if it exists
-            CloseWelcomeTab()
-            
             ' Generate unique ID for this help tab
             Dim lHelpTabId As String = $"help_shortcuts"
             
@@ -256,10 +253,17 @@ Partial Public Class MainWindow
             lTabInfo.TabLabel = CreateHelpTabLabel(lHelpTabId, vTitle)
             
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lHelpBrowser, vTitle)
+            pNotebook.AppendPage(lHelpBrowser, vTitle)
             pNotebook.ShowAll()
-            pNotebook.CurrentPage = lPageIndex
-            
+
+            ' Close the welcome tab (if any) now that the help tab is already in place -
+            ' closing it first would transiently drop the notebook to 0 pages, which
+            ' OnCustomNotebookTabClosed treats as "all tabs closed" and reacts to by
+            ' clearing the Object Explorer's entire tree/expanded-node state
+            CloseWelcomeTab()
+
+            pNotebook.CurrentPage = pNotebook.NPages - 1
+
             ' Store in dictionary
             pHelpTabs(lHelpTabId) = lTabInfo
             

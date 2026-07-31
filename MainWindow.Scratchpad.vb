@@ -194,20 +194,17 @@ Partial Public Class MainWindow
                 Return
             End If
             
-            ' Close welcome tab if present
-            CloseWelcomeTab()
-            
             ' Create new scratchpad panel
             Dim lScratchpadPanel As New ScratchpadPanel(pScratchpadManager)
-            
+
             ' Set project path if available
             If Not String.IsNullOrEmpty(pCurrentProject) Then
                 lScratchpadPanel.SetProjectPath(pCurrentProject)
             End If
-            
+
             ' Wire up events
             AddHandler lScratchpadPanel.CloseRequested, Sub() CloseScratchpadTab(lTabId)
-            
+
             ' Create tab info
             Dim lTabInfo As New TabInfo()
             lTabInfo.FilePath = $"scratchpad:{lTabId}"
@@ -215,12 +212,19 @@ Partial Public Class MainWindow
             lTabInfo.EditorContainer = lScratchpadPanel
             lTabInfo.TabLabel = CreateScratchpadTabLabel("Scratchpad", lTabId)
             lTabInfo.Modified = False
-            
+
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lScratchpadPanel, "Scratchpad")
+            pNotebook.AppendPage(lScratchpadPanel, "Scratchpad")
             pNotebook.ShowAll()
-            pNotebook.CurrentPage = lPageIndex
-            
+
+            ' Close the welcome tab (if any) now that the scratchpad tab is already in
+            ' place - closing it first would transiently drop the notebook to 0 pages,
+            ' which OnCustomNotebookTabClosed treats as "all tabs closed" and reacts to
+            ' by clearing the Object Explorer's entire tree/expanded-node state
+            CloseWelcomeTab()
+
+            pNotebook.CurrentPage = pNotebook.NPages - 1
+
             ' Store in dictionary
             pScratchpadPanels(lTabId) = lScratchpadPanel
             

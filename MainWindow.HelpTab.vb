@@ -25,10 +25,7 @@ Partial Public Class MainWindow
     Public Function OpenHelpTab(Optional vTopic As String = Nothing, Optional vUrl As String = Nothing) As String
         Try
             Console.WriteLine($"OpenHelpTab: Topic='{vTopic}', URL='{vUrl}'")
-            
-            ' Close welcome tab if it exists
-            CloseWelcomeTab()
-            
+
             ' Generate unique ID for this help tab
             Dim lHelpTabId As String = $"help_{pNextHelpTabId}"
             pNextHelpTabId += 1
@@ -76,10 +73,17 @@ Partial Public Class MainWindow
             Dim lTabTitle As String = If(Not String.IsNullOrEmpty(vTopic), $"Help: {vTopic}", "Help")
             
             ' Add to notebook
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lHelpBrowser, lTabTitle)
+            pNotebook.AppendPage(lHelpBrowser, lTabTitle)
             pNotebook.ShowAll()
-            pNotebook.CurrentPage = lPageIndex
-            
+
+            ' Close the welcome tab (if any) now that the help tab is already in place -
+            ' closing it first would transiently drop the notebook to 0 pages, which
+            ' OnCustomNotebookTabClosed treats as "all tabs closed" and reacts to by
+            ' clearing the Object Explorer's entire tree/expanded-node state
+            CloseWelcomeTab()
+
+            pNotebook.CurrentPage = pNotebook.NPages - 1
+
             ' Store in dictionary
             pHelpTabs(lHelpTabId) = lTabInfo
             
