@@ -20,7 +20,7 @@ Namespace Widgets
 
 
         ' Filter controls
-        Private pSearchEntry As SearchEntry
+        Private pSearchEntry As CustomDrawTextBox
         Private pPriorityCombo As ComboBoxText
         Private pCategoryCombo As ComboBoxText
         Private pStatusCombo As ComboBoxText
@@ -92,8 +92,7 @@ Namespace Widgets
             pToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
 
             ' Search entry
-            pSearchEntry = New SearchEntry()
-            pSearchEntry.PlaceholderText = "Search TODOs..."
+            pSearchEntry = New CustomDrawTextBox("Search TODOs...")
             pSearchEntry.WidthRequest = 150
             pToolbar.PackStart(pSearchEntry, False, False, 0)
 
@@ -498,6 +497,10 @@ Namespace Widgets
             Try
                 If pListBox IsNot Nothing Then
                     pListBox.ThemeManager = vThemeManager
+                End If
+
+                If pSearchEntry IsNot Nothing Then
+                    pSearchEntry.ThemeManager = vThemeManager
                 End If
 
                 For Each lButton As CustomDrawButton In New CustomDrawButton() {

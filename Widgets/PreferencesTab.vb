@@ -2,6 +2,7 @@
 Imports Gtk
 Imports System
 Imports System.Collections.Generic
+Imports System.Linq
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
@@ -82,6 +83,12 @@ Namespace Widgets
         Private pEnableTelemetryCheck As CheckButton
         Private pCheckUpdatesCheck As CheckButton
         Private pBetaUpdatesCheck As CheckButton
+
+        ' Excluded Directories tab controls
+        Private pExcludedDirEntry As CustomDrawTextBox
+        Private pExcludedDirListBox As CustomDrawListBox
+        Private pAddExcludedDirButton As CustomDrawButton
+        Private pRemoveExcludedDirButton As CustomDrawButton
 
         ' ===== IDE Version Auto-Increment Settings =====
         
@@ -240,6 +247,7 @@ Namespace Widgets
                 pNotebook.AppendPage(CreateGitTab(), New Label("Git"))
                 pNotebook.AppendPage(CreateAITab(), New Label("AI"))
                 pNotebook.AppendPage(CreateAdvancedTab(), New Label("Advanced"))
+                pNotebook.AppendPage(CreateExcludedDirectoriesTab(), New Label("Excluded Directories"))
                 pNotebook.AppendPage(CreateVersionTab(), New Label("Project Version"))
                 
                 PackStart(pNotebook, True, True, 0)
@@ -827,10 +835,132 @@ Namespace Widgets
             
             lPrivacyFrame.Add(lPrivacyBox)
             lBox.PackStart(lPrivacyFrame, False, False, 0)
-            
+
             Return lBox
         End Function
-        
+
+        ''' <summary>
+        ''' Builds the tab for managing which directory names are skipped when SimpleIDE
+        ''' scans a project for source files
+        ''' </summary>
+        Private Function CreateExcludedDirectoriesTab() As Widget
+            Dim lBox As New Box(Orientation.Vertical, 10)
+            lBox.BorderWidth = 10
+
+            ' Built-in defaults - not editable here, just explained
+            Dim lDefaultsFrame As New Frame("Always Excluded (built-in)")
+            Dim lDefaultsBox As New Box(Orientation.Vertical, 5)
+            lDefaultsBox.BorderWidth = 10
+
+            Dim lDefaultsExplain As New Label(
+                "These directories are always skipped whenever SimpleIDE scans a project " &
+                "for source files - the TODO list, Find/Replace-in-files, and the AI " &
+                "context bridge all share this same scan. They hold version control " &
+                "internals, compiled build output, or IDE/tooling data rather than your " &
+                "own source, so walking into them only produces duplicate or irrelevant " &
+                "results (a nested git worktree under .claude, for instance, can make " &
+                "every file appear to exist twice, possibly at a different, stale commit).")
+            lDefaultsExplain.Wrap = True
+            lDefaultsExplain.Xalign = 0
+            lDefaultsBox.PackStart(lDefaultsExplain, False, False, 0)
+
+            Dim lDefaultsList As New Label(String.Join(", ", ProjectFileScanner.DefaultExcludedDirectories))
+            lDefaultsList.Wrap = True
+            lDefaultsList.Xalign = 0
+            lDefaultsList.MarginTop = 5
+            lDefaultsList.OverrideFont(Pango.FontDescription.FromString("Monospace 10"))
+            lDefaultsBox.PackStart(lDefaultsList, False, False, 0)
+
+            lDefaultsFrame.Add(lDefaultsBox)
+            lBox.PackStart(lDefaultsFrame, False, False, 0)
+
+            ' User-configured additions
+            Dim lCustomFrame As New Frame("Additional Excluded Directories")
+            Dim lCustomBox As New Box(Orientation.Vertical, 5)
+            lCustomBox.BorderWidth = 10
+
+            Dim lCustomExplain As New Label(
+                "Add directory names (not full paths) here to also skip them during " &
+                "project scans - for example a vendor folder, a generated-code " &
+                "directory, or another tool's cache directory specific to your own " &
+                "projects. Changes below apply immediately, independent of this " &
+                "window's Save/Apply buttons.")
+            lCustomExplain.Wrap = True
+            lCustomExplain.Xalign = 0
+            lCustomBox.PackStart(lCustomExplain, False, False, 0)
+
+            Dim lAddRow As New Box(Orientation.Horizontal, 5)
+            lAddRow.MarginTop = 5
+
+            pExcludedDirEntry = New CustomDrawTextBox("Directory name, e.g. ThirdParty")
+            pExcludedDirEntry.ThemeManager = pThemeManager
+            AddHandler pExcludedDirEntry.Activated, AddressOf OnAddExcludedDirectory
+            lAddRow.PackStart(pExcludedDirEntry, True, True, 0)
+
+            pAddExcludedDirButton = New CustomDrawButton("Add")
+            pAddExcludedDirButton.ThemeManager = pThemeManager
+            AddHandler pAddExcludedDirButton.Clicked, AddressOf OnAddExcludedDirectory
+            lAddRow.PackStart(pAddExcludedDirButton, False, False, 0)
+
+            lCustomBox.PackStart(lAddRow, False, False, 0)
+
+            pExcludedDirListBox = New CustomDrawListBox()
+            pExcludedDirListBox.ThemeManager = pThemeManager
+            pExcludedDirListBox.SetSizeRequest(-1, 150)
+            lCustomBox.PackStart(pExcludedDirListBox, True, True, 5)
+
+            pRemoveExcludedDirButton = New CustomDrawButton("Remove Selected")
+            pRemoveExcludedDirButton.ThemeManager = pThemeManager
+            AddHandler pRemoveExcludedDirButton.Clicked, AddressOf OnRemoveExcludedDirectory
+            lCustomBox.PackStart(pRemoveExcludedDirButton, False, False, 0)
+
+            lCustomFrame.Add(lCustomBox)
+            lBox.PackStart(lCustomFrame, True, True, 0)
+
+            RefreshExcludedDirectoriesList()
+
+            Return lBox
+        End Function
+
+        ''' <summary>
+        ''' Repopulates the custom-excluded-directories list from ProjectFileScanner's
+        ''' current in-memory state
+        ''' </summary>
+        Private Sub RefreshExcludedDirectoriesList()
+            Try
+                If pExcludedDirListBox Is Nothing Then Return
+                pExcludedDirListBox.Clear()
+                For Each lDirectoryName In ProjectFileScanner.CustomExcludedDirectories.OrderBy(Function(d) d, StringComparer.OrdinalIgnoreCase)
+                    pExcludedDirListBox.AddItem(lDirectoryName)
+                Next
+            Catch ex As Exception
+                Console.WriteLine($"RefreshExcludedDirectoriesList error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub OnAddExcludedDirectory(vSender As Object, vArgs As EventArgs)
+            Try
+                Dim lName As String = pExcludedDirEntry.Text.Trim()
+                If String.IsNullOrEmpty(lName) Then Return
+                ProjectFileScanner.AddExcludedDirectory(pSettingsManager, lName)
+                pExcludedDirEntry.Text = ""
+                RefreshExcludedDirectoriesList()
+            Catch ex As Exception
+                Console.WriteLine($"OnAddExcludedDirectory error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub OnRemoveExcludedDirectory(vSender As Object, vArgs As EventArgs)
+            Try
+                Dim lSelected As ListBoxItem = pExcludedDirListBox.SelectedItem
+                If lSelected Is Nothing Then Return
+                ProjectFileScanner.RemoveExcludedDirectory(pSettingsManager, lSelected.Text)
+                RefreshExcludedDirectoriesList()
+            Catch ex As Exception
+                Console.WriteLine($"OnRemoveExcludedDirectory error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Load/Save Settings =====
         
         ''' <summary>

@@ -1,0 +1,237 @@
+' Widgets/CustomDrawTextBox.vb - Text entry with a retro sunken 3D bevel, matching
+' CustomDrawButton's raised bevel but inverted (dark top/left, light bottom/right) and
+' double width, so a text-entry "well" reads as visually distinct from a raised button
+Imports Gtk
+Imports Gdk
+Imports Cairo
+Imports System
+Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
+
+Namespace Widgets
+
+    ''' <summary>
+    ''' A text entry rendered with a retro sunken 3D bevel instead of the native GTK entry
+    ''' frame. Wraps a real Gtk.Entry (via Gtk.Overlay) for full native text editing -
+    ''' cursor, selection, clipboard, IME - rather than reimplementing text editing; only
+    ''' the surrounding chrome is custom-drawn
+    ''' </summary>
+    Public Class CustomDrawTextBox
+        Inherits Overlay
+
+        ' ===== Private Fields =====
+        Private pBackgroundArea As DrawingArea
+        Private pEntry As Entry
+        Private pThemeManager As ThemeManager
+
+        Private pFillColor As String = "#FFFFFF"
+        Private pTopLeftColor As String = "#808080"     ' dark edge (sunken look)
+        Private pBottomRightColor As String = "#FFFFFF" ' light edge (sunken look)
+
+        ' Double CustomDrawButton's 2px bevel, per James's request to make a text-entry
+        ' "well" read as visually distinct from a raised button
+        Private Const BEVEL_WIDTH As Integer = 4
+
+        ' ===== Events =====
+        Public Event Changed(vSender As Object, vArgs As EventArgs)
+        Public Event Activated(vSender As Object, vArgs As EventArgs)
+
+        ' ===== Public Properties =====
+
+        Public Property Text As String
+            Get
+                Return pEntry.Text
+            End Get
+            Set(value As String)
+                pEntry.Text = value
+            End Set
+        End Property
+
+        Public Property PlaceholderText As String
+            Get
+                Return pEntry.PlaceholderText
+            End Get
+            Set(value As String)
+                pEntry.PlaceholderText = value
+            End Set
+        End Property
+
+        ''' <summary>Gets the wrapped native Entry, for anything not exposed here directly
+        ''' (e.g. WidthRequest, IsEditable, MaxLength)</summary>
+        Public ReadOnly Property InnerEntry As Entry
+            Get
+                Return pEntry
+            End Get
+        End Property
+
+        Public Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+            Set(value As ThemeManager)
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                pThemeManager = value
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                ApplyCurrentTheme()
+            End Set
+        End Property
+
+        ' ===== Constructor =====
+
+        Public Sub New(Optional vPlaceholder As String = "")
+            MyBase.New()
+            Try
+                pBackgroundArea = New DrawingArea()
+                AddHandler pBackgroundArea.Drawn, AddressOf OnCustomDraw
+                Add(pBackgroundArea)
+
+                pEntry = New Entry()
+                pEntry.PlaceholderText = vPlaceholder
+                pEntry.Halign = Align.Fill
+                pEntry.Valign = Align.Fill
+                pEntry.MarginStart = BEVEL_WIDTH
+                pEntry.MarginEnd = BEVEL_WIDTH
+                pEntry.MarginTop = BEVEL_WIDTH
+                pEntry.MarginBottom = BEVEL_WIDTH
+                AddHandler pEntry.Changed, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent Changed(Me, vArgs)
+                AddHandler pEntry.Activated, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent Activated(Me, vArgs)
+                AddOverlay(pEntry)
+
+                ApplyEntryCss()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.New error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Strips the Entry's native border/background so only our custom-drawn bevel
+        ''' shows, and paints its own fill to match the current face color
+        ''' </summary>
+        Private Sub ApplyEntryCss()
+            Try
+                Dim lCss As String =
+                    "entry { border: none; background-image: none; box-shadow: none; " &
+                    $"background-color: {pFillColor}; }}"
+                CssHelper.ApplyCssToWidget(pEntry, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.ApplyEntryCss error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' ===== Theme =====
+
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing Then Return
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                pFillColor = lTheme.BackgroundColor
+
+                ' Sunken look: dark top/left, light bottom/right - the inverse of
+                ' CustomDrawButton's raised bevel - derived relative to the face color for
+                ' the same reason (stays visible whether the theme's face color itself
+                ' lands near the light or dark end of the range)
+                pTopLeftColor = DarkenColor(pFillColor, 0.30)
+                pBottomRightColor = LightenColor(pFillColor, 0.30)
+
+                ApplyEntryCss()
+                pBackgroundArea?.QueueDraw()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' ===== Drawing =====
+
+        Private Function OnCustomDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
+            Try
+                DrawBevel(vArgs.Cr)
+                Return True
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.OnCustomDraw error: {ex.Message}")
+                Return True
+            End Try
+        End Function
+
+        Private Sub DrawBevel(vContext As Context)
+            Try
+                Dim lWidth As Integer = pBackgroundArea.AllocatedWidth
+                Dim lHeight As Integer = pBackgroundArea.AllocatedHeight
+
+                SetSourceColor(vContext, pFillColor)
+                vContext.Rectangle(0, 0, lWidth, lHeight)
+                vContext.Fill()
+
+                SetSourceColor(vContext, pTopLeftColor)
+                vContext.Rectangle(0, 0, lWidth, BEVEL_WIDTH)                  ' top
+                vContext.Fill()
+                vContext.Rectangle(0, 0, BEVEL_WIDTH, lHeight)                 ' left
+                vContext.Fill()
+
+                SetSourceColor(vContext, pBottomRightColor)
+                vContext.Rectangle(0, lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)      ' bottom
+                vContext.Fill()
+                vContext.Rectangle(lWidth - BEVEL_WIDTH, 0, BEVEL_WIDTH, lHeight)      ' right
+                vContext.Fill()
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.DrawBevel error: {ex.Message}")
+            End Try
+        End Sub
+
+        ' ===== Helpers =====
+
+        Private Sub SetSourceColor(vContext As Context, vHexColor As String)
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If lColor.Parse(vHexColor) Then
+                    vContext.SetSourceRGBA(lColor.Red, lColor.Green, lColor.Blue, lColor.Alpha)
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.SetSourceColor error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Function LightenColor(vHexColor As String, vAmount As Double) As String
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If Not lColor.Parse(vHexColor) Then Return vHexColor
+                Dim lR As Double = Math.Min(1.0, lColor.Red + vAmount)
+                Dim lG As Double = Math.Min(1.0, lColor.Green + vAmount)
+                Dim lB As Double = Math.Min(1.0, lColor.Blue + vAmount)
+                Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.LightenColor error: {ex.Message}")
+                Return vHexColor
+            End Try
+        End Function
+
+        Private Function DarkenColor(vHexColor As String, vAmount As Double) As String
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If Not lColor.Parse(vHexColor) Then Return vHexColor
+                Dim lR As Double = Math.Max(0.0, lColor.Red - vAmount)
+                Dim lG As Double = Math.Max(0.0, lColor.Green - vAmount)
+                Dim lB As Double = Math.Max(0.0, lColor.Blue - vAmount)
+                Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.DarkenColor error: {ex.Message}")
+                Return vHexColor
+            End Try
+        End Function
+
+    End Class
+
+End Namespace
