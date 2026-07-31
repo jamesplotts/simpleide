@@ -119,9 +119,47 @@ Namespace Widgets
                 AddOverlay(pEntry)
 
                 ApplyEntryCss()
+                UpdateMinimumSize()
+
+                ' GetPreferredSize() can under-report before the widget has a real GDK
+                ' window and resolved style/font metrics (confirmed via diagnostic: the
+                ' pre-realize estimate came in smaller than the true post-realize natural
+                ' size), so re-measure once realized and force a fresh layout pass
+                AddHandler Me.Realized, Sub()
+                    UpdateMinimumSize()
+                    Me.QueueResize()
+                End Sub
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawTextBox.New error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Gtk.Overlay's own preferred-size negotiation with its parent container does not
+        ''' reliably reflect an overlay child's (here, the real pEntry's) actual size need
+        ''' just by giving the main child (pBackgroundArea) a size request - confirmed via
+        ''' a diagnostic where pBackgroundArea's request was set correctly but the Overlay
+        ''' still ended up allocated smaller than pEntry's own measured natural height, and
+        ''' pEntry (an overlay child) rendered past the Overlay's own bounds as a result.
+        ''' Calling SetSizeRequest directly on Me (the Overlay itself) sidesteps that
+        ''' ambiguity entirely: it unconditionally clamps the minimum size this widget
+        ''' reports to whatever container it's packed into, regardless of how Overlay
+        ''' negotiates internally between its main and overlay children
+        ''' </summary>
+        Private Sub UpdateMinimumSize()
+            Try
+                Dim lMinSize As Requisition = Nothing
+                Dim lNatSize As Requisition = Nothing
+                pEntry.GetPreferredSize(lMinSize, lNatSize)
+
+                Dim lRequiredHeight As Integer = Math.Max(lMinSize.Height, lNatSize.Height) + (BEVEL_WIDTH * 2)
+                If lRequiredHeight > 0 Then
+                    Me.SetSizeRequest(-1, lRequiredHeight)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.UpdateMinimumSize error: {ex.Message}")
             End Try
         End Sub
 
@@ -173,6 +211,7 @@ Namespace Widgets
                 pBottomRightColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pFillColor, 0.30), lTheme.BevelLightColor)
 
                 ApplyEntryCss()
+                UpdateMinimumSize()
                 pBackgroundArea?.QueueDraw()
 
             Catch ex As Exception

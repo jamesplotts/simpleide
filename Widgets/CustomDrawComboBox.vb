@@ -132,6 +132,16 @@ Namespace Widgets
 
                 EnsureGlobalCssRegistered()
                 ApplyEntryCss()
+                UpdateMinimumSize()
+
+                ' GetPreferredSize() can under-report before the widget has a real GDK
+                ' window and resolved style/font metrics (confirmed via diagnostic: the
+                ' pre-realize estimate came in smaller than the true post-realize natural
+                ' size), so re-measure once realized and force a fresh layout pass
+                AddHandler Me.Realized, Sub()
+                    UpdateMinimumSize()
+                    Me.QueueResize()
+                End Sub
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawComboBox.New error: {ex.Message}")
@@ -144,6 +154,7 @@ Namespace Widgets
         ''' <param name="vText">Text of the item to append</param>
         Public Sub AppendText(vText As String)
             pCombo.AppendText(vText)
+            UpdateMinimumSize()
         End Sub
 
         ''' <summary>
@@ -151,6 +162,35 @@ Namespace Widgets
         ''' </summary>
         Public Sub RemoveAll()
             pCombo.RemoveAll()
+            UpdateMinimumSize()
+        End Sub
+
+        ''' <summary>
+        ''' Gtk.Overlay's own preferred-size negotiation with its parent container does not
+        ''' reliably reflect an overlay child's (here, the real pCombo's) actual size need
+        ''' just by giving the main child (pBackgroundArea) a size request - confirmed via
+        ''' a diagnostic where pBackgroundArea's request was set correctly but the Overlay
+        ''' still ended up allocated smaller than pCombo's own measured natural height, and
+        ''' pCombo (an overlay child) rendered past the Overlay's own bounds as a result.
+        ''' Calling SetSizeRequest directly on Me (the Overlay itself) sidesteps that
+        ''' ambiguity entirely: it unconditionally clamps the minimum size this widget
+        ''' reports to whatever container it's packed into, regardless of how Overlay
+        ''' negotiates internally between its main and overlay children
+        ''' </summary>
+        Private Sub UpdateMinimumSize()
+            Try
+                Dim lMinSize As Requisition = Nothing
+                Dim lNatSize As Requisition = Nothing
+                pCombo.GetPreferredSize(lMinSize, lNatSize)
+
+                Dim lRequiredHeight As Integer = Math.Max(lMinSize.Height, lNatSize.Height) + (BEVEL_WIDTH * 2)
+                If lRequiredHeight > 0 Then
+                    Me.SetSizeRequest(-1, lRequiredHeight)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawComboBox.UpdateMinimumSize error: {ex.Message}")
+            End Try
         End Sub
 
         Private Sub OnComboEnterNotify(vSender As Object, vArgs As EnterNotifyEventArgs)
@@ -229,6 +269,7 @@ Namespace Widgets
                 pFlatAccentColor = If(String.IsNullOrEmpty(lTheme.AccentColor), pFillColor, lTheme.AccentColor)
 
                 ApplyEntryCss()
+                UpdateMinimumSize()
                 pBackgroundArea?.QueueDraw()
 
             Catch ex As Exception
