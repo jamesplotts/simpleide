@@ -14,12 +14,12 @@ Namespace Widgets
         Private pToolbar As Toolbar
         Private pFilterToolbar As Toolbar
         Private pTreeView As TreeView
-        Private pListStore As ListStore
+        Private pTreeStore As TreeStore
         Private pScrolledWindow As ScrolledWindow
         Private pContextMenu As Menu
         Private pStatusBar As Label
 
-        
+
         ' Filter controls
         Private pSearchEntry As SearchEntry
         Private pPriorityCombo As ComboBoxText
@@ -28,9 +28,20 @@ Namespace Widgets
         Private pOverdueToggle As ToggleToolButton
         Private pRefreshButton As ToolButton
         Private pAddButton As ToolButton
-        
+
+        ' Comment-tag visibility toggles (TODO/FIXED/NOTE/Manual)
+        Private pShowTodoToggle As ToggleToolButton
+        Private pShowFixedToggle As ToggleToolButton
+        Private pShowNoteToggle As ToggleToolButton
+        Private pShowManualToggle As ToggleToolButton
+
+        ' Whole Project / Current File Only scope toggle
+        Private pScopeToggle As ToggleToolButton
+
         ' Private fields - Data
         Private pTODOManager As TODOManager = Nothing
+        Private pProjectRoot As String = ""
+        Private pCurrentFilePath As String = ""
         Private pAllTODOs As New List(Of TODOItem)
         Private pFilteredTODOs As New List(Of TODOItem)
         Private pSelectedTODO As TODOItem
@@ -142,8 +153,44 @@ Namespace Widgets
             pOverdueToggle.IconWidget = Image.NewFromIconName("alarm-symbolic", IconSize.SmallToolbar)
             pOverdueToggle.TooltipText = "Show only overdue items"
             pToolbar.Insert(pOverdueToggle, -1)
-            
-            
+
+            ' Second toolbar row: comment-tag visibility toggles and view scope
+            pFilterToolbar = New Toolbar()
+            pFilterToolbar.ToolbarStyle = ToolbarStyle.Text
+            pFilterToolbar.IconSize = IconSize.SmallToolbar
+
+            pShowTodoToggle = New ToggleToolButton()
+            pShowTodoToggle.Label = "TODO"
+            pShowTodoToggle.Active = True
+            pShowTodoToggle.TooltipText = "Show items from ' TODO:' comments"
+            pFilterToolbar.Insert(pShowTodoToggle, -1)
+
+            pShowFixedToggle = New ToggleToolButton()
+            pShowFixedToggle.Label = "FIXED"
+            pShowFixedToggle.Active = True
+            pShowFixedToggle.TooltipText = "Show items from ' FIXED:' comments"
+            pFilterToolbar.Insert(pShowFixedToggle, -1)
+
+            pShowNoteToggle = New ToggleToolButton()
+            pShowNoteToggle.Label = "NOTE"
+            pShowNoteToggle.Active = True
+            pShowNoteToggle.TooltipText = "Show items from ' NOTE:' comments"
+            pFilterToolbar.Insert(pShowNoteToggle, -1)
+
+            pShowManualToggle = New ToggleToolButton()
+            pShowManualToggle.Label = "Manual"
+            pShowManualToggle.Active = True
+            pShowManualToggle.TooltipText = "Show manually-added tasks"
+            pFilterToolbar.Insert(pShowManualToggle, -1)
+
+            pFilterToolbar.Insert(New SeparatorToolItem(), -1)
+
+            pScopeToggle = New ToggleToolButton()
+            pScopeToggle.Label = "Current File Only"
+            pScopeToggle.Active = False
+            pScopeToggle.TooltipText = "Show only TODOs from the currently active file"
+            pFilterToolbar.Insert(pScopeToggle, -1)
+
             ' Scrolled window for tree view
             pScrolledWindow = New ScrolledWindow()
             pScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
@@ -172,9 +219,14 @@ Namespace Widgets
         
         Private Sub CreateTreeView()
             Console.WriteLine($"TodoPanel.vb - CreateTreeView()")
-            ' Create list store: Priority Icon, Category Icon, Title, Priority Text, Category Text, Status, Due Date, Description, ID
-            pListStore = New ListStore(
-                GetType(Gdk.Pixbuf),     ' 0: Priority Icon
+            ' Create tree store: Priority Icon, Category Icon, Title, Priority Text, Category Text, Status, Due Date, Description, ID
+            ' Top-level rows are file (or "Manual Tasks") group headers; child rows are TODO
+            ' items. Group rows carry an empty Id (column 8) so selection/activation code can
+            ' tell them apart from real items. Rows are inserted in the fixed display order
+            ' (file groups alphabetical, items sequential by line) rather than relying on
+            ' column-click sorting, so no SortColumnId is set on any column.
+            pTreeStore = New TreeStore(
+                GetType(Gdk.Pixbuf),     ' 0: Priority Icon (group rows: folder/list icon)
                 GetType(Gdk.Pixbuf),     ' 1: Category Icon
                 GetType(String),         ' 2: Title (with Progress indicators)
                 GetType(String),         ' 3: Priority Text
@@ -184,72 +236,67 @@ Namespace Widgets
                 GetType(String),         ' 7: Description (hidden)
                 GetType(String)          ' 8: Id (hidden)
             )
-            
-            pTreeView = New TreeView(pListStore)
+
+            pTreeView = New TreeView(pTreeStore)
             pTreeView.HeadersVisible = True
             pTreeView.EnableSearch = True
             pTreeView.SearchColumn = 2  ' Search by Title
-            
-            ' Priority column (icon) - FIXED: Use proper TreeViewColumn constructor
+
+            ' Priority column (icon)
             Dim lPriorityColumn As New TreeViewColumn()
-            lPriorityColumn.Title = "Pri"  ' Set Title property instead of passing to constructor
+            lPriorityColumn.Title = "Pri"
             Dim lPriorityRenderer As New CellRendererPixbuf()
             lPriorityColumn.PackStart(lPriorityRenderer, False)
             lPriorityColumn.AddAttribute(lPriorityRenderer, "pixbuf", 0)
-            lPriorityColumn.SortColumnId = 3
             lPriorityColumn.Resizable = True
             lPriorityColumn.MinWidth = 40
             pTreeView.AppendColumn(lPriorityColumn)
-            
-            ' Category column (icon) - FIXED: Use proper TreeViewColumn constructor
+
+            ' Category column (icon)
             Dim lCategoryColumn As New TreeViewColumn()
-            lCategoryColumn.Title = "Cat"  ' Set Title property instead of passing to constructor
+            lCategoryColumn.Title = "Cat"
             Dim lCategoryRenderer As New CellRendererPixbuf()
             lCategoryColumn.PackStart(lCategoryRenderer, False)
             lCategoryColumn.AddAttribute(lCategoryRenderer, "pixbuf", 1)
-            lCategoryColumn.SortColumnId = 4
             lCategoryColumn.Resizable = True
             lCategoryColumn.MinWidth = 40
             pTreeView.AppendColumn(lCategoryColumn)
-            
-            ' Title column - FIXED: Use proper TreeViewColumn constructor
+
+            ' Title column
             Dim lTitleColumn As New TreeViewColumn()
             lTitleColumn.Title = "Title"
             Dim lTitleRenderer As New CellRendererText()
             lTitleColumn.PackStart(lTitleRenderer, True)
             lTitleColumn.AddAttribute(lTitleRenderer, "text", 2)
-            lTitleColumn.SortColumnId = 2
             lTitleColumn.Resizable = True
             lTitleColumn.Expand = True
             pTreeView.AppendColumn(lTitleColumn)
-            
-            ' Status column - FIXED: Use proper TreeViewColumn constructor
+
+            ' Status column
             Dim lStatusColumn As New TreeViewColumn()
             lStatusColumn.Title = "Status"
             Dim lStatusRenderer As New CellRendererText()
             lStatusColumn.PackStart(lStatusRenderer, False)
             lStatusColumn.AddAttribute(lStatusRenderer, "text", 5)
-            lStatusColumn.SortColumnId = 5
             lStatusColumn.Resizable = True
             lStatusColumn.MinWidth = 80
             pTreeView.AppendColumn(lStatusColumn)
-            
-            ' Due Date column - FIXED: Use proper TreeViewColumn constructor
+
+            ' Due Date column
             Dim lDueDateColumn As New TreeViewColumn()
             lDueDateColumn.Title = "Due Date"
             Dim lDueDateRenderer As New CellRendererText()
             lDueDateColumn.PackStart(lDueDateRenderer, False)
             lDueDateColumn.AddAttribute(lDueDateRenderer, "text", 6)
-            lDueDateColumn.SortColumnId = 6
             lDueDateColumn.Resizable = True
             lDueDateColumn.MinWidth = 100
             pTreeView.AppendColumn(lDueDateColumn)
-            
+
             ' Connect events
             AddHandler pTreeView.Selection.Changed, AddressOf OnSelectionChanged
             AddHandler pTreeView.RowActivated, AddressOf OnRowActivated
             AddHandler pTreeView.ButtonReleaseEvent, AddressOf OnTreeViewButtonRelease
-            
+
         End Sub
         
         Private Sub CreateContextMenu()
@@ -292,68 +339,6 @@ Namespace Widgets
             End Try
         End Sub
 
-        Private Function CompareTitles(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lTitleA As String = CStr(vModel.GetValue(vA, 0))
-                Dim lTitleB As String = CStr(vModel.GetValue(vB, 0))
-                Return String.Compare(lTitleA, lTitleB, StringComparison.OrdinalIgnoreCase)
-            Catch ex As Exception
-                Return 0
-            End Try
-        End Function
-        
-        Private Function ComparePriorities(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                ' Stored as string, need to parse back to enum
-                Dim lPriorityA As String = CStr(vModel.GetValue(vA, 5))
-                Dim lPriorityB As String = CStr(vModel.GetValue(vB, 5))
-                
-                ' Parse priority values (stored as "eLow", "eMedium", etc.)
-                Dim lEnumA As TODOItem.ePriority = ParsePriorityString(lPriorityA)
-                Dim lEnumB As TODOItem.ePriority = ParsePriorityString(lPriorityB)
-                
-                ' Higher priority should come first (reverse order)
-                Return CInt(lEnumB) - CInt(lEnumA)
-            Catch ex As Exception
-                Return 0
-            End Try
-        End Function
-        
-        Private Function CompareCategories(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lCategoryA As String = CStr(vModel.GetValue(vA, 2))
-                Dim lCategoryB As String = CStr(vModel.GetValue(vB, 2))
-                Return String.Compare(lCategoryA, lCategoryB, StringComparison.OrdinalIgnoreCase)
-            Catch ex As Exception
-                Return 0
-            End Try
-        End Function
-        
-        Private Function CompareStatuses(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lStatusA As String = CStr(vModel.GetValue(vA, 3))
-                Dim lStatusB As String = CStr(vModel.GetValue(vB, 3))
-                Return String.Compare(lStatusA, lStatusB, StringComparison.OrdinalIgnoreCase)
-            Catch ex As Exception
-                Return 0
-            End Try
-        End Function
-        
-        Private Function ParsePriorityString(vPriorityStr As String) As TODOItem.ePriority
-            Select Case vPriorityStr
-                Case "eLow", "Low"
-                    Return TODOItem.ePriority.eLow
-                Case "eMedium", "Medium"
-                    Return TODOItem.ePriority.eMedium
-                Case "eHigh", "High"
-                    Return TODOItem.ePriority.eHigh
-                Case "eCritical", "Critical"
-                    Return TODOItem.ePriority.eCritical
-                Case Else
-                    Return TODOItem.ePriority.eUnspecified
-            End Select
-        End Function
-
         Protected Overrides Sub OnShown()
             MyBase.OnShown()
             Console.WriteLine($"TODO OnShown")
@@ -371,25 +356,20 @@ Namespace Widgets
                 AddHandler pCategoryCombo.Changed, AddressOf OnFilterChanged
                 AddHandler pStatusCombo.Changed, AddressOf OnFilterChanged
                 AddHandler pOverdueToggle.Toggled, AddressOf OnFilterChanged
-                
+                AddHandler pShowTodoToggle.Toggled, AddressOf OnFilterChanged
+                AddHandler pShowFixedToggle.Toggled, AddressOf OnFilterChanged
+                AddHandler pShowNoteToggle.Toggled, AddressOf OnFilterChanged
+                AddHandler pShowManualToggle.Toggled, AddressOf OnFilterChanged
+                AddHandler pScopeToggle.Toggled, AddressOf OnFilterChanged
+
                 ' Connect tree view events
                 AddHandler pTreeView.RowActivated, AddressOf OnRowActivated
                 AddHandler pTreeView.ButtonReleaseEvent, AddressOf OnTreeViewButtonRelease
-                
+
                 ' Connect selection change
                 Dim lSelection As TreeSelection = pTreeView.Selection
                 AddHandler lSelection.Changed, AddressOf OnSelectionChanged
-                
-                ' Set initial sort
-                pListStore.SetSortFunc(0, AddressOf CompareTitles)
-                pListStore.SetSortFunc(1, AddressOf ComparePriorities)
-                pListStore.SetSortFunc(2, AddressOf CompareCategories)
-                pListStore.SetSortFunc(3, AddressOf CompareStatuses)
-     
-                ' Apply initial sort
-                pListStore.SetSortColumnId(1, SortType.Descending) ' Sort by Priority by default
-        
-                
+
             Catch ex As Exception
                 Console.WriteLine($"error connecting events: {ex.Message}")
             End Try
@@ -398,9 +378,11 @@ Namespace Widgets
         Private Sub OnRowActivated(vSender As Object, vE As RowActivatedArgs)
             Try
                 Dim lIter As TreeIter
-                If pListStore.GetIter(lIter, vE.Path) Then
-                    Dim lId As String = CStr(pListStore.GetValue(lIter, 8))
-                    
+                If pTreeStore.GetIter(lIter, vE.Path) Then
+                    Dim lId As String = CStr(pTreeStore.GetValue(lIter, 8))
+
+                    ' Empty Id means this is a file/"Manual Tasks" group header row, not a
+                    ' real TODO item - GTK already handles expand/collapse for it
                     If Not String.IsNullOrEmpty(lId) Then
                         pSelectedTODO = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
                         If pSelectedTODO IsNot Nothing Then
@@ -427,13 +409,15 @@ Namespace Widgets
                         
                         ' Set cursor to clicked item
                         pTreeView.SetCursor(lPath, Nothing, False)
-                        
-                        ' Update menu sensitivity - this is a private method in the same class
-                        UpdateContextMenuForTODO()
-                        
-                        ' Show menu
-                        pContextMenu.ShowAll()
-                        pContextMenu.PopupAtPointer(vE.Event)
+
+                        ' Only show the context menu for real TODO items, not file/
+                        ' "Manual Tasks" group header rows (SetCursor above updates
+                        ' pSelectedTODO via OnSelectionChanged, clearing it for group rows)
+                        If pSelectedTODO IsNot Nothing Then
+                            UpdateContextMenuForTODO()
+                            pContextMenu.ShowAll()
+                            pContextMenu.PopupAtPointer(vE.Event)
+                        End If
                     End If
                     
                     Return True
@@ -475,18 +459,21 @@ Namespace Widgets
             Try
                 Dim lSelection As TreeSelection = CType(vSender, TreeSelection)
                 Dim lIter As TreeIter
-                
+
                 If lSelection.GetSelected(lIter) Then
-                    Dim lId As String = CStr(pListStore.GetValue(lIter, 8))
-                    
+                    Dim lId As String = CStr(pTreeStore.GetValue(lIter, 8))
+
                     If Not String.IsNullOrEmpty(lId) Then
                         pSelectedTODO = pAllTODOs.FirstOrDefault(Function(t) t.Id = lId)
                         If pSelectedTODO IsNot Nothing Then
                             RaiseEvent TodoSelected(pSelectedTODO)
                         End If
+                    Else
+                        ' Selected a file/"Manual Tasks" group header row, not a real item
+                        pSelectedTODO = Nothing
                     End If
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"error handling selection change: {ex.Message}")
             End Try
@@ -624,27 +611,43 @@ Namespace Widgets
             Try
                 ' Create TODO manager for this project
                 If Not String.IsNullOrEmpty(vProjectRoot) Then
+                    pProjectRoot = vProjectRoot
                     pTODOManager = New TODOManager(vProjectRoot)
                     Console.WriteLine("TODOManager New()")
                     AddHandler pTODOManager.TODOsChanged, AddressOf OnTODOsChanged
-                    
+
                     ' IMPORTANT: Refresh TODOs after setting project root
                     RefreshTODOs()
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"error setting project root: {ex.Message}")
             End Try
         End Sub
-            
+
+        ''' <summary>
+        ''' Updates which file is considered "current" for the Current File Only scope
+        ''' toggle, and re-applies filters immediately if that toggle is active
+        ''' </summary>
+        ''' <param name="vFilePath">Full path of the newly active editor's file</param>
+        Public Sub SetCurrentFile(vFilePath As String)
+            Try
+                pCurrentFilePath = vFilePath
+                If pScopeToggle IsNot Nothing AndAlso pScopeToggle.Active Then
+                    ApplyFilters()
+                End If
+            Catch ex As Exception
+                Console.WriteLine($"error setting current file: {ex.Message}")
+            End Try
+        End Sub
+
         Private Sub OnTODOsChanged()
             GLib.Idle.Add(Function()
                 RefreshTODOs()
                 Return False
             End Function)
         End Sub
-        
-        ' Updated RefreshTODOs method for TODOPanel.vb
+
         Friend Sub RefreshTODOs()
             Try
                 Console.WriteLine($"RefreshTODOs Started")
@@ -652,84 +655,71 @@ Namespace Widgets
                     Console.WriteLine("TODO Manager Not initialized")
                     Return
                 End If
-                
-                ' Clear existing items
-                pListStore.Clear()
-                
+
                 ' Load TODOs
                 Dim lTODOs As List(Of TODOItem) = pTODOManager.LoadTODOs()
                 Console.WriteLine($"loaded {lTODOs.Count} TODO items")
-                
-                ' Store all TODOs for filtering
+
+                ' Store all TODOs, then run them back through the active filters/toggles
+                ' (previously this bypassed the current filter state entirely on refresh)
                 pAllTODOs = lTODOs
-                pFilteredTODOs = lTODOs
-                
-                ' Populate all TODOs
-                For Each lTODO In lTODOs
-                    PopulateListItem(lTODO)
-                Next
-                
-                ' Update status
-                UpdateStatusBar()
+                ApplyFilters()
+
                 Console.WriteLine($"RefreshTODOs Finished")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"error refreshing TODOs: {ex.Message}")
             End Try
         End Sub
-        
-        ' Updated PopulateListItem method - this should match the ListStore structure
-        Private Sub PopulateListItem(vTODO As TODOItem)
-            Try
-                ' Create icons for priority and category
-                Dim lPriorityIcon As Gdk.Pixbuf = CreatePriorityIcon(vTODO.Priority)
-                Dim lCategoryIcon As Gdk.Pixbuf = CreateCategoryIcon(vTODO.Category)
-                Dim lDueDateText As String = If(vTODO.DueDate.HasValue, vTODO.DueDate.Value.ToString("yyyy-MM-dd"), "")
-                
-                ' Append values matching the ListStore structure:
-                ' 0: Priority icon (Pixbuf)
-                ' 1: Category icon (Pixbuf)
-                ' 2: Title (String)
-                ' 3: Priority text (String)
-                ' 4: Category text (String)
-                ' 5: Status (String)
-                ' 6: Due date (String)
-                ' 7: Description (String) - hidden
-                ' 8: ID (String) - hidden
-                pListStore.AppendValues(
-                    lPriorityIcon,                        ' 0: Priority Icon
-                    lCategoryIcon,                        ' 1: Category Icon
-                    vTODO.GetDisplayTitle(),              ' 2: Title
-                    vTODO.GetPriorityDisplayText(),       ' 3: Priority Text
-                    vTODO.GetCategoryDisplayText(),       ' 4: Category Text
-                    vTODO.GetStatusDisplayText(),         ' 5: Status
-                    lDueDateText,                         ' 6: Due date
-                    vTODO.GetFormattedDescription(),      ' 7: Description
-                    vTODO.Id                              ' 8: Id
-                )
-                
-            Catch ex As Exception
-                Console.WriteLine($"error populating TODO item: {ex.Message}")
-            End Try
-        End Sub
-        
+
+        ''' <summary>
+        ''' Whether a TODO item should be visible given the TODO/FIXED/NOTE/Manual toggles
+        ''' </summary>
+        Private Function IsTagVisible(vTODO As TODOItem) As Boolean
+            Select Case vTODO.CommentTag
+                Case TODOItem.eCommentTag.eTodo
+                    Return pShowTodoToggle.Active
+                Case TODOItem.eCommentTag.eFixed
+                    Return pShowFixedToggle.Active
+                Case TODOItem.eCommentTag.eNote
+                    Return pShowNoteToggle.Active
+                Case Else ' eManual (and eUnspecified, which shouldn't occur)
+                    Return pShowManualToggle.Active
+            End Select
+        End Function
+
         Private Sub ApplyFilters()
             Try
                 If pTODOManager Is Nothing Then
                     Return
                 End If
-                
+
                 Dim lSearchText As String = pSearchEntry.Text
                 Dim lPriorityFilter As TODOItem.ePriority? = GetSelectedPriority()
                 Dim lCategoryFilter As TODOItem.eCategory? = GetSelectedCategory()
                 Dim lStatusFilter As TODOItem.eStatus? = GetSelectedStatus()
                 Dim lShowOverdueOnly As Boolean = pOverdueToggle.Active
-                
-                pFilteredTODOs = pTODOManager.FilterTODOs(pAllTODOs, lSearchText, lPriorityFilter, lCategoryFilter, lStatusFilter, lShowOverdueOnly)
-                
+
+                Dim lFiltered As List(Of TODOItem) = pTODOManager.FilterTODOs(pAllTODOs, lSearchText, lPriorityFilter, lCategoryFilter, lStatusFilter, lShowOverdueOnly)
+
+                ' Comment-tag visibility toggles (TODO/FIXED/NOTE/Manual)
+                lFiltered = lFiltered.Where(Function(t) IsTagVisible(t)).ToList()
+
+                ' Current File Only scope
+                If pScopeToggle.Active Then
+                    If String.IsNullOrEmpty(pCurrentFilePath) Then
+                        lFiltered = New List(Of TODOItem)
+                    Else
+                        lFiltered = lFiltered.Where(Function(t) t.SourceType = TODOItem.eSourceType.eCodeComment AndAlso
+                                                                 String.Equals(t.SourceFile, pCurrentFilePath, StringComparison.OrdinalIgnoreCase)).ToList()
+                    End If
+                End If
+
+                pFilteredTODOs = lFiltered
+
                 UpdateTreeView()
                 UpdateStatusBar()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"error applying filters: {ex.Message}")
             End Try
@@ -790,38 +780,108 @@ Namespace Widgets
             End Select
         End Function
         
+        ''' <summary>
+        ''' Rebuilds the tree grouped by source file (sorted alphabetically, items
+        ''' sequential by line number within each file), with manually-added tasks in
+        ''' their own trailing "Manual Tasks" group
+        ''' </summary>
         Private Sub UpdateTreeView()
             Try
-                pListStore.Clear()
-                
+                pTreeStore.Clear()
+
                 ' Show empty state if no TODOs or no manager
                 If pTODOManager Is Nothing OrElse pFilteredTODOs.Count = 0 Then
                     ShowEmptyState()
                     Return
                 End If
-                
-                For Each lTODO In pFilteredTODOs
-                    Dim lPriorityIcon As Gdk.Pixbuf = CreatePriorityIcon(lTODO.Priority)
-                    Dim lCategoryIcon As Gdk.Pixbuf = CreateCategoryIcon(lTODO.Category)
-                    Dim lDueDateText As String = If(lTODO.DueDate.HasValue, lTODO.DueDate.Value.ToString("yyyy-MM-dd"), "")
-                    
-                    pListStore.AppendValues(
-                        lPriorityIcon,
-                        lCategoryIcon,
-                        lTODO.GetDisplayTitle(),
-                        lTODO.GetPriorityDisplayText(),
-                        lTODO.GetCategoryDisplayText(),
-                        lTODO.GetStatusDisplayText(),
-                        lDueDateText,
-                        lTODO.GetFormattedDescription(),
-                        lTODO.Id
-                    )
+
+                Dim lFileGroups = pFilteredTODOs.
+                    Where(Function(t) t.SourceType = TODOItem.eSourceType.eCodeComment AndAlso Not String.IsNullOrEmpty(t.SourceFile)).
+                    GroupBy(Function(t) t.SourceFile).
+                    OrderBy(Function(g) GetRelativeDisplayPath(g.Key), StringComparer.OrdinalIgnoreCase)
+
+                Dim lFolderIcon As Gdk.Pixbuf = CreateGroupIcon("folder-symbolic")
+
+                For Each lGroup In lFileGroups
+                    Dim lItems As List(Of TODOItem) = lGroup.OrderBy(Function(t) t.SourceLine).ToList()
+                    Dim lRelativePath As String = GetRelativeDisplayPath(lGroup.Key)
+                    Dim lGroupIter As TreeIter = pTreeStore.AppendValues(
+                        lFolderIcon, Nothing, $"{lRelativePath}  ({lItems.Count})", "", "", "", "", "", "")
+                    For Each lTODO In lItems
+                        AppendItemRow(lGroupIter, lTODO)
+                    Next
                 Next
-                
+
+                Dim lManualItems As List(Of TODOItem) = pFilteredTODOs.
+                    Where(Function(t) t.SourceType <> TODOItem.eSourceType.eCodeComment OrElse String.IsNullOrEmpty(t.SourceFile)).
+                    OrderByDescending(Function(t) t.Priority).
+                    ThenBy(Function(t) t.Title, StringComparer.OrdinalIgnoreCase).
+                    ToList()
+
+                If lManualItems.Count > 0 Then
+                    Dim lManualIcon As Gdk.Pixbuf = CreateGroupIcon("view-list-symbolic")
+                    Dim lManualIter As TreeIter = pTreeStore.AppendValues(
+                        lManualIcon, Nothing, $"Manual Tasks  ({lManualItems.Count})", "", "", "", "", "", "")
+                    For Each lTODO In lManualItems
+                        AppendItemRow(lManualIter, lTODO)
+                    Next
+                End If
+
+                pTreeView.ExpandAll()
+
             Catch ex As Exception
                 Console.WriteLine($"error updating tree view: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Appends a single TODO item as a child row under the given file/"Manual Tasks"
+        ''' group row
+        ''' </summary>
+        Private Sub AppendItemRow(vParentIter As TreeIter, vTODO As TODOItem)
+            Try
+                Dim lPriorityIcon As Gdk.Pixbuf = CreatePriorityIcon(vTODO.Priority)
+                Dim lCategoryIcon As Gdk.Pixbuf = CreateCategoryIcon(vTODO.Category)
+                Dim lDueDateText As String = If(vTODO.DueDate.HasValue, vTODO.DueDate.Value.ToString("yyyy-MM-dd"), "")
+
+                pTreeStore.AppendValues(vParentIter,
+                    lPriorityIcon,
+                    lCategoryIcon,
+                    vTODO.GetDisplayTitle(),
+                    vTODO.GetPriorityDisplayText(),
+                    vTODO.GetCategoryDisplayText(),
+                    vTODO.GetStatusDisplayText(),
+                    lDueDateText,
+                    vTODO.GetFormattedDescription(),
+                    vTODO.Id
+                )
+            Catch ex As Exception
+                Console.WriteLine($"error appending TODO item row: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Formats a source file's full path relative to the project root for display
+        ''' as a group header
+        ''' </summary>
+        Private Function GetRelativeDisplayPath(vFilePath As String) As String
+            Try
+                If String.IsNullOrEmpty(pProjectRoot) Then Return vFilePath
+                Return System.IO.Path.GetRelativePath(pProjectRoot, vFilePath)
+            Catch ex As Exception
+                Return vFilePath
+            End Try
+        End Function
+
+        Private Function CreateGroupIcon(vIconName As String) As Gdk.Pixbuf
+            Try
+                Dim lIconTheme As Gtk.IconTheme = Gtk.IconTheme.Default
+                Return lIconTheme.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"error creating group Icon: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
         
         Private Function CreatePriorityIcon(vPriority As TODOItem.ePriority) As Gdk.Pixbuf
             Try
@@ -920,7 +980,7 @@ Namespace Widgets
         
         Private Sub ShowEmptyState()
             Try
-                pListStore.Clear()
+                pTreeStore.Clear()
                 
                 ' Add a helpful message row
                 Dim lMessage As String = If(pTODOManager Is Nothing, 
@@ -928,7 +988,7 @@ Namespace Widgets
                     "No TODOs found - Click Add To create a New TODO")
                 
                 ' Use empty pixbufs for icons
-                pListStore.AppendValues(
+                pTreeStore.AppendValues(
                     Nothing,  ' Priority Icon
                     Nothing,  ' Category Icon
                     lMessage, ' Title
@@ -944,76 +1004,7 @@ Namespace Widgets
                 Console.WriteLine($"error showing empty state: {ex.Message}")
             End Try
         End Sub
-        
-        ' Comparison functions for sorting
-        Private Function ComparePriority(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lPriorityA As String = CStr(vModel.GetValue(vA, 3))
-                Dim lPriorityB As String = CStr(vModel.GetValue(vB, 3))
-                
-                Dim lPriorityValueA As Integer = GetPriorityValue(lPriorityA)
-                Dim lPriorityValueB As Integer = GetPriorityValue(lPriorityB)
-                
-                Return lPriorityValueA.CompareTo(lPriorityValueB)
-            Catch
-                Return 0
-            End Try
-        End Function
-        
-        Private Function GetPriorityValue(vPriority As String) As Integer
-            Select Case vPriority
-                Case "Critical"
-                    Return 4
-                Case "High"
-                    Return 3
-                Case "Medium"
-                    Return 2
-                Case "Low"
-                    Return 1
-                Case Else
-                    Return 0
-            End Select
-        End Function
-        
-        Private Function CompareCategory(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lCategoryA As String = CStr(vModel.GetValue(vA, 4))
-                Dim lCategoryB As String = CStr(vModel.GetValue(vB, 4))
-                Return String.Compare(lCategoryA, lCategoryB)
-            Catch
-                Return 0
-            End Try
-        End Function
-        
-        Private Function CompareStatus(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lStatusA As String = CStr(vModel.GetValue(vA, 5))
-                Dim lStatusB As String = CStr(vModel.GetValue(vB, 5))
-                Return String.Compare(lStatusA, lStatusB)
-            Catch
-                Return 0
-            End Try
-        End Function
-        
-        Private Function CompareDueDate(vModel As ITreeModel, vA As TreeIter, vB As TreeIter) As Integer
-            Try
-                Dim lDateA As String = CStr(vModel.GetValue(vA, 6))
-                Dim lDateB As String = CStr(vModel.GetValue(vB, 6))
-                
-                If String.IsNullOrEmpty(lDateA) AndAlso String.IsNullOrEmpty(lDateB) Then
-                    Return 0
-                ElseIf String.IsNullOrEmpty(lDateA) Then
-                    Return 1
-                ElseIf String.IsNullOrEmpty(lDateB) Then
-                    Return -1
-                Else
-                    Return String.Compare(lDateA, lDateB)
-                End If
-            Catch
-                Return 0
-            End Try
-        End Function
-        
+
     End Class
     
     ' TODO Edit Dialog

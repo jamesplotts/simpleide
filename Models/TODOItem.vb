@@ -44,7 +44,19 @@ Namespace Models
             eCodeComment     ' Found in source code
             eLastValue
         End Enum
-        
+
+        ' Which comment-tag convention (CLAUDE.md's ' TODO:'/' FIXED:'/' NOTE:') produced
+        ' this item, or eManual for tasks added directly through the TODO panel - lets the
+        ' panel offer independent TODO/FIXED/NOTE/Manual visibility toggles
+        Public Enum eCommentTag
+            eUnspecified
+            eTodo
+            eFixed
+            eNote
+            eManual
+            eLastValue
+        End Enum
+
         ' Properties
         Public Property Id As String = Guid.NewGuid().ToString()
         Public Property Title As String = ""
@@ -53,6 +65,7 @@ Namespace Models
         Public Property Category As eCategory = eCategory.eOther
         Public Property Status As eStatus = eStatus.ePending
         Public Property SourceType As eSourceType = eSourceType.eManual
+        Public Property CommentTag As eCommentTag = eCommentTag.eManual
         Public Property CreatedDate As DateTime = DateTime.Now
         Public Property DueDate As DateTime?
         Public Property CompletedDate As DateTime?
@@ -88,7 +101,7 @@ Namespace Models
         End Sub
         
         ' Factory method for code comments
-        Public Shared Function FromCodeComment(vTitle As String, vFilePath As String, vLine As Integer, vColumn As Integer, vSourceText As String) As TODOItem
+        Public Shared Function FromCodeComment(vTitle As String, vFilePath As String, vLine As Integer, vColumn As Integer, vSourceText As String, vCommentTag As eCommentTag) As TODOItem
             Dim lItem As New TODOItem(vTitle)
             lItem.SourceType = eSourceType.eCodeComment
             lItem.SourceFile = vFilePath
@@ -96,6 +109,7 @@ Namespace Models
             lItem.SourceColumn = vColumn
             lItem.SourceText = vSourceText
             lItem.Category = eCategory.eOther  ' Default for code comments
+            lItem.CommentTag = vCommentTag
             Return lItem
         End Function
         

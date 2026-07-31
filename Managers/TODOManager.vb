@@ -158,18 +158,18 @@ Namespace Utilities
                     Dim lTODOMatch As Match = pCodeTODOPattern.Match(lLine)
                     If lTODOMatch.Success Then
                         Dim lTODOText As String = lTODOMatch.Groups(1).Value.Trim()
-                        Dim lItem As TODOItem = TODOItem.FromCodeComment(lTODOText, vFilePath, lLineNumber, lTODOMatch.Index, lLine.Trim())
+                        Dim lItem As TODOItem = TODOItem.FromCodeComment(lTODOText, vFilePath, lLineNumber, lTODOMatch.Index, lLine.Trim(), TODOItem.eCommentTag.eTodo)
                         lItem.Category = TODOItem.eCategory.eOther
                         lItem.Priority = TODOItem.ePriority.eMedium
                         vTODOs.Add(lItem)
                         Continue For
                     End If
-                    
+
                     ' Check for FIXED comments (mark as completed)
                     Dim lFIXEDMatch As Match = pCodeFIXEDPattern.Match(lLine)
                     If lFIXEDMatch.Success Then
                         Dim lFIXEDText As String = lFIXEDMatch.Groups(1).Value.Trim()
-                        Dim lItem As TODOItem = TODOItem.FromCodeComment($"FIXED: {lFIXEDText}", vFilePath, lLineNumber, lFIXEDMatch.Index, lLine.Trim())
+                        Dim lItem As TODOItem = TODOItem.FromCodeComment($"FIXED: {lFIXEDText}", vFilePath, lLineNumber, lFIXEDMatch.Index, lLine.Trim(), TODOItem.eCommentTag.eFixed)
                         lItem.Category = TODOItem.eCategory.eOther
                         lItem.Priority = TODOItem.ePriority.eLow
                         lItem.Status = TODOItem.eStatus.eCompleted
@@ -177,12 +177,12 @@ Namespace Utilities
                         vTODOs.Add(lItem)
                         Continue For
                     End If
-                    
+
                     ' Check for NOTE comments
                     Dim lNOTEMatch As Match = pCodeNOTEPattern.Match(lLine)
                     If lNOTEMatch.Success Then
                         Dim lNOTEText As String = lNOTEMatch.Groups(1).Value.Trim()
-                        Dim lItem As TODOItem = TODOItem.FromCodeComment($"NOTE: {lNOTEText}", vFilePath, lLineNumber, lNOTEMatch.Index, lLine.Trim())
+                        Dim lItem As TODOItem = TODOItem.FromCodeComment($"NOTE: {lNOTEText}", vFilePath, lLineNumber, lNOTEMatch.Index, lLine.Trim(), TODOItem.eCommentTag.eNote)
                         lItem.Category = TODOItem.eCategory.eDocumentation
                         lItem.Priority = TODOItem.ePriority.eLow
                         vTODOs.Add(lItem)
@@ -199,7 +199,8 @@ Namespace Utilities
                 Dim lItem As New TODOItem(vTitle, vDescription) With {
                     .Priority = vPriority,
                     .Category = vCategory,
-                    .SourceType = TODOItem.eSourceType.eManual
+                    .SourceType = TODOItem.eSourceType.eManual,
+                    .CommentTag = TODOItem.eCommentTag.eManual
                 }
                 
                 ' Load existing TODOs and add new one

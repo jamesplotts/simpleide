@@ -114,10 +114,14 @@ Partial Public Class MainWindow
             ' Get current tab
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then Return
-            
+
             ' Set the current editor
             pObjectExplorer.SetCurrentEditor(lCurrentTab.Editor)
-            
+
+            ' Keep the TODO panel's "Current File Only" scope in sync with whichever
+            ' file is now active
+            pBottomPanelManager?.TodoPanel?.SetCurrentFile(lCurrentTab.FilePath)
+
             ' FIXED: If a project is open, always show the full project structure
             If pProjectManager IsNot Nothing AndAlso pProjectManager.IsProjectOpen Then
                 ' Get and display the full project structure
