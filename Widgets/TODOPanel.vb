@@ -17,6 +17,7 @@ Namespace Widgets
         Private pListBox As CustomDrawListBox
         Private pContextMenu As Menu
         Private pStatusBar As Label
+        Private pThemeManager As ThemeManager
 
 
         ' Filter controls
@@ -365,7 +366,7 @@ Namespace Widgets
         
         Private Sub OnAddTODO(vSender As Object, vE As EventArgs)
             Try
-                Dim lDialog As New TODOEditDialog(Nothing, "Add TODO")
+                Dim lDialog As New TODOEditDialog(Nothing, "Add TODO", pThemeManager)
                 lDialog.TransientFor = CType(Me.Toplevel, Window)
                 
                 If lDialog.Run() = CInt(ResponseType.Ok) Then
@@ -388,7 +389,7 @@ Namespace Widgets
                     Return
                 End If
                 
-                Dim lDialog As New TODOEditDialog(pSelectedTODO, "Edit TODO")
+                Dim lDialog As New TODOEditDialog(pSelectedTODO, "Edit TODO", pThemeManager)
                 lDialog.TransientFor = CType(Me.Toplevel, Window)
                 
                 If lDialog.Run() = CInt(ResponseType.Ok) Then
@@ -495,6 +496,8 @@ Namespace Widgets
         ''' </summary>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
+                pThemeManager = vThemeManager
+
                 If pListBox IsNot Nothing Then
                     pListBox.ThemeManager = vThemeManager
                 End If
@@ -919,7 +922,7 @@ Namespace Widgets
     Public Class TODOEditDialog
         Inherits Dialog
         
-        Private pTitleEntry As Entry
+        Private pTitleEntry As CustomDrawTextBox
         Private pDescriptionTextView As TextView
         Private pPriorityCombo As ComboBoxText
         Private pCategoryCombo As ComboBoxText
@@ -927,7 +930,8 @@ Namespace Widgets
         Private pDueDateCalendar As Calendar
         Private pDueDateCheckButton As CheckButton
         Private pProgressScale As Scale
-        Private pTagsEntry As Entry
+        Private pTagsEntry As CustomDrawTextBox
+        Private pThemeManager As ThemeManager
         
         Public ReadOnly Property TODOTitle As String
             Get
@@ -1032,23 +1036,41 @@ Namespace Widgets
             End Get
         End Property
         
-        Public Sub New(vTODO As TODOItem, vTitle As String)
+        Public Sub New(vTODO As TODOItem, vTitle As String, Optional vThemeManager As ThemeManager = Nothing)
             MyBase.New(vTitle, Nothing, DialogFlags.Modal)
-            
+
+            pThemeManager = vThemeManager
+
             SetDefaultSize(500, 600)
             BorderWidth = 10
-            
+
             BuildUI()
-            
+
             ' Populate if editing
             If vTODO IsNot Nothing Then
                 PopulateFields(vTODO)
             End If
-            
-            ' Add buttons
-            AddButton("Cancel", ResponseType.Cancel)
-            AddButton("OK", ResponseType.Ok)
-            
+
+            ' Add buttons - custom-drawn, wired directly to Respond()
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+            Dim lOkButton As New CustomDrawButton("OK")
+            lOkButton.ThemeManager = pThemeManager
+            AddHandler lOkButton.Clicked, Sub() Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lOkButton, False, False, 0)
+
+            Dim lContentBox As Box = TryCast(ContentArea, Box)
+            If lContentBox IsNot Nothing Then
+                lContentBox.PackStart(lButtonBox, False, False, 0)
+            End If
+
             ShowAll()
         End Sub
         
@@ -1058,7 +1080,8 @@ Namespace Widgets
                 
                 ' Title
                 Dim lTitleFrame As New Frame("Title")
-                pTitleEntry = New Entry()
+                pTitleEntry = New CustomDrawTextBox()
+                pTitleEntry.ThemeManager = pThemeManager
                 lTitleFrame.Add(pTitleEntry)
                 lVBox.PackStart(lTitleFrame, False, False, 0)
                 
@@ -1140,8 +1163,8 @@ Namespace Widgets
                 
                 ' Tags
                 Dim lTagsFrame As New Frame("Tags (comma-separated)")
-                pTagsEntry = New Entry()
-                pTagsEntry.PlaceholderText = "e.g. urgent, client, backend"
+                pTagsEntry = New CustomDrawTextBox("e.g. urgent, client, backend")
+                pTagsEntry.ThemeManager = pThemeManager
                 lTagsFrame.Add(pTagsEntry)
                 lVBox.PackStart(lTagsFrame, False, False, 0)
                 
