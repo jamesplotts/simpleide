@@ -6,6 +6,7 @@ Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Syntax
+Imports SimpleIDE.Widgets
 
 Partial Public Class MainWindow
     
@@ -262,24 +263,45 @@ Partial Public Class MainWindow
         Try
             Dim lDialog As New Dialog("Go To Line", Me, DialogFlags.Modal)
             lDialog.SetDefaultSize(300, 120)
-            
+
             Dim lVBox As New Box(Orientation.Vertical, 5)
             lVBox.BorderWidth = 10
-            
+
             Dim lLabel As New Label("Enter Line number:")
             lVBox.PackStart(lLabel, False, False, 0)
-            
-            Dim lEntry As New Entry()
-            lEntry.ActivatesDefault = True
+
+            Dim lEntry As New CustomDrawTextBox()
+            lEntry.ThemeManager = pThemeManager
             lVBox.PackStart(lEntry, False, False, 0)
-            
+
             lDialog.ContentArea.PackStart(lVBox, True, True, 0)
-            
-            lDialog.AddButton("Cancel", ResponseType.Cancel)
-            Dim lGoButton As Widget = lDialog.AddButton("Go", ResponseType.Ok)
-            lDialog.Default = lGoButton
-            
+
+            ' Buttons - custom-drawn, wired directly to Respond()
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+            Dim lGoButton As New CustomDrawButton("Go")
+            lGoButton.ThemeManager = pThemeManager
+            AddHandler lGoButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lGoButton, False, False, 0)
+
+            Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then
+                lContentBox.PackStart(lButtonBox, False, False, 0)
+            End If
+
+            ' Pressing Enter in the entry submits - there's no default-widget mechanism
+            ' for a custom-drawn button, so wire Activated straight to Respond
+            AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
             lDialog.ShowAll()
+            lEntry.GrabFocus()
             
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lLineNumber As Integer

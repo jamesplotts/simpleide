@@ -5,6 +5,7 @@ Imports System.IO
 Imports System.Reflection
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
 
 Partial Public Class MainWindow
     
@@ -185,25 +186,37 @@ Partial Public Class MainWindow
             ' Create new text file
             Dim lDialog As New Dialog("New Text Resource", Me, DialogFlags.Modal)
             lDialog.SetDefaultSize(400, 150)
-            
+
             Dim lVBox As New Box(Orientation.Vertical, 5)
             lVBox.BorderWidth = 10
-            
+
             Dim lLabel As New Label("Enter resource file Name:")
             lVBox.PackStart(lLabel, False, False, 0)
-            
-            Dim lEntry As New Entry()
+
+            Dim lEntry As New CustomDrawTextBox()
             lEntry.Text = "NewResource.txt"
-            lEntry.ActivatesDefault = True
+            lEntry.ThemeManager = pThemeManager
             lVBox.PackStart(lEntry, False, False, 0)
-            
+
             lDialog.ContentArea.PackStart(lVBox, True, True, 0)
-            
-            lDialog.AddButton("Cancel", ResponseType.Cancel)
-            Dim lCreateButton As Widget = lDialog.AddButton("Create", ResponseType.Ok)
-            lDialog.Default = lCreateButton
-            
+
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+            Dim lCreateButton As New CustomDrawButton("Create")
+            lCreateButton.ThemeManager = pThemeManager
+            AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lCreateButton, False, False, 0)
+            Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+            AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
             lDialog.ShowAll()
+            lEntry.GrabFocus()
             
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lFileName As String = lEntry.Text
@@ -226,25 +239,37 @@ Partial Public Class MainWindow
             ' Create new .resx file
             Dim lDialog As New Dialog("New RESX Resource", Me, DialogFlags.Modal)
             lDialog.SetDefaultSize(400, 150)
-            
+
             Dim lVBox As New Box(Orientation.Vertical, 5)
             lVBox.BorderWidth = 10
-            
+
             Dim lLabel As New Label("Enter resource file Name (without .resx):")
             lVBox.PackStart(lLabel, False, False, 0)
-            
-            Dim lEntry As New Entry()
+
+            Dim lEntry As New CustomDrawTextBox()
             lEntry.Text = "Resources"
-            lEntry.ActivatesDefault = True
+            lEntry.ThemeManager = pThemeManager
             lVBox.PackStart(lEntry, False, False, 0)
-            
+
             lDialog.ContentArea.PackStart(lVBox, True, True, 0)
-            
-            lDialog.AddButton("Cancel", ResponseType.Cancel)
-            Dim lCreateButton As Widget = lDialog.AddButton("Create", ResponseType.Ok)
-            lDialog.Default = lCreateButton
-            
+
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+            Dim lCancelButton As New CustomDrawButton("Cancel")
+            lCancelButton.ThemeManager = pThemeManager
+            AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+            lButtonBox.PackStart(lCancelButton, False, False, 0)
+            Dim lCreateButton As New CustomDrawButton("Create")
+            lCreateButton.ThemeManager = pThemeManager
+            AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+            lButtonBox.PackStart(lCreateButton, False, False, 0)
+            Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+            AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
             lDialog.ShowAll()
+            lEntry.GrabFocus()
             
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lFileName As String = lEntry.Text
