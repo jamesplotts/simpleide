@@ -3,15 +3,17 @@ Imports Gtk
 Imports System
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Dialogs
-    
+
     Public Class AISettingsDialog
         Inherits Dialog
-        
+
         ' ===== Private Fields =====
         Private pSettingsManager As SettingsManager
-        Private pApiKeyEntry As Entry
+        Private pThemeManager As ThemeManager
+        Private pApiKeyEntry As CustomDrawTextBox
         Private pModelCombo As ComboBoxText
         Private pMaxTokensSpinButton As SpinButton
         Private pTemperatureSpinButton As SpinButton
@@ -19,32 +21,62 @@ Namespace Dialogs
         Private pAutoSuggestCheckButton As CheckButton
         Private pSaveHistoryCheckButton As CheckButton
         Private pHistoryLimitSpinButton As SpinButton
-        
+
         ' ===== Constructor =====
-        Public Sub New(vParent As Window, vSettingsManager As SettingsManager)
-            MyBase.New("AI Settings", vParent, 
-                       DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                       Stock.Cancel, ResponseType.Cancel,
-                       Stock.Ok, ResponseType.Ok)
-            
+        Public Sub New(vParent As Window, vSettingsManager As SettingsManager, Optional vThemeManager As ThemeManager = Nothing)
+            MyBase.New("AI Settings", vParent,
+                       DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
             pSettingsManager = vSettingsManager
-            
+            pThemeManager = vThemeManager
+
             Try
                 ' Set dialog properties
                 SetDefaultSize(500, 400)
                 BorderWidth = 12
-                
+
                 ' Build UI
                 BuildUI()
-                
+                BuildActionButtons()
+
                 ' Load current settings
                 LoadSettings()
-                
+
                 ' Show all
                 ShowAll()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"AISettingsDialog constructor error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Builds the Cancel/OK buttons as custom-drawn bevel buttons wired directly to
+        ''' this dialog's Response mechanism, replacing the stock action-area buttons
+        ''' </summary>
+        Private Sub BuildActionButtons()
+            Try
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+                Dim lOkButton As New CustomDrawButton("OK")
+                lOkButton.ThemeManager = pThemeManager
+                AddHandler lOkButton.Clicked, Sub() Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lOkButton, False, False, 0)
+
+                Dim lContentBox As Box = TryCast(ContentArea, Box)
+                If lContentBox IsNot Nothing Then
+                    lContentBox.PackStart(lButtonBox, False, False, 0)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"BuildActionButtons error: {ex.Message}")
             End Try
         End Sub
         
@@ -65,15 +97,16 @@ Namespace Dialogs
                 lApiKeyLabel.Xalign = 0
                 lApiKeyBox.PackStart(lApiKeyLabel, False, False, 0)
                 
-                pApiKeyEntry = New Entry()
-                pApiKeyEntry.Visibility = False ' Hide API key
-                pApiKeyEntry.PlaceholderText = "Enter your Claude API key"
+                pApiKeyEntry = New CustomDrawTextBox("Enter your Claude API key")
+                pApiKeyEntry.InnerEntry.Visibility = False ' Hide API key
+                pApiKeyEntry.ThemeManager = pThemeManager
                 lApiKeyBox.PackStart(pApiKeyEntry, True, True, 0)
-                
+
                 ' Show/Hide API key button
-                Dim lShowKeyButton As New ToggleButton("Show")
+                Dim lShowKeyButton As New CustomDrawToggleButton("Show")
+                lShowKeyButton.ThemeManager = pThemeManager
                 AddHandler lShowKeyButton.Toggled, Sub(s, e)
-                    pApiKeyEntry.Visibility = lShowKeyButton.Active
+                    pApiKeyEntry.InnerEntry.Visibility = lShowKeyButton.Active
                     lShowKeyButton.Label = If(lShowKeyButton.Active, "Hide", "Show")
                 End Sub
                 lApiKeyBox.PackStart(lShowKeyButton, False, False, 0)

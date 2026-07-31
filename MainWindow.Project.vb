@@ -160,7 +160,7 @@ Partial Public Class MainWindow
             End If
             
             ' Simple input dialog for new item name
-            Dim lInputDialog As New InputDialog(Me, "Add New Item", "Enter item Name:", "NewClass.vb")
+            Dim lInputDialog As New InputDialog(Me, "Add New Item", "Enter item Name:", "NewClass.vb", pThemeManager)
             
             If lInputDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lItemName As String = lInputDialog.Text.Trim()

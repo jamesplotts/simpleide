@@ -214,7 +214,7 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub ShowAISettings()
         Try
-            Dim lDialog As New AISettingsDialog(Me, pSettingsManager)
+            Dim lDialog As New AISettingsDialog(Me, pSettingsManager, pThemeManager)
             
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 ' Settings saved, reinitialize AI
