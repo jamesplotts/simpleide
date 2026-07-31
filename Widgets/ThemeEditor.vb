@@ -506,35 +506,48 @@ Namespace Widgets
         Private Sub OnNewTheme(vSender As Object, vArgs As EventArgs)
             Try
                 ' Create dialog for theme name
-                Dim lDialog As New Dialog("New Theme", Me.Toplevel, 
-                    DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                    "Cancel", ResponseType.Cancel,
-                    "Create", ResponseType.Accept)
-                
+                Dim lDialog As New Dialog("New Theme", Me.Toplevel,
+                    DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
                 lDialog.SetDefaultSize(300, 150)
-                
+
                 Dim lContent As Box = CType(lDialog.ContentArea, Box)
                 lContent.BorderWidth = 10
-                
+
                 Dim lBox As New Box(Orientation.Vertical, 5)
                 lBox.PackStart(New Label("Theme Name:"), False, False, 0)
-                
-                Dim lEntry As New Entry()
-                lEntry.PlaceholderText = "My Custom Theme"
+
+                Dim lEntry As New CustomDrawTextBox("My Custom Theme")
+                lEntry.ThemeManager = pThemeManager
                 lBox.PackStart(lEntry, False, False, 0)
-                
+
                 lBox.PackStart(New Label("Base Theme:"), False, False, 0)
-                
+
                 Dim lCombo As New ComboBoxText()
                 for each lThemeName in pThemeManager.GetAvailableThemes()
                     lCombo.AppendText(lThemeName)
                 Next
                 lCombo.Active = 0
                 lBox.PackStart(lCombo, False, False, 0)
-                
+
                 lContent.PackStart(lBox, True, True, 0)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lCreateButton As New CustomDrawButton("Create")
+                lCreateButton.ThemeManager = pThemeManager
+                AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Accept)
+                lButtonBox.PackStart(lCreateButton, False, False, 0)
+                lContent.PackStart(lButtonBox, False, False, 0)
+                AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Accept)
+
                 lContent.ShowAll()
-                
+                lEntry.GrabFocus()
+
                 If lDialog.Run() = CInt(ResponseType.Accept) AndAlso Not String.IsNullOrWhiteSpace(lEntry.Text) Then
                     Dim lNewThemeName As String = lEntry.Text.Trim()
                     Dim lBaseThemeName As String = lCombo.ActiveText
@@ -1021,26 +1034,40 @@ Namespace Widgets
                 
                 ' Create dialog for new theme name
                 Dim lDialog As New Dialog("Copy Theme", Me.Toplevel,
-                    DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                    "Cancel", ResponseType.Cancel,
-                    "Create", ResponseType.Accept)
-                
+                    DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
                 lDialog.SetDefaultSize(350, 150)
-                
+
                 Dim lContent As Box = CType(lDialog.ContentArea, Box)
                 lContent.BorderWidth = 10
-                
+
                 Dim lBox As New Box(Orientation.Vertical, 5)
                 lBox.PackStart(New Label("New Theme Name:"), False, False, 0)
-                
-                Dim lEntry As New Entry()
+
+                Dim lEntry As New CustomDrawTextBox()
                 lEntry.Text = $"{lThemeName} Copy"
-                lEntry.SelectRegion(0, -1) ' Select all text
+                lEntry.ThemeManager = pThemeManager
                 lBox.PackStart(lEntry, False, False, 0)
-                
+
                 lContent.PackStart(lBox, True, True, 0)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lCreateButton As New CustomDrawButton("Create")
+                lCreateButton.ThemeManager = pThemeManager
+                AddHandler lCreateButton.Clicked, Sub() lDialog.Respond(ResponseType.Accept)
+                lButtonBox.PackStart(lCreateButton, False, False, 0)
+                lContent.PackStart(lButtonBox, False, False, 0)
+                AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Accept)
+
                 lContent.ShowAll()
-                
+                lEntry.GrabFocus()
+                lEntry.InnerEntry.SelectRegion(0, -1) ' Select all text
+
                 If lDialog.Run() = CInt(ResponseType.Accept) AndAlso Not String.IsNullOrWhiteSpace(lEntry.Text) Then
                     Dim lNewThemeName As String = lEntry.Text.Trim()
                     

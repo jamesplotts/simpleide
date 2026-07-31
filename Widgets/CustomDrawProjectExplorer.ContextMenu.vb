@@ -444,32 +444,47 @@ Namespace Widgets
                 If Not pSelectedNode.Node.IsFile Then Return
                 
                 ' Create rename dialog
-                Dim lDialog As New Dialog("Rename File", 
-                                        Me.Toplevel, 
-                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent,
-                                        "Cancel", ResponseType.Cancel,
-                                        "Rename", ResponseType.Ok)
-                
+                Dim lDialog As New Dialog("Rename File",
+                                        Me.Toplevel,
+                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
                 lDialog.SetDefaultSize(400, 120)
-                
+
                 ' Create entry with current name (FIXED: using System.IO.Path)
-                Dim lEntry As New Entry()
+                Dim lEntry As New CustomDrawTextBox()
                 Dim lFileName As String = System.IO.Path.GetFileName(pSelectedNode.Node.Path)
                 lEntry.Text = lFileName
-                lEntry.SelectRegion(0, lFileName.LastIndexOf("."c))
-                lEntry.ActivatesDefault = True
-                
+                lEntry.ThemeManager = pThemeManager
+                AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Ok)
+
                 Dim lBox As New Box(Orientation.Vertical, 6)
                 lBox.MarginStart = 12
                 lBox.MarginEnd = 12
                 lBox.MarginTop = 12
                 lBox.MarginBottom = 12
-                
+
                 lBox.PackStart(New Label("New name:"), False, False, 0)
                 lBox.PackStart(lEntry, False, False, 0)
-                
+
                 lDialog.ContentArea.PackStart(lBox, True, True, 0)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lRenameButton As New CustomDrawButton("Rename")
+                lRenameButton.ThemeManager = pThemeManager
+                AddHandler lRenameButton.Clicked, Sub() lDialog.Respond(ResponseType.Ok)
+                lButtonBox.PackStart(lRenameButton, False, False, 0)
+                Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+
                 lDialog.ShowAll()
+                lEntry.GrabFocus()
+                lEntry.InnerEntry.SelectRegion(0, lFileName.LastIndexOf("."c))
                 
                 If lDialog.Run() = CInt(ResponseType.Ok) Then
                     Dim lNewName As String = lEntry.Text.Trim()
