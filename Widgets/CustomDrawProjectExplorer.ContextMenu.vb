@@ -2,8 +2,10 @@
 ' Created: 2025-08-17
 Imports Gtk
 Imports System
+Imports System.Collections.Generic
 Imports System.IO
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
     
@@ -328,7 +330,7 @@ Namespace Widgets
                         ' For directories, we need to handle all contained files
                         If Directory.Exists(lPath) Then
                             ' Get all .vb files in the directory recursively
-                            Dim lVbFiles As String() = Directory.GetFiles(lPath, "*.vb", SearchOption.AllDirectories)
+                            Dim lVbFiles As List(Of String) = ProjectFileScanner.GetVBFiles(lPath)
                             
                             ' Remove each file from the project
                             If pProjectManager IsNot Nothing Then

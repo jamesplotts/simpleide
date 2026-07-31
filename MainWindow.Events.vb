@@ -23,7 +23,29 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnTodoSelected error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ' Handle TODO double-click from BottomPanelManager
+    Private Sub OnTodoDoubleClicked(vTodo As TODOItem)
+        Try
+            If vTodo IsNot Nothing AndAlso Not String.IsNullOrEmpty(vTodo.SourceFile) Then
+                OpenSpecificFile(vTodo.SourceFile, vTodo.SourceLine, vTodo.SourceColumn)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnTodoDoubleClicked error: {ex.Message}")
+        End Try
+    End Sub
+
+    ' Handle "Go to Source" context menu action from BottomPanelManager
+    Private Sub OnTodoNavigateToCode(vFilePath As String, vLine As Integer, vColumn As Integer)
+        Try
+            If Not String.IsNullOrEmpty(vFilePath) Then
+                OpenSpecificFile(vFilePath, vLine, vColumn)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnTodoNavigateToCode error: {ex.Message}")
+        End Try
+    End Sub
+
 
     
     Public Sub OnSaveAll(vSender As Object, vArgs As EventArgs)

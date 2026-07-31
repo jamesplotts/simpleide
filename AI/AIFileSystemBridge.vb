@@ -170,7 +170,7 @@ Namespace Utilities
                 Dim lProjectFiles() As String = Directory.GetFiles(pProjectRoot, "*.vbproj")
                 If lProjectFiles.Length = 0 Then
                     ' No project file, list all VB files
-                    Dim lAllFiles() As String = Directory.GetFiles(pProjectRoot, "*.vb", SearchOption.AllDirectories)
+                    Dim lAllFiles As List(Of String) = ProjectFileScanner.GetVBFiles(pProjectRoot)
                     for each lFile in lAllFiles
                         lFiles.Add(GetRelativePath(lFile))
                     Next
@@ -391,8 +391,8 @@ Imports System.Runtime.InteropServices
                 End If
                 
                 ' Find all VB files in the project
-                Dim lVbFiles() As String = Directory.GetFiles(pProjectRoot, "*.vb", SearchOption.AllDirectories)
-                
+                Dim lVbFiles As List(Of String) = ProjectFileScanner.GetVBFiles(pProjectRoot)
+
                 ' Convert to relative paths
                 For Each lFile In lVbFiles
                     lFiles.Add(GetRelativePath(lFile))

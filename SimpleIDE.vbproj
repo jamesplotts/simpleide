@@ -237,6 +237,7 @@
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="Utilities/ListBoxItem.vb" />
     <Compile Include="Utilities/ProjectFileParser.vb" />
+    <Compile Include="Utilities/ProjectFileScanner.vb" />
     <Compile Include="Utilities/ReflectionHelper.vb" />
     <Compile Include="Utilities/SimpleNuGetClient.vb" />
     <Compile Include="Utilities/StringResources.vb" />

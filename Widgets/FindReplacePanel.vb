@@ -1091,13 +1091,9 @@ Namespace Widgets
         
         Private Sub GetProjectFiles(vPath As String, vFiles As List(Of String))
             Try
-                ' Add VB files
-                vFiles.AddRange(Directory.GetFiles(vPath, "*.vb", SearchOption.AllDirectories))
-                
-                ' Exclude bin and obj directories
-                vFiles.RemoveAll(Function(f) f.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}") OrElse
-                                           f.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}"))
-                
+                ' ProjectFileScanner already skips bin/obj/.git/.claude/etc. during the walk
+                vFiles.AddRange(ProjectFileScanner.GetVBFiles(vPath))
+
             Catch ex As Exception
                 Console.WriteLine($"GetProjectFiles error: {ex.Message}")
             End Try

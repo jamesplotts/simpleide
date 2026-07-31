@@ -9,6 +9,7 @@ Imports System.Text.RegularExpressions
 Imports System.Linq
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
     Partial Public Class FindReplacePanel
@@ -464,9 +465,9 @@ Namespace Widgets
                 pModifiedFiles.Clear()
                 
                 ' Get all VB files in project
-                Dim lVBFiles() As String = Directory.GetFiles(pProjectRoot, "*.vb", SearchOption.AllDirectories)
-                
-                If lVBFiles.Length = 0 Then
+                Dim lVBFiles As List(Of String) = ProjectFileScanner.GetVBFiles(pProjectRoot)
+
+                If lVBFiles.Count = 0 Then
                     UpdateStatus("No VB files found in project")
                     Return
                 End If

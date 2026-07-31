@@ -128,8 +128,9 @@ Namespace Utilities
                     Return lCodeTODOs
                 End If
                 
-                ' Get all VB.NET files in project
-                Dim lVbFiles = Directory.GetFiles(pProjectRoot, "*.vb", SearchOption.AllDirectories)
+                ' Get all VB.NET files in project (skips .git/.claude/bin/obj/etc. so a
+                ' nested worktree checkout can't contribute duplicate TODO items)
+                Dim lVbFiles = ProjectFileScanner.GetVBFiles(pProjectRoot)
                 
                 For Each lFilePath In lVbFiles
                     Try

@@ -376,6 +376,8 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.FindResultSelected, AddressOf OnFindResultSelected
             AddHandler pBottomPanelManager.BuildErrorWarningSelected, AddressOf OnFindResultSelected
             AddHandler pBottomPanelManager.TodoSelected, AddressOf OnTodoSelected
+            AddHandler pBottomPanelManager.TodoDoubleClicked, AddressOf OnTodoDoubleClicked
+            AddHandler pBottomPanelManager.TodoNavigateToCode, AddressOf OnTodoNavigateToCode
             AddHandler pBottomPanelManager.ErrorDoubleClicked, AddressOf OnBuildErrorDoubleClicked
             AddHandler pBottomPanelManager.SendErrorsToAI, AddressOf OnSendBuildErrorsToAI
             AddHandler pBottomPanelManager.SendTodoToAI, AddressOf OnSendTodoToAI

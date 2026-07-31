@@ -31,6 +31,8 @@ Namespace Managers
         Public Event PanelClosed()
         Public Event FindResultSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event TodoSelected(vTodo As TODOItem)
+        Public Event TodoDoubleClicked(vTodo As TODOItem)
+        Public Event TodoNavigateToCode(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event BuildErrorWarningSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event SendTodoToAI(vTodo As TODOItem)
         Public Event SendErrorsToAI(vErrorsText As String)
@@ -495,7 +497,17 @@ Namespace Managers
                     Sub(vTodo As TODOItem)
                         RaiseEvent SendTodoToAI(vTodo)
                     End Sub
-                
+
+                AddHandler pTodoPanel.TODODoubleClicked,
+                    Sub(vTodo As TODOItem)
+                        RaiseEvent TodoDoubleClicked(vTodo)
+                    End Sub
+
+                AddHandler pTodoPanel.NavigateToCode,
+                    Sub(vFilePath As String, vLine As Integer, vColumn As Integer)
+                        RaiseEvent TodoNavigateToCode(vFilePath, vLine, vColumn)
+                    End Sub
+
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pTodoPanel, "TODO List", "list-checks")
                 
