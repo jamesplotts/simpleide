@@ -248,9 +248,11 @@ Namespace Widgets
                 
                 ' Create vertical scrollbar
                 pVScrollBar = New CustomDrawScrollbar(Orientation.Vertical)
+                pVScrollBar.ThemeManager = pThemeManager
 
                 ' Create horizontal scrollbar
                 pHScrollBar = New CustomDrawScrollbar(Orientation.Horizontal)
+                pHScrollBar.ThemeManager = pThemeManager
                 
                 ' Create corner box
                 pCornerBox = New DrawingArea()
