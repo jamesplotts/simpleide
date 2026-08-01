@@ -7,6 +7,7 @@ Imports System.Linq
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Managers
 Imports SimpleIDE.Utilities
 
 Namespace Widgets
@@ -33,6 +34,10 @@ Namespace Widgets
         Private pCancelButton As CustomDrawButton
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
+
+        ' Theme support
+        Private pThemeManager As ThemeManager
+        Private pResultsViewCssProvider As CssProvider
 
         ''' <summary>
         ''' QuickFind button positioned to the left of Find label
@@ -225,6 +230,98 @@ Namespace Widgets
             ConnectSortableEvents()
             SetupSortFunctions()
             InitializeEscapeHandling()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the app's color theme to every CustomDraw control this panel owns, and to
+        ''' the results TreeView. Each CustomDraw* control already self-subscribes to
+        ''' ThemeManager.ThemeChanged and redraws itself, so this only needs to hand out the
+        ''' reference once; the panel itself subscribes separately just to refresh the results
+        ''' view's CSS override on live theme changes.
+        ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                pThemeManager = vThemeManager
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
+                pFindEntry.ThemeManager = vThemeManager
+                pReplaceEntry.ThemeManager = vThemeManager
+
+                pFindButton.ThemeManager = vThemeManager
+                pReplaceButton.ThemeManager = vThemeManager
+                pReplaceAllButton.ThemeManager = vThemeManager
+                pFindNextButton.ThemeManager = vThemeManager
+                pFindPreviousButton.ThemeManager = vThemeManager
+                pCloseButton.ThemeManager = vThemeManager
+                pCancelButton.ThemeManager = vThemeManager
+                pQuickFindButton.ThemeManager = vThemeManager
+
+                pCaseSensitiveCheck.ThemeManager = vThemeManager
+                pWholeWordCheck.ThemeManager = vThemeManager
+                pRegexCheck.ThemeManager = vThemeManager
+                pInFileRadio.ThemeManager = vThemeManager
+                pInProjectRadio.ThemeManager = vThemeManager
+
+                ApplyCurrentTheme()
+
+            Catch ex As Exception
+                Console.WriteLine($"FindReplacePanel.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles live theme changes - refreshes what this panel manages directly (the
+        ''' results TreeView's CSS override); the CustomDraw child controls handle their own
+        ''' redraw independently via their own ThemeChanged subscriptions
+        ''' </summary>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        ''' <summary>
+        ''' Gives the results TreeView real EditorTheme colors. Without this it only picks up
+        ''' ThemeManager's generic global "treeview" CSS rule, which just branches on
+        ''' IsDarkTheme between two hardcoded hex pairs rather than reflecting the actual
+        ''' theme in use (same limitation every other TreeView in the app currently has) -
+        ''' this override replaces that with the real theme's colors for this results list.
+        ''' </summary>
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing OrElse pResultsView Is Nothing Then Return
+
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                Dim lBackground As String = lTheme.GetColor(EditorTheme.Tags.eEditorBackgroundColor)
+                Dim lForeground As String = lTheme.GetColor(EditorTheme.Tags.eForegroundColor)
+                Dim lSelectionBackground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionColor)
+                Dim lSelectionForeground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionText)
+                Dim lHeaderBackground As String = lTheme.LineNumberBackgroundColor
+                Dim lHeaderForeground As String = lTheme.LineNumberColor
+
+                Dim lCss As String =
+                    $"treeview {{ background-color: {lBackground}; color: {lForeground}; }}" & Environment.NewLine &
+                    $"treeview:selected {{ background-color: {lSelectionBackground}; color: {lSelectionForeground}; }}" & Environment.NewLine &
+                    $"treeview header button {{ background-color: {lHeaderBackground}; color: {lHeaderForeground}; }}"
+
+                If pResultsViewCssProvider IsNot Nothing Then
+                    pResultsView.StyleContext.RemoveProvider(pResultsViewCssProvider)
+                    pResultsViewCssProvider = Nothing
+                End If
+
+                pResultsViewCssProvider = New CssProvider()
+                pResultsViewCssProvider.LoadFromData(lCss)
+                pResultsView.StyleContext.AddProvider(pResultsViewCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
+            Catch ex As Exception
+                Console.WriteLine($"FindReplacePanel.ApplyCurrentTheme error: {ex.Message}")
+            End Try
         End Sub
 
         ''' <summary>

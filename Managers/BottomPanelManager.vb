@@ -1020,7 +1020,13 @@ Namespace Managers
                 ' Add to notebook with icon
                 Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
                 lCustomNotebook.AppendPage(pFindPanel, "Find/Replace", "search")
-                
+
+                ' This tab is created lazily, so if the theme was already set before this ran,
+                ' the new panel needs to be brought up to date immediately
+                If pThemeManager IsNot Nothing Then
+                    pFindPanel.SetThemeManager(pThemeManager)
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"CreateFindResultsTab error: {ex.Message}")
             End Try
@@ -1077,6 +1083,10 @@ Namespace Managers
 
                 If pTodoPanel IsNot Nothing Then
                     pTodoPanel.SetThemeManager(vThemeManager)
+                End If
+
+                If pFindPanel IsNot Nothing Then
+                    pFindPanel.SetThemeManager(vThemeManager)
                 End If
 
                 ' Pass to other panels that might need it
