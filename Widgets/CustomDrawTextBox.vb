@@ -203,9 +203,28 @@ Namespace Widgets
             Try
                 If pThemeManager Is Nothing Then Return
                 Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then Return
+                ApplyThemeColors(lTheme)
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawTextBox.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
 
-                pFillColor = lTheme.BackgroundColor
+        ''' <summary>
+        ''' Applies colors from a specific EditorTheme directly, bypassing ThemeManager -
+        ''' for previewing a theme (e.g. one being edited in ThemeEditor) that isn't
+        ''' necessarily the application's currently-active theme, matching the same
+        ''' demo/preview pattern CustomDrawingEditor.SetThemeColors already uses
+        ''' </summary>
+        ''' <param name="vTheme">Theme to preview - has no lasting effect on ThemeManager</param>
+        Public Sub ApplyExplicitTheme(vTheme As EditorTheme)
+            ApplyThemeColors(vTheme)
+        End Sub
+
+        Private Sub ApplyThemeColors(vTheme As EditorTheme)
+            Try
+                If vTheme Is Nothing Then Return
+
+                pFillColor = vTheme.BackgroundColor
 
                 ' Sunken look: dark top/left, light bottom/right - the inverse of
                 ' CustomDrawButton's raised bevel. Uses the theme's explicit
@@ -213,15 +232,15 @@ Namespace Widgets
                 ' CustomDrawButton reads, just assigned to opposite corners since this
                 ' widget is sunken rather than raised), otherwise derives relative to the
                 ' face color as CustomDrawButton does, for the same reasoning
-                pTopLeftColor = If(String.IsNullOrEmpty(lTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), lTheme.BevelDarkColor)
-                pBottomRightColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pFillColor, 0.30), lTheme.BevelLightColor)
+                pTopLeftColor = If(String.IsNullOrEmpty(vTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), vTheme.BevelDarkColor)
+                pBottomRightColor = If(String.IsNullOrEmpty(vTheme.BevelLightColor), LightenColor(pFillColor, 0.30), vTheme.BevelLightColor)
 
                 ApplyEntryCss()
                 UpdateMinimumSize()
                 pBackgroundArea?.QueueDraw()
 
             Catch ex As Exception
-                Console.WriteLine($"CustomDrawTextBox.ApplyCurrentTheme error: {ex.Message}")
+                Console.WriteLine($"CustomDrawTextBox.ApplyThemeColors error: {ex.Message}")
             End Try
         End Sub
 

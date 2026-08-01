@@ -26,6 +26,8 @@ Namespace Widgets
         ' UI Components
         Private pThemeListStore As ListStore
         Private pPreviewEditor As CustomDrawingEditor
+        Private pPreviewTextBox As CustomDrawTextBox
+        Private pPreviewButton As CustomDrawButton
         Private pThemeNameLabel As Label
         Private pOpenFolderButton As CustomDrawButton
         Private pImportButton As CustomDrawButton
@@ -163,7 +165,26 @@ Namespace Widgets
                 
                 lColorFrame.Add(pColorPicker)
                 lPreviewBox.PackStart(lColorFrame, True, True, 0)
-                
+
+                ' Interface preview - a real CustomDrawTextBox and CustomDrawButton themed
+                ' from pCurrentTheme directly (via ApplyExplicitTheme, bypassing
+                ' ThemeManager), so bevel/text-box/button colors can be checked visually
+                ' without leaving the Theme Editor or affecting the app's actual theme
+                Dim lInterfaceFrame As New Frame("Interface Preview")
+                Dim lInterfaceBox As New Box(Orientation.Horizontal, 10)
+                lInterfaceBox.BorderWidth = 8
+
+                pPreviewTextBox = New CustomDrawTextBox()
+                pPreviewTextBox.Text = "Sample text"
+                pPreviewTextBox.InnerEntry.WidthChars = 20
+                lInterfaceBox.PackStart(pPreviewTextBox, False, False, 0)
+
+                pPreviewButton = New CustomDrawButton("Sample Button")
+                lInterfaceBox.PackStart(pPreviewButton, False, False, 0)
+
+                lInterfaceFrame.Add(lInterfaceBox)
+                lPreviewBox.PackStart(lInterfaceFrame, False, False, 0)
+
                 ' Preview editor
                 Dim lPreviewFrame As New Frame("Preview")
                 Dim lPreviewScroll As New ScrolledWindow()
@@ -351,8 +372,8 @@ Namespace Widgets
                 Case EditorTheme.Tags.eTabInactiveColor : Return "Inactive Tab Color"
                 Case EditorTheme.Tags.eTabHoverColor : Return "Tab Hover Color"
                 Case EditorTheme.Tags.eAccentColor : Return "Accent Color"
-                Case EditorTheme.Tags.eBevelLightColor : Return "Bevel Light Edge (blank = auto)"
-                Case EditorTheme.Tags.eBevelDarkColor : Return "Bevel Dark Edge (blank = auto)"
+                Case EditorTheme.Tags.eBevelLightColor : Return "Bevel Light Edge"
+                Case EditorTheme.Tags.eBevelDarkColor : Return "Bevel Dark Edge"
                 Case EditorTheme.Tags.eKeywordText : Return "Keyword Color"
                 Case EditorTheme.Tags.eTypeText : Return "Type Color"
                 Case EditorTheme.Tags.eStringText : Return "String Color"
@@ -520,19 +541,22 @@ Namespace Widgets
         
         Private Sub UpdatePreview()
             Try
-                If pCurrentTheme Is Nothing OrElse pPreviewEditor Is Nothing Then Return
-                
-                ' Apply the theme colors directly to the preview editor
-                ' WITHOUT changing the global theme
-                pPreviewEditor.SetThemeColors(pCurrentTheme)
-                
-                ' Queue redraw
-                pPreviewEditor.QueueDraw()
-                
+                If pCurrentTheme Is Nothing Then Return
+
+                ' Apply the theme colors directly to the preview widgets WITHOUT
+                ' changing the global theme
+                If pPreviewEditor IsNot Nothing Then
+                    pPreviewEditor.SetThemeColors(pCurrentTheme)
+                    pPreviewEditor.QueueDraw()
+                End If
+
+                pPreviewTextBox?.ApplyExplicitTheme(pCurrentTheme)
+                pPreviewButton?.ApplyExplicitTheme(pCurrentTheme)
+
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.UpdatePreview error: {ex.Message}")
             End Try
-        End Sub        
+        End Sub
 
         Private Sub OnNewTheme(vSender As Object, vArgs As EventArgs)
             Try
@@ -1280,6 +1304,8 @@ Namespace Widgets
                         pPreviewEditor.QueueDraw()
                         Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
                     End If
+                    pPreviewTextBox?.ApplyExplicitTheme(pCurrentTheme)
+                    pPreviewButton?.ApplyExplicitTheme(pCurrentTheme)
                 End If
                 
             Catch ex As Exception

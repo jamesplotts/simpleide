@@ -170,10 +170,29 @@ Namespace Widgets
             Try
                 If pThemeManager Is Nothing Then Return
                 Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then Return
+                ApplyThemeColors(lTheme)
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawButton.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
 
-                pFillColor = lTheme.LineNumberBackgroundColor
-                pTextColor = lTheme.ForegroundColor
+        ''' <summary>
+        ''' Applies colors from a specific EditorTheme directly, bypassing ThemeManager -
+        ''' for previewing a theme (e.g. one being edited in ThemeEditor) that isn't
+        ''' necessarily the application's currently-active theme, matching the same
+        ''' demo/preview pattern CustomDrawingEditor.SetThemeColors already uses
+        ''' </summary>
+        ''' <param name="vTheme">Theme to preview - has no lasting effect on ThemeManager</param>
+        Public Sub ApplyExplicitTheme(vTheme As EditorTheme)
+            ApplyThemeColors(vTheme)
+        End Sub
+
+        Private Sub ApplyThemeColors(vTheme As EditorTheme)
+            Try
+                If vTheme Is Nothing Then Return
+
+                pFillColor = vTheme.LineNumberBackgroundColor
+                pTextColor = vTheme.ForegroundColor
 
                 ' Bevel edges: use the theme's explicit override if set, otherwise derive
                 ' relative to the face color (lightened/darkened by a fixed amount) rather
@@ -182,12 +201,12 @@ Namespace Widgets
                 ' dark end of the range. A theme with an already-extreme face color (e.g.
                 ' Solarized Dark/Light) can set BevelLightColor/BevelDarkColor explicitly
                 ' to override the auto-derived value that loses contrast on one edge.
-                pLightEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelLightColor), LightenColor(pFillColor, 0.30), lTheme.BevelLightColor)
-                pDarkEdgeColor = If(String.IsNullOrEmpty(lTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), lTheme.BevelDarkColor)
+                pLightEdgeColor = If(String.IsNullOrEmpty(vTheme.BevelLightColor), LightenColor(pFillColor, 0.30), vTheme.BevelLightColor)
+                pDarkEdgeColor = If(String.IsNullOrEmpty(vTheme.BevelDarkColor), DarkenColor(pFillColor, 0.30), vTheme.BevelDarkColor)
                 QueueDraw()
 
             Catch ex As Exception
-                Console.WriteLine($"CustomDrawButton.ApplyCurrentTheme error: {ex.Message}")
+                Console.WriteLine($"CustomDrawButton.ApplyThemeColors error: {ex.Message}")
             End Try
         End Sub
 
