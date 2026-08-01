@@ -1,10 +1,10 @@
 ' Widgets/CustomDrawComboBox.vb - Dropdown selector with a retro raised 3D bevel (or a
-' modern flat style), wrapping a real Gtk.ComboBoxText for full native dropdown behavior -
-' keyboard navigation, popup positioning, item rendering - rather than reimplementing a
-' popup list from scratch; only the surrounding chrome is custom-drawn
+' modern flat style), applied via CSS directly to a real Gtk.ComboBoxText for full native
+' dropdown/keyboard/popup behavior - no Overlay wrapping or Cairo-drawn background, since
+' those risked interfering with GTK's internal grab-based popup mechanism and made GTK's
+' own font-metric text centering unreliable
 Imports Gtk
 Imports Gdk
-Imports Cairo
 Imports System
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
@@ -13,12 +13,13 @@ Imports SimpleIDE.Utilities
 Namespace Widgets
 
     ''' <summary>
-    ''' A dropdown combo box rendered with either a retro raised AmigaOS-style 3D bevel or
-    ''' a thin flat modern style, wrapping a real Gtk.ComboBoxText (via Gtk.Overlay) for
-    ''' full native dropdown/keyboard/popup behavior
+    ''' A dropdown combo box styled with either a retro raised AmigaOS-style 3D bevel or a
+    ''' thin flat modern underline, applied via CSS directly to a real Gtk.ComboBoxText -
+    ''' the wrapped widget is otherwise untouched, so dropdown popup, keyboard navigation,
+    ''' and text centering all stay fully native
     ''' </summary>
     Public Class CustomDrawComboBox
-        Inherits Overlay
+        Inherits Box
 
         ''' <summary>
         ''' Visual style for a CustomDrawComboBox
@@ -35,11 +36,9 @@ Namespace Widgets
         End Enum
 
         ' ===== Private Fields =====
-        Private pBackgroundArea As DrawingArea
         Private pCombo As ComboBoxText
         Private pThemeManager As ThemeManager
         Private pStyle As eComboBoxStyle = eComboBoxStyle.eBevel
-        Private pIsHovering As Boolean = False
 
         Private pFillColor As String = "#C0C0C0"
         Private pTextColor As String = "#000000"
@@ -49,7 +48,6 @@ Namespace Widgets
         Private pFlatAccentColor As String = "#007ACC"
 
         Private Const BEVEL_WIDTH As Integer = 2
-        Private Const FLAT_UNDERLINE_WIDTH As Integer = 2
 
         ' ===== Events =====
         Public Event Changed(vSender As Object, vArgs As EventArgs)
@@ -63,7 +61,7 @@ Namespace Widgets
             End Get
             Set(value As eComboBoxStyle)
                 pStyle = value
-                pBackgroundArea?.QueueDraw()
+                ApplyStyleCss()
             End Set
         End Property
 
@@ -111,37 +109,15 @@ Namespace Widgets
         ' ===== Constructor =====
 
         Public Sub New()
-            MyBase.New()
+            MyBase.New(Orientation.Horizontal, 0)
             Try
-                pBackgroundArea = New DrawingArea()
-                AddHandler pBackgroundArea.Drawn, AddressOf OnCustomDraw
-                Add(pBackgroundArea)
-
                 pCombo = New ComboBoxText()
-                pCombo.Halign = Align.Fill
-                pCombo.Valign = Align.Fill
-                pCombo.MarginStart = BEVEL_WIDTH
-                pCombo.MarginEnd = BEVEL_WIDTH
-                pCombo.MarginTop = BEVEL_WIDTH
-                pCombo.MarginBottom = BEVEL_WIDTH
                 pCombo.StyleContext.AddClass("customdraw-combobox")
                 AddHandler pCombo.Changed, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent Changed(Me, vArgs)
-                AddHandler pCombo.EnterNotifyEvent, AddressOf OnComboEnterNotify
-                AddHandler pCombo.LeaveNotifyEvent, AddressOf OnComboLeaveNotify
-                AddOverlay(pCombo)
+                PackStart(pCombo, True, True, 0)
 
                 EnsureGlobalCssRegistered()
-                ApplyEntryCss()
-                UpdateMinimumSize()
-
-                ' GetPreferredSize() can under-report before the widget has a real GDK
-                ' window and resolved style/font metrics (confirmed via diagnostic: the
-                ' pre-realize estimate came in smaller than the true post-realize natural
-                ' size), so re-measure once realized and force a fresh layout pass
-                AddHandler Me.Realized, Sub()
-                    UpdateMinimumSize()
-                    Me.QueueResize()
-                End Sub
+                ApplyStyleCss()
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawComboBox.New error: {ex.Message}")
@@ -154,7 +130,6 @@ Namespace Widgets
         ''' <param name="vText">Text of the item to append</param>
         Public Sub AppendText(vText As String)
             pCombo.AppendText(vText)
-            UpdateMinimumSize()
         End Sub
 
         ''' <summary>
@@ -162,73 +137,19 @@ Namespace Widgets
         ''' </summary>
         Public Sub RemoveAll()
             pCombo.RemoveAll()
-            UpdateMinimumSize()
         End Sub
 
         ''' <summary>
-        ''' Gtk.Overlay's own preferred-size negotiation with its parent container does not
-        ''' reliably reflect an overlay child's (here, the real pCombo's) actual size need
-        ''' just by giving the main child (pBackgroundArea) a size request - confirmed via
-        ''' a diagnostic where pBackgroundArea's request was set correctly but the Overlay
-        ''' still ended up allocated smaller than pCombo's own measured natural height, and
-        ''' pCombo (an overlay child) rendered past the Overlay's own bounds as a result.
-        ''' Calling SetSizeRequest directly on Me (the Overlay itself) sidesteps that
-        ''' ambiguity entirely: it unconditionally clamps the minimum size this widget
-        ''' reports to whatever container it's packed into, regardless of how Overlay
-        ''' negotiates internally between its main and overlay children
-        ''' </summary>
-        Private Sub UpdateMinimumSize()
-            Try
-                Dim lMinSize As Requisition = Nothing
-                Dim lNatSize As Requisition = Nothing
-                pCombo.GetPreferredSize(lMinSize, lNatSize)
-
-                Dim lRequiredHeight As Integer = Math.Max(lMinSize.Height, lNatSize.Height) + (BEVEL_WIDTH * 2)
-                If lRequiredHeight > 0 Then
-                    Me.SetSizeRequest(-1, lRequiredHeight)
-                End If
-
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.UpdateMinimumSize error: {ex.Message}")
-            End Try
-        End Sub
-
-        Private Sub OnComboEnterNotify(vSender As Object, vArgs As EnterNotifyEventArgs)
-            pIsHovering = True
-            pBackgroundArea?.QueueDraw()
-        End Sub
-
-        Private Sub OnComboLeaveNotify(vSender As Object, vArgs As LeaveNotifyEventArgs)
-            pIsHovering = False
-            pBackgroundArea?.QueueDraw()
-        End Sub
-
-        ''' <summary>
-        ''' Sets the text color for the arrow/selected-item text. This is a per-widget
-        ''' provider (correctly matches the combo's own top-level CSS node) rather than
-        ''' global CSS - unlike the button's background, "color" inherits down through
-        ''' composite child nodes regardless of which context registered it, so this alone
-        ''' is enough to tint the internal cellview/arrow correctly
-        ''' </summary>
-        Private Sub ApplyEntryCss()
-            Try
-                Dim lCss As String = ".customdraw-combobox { color: " & pTextColor & "; }"
-                CssHelper.ApplyCssToWidget(pCombo, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.ApplyEntryCss error: {ex.Message}")
-            End Try
-        End Sub
-
-        ''' <summary>
-        ''' Registers the shared structural CSS, once per process, that strips GTK's
-        ''' default combobox-button chrome (border/background/shadow/focus-ring) down to
-        ''' fully transparent. A per-widget provider added directly to the combo's own
-        ''' StyleContext cannot reach its internal composite "button" child node, so this
-        ''' has to be a global (screen-level) provider to correctly cascade into it - but
-        ''' since the button becomes fully transparent rather than needing a specific fill
-        ''' color, one shared global rule works for every instance and every theme: our own
-        ''' pBackgroundArea (the Overlay's base child, underneath the real ComboBoxText)
-        ''' shows through and supplies the actual bevel/flat fill
+        ''' Registers the shared structural CSS, once per process, that strips only the
+        ''' internal composite "button" child's own background/border/shadow (letting our
+        ''' bevel/flat styling on the outer combobox node show through it) - deliberately
+        ''' leaves background-image and padding/min-height alone. A prior version also
+        ''' zeroed background-image (which broke the dropdown arrow on themes that render it
+        ''' as a background layer) and padding/min-height (which threw off GTK's own
+        ''' font-metric-based vertical text centering, since the theme's centering math
+        ''' assumes its own baseline padding). A per-widget provider added directly to the
+        ''' combo's own StyleContext cannot reach this internal "button" child node, so this
+        ''' has to be a global (screen-level) provider to correctly cascade into it
         ''' </summary>
         Private Shared pGlobalCssRegistered As Boolean = False
         Private Sub EnsureGlobalCssRegistered()
@@ -236,23 +157,42 @@ Namespace Widgets
                 If pGlobalCssRegistered Then Return
                 pGlobalCssRegistered = True
 
-                ' NOTE: background-image is deliberately left alone on the "button" node
-                ' (only stripped on the combobox's own top-level node). Some themes render
-                ' the dropdown arrow indicator as a background-image layer on the button
-                ' itself rather than a separate child node - wiping it out here made every
-                ' combo box render as a plain rectangle indistinguishable from a button,
-                ' with no visible affordance that it opens a list
                 Dim lCss As String =
-                    ".customdraw-combobox {" &
-                    " background-color: transparent; background-image: none;" &
-                    " border: none; box-shadow: none; padding: 0px 4px; min-height: 0px; }" &
                     ".customdraw-combobox button {" &
-                    " background-color: transparent;" &
-                    " border: none; box-shadow: none; padding: 0px 4px; min-height: 0px; }" &
+                    " background-color: transparent; border: none; box-shadow: none; }" &
                     ".customdraw-combobox button:focus { outline: none; }"
                 CssHelper.ApplyCssGlobally(lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawComboBox.EnsureGlobalCssRegistered error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Applies the bevel/flat face color and CSS box-shadow (a raised-bevel or
+        ''' underline effect, faked via inset shadows since we're not doing any Cairo
+        ''' drawing here) to the combobox's own top-level CSS node - reachable via a normal
+        ''' per-widget provider, since (unlike the internal button) this is the combo's own
+        ''' leaf node
+        ''' </summary>
+        Private Sub ApplyStyleCss()
+            Try
+                Dim lFace As String = If(pStyle = eComboBoxStyle.eFlat, pFlatFillColor, pFillColor)
+                Dim lShadow As String
+                If pStyle = eComboBoxStyle.eFlat Then
+                    lShadow = $"inset 0 -{BEVEL_WIDTH}px 0 0 {pFlatAccentColor}"
+                Else
+                    lShadow = $"inset -{BEVEL_WIDTH}px -{BEVEL_WIDTH}px 0 0 {pDarkEdgeColor}, " &
+                               $"inset {BEVEL_WIDTH}px {BEVEL_WIDTH}px 0 0 {pLightEdgeColor}"
+                End If
+
+                Dim lCss As String =
+                    ".customdraw-combobox {" &
+                    $" background-color: {lFace}; background-image: none; border: none;" &
+                    $" box-shadow: {lShadow}; color: {pTextColor}; }}"
+                CssHelper.ApplyCssToWidget(pCombo, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawComboBox.ApplyStyleCss error: {ex.Message}")
             End Try
         End Sub
 
@@ -277,105 +217,14 @@ Namespace Widgets
                 pFlatFillColor = If(String.IsNullOrEmpty(lTheme.EditorBackgroundColor), lTheme.BackgroundColor, lTheme.EditorBackgroundColor)
                 pFlatAccentColor = If(String.IsNullOrEmpty(lTheme.AccentColor), pFillColor, lTheme.AccentColor)
 
-                ApplyEntryCss()
-                UpdateMinimumSize()
-                pBackgroundArea?.QueueDraw()
+                ApplyStyleCss()
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawComboBox.ApplyCurrentTheme error: {ex.Message}")
             End Try
         End Sub
 
-        ' ===== Drawing =====
-
-        Private Function OnCustomDraw(vSender As Object, vArgs As DrawnArgs) As Boolean
-            Try
-                If pStyle = eComboBoxStyle.eFlat Then
-                    DrawFlat(vArgs.Cr)
-                Else
-                    DrawBevel(vArgs.Cr)
-                End If
-                Return True
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.OnCustomDraw error: {ex.Message}")
-                Return True
-            End Try
-        End Function
-
-        Private Sub DrawBevel(vContext As Context)
-            Try
-                Dim lWidth As Integer = pBackgroundArea.AllocatedWidth
-                Dim lHeight As Integer = pBackgroundArea.AllocatedHeight
-                If lWidth <= 0 OrElse lHeight <= 0 Then Return
-
-                Dim lFace As String = If(pIsHovering, LightenColor(pFillColor, 0.08), pFillColor)
-                SetSourceColor(vContext, lFace)
-                vContext.Rectangle(0, 0, lWidth, lHeight)
-                vContext.Fill()
-
-                ' Bounds check: clamp edge thickness to at most half the available
-                ' dimension so a very short/narrow allocation can't make opposite edges
-                ' overlap or spill past the widget
-                Dim lVBevel As Integer = Math.Min(BEVEL_WIDTH, lHeight \ 2)
-                Dim lHBevel As Integer = Math.Min(BEVEL_WIDTH, lWidth \ 2)
-                If lVBevel <= 0 OrElse lHBevel <= 0 Then Return
-
-                SetSourceColor(vContext, pLightEdgeColor)
-                vContext.Rectangle(0, 0, lWidth, lVBevel)                      ' top
-                vContext.Fill()
-                vContext.Rectangle(0, 0, lHBevel, lHeight)                     ' left
-                vContext.Fill()
-
-                SetSourceColor(vContext, pDarkEdgeColor)
-                vContext.Rectangle(0, lHeight - lVBevel, lWidth, lVBevel)               ' bottom
-                vContext.Fill()
-                vContext.Rectangle(lWidth - lHBevel, 0, lHBevel, lHeight)               ' right
-                vContext.Fill()
-
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.DrawBevel error: {ex.Message}")
-            End Try
-        End Sub
-
-        ''' <summary>
-        ''' Draws a flat face with a thin accent-colored underline instead of a bevel -
-        ''' the underline brightens on hover, similar in spirit to CustomDrawScrollbar's
-        ''' flat style
-        ''' </summary>
-        Private Sub DrawFlat(vContext As Context)
-            Try
-                Dim lWidth As Integer = pBackgroundArea.AllocatedWidth
-                Dim lHeight As Integer = pBackgroundArea.AllocatedHeight
-                If lWidth <= 0 OrElse lHeight <= 0 Then Return
-
-                SetSourceColor(vContext, pFlatFillColor)
-                vContext.Rectangle(0, 0, lWidth, lHeight)
-                vContext.Fill()
-
-                Dim lUnderlineWidth As Integer = Math.Min(FLAT_UNDERLINE_WIDTH, lHeight \ 2)
-                If lUnderlineWidth <= 0 Then Return
-
-                SetSourceColor(vContext, pFlatAccentColor, If(pIsHovering, 1.0, 0.6))
-                vContext.Rectangle(0, lHeight - lUnderlineWidth, lWidth, lUnderlineWidth)
-                vContext.Fill()
-
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.DrawFlat error: {ex.Message}")
-            End Try
-        End Sub
-
         ' ===== Helpers =====
-
-        Private Sub SetSourceColor(vContext As Context, vHexColor As String, Optional vAlpha As Double = 1.0)
-            Try
-                Dim lColor As New Gdk.RGBA()
-                If lColor.Parse(vHexColor) Then
-                    vContext.SetSourceRGBA(lColor.Red, lColor.Green, lColor.Blue, vAlpha)
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawComboBox.SetSourceColor error: {ex.Message}")
-            End Try
-        End Sub
 
         Private Function LightenColor(vHexColor As String, vAmount As Double) As String
             Try
