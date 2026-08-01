@@ -26,8 +26,8 @@ Namespace Widgets
         
         ' ===== Private Fields =====
         Private pNotebook As CustomDrawNotebook
-        Private pCopyButton As Button
-        Private pSendToAIButton As Button
+        Private pCopyButton As CustomDrawButton
+        Private pSendToAIButton As CustomDrawButton
         Private pThemeManager As ThemeManager
 
         
@@ -122,7 +122,7 @@ Namespace Widgets
                 lHeaderBox.PackStart(lTitle, True, True, 0)
                 
                 ' Create copy button
-                pCopyButton = New Button()
+                pCopyButton = New CustomDrawButton()
                 pCopyButton.Label = "Copy Errors"
                 pCopyButton.TooltipText = "Copy all Errors and Warnings to clipboard"
                 pCopyButton.Sensitive = False
@@ -130,7 +130,7 @@ Namespace Widgets
                 lHeaderBox.PackStart(pCopyButton, False, False, 0)
                 
                 ' Create send to AI button
-                pSendToAIButton = New Button()
+                pSendToAIButton = New CustomDrawButton()
                 pSendToAIButton.Label = "Send to AI"
                 pSendToAIButton.TooltipText = "Send Errors to AI assistant for help"
                 pSendToAIButton.Sensitive = False
@@ -956,7 +956,9 @@ Namespace Widgets
                 pThemeManager = vThemeManager
                
                 pNotebook.SetThemeManager(vThemeManager)
-                
+                If pCopyButton IsNot Nothing Then pCopyButton.ThemeManager = vThemeManager
+                If pSendToAIButton IsNot Nothing Then pSendToAIButton.ThemeManager = vThemeManager
+
                 ' Pass theme manager to data grids if they support it
                 If pErrorsDataGrid IsNot Nothing Then
                     pErrorsDataGrid.SetThemeManager(vThemeManager)

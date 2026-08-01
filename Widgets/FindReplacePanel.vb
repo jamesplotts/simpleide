@@ -15,12 +15,12 @@ Namespace Widgets
         ' UI Controls
         Private pFindEntry As CustomDrawTextBox
         Private pReplaceEntry As CustomDrawTextBox
-        Private pFindButton As Button
-        Private pReplaceButton As Button
-        Private pReplaceAllButton As Button
-        Private pFindNextButton As Button
-        Private pFindPreviousButton As Button
-        Private pCloseButton As Button
+        Private pFindButton As CustomDrawButton
+        Private pReplaceButton As CustomDrawButton
+        Private pReplaceAllButton As CustomDrawButton
+        Private pFindNextButton As CustomDrawButton
+        Private pFindPreviousButton As CustomDrawButton
+        Private pCloseButton As CustomDrawButton
         Private pCaseSensitiveCheck As CheckButton
         Private pWholeWordCheck As CheckButton
         Private pRegexCheck As CheckButton
@@ -28,7 +28,7 @@ Namespace Widgets
         Private pInProjectRadio As RadioButton
         Private pStatusLabel As Label
         Private pProgressBar As ProgressBar
-        Private pCancelButton As Button
+        Private pCancelButton As CustomDrawButton
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
         Private pCurrentTab As TabInfo
@@ -36,7 +36,7 @@ Namespace Widgets
         ''' <summary>
         ''' QuickFind button positioned to the left of Find label
         ''' </summary>
-        Private pQuickFindButton As Button
+        Private pQuickFindButton As CustomDrawButton
         
         
         ' Search state
@@ -325,15 +325,15 @@ Namespace Widgets
             Dim lFindBox As New Box(Orientation.Horizontal, 5)
             
             ' NEW: QuickFind button to the LEFT of Find label
-            pQuickFindButton = New Button()
+            Dim lQuickFindIcon As Gdk.Pixbuf = Nothing
+            Try
+                lQuickFindIcon = Gtk.IconTheme.Default.LoadIcon("edit-find", 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"QuickFind icon load error: {ex.Message}")
+            End Try
+            pQuickFindButton = New CustomDrawButton("", lQuickFindIcon)
             pQuickFindButton.TooltipText = "Quick Find (Ctrl+F)"
-            pQuickFindButton.Relief = ReliefStyle.None
-            
-            ' Create icon for QuickFind button - use search icon
-            Dim lQuickFindImage As New Image()
-            lQuickFindImage.SetFromIconName("edit-find", IconSize.SmallToolbar)
-            pQuickFindButton.Add(lQuickFindImage)
-            
+
             ' Pack QuickFind button FIRST (leftmost)
             lFindBox.PackStart(pQuickFindButton, False, False, 0)
             
@@ -347,9 +347,9 @@ Namespace Widgets
             pFindEntry.PlaceholderText = "Enter search text..."
             lFindBox.PackStart(pFindEntry, True, True, 0)
             
-            pFindButton = New Button("Find All")
-            pFindNextButton = New Button("Next")
-            pFindPreviousButton = New Button("Previous")
+            pFindButton = New CustomDrawButton("Find All")
+            pFindNextButton = New CustomDrawButton("Next")
+            pFindPreviousButton = New CustomDrawButton("Previous")
             
             lFindBox.PackStart(pFindButton, False, False, 0)
             lFindBox.PackStart(pFindNextButton, False, False, 0)
@@ -374,10 +374,10 @@ Namespace Widgets
             pReplaceEntry.PlaceholderText = "Enter replacement text..."
             lReplaceBox.PackStart(pReplaceEntry, True, True, 0)
             
-            pReplaceButton = New Button("Replace")
-            pReplaceAllButton = New Button("Replace All")
-            pCancelButton = New Button("Cancel")
-            pCloseButton = New Button("Close")
+            pReplaceButton = New CustomDrawButton("Replace")
+            pReplaceAllButton = New CustomDrawButton("Replace All")
+            pCancelButton = New CustomDrawButton("Cancel")
+            pCloseButton = New CustomDrawButton("Close")
             
             lReplaceBox.PackStart(pReplaceButton, False, False, 0)
             lReplaceBox.PackStart(pReplaceAllButton, False, False, 0)
