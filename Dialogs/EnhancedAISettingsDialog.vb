@@ -854,19 +854,8 @@ Namespace Dialogs
         
         Private Sub SelectComboBoxItem(vCombo As CustomDrawComboBox, vText As String)
             Try
-                Dim lModel As ITreeModel = vCombo.InnerCombo.Model
-                Dim lIter As TreeIter
+                vCombo.SelectByText(vText)
 
-                If lModel.GetIterFirst(lIter) Then
-                    Do
-                        Dim lValue As String = lModel.GetValue(lIter, 0).ToString()
-                        If lValue = vText Then
-                            vCombo.InnerCombo.SetActiveIter(lIter)
-                            Return
-                        End If
-                    Loop While lModel.IterNext(lIter)
-                End If
-                
             Catch ex As Exception
                 Console.WriteLine($"SelectComboBoxItem error: {ex.Message}")
             End Try

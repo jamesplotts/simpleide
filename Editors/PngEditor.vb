@@ -465,15 +465,7 @@ Namespace Editors
             End If
             
             ' Select current zoom
-            For i As Integer = 0 To pZoomCombo.InnerCombo.Model.IterNChildren() - 1
-                Dim lIter As TreeIter = Nothing
-                If pZoomCombo.InnerCombo.Model.IterNthChild(lIter, Nothing, i) Then
-                    If pZoomCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = $"{lZoomPercent}%" Then
-                        pZoomCombo.Active = i
-                        Exit For
-                    End If
-                End If
-            Next
+            pZoomCombo.SelectByText($"{lZoomPercent}%")
         End Sub
         
         Private Sub OnToggleGrid(vSender As Object, vE As EventArgs)

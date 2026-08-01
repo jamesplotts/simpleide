@@ -379,46 +379,22 @@ Namespace Editors
                         pOutputTypeCombo.Active = 2 ' Class Library
                 End Select
                 
-                ' Target Framework - FIXED: Proper TreeIter handling
+                ' Target Framework
                 Dim lTargetFramework As String = GetNodeValue(vDoc, "//TargetFramework")
                 If Not String.IsNullOrEmpty(lTargetFramework) Then
-                    For i As Integer = 0 To pTargetFrameworkCombo.InnerCombo.Model.IterNChildren() - 1
-                        Dim lIter As TreeIter = Nothing
-                        If pTargetFrameworkCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
-                            If pTargetFrameworkCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lTargetFramework Then
-                                pTargetFrameworkCombo.Active = i
-                                Exit For
-                            End If
-                        End If
-                    Next
+                    pTargetFrameworkCombo.SelectByText(lTargetFramework)
                 End If
-                
-                ' Platform Target - FIXED: Proper TreeIter handling
+
+                ' Platform Target
                 Dim lPlatformTarget As String = GetNodeValue(vDoc, "//PlatformTarget")
                 If Not String.IsNullOrEmpty(lPlatformTarget) Then
-                    For i As Integer = 0 To pPlatformTargetCombo.InnerCombo.Model.IterNChildren() - 1
-                        Dim lIter As TreeIter = Nothing
-                        If pPlatformTargetCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
-                            If pPlatformTargetCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lPlatformTarget Then
-                                pPlatformTargetCombo.Active = i
-                                Exit For
-                            End If
-                        End If
-                    Next
+                    pPlatformTargetCombo.SelectByText(lPlatformTarget)
                 End If
-                
-                ' Language Version - FIXED: Proper TreeIter handling
+
+                ' Language Version
                 Dim lLangVersion As String = GetNodeValue(vDoc, "//LangVersion")
                 If Not String.IsNullOrEmpty(lLangVersion) Then
-                    For i As Integer = 0 To pLangVersionCombo.InnerCombo.Model.IterNChildren() - 1
-                        Dim lIter As TreeIter = Nothing
-                        If pLangVersionCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
-                            If pLangVersionCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lLangVersion Then
-                                pLangVersionCombo.Active = i
-                                Exit For
-                            End If
-                        End If
-                    Next
+                    pLangVersionCombo.SelectByText(lLangVersion)
                 Else
                     pLangVersionCombo.Active = 0 ' Latest
                 End If

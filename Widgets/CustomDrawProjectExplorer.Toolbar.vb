@@ -122,18 +122,8 @@ Namespace Widgets
                 
                 ' Set current scale
                 Dim lCurrentScaleText As String = $"{pCurrentScale}%"
-                Dim lIndex As Integer = -1
-                For i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
-                    Dim lIter As TreeIter
-                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
-                        If lText = lCurrentScaleText Then
-                            lIndex = i
-                            Exit For
-                        End If
-                    End If
-                Next
-                
+                Dim lIndex As Integer = pScaleCombo.IndexOf(lCurrentScaleText)
+
                 If lIndex >= 0 Then
                     pScaleCombo.Active = lIndex
                 Else
@@ -302,18 +292,13 @@ Namespace Widgets
         Private Sub UpdateScaleDisplay()
             Try
                 Dim lScaleText As String = $"{pCurrentScale}%"
-                
+
                 ' Find and select the matching scale
-                For i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
-                    Dim lIter As TreeIter
-                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
-                        If lText = lScaleText Then
-                            pScaleCombo.Active = i
-                            Return
-                        End If
-                    End If
-                Next
+                Dim lMatchIndex As Integer = pScaleCombo.IndexOf(lScaleText)
+                If lMatchIndex >= 0 Then
+                    pScaleCombo.Active = lMatchIndex
+                    Return
+                End If
                 
                 ' If no exact match, set to custom value
                 ' Note: GTK ComboBoxText doesn't easily support custom text

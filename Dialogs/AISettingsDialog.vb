@@ -310,26 +310,9 @@ Namespace Dialogs
         ' Helper to select item in ComboBoxText
         Private Sub SelectComboBoxItem(vCombo As CustomDrawComboBox, vText As String)
             Try
-                Dim lModel As ITreeModel = vCombo.InnerCombo.Model
-                Dim lIter As TreeIter
+                Dim lIndex As Integer = vCombo.IndexOf(vText)
+                vCombo.Active = If(lIndex >= 0, lIndex, 0)
 
-                If lModel.GetIterFirst(lIter) Then
-                    Dim lIndex As Integer = 0
-                    Do
-                        Dim lValue As String = DirectCast(lModel.GetValue(lIter, 0), String)
-                        If lValue = vText Then
-                            vCombo.Active = lIndex
-                            Exit Do
-                        End If
-                        lIndex += 1
-                    Loop While lModel.IterNext(lIter)
-                End If
-
-                ' Default to first item if not found
-                If vCombo.Active = -1 AndAlso vCombo.InnerCombo.Model.IterNChildren() > 0 Then
-                    vCombo.Active = 0
-                End If
-                
             Catch ex As Exception
                 Console.WriteLine($"SelectComboBoxItem error: {ex.Message}")
             End Try

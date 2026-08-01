@@ -218,25 +218,14 @@ Namespace Widgets
                 If pScaleCombo Is Nothing Then Return
                 
                 Dim lCurrentScaleText As String = $"{pCurrentScale}%"
-                Dim lIndex As Integer = -1
-                
-                for i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
-                    Dim lIter As TreeIter
-                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
-                        If lText = lCurrentScaleText Then
-                            lIndex = i
-                            Exit for
-                        End If
-                    End If
-                Next
-                
+                Dim lIndex As Integer = pScaleCombo.IndexOf(lCurrentScaleText)
+
                 If lIndex >= 0 Then
                     pScaleCombo.Active = lIndex
                 Else
                     ' Add custom value and select it
                     pScaleCombo.AppendText(lCurrentScaleText)
-                    pScaleCombo.Active = pScaleCombo.InnerCombo.Model.IterNChildren() - 1
+                    pScaleCombo.Active = pScaleCombo.IndexOf(lCurrentScaleText)
                 End If
                 
             Catch ex As Exception
