@@ -20,8 +20,8 @@ Namespace Widgets
         Private pChatView As TextView
         Private pChatBuffer As TextBuffer
         Private pPromptEntry As TextView
-        Private pSendButton As Button
-        Private pActionButtons As New Dictionary(Of String, Button)
+        Private pSendButton As CustomDrawButton
+        Private pActionButtons As New Dictionary(Of String, CustomDrawButton)
         Private pProjectRoot As String
         Private pCurrentTab As TabInfo
         Private pApiClient As EnhancedClaudeApiClient
@@ -30,13 +30,13 @@ Namespace Widgets
         Private pConversationHistory As New List(Of ImprovedAIAssistantPanel.ChatMessage)
         
         ' Action buttons
-        Private pCreateProjectButton As Button
-        Private pAddFileButton As Button
-        Private pModifyCodeButton As Button
-        Private pExplainCodeButton As Button
-        Private pFixErrorsButton As Button
-        Private pRefactorButton As Button
-        Private pGenerateTestsButton As Button
+        Private pCreateProjectButton As CustomDrawButton
+        Private pAddFileButton As CustomDrawButton
+        Private pModifyCodeButton As CustomDrawButton
+        Private pExplainCodeButton As CustomDrawButton
+        Private pFixErrorsButton As CustomDrawButton
+        Private pRefactorButton As CustomDrawButton
+        Private pGenerateTestsButton As CustomDrawButton
         
         ' Events
         Public Event FileCreated(vFilePath As String)
@@ -122,13 +122,13 @@ Namespace Widgets
             ' Quick action buttons
             Dim lActionsBox As New Box(Orientation.Horizontal, 6)
             
-            pCreateProjectButton = CreateActionButton("New project", "document-New")
-            pAddFileButton = CreateActionButton("Add File", "document-New")
+            pCreateProjectButton = CreateActionButton("New project", "document-new")
+            pAddFileButton = CreateActionButton("Add File", "document-new")
             pModifyCodeButton = CreateActionButton("Modify code", "document-edit")
             pExplainCodeButton = CreateActionButton("Explain", "help-about")
             pFixErrorsButton = CreateActionButton("Fix Errors", "dialog-error")
-            pRefactorButton = CreateActionButton("Refactor", "view-Refresh")
-            pGenerateTestsButton = CreateActionButton("Gen Tests", "emblem-Default")
+            pRefactorButton = CreateActionButton("Refactor", "view-refresh")
+            pGenerateTestsButton = CreateActionButton("Gen Tests", "emblem-default")
             
             lActionsBox.PackStart(pCreateProjectButton, False, False, 0)
             lActionsBox.PackStart(pAddFileButton, False, False, 0)
@@ -158,7 +158,7 @@ Namespace Widgets
             
             ' Send button
             Dim lButtonBox As New Box(Orientation.Horizontal, 6)
-            pSendButton = New Button("Send")
+            pSendButton = New CustomDrawButton("Send")
             pSendButton.Sensitive = False
             lButtonBox.PackEnd(pSendButton, False, False, 0)
             lInputBox.PackStart(lButtonBox, False, False, 0)
@@ -198,21 +198,16 @@ Namespace Widgets
             ' TODO: Implement
         End Sub
         
-        Private Function CreateActionButton(vLabel As String, vIcon As String) As Button
-            Dim lButton As New Button()
-            Dim lBox As New Box(Orientation.Vertical, 2)
-            
-            Dim lImage As New Image()
-            lImage.SetFromIconName(vIcon, IconSize.LargeToolbar)
-            lBox.PackStart(lImage, False, False, 0)
-            
-            Dim lLabel As New Label(vLabel)
-            lLabel.SetSizeRequest(80, -1)
-            lBox.PackStart(lLabel, False, False, 0)
-            
-            lButton.Add(lBox)
+        Private Function CreateActionButton(vLabel As String, vIcon As String) As CustomDrawButton
+            Dim lIconPixbuf As Gdk.Pixbuf = Nothing
+            Try
+                lIconPixbuf = Gtk.IconTheme.Default.LoadIcon(vIcon, 24, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"CreateActionButton icon load error: {ex.Message}")
+            End Try
+
+            Dim lButton As New CustomDrawButton(vLabel, lIconPixbuf)
             lButton.TooltipText = vLabel
-            
             Return lButton
         End Function
         

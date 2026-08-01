@@ -35,7 +35,7 @@ Namespace Widgets
         Private pPromptBox As Box
         Private pPromptEntry As TextView
         Private pPromptScroll As ScrolledWindow
-        Private pSendButton As Button
+        Private pSendButton As CustomDrawButton
         Private pStatusLabel As Label
         Private pContextLabel As Label
         
@@ -243,11 +243,14 @@ What would you like to work on?")
                 pPromptBox.PackStart(pPromptScroll, True, True, 0)
                 
                 ' Send button
-                pSendButton = New Button("Send")
+                Dim lSendIcon As Gdk.Pixbuf = Nothing
+                Try
+                    lSendIcon = Gtk.IconTheme.Default.LoadIcon("mail-send", 16, IconLookupFlags.UseBuiltin)
+                Catch ex As Exception
+                    Console.WriteLine($"Send icon load error: {ex.Message}")
+                End Try
+                pSendButton = New CustomDrawButton("Send", lSendIcon)
                 pSendButton.HeightRequest = 60
-                Dim lSendImage As New Image()
-                lSendImage.SetFromIconName("mail-send", IconSize.Button)
-                pSendButton.Image = lSendImage
                 AddHandler pSendButton.Clicked, AddressOf OnSendClicked
                 pPromptBox.PackEnd(pSendButton, False, False, 0)
                 
