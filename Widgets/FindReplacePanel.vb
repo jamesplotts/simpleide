@@ -33,8 +33,7 @@ Namespace Widgets
         Private pCancelButton As CustomDrawButton
         Private pResultsView As TreeView
         Private pResultsStore As ListStore
-        Private pCurrentTab As TabInfo
-        
+
         ''' <summary>
         ''' QuickFind button positioned to the left of Find label
         ''' </summary>
@@ -44,13 +43,10 @@ Namespace Widgets
         ' Search state
         Private pProjectRoot As String
         Private pSearchResults As New List(Of FindResult)()
-        Private pCurrentResultIndex As Integer = -1
         Private pIsSearching As Boolean = False
         Private pLastSearchOptions As SearchOptions
-        
+
         ' Current file search state
-        Private pCurrentEditor As IEditor
-        Private pCurrentFilePath As String
         Private pCurrentMatches As List(Of EditorPosition)
         Private pCurrentMatchIndex As Integer = -1
 
@@ -617,9 +613,6 @@ Namespace Widgets
                     pStatusLabel.Text = "No file open to search"
                     Return
                 End If
-                
-                pCurrentEditor = lTab.Editor
-                pCurrentFilePath = lTab.FilePath
                 
                 ' Find all matches
                 pCurrentMatches = New List(Of EditorPosition)(
