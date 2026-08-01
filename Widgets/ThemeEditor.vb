@@ -79,7 +79,7 @@ Namespace Widgets
         ''' </summary>
         Private Sub BuildUI()
             Try
-                BorderWidth = 10
+                BorderWidth = 6
                 
                 ' Main horizontal paned
                 Dim lHPaned As New Paned(Orientation.Horizontal)
@@ -210,7 +210,11 @@ Namespace Widgets
                 ' Preview editor
                 Dim lPreviewFrame As New Frame("Preview")
                 Dim lPreviewScroll As New ScrolledWindow()
-                lPreviewScroll.SetSizeRequest(-1, 200)
+                ' Shrunk from 200px - this is itself a ScrolledWindow (PolicyType.Automatic
+                ' below), so a smaller minimum only means fewer lines visible without
+                ' scrolling within the preview, not any lost content - see the gradient-area
+                ' shrink above for why keeping the overall ThemeEditor height down matters
+                lPreviewScroll.SetSizeRequest(-1, 130)
                 lPreviewScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 
                 ' Create SourceFileInfo using the content constructor which sets IsDemoMode

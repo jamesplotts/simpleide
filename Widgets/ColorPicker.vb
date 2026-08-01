@@ -183,10 +183,18 @@ Namespace Widgets
                 
                 ' Right side - Gradient selector and values
                 Dim lGradientBox As New Box(Orientation.Vertical, 5)
-                
-                ' Gradient area with hue slider
+
+                ' Gradient area with hue slider - shrunk from the 256px default (still used
+                ' when embedding a ColorPicker somewhere with room to spare) since Horizontal
+                ' mode is used by ThemeEditor, which is itself hosted inside a fixed-size
+                ' ScrolledWindow - 256px here was the single largest contributor to
+                ' ThemeEditor's ~850px minimum height, well past what a restored (non-
+                ' maximized) window's viewport typically offers, forcing that ScrolledWindow
+                ' into scroll mode with its accompanying scrollbar and inset border
                 Dim lGradientContainer As New Box(Orientation.Horizontal, 5)
-                
+                pGradientWidth = 150
+                pGradientHeight = 150
+
                 pGradientArea = CreateGradientArea()
                 lGradientContainer.PackStart(pGradientArea, False, False, 0)
                 
@@ -489,7 +497,7 @@ Namespace Widgets
         ''' </summary>
         Private Function CreateColorArea(vHexColor As String) As DrawingArea
             Dim lArea As New DrawingArea()
-            lArea.SetSizeRequest(25, 25)
+            lArea.SetSizeRequest(20, 20)
             lArea.CanFocus = True
             lArea.Events = lArea.Events Or Gdk.EventMask.ButtonPressMask
             
@@ -509,7 +517,7 @@ Namespace Widgets
         ''' </summary>
         Private Function CreateCustomColorArea(vIndex As Integer) As DrawingArea
             Dim lArea As New DrawingArea()
-            lArea.SetSizeRequest(25, 25)
+            lArea.SetSizeRequest(20, 20)
             lArea.CanFocus = True
             lArea.Events = lArea.Events Or Gdk.EventMask.ButtonPressMask
             lArea.Data("CustomIndex") = vIndex
