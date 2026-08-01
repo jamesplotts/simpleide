@@ -398,12 +398,21 @@ Namespace Widgets
                 Dim lHeight As Integer = pDrawingArea.AllocatedHeight
                 Dim lTheme As EditorTheme = pThemeManager?.GetCurrentThemeObject()
 
-                Dim lBgColor As Cairo.Color = HexToCairoColor(If(lTheme?.BackgroundColor, "#1E1E1E"))
+                Dim lBgHex As String = If(lTheme?.BackgroundColor, "#1E1E1E")
+                Dim lBgColor As Cairo.Color = HexToCairoColor(lBgHex)
                 Dim lFgColor As Cairo.Color = HexToCairoColor(If(lTheme?.ForegroundColor, "#D4D4D4"))
                 Dim lSelColor As Cairo.Color = HexToCairoColor(If(lTheme?.SelectionColor, "#264F78"))
                 Dim lHoverColor As Cairo.Color = HexToCairoColor(If(lTheme?.CurrentLineColor, "#2A2D2E"))
-                Dim lBorderColor As Cairo.Color = HexToCairoColor(If(lTheme?.AccentColor, "#007ACC"))
                 Dim lLineColor As Cairo.Color = HexToCairoColor(If(IsDarkTheme(), "#5A5A5A", "#B0B0B0"))
+
+                ' Raised-bevel edges (light top/left, dark bottom/right), matching the same
+                ' theme BevelLightColor/BevelDarkColor override convention as the rest of
+                ' the CustomDraw* control library - auto-derived off the background color
+                ' when not explicitly overridden
+                Dim lLightEdgeColor As Cairo.Color = HexToCairoColor(
+                    If(String.IsNullOrEmpty(lTheme?.BevelLightColor), LightenColor(lBgHex, 0.30), lTheme.BevelLightColor))
+                Dim lDarkEdgeColor As Cairo.Color = HexToCairoColor(
+                    If(String.IsNullOrEmpty(lTheme?.BevelDarkColor), DarkenColor(lBgHex, 0.30), lTheme.BevelDarkColor))
 
                 ' Background
                 lContext.SetSourceRGB(lBgColor.R, lBgColor.G, lBgColor.B)
@@ -442,11 +451,20 @@ Namespace Widgets
                     lContext.ShowText(lItem.Text)
                 Next
 
-                ' Border
-                lContext.SetSourceRGB(lBorderColor.R, lBorderColor.G, lBorderColor.B)
-                lContext.LineWidth = 1
-                lContext.Rectangle(0.5, 0.5, lWidth - 1, lHeight - 1)
-                lContext.Stroke()
+                ' Raised bevel border (light top/left, dark bottom/right) instead of a flat
+                ' single-color outline, matching the rest of the CustomDraw* control library
+                Const BEVEL_WIDTH As Integer = 2
+                lContext.SetSourceRGB(lLightEdgeColor.R, lLightEdgeColor.G, lLightEdgeColor.B)
+                lContext.Rectangle(0, 0, lWidth, BEVEL_WIDTH)                       ' top
+                lContext.Fill()
+                lContext.Rectangle(0, 0, BEVEL_WIDTH, lHeight)                      ' left
+                lContext.Fill()
+
+                lContext.SetSourceRGB(lDarkEdgeColor.R, lDarkEdgeColor.G, lDarkEdgeColor.B)
+                lContext.Rectangle(0, lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)    ' bottom
+                lContext.Fill()
+                lContext.Rectangle(lWidth - BEVEL_WIDTH, 0, BEVEL_WIDTH, lHeight)    ' right
+                lContext.Fill()
 
                 ' Custom scrollbar (no GTK step-arrow buttons)
                 If pItems.Count > MAX_VISIBLE_ITEMS Then
@@ -619,6 +637,34 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"HexToCairoColor error: {ex.Message}")
                 Return New Cairo.Color(0.5, 0.5, 0.5)
+            End Try
+        End Function
+
+        Private Shared Function LightenColor(vHexColor As String, vAmount As Double) As String
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If Not lColor.Parse(vHexColor) Then Return vHexColor
+                Dim lR As Double = Math.Min(1.0, lColor.Red + vAmount)
+                Dim lG As Double = Math.Min(1.0, lColor.Green + vAmount)
+                Dim lB As Double = Math.Min(1.0, lColor.Blue + vAmount)
+                Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
+            Catch ex As Exception
+                Console.WriteLine($"LightenColor error: {ex.Message}")
+                Return vHexColor
+            End Try
+        End Function
+
+        Private Shared Function DarkenColor(vHexColor As String, vAmount As Double) As String
+            Try
+                Dim lColor As New Gdk.RGBA()
+                If Not lColor.Parse(vHexColor) Then Return vHexColor
+                Dim lR As Double = Math.Max(0.0, lColor.Red - vAmount)
+                Dim lG As Double = Math.Max(0.0, lColor.Green - vAmount)
+                Dim lB As Double = Math.Max(0.0, lColor.Blue - vAmount)
+                Return $"#{CInt(lR * 255):X2}{CInt(lG * 255):X2}{CInt(lB * 255):X2}"
+            Catch ex As Exception
+                Console.WriteLine($"DarkenColor error: {ex.Message}")
+                Return vHexColor
             End Try
         End Function
 

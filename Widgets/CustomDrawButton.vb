@@ -375,10 +375,14 @@ Namespace Widgets
         End Function
 
         ''' <summary>
-        ''' A click flips Active (which raises Toggled) instead of raising Clicked
+        ''' A click flips Active (which raises Toggled) - matching native Gtk.ToggleButton,
+        ''' which raises BOTH Clicked and Toggled on a real click, this also still raises
+        ''' Clicked via the base implementation, so code written against a plain
+        ''' AddHandler ...Clicked... (as if this were a CustomDrawButton) keeps working
         ''' </summary>
         Protected Overrides Sub FireClicked()
             Active = Not Active
+            MyBase.FireClicked()
         End Sub
 
     End Class
