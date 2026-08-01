@@ -28,6 +28,7 @@ Namespace Widgets
         Private pPreviewEditor As CustomDrawingEditor
         Private pPreviewTextBox As CustomDrawTextBox
         Private pPreviewButton As CustomDrawButton
+        Private pColorSwatches As New Dictionary(Of EditorTheme.Tags, DrawingArea)
         Private pThemeNameLabel As Label
         Private pOpenFolderButton As CustomDrawButton
         Private pImportButton As CustomDrawButton
@@ -171,16 +172,36 @@ Namespace Widgets
                 ' ThemeManager), so bevel/text-box/button colors can be checked visually
                 ' without leaving the Theme Editor or affecting the app's actual theme
                 Dim lInterfaceFrame As New Frame("Interface Preview")
-                Dim lInterfaceBox As New Box(Orientation.Horizontal, 10)
+                Dim lInterfaceBox As New Box(Orientation.Vertical, 8)
                 lInterfaceBox.BorderWidth = 8
+
+                Dim lControlsRow As New Box(Orientation.Horizontal, 10)
 
                 pPreviewTextBox = New CustomDrawTextBox()
                 pPreviewTextBox.Text = "Sample text"
                 pPreviewTextBox.InnerEntry.WidthChars = 20
-                lInterfaceBox.PackStart(pPreviewTextBox, False, False, 0)
+                lControlsRow.PackStart(pPreviewTextBox, False, False, 0)
 
                 pPreviewButton = New CustomDrawButton("Sample Button")
-                lInterfaceBox.PackStart(pPreviewButton, False, False, 0)
+                lControlsRow.PackStart(pPreviewButton, False, False, 0)
+
+                lInterfaceBox.PackStart(lControlsRow, False, False, 0)
+
+                ' Small labeled color swatches for the remaining theme colors that have no
+                ' other preview surface in this dialog (status colors used only by the
+                ' build panel/error list, tab-strip colors, and the accent color, whose
+                ' real in-editor uses - bracket-match flash, popup borders - don't trigger
+                ' passively in a static read-only snippet)
+                Dim lSwatchRow As New Box(Orientation.Horizontal, 10)
+                lSwatchRow.PackStart(CreateColorSwatch("Error", EditorTheme.Tags.eErrorColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Warning", EditorTheme.Tags.eWarningColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Info", EditorTheme.Tags.eInfoColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Success", EditorTheme.Tags.eSuccessColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Editor Bg", EditorTheme.Tags.eEditorBackgroundColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Tab Inactive", EditorTheme.Tags.eTabInactiveColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Tab Hover", EditorTheme.Tags.eTabHoverColor), False, False, 0)
+                lSwatchRow.PackStart(CreateColorSwatch("Accent", EditorTheme.Tags.eAccentColor), False, False, 0)
+                lInterfaceBox.PackStart(lSwatchRow, False, False, 0)
 
                 lInterfaceFrame.Add(lInterfaceBox)
                 lPreviewBox.PackStart(lInterfaceFrame, False, False, 0)
@@ -226,7 +247,14 @@ Namespace Widgets
 
                 ' Apply current theme
                 pPreviewEditor.ApplyTheme()
-                
+
+                ' Start with something selected so Selection Color/Selection Text Color
+                ' are visible immediately without requiring the user to click or drag in
+                ' the (read-only, but still selectable/navigable) preview - clicking,
+                ' arrow-key navigation, and Shift+arrow selection all still work normally
+                ' and will move/replace this initial selection
+                pPreviewEditor.SetSelection(New EditorPosition(9, 16), New EditorPosition(9, 22))
+
                 lPreviewScroll.Add(pPreviewEditor)
                 lPreviewFrame.Add(lPreviewScroll)
                 lPreviewBox.PackStart(lPreviewFrame, True, True, 0)
@@ -552,6 +580,7 @@ Namespace Widgets
 
                 pPreviewTextBox?.ApplyExplicitTheme(pCurrentTheme)
                 pPreviewButton?.ApplyExplicitTheme(pCurrentTheme)
+                RefreshColorSwatches()
 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.UpdatePreview error: {ex.Message}")
@@ -1306,8 +1335,9 @@ Namespace Widgets
                     End If
                     pPreviewTextBox?.ApplyExplicitTheme(pCurrentTheme)
                     pPreviewButton?.ApplyExplicitTheme(pCurrentTheme)
+                    RefreshColorSwatches()
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnThemeSelected error: {ex.Message}")
             End Try
@@ -1531,6 +1561,59 @@ Namespace Widgets
             Catch ex As Exception
                 ' Ignore invalid colors
             End Try
+        End Sub
+
+        ''' <summary>
+        ''' Builds a small labeled color swatch (a bordered square over a caption) for
+        ''' previewing a theme color that has no other widget to show it in this dialog
+        ''' </summary>
+        ''' <param name="vLabel">Short caption drawn under the swatch</param>
+        ''' <param name="vTag">Theme property this swatch tracks</param>
+        ''' <returns>A Box containing the swatch and its label, ready to pack</returns>
+        Private Function CreateColorSwatch(vLabel As String, vTag As EditorTheme.Tags) As Widget
+            Dim lBox As New Box(Orientation.Vertical, 2)
+
+            Dim lSwatch As New DrawingArea()
+            lSwatch.SetSizeRequest(28, 20)
+            AddHandler lSwatch.Drawn,
+                Sub(vSender As Object, vArgs As DrawnArgs)
+                    Try
+                        Dim lContext As Cairo.Context = vArgs.Cr
+                        Dim lColor As New Gdk.RGBA()
+                        If lColor.Parse(GetThemeColor(vTag)) Then
+                            lContext.SetSourceRGB(lColor.Red, lColor.Green, lColor.Blue)
+                        Else
+                            lContext.SetSourceRGB(0, 0, 0)
+                        End If
+                        lContext.Rectangle(0, 0, lSwatch.AllocatedWidth, lSwatch.AllocatedHeight)
+                        lContext.Fill()
+
+                        lContext.SetSourceRGB(0.5, 0.5, 0.5)
+                        lContext.LineWidth = 1
+                        lContext.Rectangle(0.5, 0.5, lSwatch.AllocatedWidth - 1, lSwatch.AllocatedHeight - 1)
+                        lContext.Stroke()
+                    Catch ex As Exception
+                        Console.WriteLine($"ThemeEditor.CreateColorSwatch draw error: {ex.Message}")
+                    End Try
+                End Sub
+            pColorSwatches(vTag) = lSwatch
+            lBox.PackStart(lSwatch, False, False, 0)
+
+            Dim lCaption As New Label(vLabel)
+            Dim lCaptionCss As String = "label { font-size: 9px; }"
+            CssHelper.ApplyCssToWidget(lCaption, lCaptionCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+            lBox.PackStart(lCaption, False, False, 0)
+
+            Return lBox
+        End Function
+
+        ''' <summary>
+        ''' Redraws every color swatch so it picks up pCurrentTheme's latest values
+        ''' </summary>
+        Private Sub RefreshColorSwatches()
+            for each lSwatch In pColorSwatches.Values
+                lSwatch.QueueDraw()
+            Next
         End Sub
 
         ''' <summary>

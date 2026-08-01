@@ -226,19 +226,27 @@ Namespace Editors
                             Dim lTextColor As Cairo.Color = lDefaultFgColor
                             Dim lUseBold As Boolean = False
                             Dim lUseItalic As Boolean = False
-                            
-                            If lCharTokens IsNot Nothing AndAlso 
+
+                            If lCharTokens IsNot Nothing AndAlso
                                lColIndex < lCharTokens.Length Then
                                 ' Decode the token byte
                                 Dim lTokenByte As Byte = lCharTokens(lColIndex)
                                 Dim lTokenType As SyntaxTokenType = CharacterToken.GetTokenType(lTokenByte)
-                                
+
                                 ' Get cached color for this token type (FAST array lookup!)
                                 lTextColor = GetCachedTokenColor(lTokenType)
-                                
+
                                 ' Check for style flags
                                 lUseBold = CharacterToken.IsBold(lTokenByte)
                                 lUseItalic = CharacterToken.IsItalic(lTokenByte)
+                            End If
+
+                            ' Selected characters use the theme's dedicated Selection Text
+                            ' color instead of their normal syntax color, overriding
+                            ' whatever was just resolved above - EditorTheme.Tags.eSelectionText
+                            ' previously had no consumer anywhere in the app at all
+                            If lInSelection Then
+                                lTextColor = lCurrentTheme.CairoColor(EditorTheme.Tags.eSelectionText)
                             End If
                             
                             ' Set font style if needed
