@@ -145,7 +145,13 @@ Namespace Widgets
         ''' Calling SetSizeRequest directly on Me (the Overlay itself) sidesteps that
         ''' ambiguity entirely: it unconditionally clamps the minimum size this widget
         ''' reports to whatever container it's packed into, regardless of how Overlay
-        ''' negotiates internally between its main and overlay children
+        ''' negotiates internally between its main and overlay children.
+        ''' Width gets the same treatment as height (previously left at -1/"natural") -
+        ''' that was fine when packed with room to spare, but a container that gives this
+        ''' widget only its own reported minimum (a Grid cell, or a non-expanding
+        ''' PackStart(..., False, False, ...)) would allocate it the Overlay's own
+        ''' under-reported near-zero natural width instead of pEntry's real WidthChars-driven
+        ''' need, collapsing the entry down to a sliver or nothing visible at all
         ''' </summary>
         Private Sub UpdateMinimumSize()
             Try
@@ -153,10 +159,10 @@ Namespace Widgets
                 Dim lNatSize As Requisition = Nothing
                 pEntry.GetPreferredSize(lMinSize, lNatSize)
 
+                Dim lRequiredWidth As Integer = Math.Max(lMinSize.Width, lNatSize.Width) + (BEVEL_WIDTH * 2)
                 Dim lRequiredHeight As Integer = Math.Max(lMinSize.Height, lNatSize.Height) + (BEVEL_WIDTH * 2)
-                If lRequiredHeight > 0 Then
-                    Me.SetSizeRequest(-1, lRequiredHeight)
-                End If
+
+                Me.SetSizeRequest(If(lRequiredWidth > 0, lRequiredWidth, -1), If(lRequiredHeight > 0, lRequiredHeight, -1))
 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawTextBox.UpdateMinimumSize error: {ex.Message}")

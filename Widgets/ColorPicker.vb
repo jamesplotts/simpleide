@@ -1031,9 +1031,18 @@ Namespace Widgets
         ''' <summary>
         ''' Updates all UI elements
         ''' </summary>
+        ''' <remarks>
+        ''' Deliberately has no "If pIsUpdating Then Return" guard of its own - every
+        ''' caller except UpdateColorFromHsl (reached via mouse-drag on the gradient/hue
+        ''' areas, which doesn't set pIsUpdating first) already sets pIsUpdating = True
+        ''' around its own call to this method specifically so the .Value/.Text pushes
+        ''' below don't re-trigger OnRgbValueChanged/OnHslValueChanged/OnHexChanged - a
+        ''' self-guard here that early-returns on that same already-True flag made this
+        ''' method silently no-op on every path except the mouse-drag one, so typing a
+        ''' value, picking a palette swatch, or setting CurrentColor/SetColor externally
+        ''' never actually synced the other fields, the hex box, or the preview swatch
+        ''' </remarks>
         Private Sub UpdateUI()
-            If pIsUpdating Then Return
-            
             Try
                 pIsUpdating = True
                 
