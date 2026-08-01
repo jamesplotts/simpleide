@@ -231,30 +231,47 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles scope radio button changes and re-executes search
+        ''' Keeps pInFileRadio/pInProjectRadio mutually exclusive - CustomDrawCheckBox has no
+        ''' built-in radio-group concept, unlike the Gtk.RadioButton this replaced - then
+        ''' re-executes the search with the new scope
         ''' </summary>
-        Private Sub OnScopeChanged(vSender As Object, vE As EventArgs)
+        Private Sub OnScopeToggled(vSender As Object, vE As EventArgs)
             Try
-                ' Only process if this is the radio button being activated (not deactivated)
-                Dim lRadio As RadioButton = TryCast(vSender, RadioButton)
-                If lRadio Is Nothing OrElse Not lRadio.Active Then
-                    Return
-                End If
-                
+                If pUpdatingScopeToggle Then Return
+                pUpdatingScopeToggle = True
+                Try
+                    If vSender Is pInFileRadio Then
+                        If pInFileRadio.Active Then
+                            pInProjectRadio.Active = False
+                        Else
+                            ' Don't allow turning both off - always keep exactly one active
+                            pInFileRadio.Active = True
+                        End If
+                    ElseIf vSender Is pInProjectRadio Then
+                        If pInProjectRadio.Active Then
+                            pInFileRadio.Active = False
+                        Else
+                            pInProjectRadio.Active = True
+                        End If
+                    End If
+                Finally
+                    pUpdatingScopeToggle = False
+                End Try
+
                 ' Update status to show new scope
                 If pInFileRadio.Active Then
                     pStatusLabel.Text = "Scope: Current file"
                 Else
                     pStatusLabel.Text = "Scope: Entire project"
                 End If
-                
+
                 ' If we have search text, re-execute the search with new scope
                 If Not String.IsNullOrEmpty(pFindEntry.Text) Then
                     OnFind(Nothing, Nothing)
                 End If
-                
+
             Catch ex As Exception
-                Console.WriteLine($"OnScopeChanged error: {ex.Message}")
+                Console.WriteLine($"OnScopeToggled error: {ex.Message}")
             End Try
         End Sub
         

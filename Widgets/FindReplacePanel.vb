@@ -22,11 +22,12 @@ Namespace Widgets
         Private pFindNextButton As CustomDrawButton
         Private pFindPreviousButton As CustomDrawButton
         Private pCloseButton As CustomDrawButton
-        Private pCaseSensitiveCheck As CheckButton
-        Private pWholeWordCheck As CheckButton
-        Private pRegexCheck As CheckButton
-        Private pInFileRadio As RadioButton
-        Private pInProjectRadio As RadioButton
+        Private pCaseSensitiveCheck As CustomDrawCheckBox
+        Private pWholeWordCheck As CustomDrawCheckBox
+        Private pRegexCheck As CustomDrawCheckBox
+        Private pInFileRadio As CustomDrawCheckBox
+        Private pInProjectRadio As CustomDrawCheckBox
+        Private pUpdatingScopeToggle As Boolean = False
         Private pStatusLabel As Label
         Private pProgressBar As ProgressBar
         Private pCancelButton As CustomDrawButton
@@ -432,9 +433,9 @@ Namespace Widgets
             lOptionsInnerBox.MarginStart = 5
             lOptionsInnerBox.MarginEnd = 5
             
-            pCaseSensitiveCheck = New CheckButton("Case sensitive")
-            pWholeWordCheck = New CheckButton("Whole word")
-            pRegexCheck = New CheckButton("Use regex")
+            pCaseSensitiveCheck = New CustomDrawCheckBox("Case sensitive")
+            pWholeWordCheck = New CustomDrawCheckBox("Whole word")
+            pRegexCheck = New CustomDrawCheckBox("Use regex")
             
             lOptionsInnerBox.PackStart(pCaseSensitiveCheck, False, False, 0)
             lOptionsInnerBox.PackStart(pWholeWordCheck, False, False, 0)
@@ -451,8 +452,8 @@ Namespace Widgets
             lScopeInnerBox.MarginStart = 5
             lScopeInnerBox.MarginEnd = 5
             
-            pInFileRadio = New RadioButton("current file")
-            pInProjectRadio = New RadioButton(pInFileRadio, "Entire project")
+            pInFileRadio = New CustomDrawCheckBox("current file")
+            pInProjectRadio = New CustomDrawCheckBox("Entire project")
             pInFileRadio.Active = True
             
             lScopeInnerBox.PackStart(pInFileRadio, False, False, 0)
@@ -493,9 +494,10 @@ Namespace Widgets
                 AddHandler pWholeWordCheck.Toggled, AddressOf OnOptionsChanged
                 AddHandler pRegexCheck.Toggled, AddressOf OnOptionsChanged
                 
-                ' Scope radio button events
-                AddHandler pInFileRadio.Toggled, AddressOf OnScopeChanged
-                AddHandler pInProjectRadio.Toggled, AddressOf OnScopeChanged
+                ' Scope toggle events - pInFileRadio/pInProjectRadio are manually kept mutually
+                ' exclusive in OnScopeToggled since CustomDrawCheckBox has no radio-group concept
+                AddHandler pInFileRadio.Toggled, AddressOf OnScopeToggled
+                AddHandler pInProjectRadio.Toggled, AddressOf OnScopeToggled
                 
                 ' Results view events - single click navigation
                 AddHandler pResultsView.CursorChanged, AddressOf OnResultsCursorChanged
@@ -1302,43 +1304,53 @@ Namespace Widgets
             End Try
         End Function
         
+        ''' <summary>
+        ''' Pre-fills the search text from the active editor's selection or word at cursor -
+        ''' the same source Ctrl+F's ShowFindPanel uses - and runs Find All if there was a
+        ''' selection to search for. Leaves the current scope selection alone rather than
+        ''' forcing it to Entire Project.
+        ''' </summary>
         Private Sub PerformQuickFind()
             Try
-                Console.WriteLine("FindReplacePanel.PerformQuickFind: Starting quick find from clipboard operation")
-                
-                ' Get clipboard text
-                Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
-                Dim lClipboardText As String = lClipboard.WaitForText()
-                
-                If String.IsNullOrEmpty(lClipboardText) Then
-                    Console.WriteLine("FindReplacePanel.PerformQuickFind: Clipboard Is empty")
+                Dim lTab As TabInfo = GetCurrentTab()
+                If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
+                    FocusSearchEntry()
                     Return
                 End If
-                
-                Console.WriteLine($"FindReplacePanel.PerformQuickFind: Got clipboard text: {lClipboardText.Substring(0, Math.Min(50, lClipboardText.Length))}...")
-                
-                
-                
-                
-                ' Set the clipboard text into the Find field
-                Console.WriteLine("FindReplacePanel.PerformQuickFind: Setting search text from clipboard")
-                SetSearchText(lClipboardText)
-                
-                ' Set search scope to Entire Project for better results
-                Console.WriteLine("FindReplacePanel.PerformQuickFind: Setting search scope To Entire Project")
-                SetSearchScope(FindReplacePanel.SearchScope.eProject)
-                
-                ' Focus the find panel (without selecting text since we want to keep what we just set)
-                FocusSearchEntryNoSelect()
-                
-                ' Execute Find All operation
-                Console.WriteLine("FindReplacePanel.PerformQuickFind: Executing Find All")
-                OnFind(Nothing, Nothing)
-                
-                Console.WriteLine("FindReplacePanel.PerformQuickFind: Quick find from clipboard completed successfully")
-                
+
+                Dim lEditor As IEditor = lTab.Editor
+                Dim lHasSelection As Boolean = False
+                Dim lSearchText As String = ""
+
+                If lEditor.HasSelection Then
+                    Dim lSelectedText As String = lEditor.SelectedText
+                    ' Only use if it's a single line
+                    If Not String.IsNullOrEmpty(lSelectedText) AndAlso
+                       Not lSelectedText.Contains(vbLf) AndAlso Not lSelectedText.Contains(vbCr) Then
+                        lHasSelection = True
+                        lSearchText = lSelectedText
+                    End If
+                Else
+                    lSearchText = lEditor.GetWordAtCursor()
+                End If
+
+                If String.IsNullOrEmpty(lSearchText) Then
+                    FocusSearchEntry()
+                    Return
+                End If
+
+                SetSearchText(lSearchText)
+
+                If lHasSelection Then
+                    FocusSearchEntryNoSelect()
+                    OnFind(Nothing, Nothing)
+                Else
+                    ' Word at cursor - prefill but let the user confirm before searching
+                    FocusSearchEntryNoSelect()
+                End If
+
             Catch ex As Exception
-                Console.WriteLine($"FindReplacePanel.PerformQuickFind error: {ex.Message}")
+                Console.WriteLine($"PerformQuickFind error: {ex.Message}")
             End Try
         End Sub
 
