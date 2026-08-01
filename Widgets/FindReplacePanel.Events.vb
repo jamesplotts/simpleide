@@ -14,9 +14,6 @@ Imports SimpleIDE.Utilities
 Namespace Widgets
     Partial Public Class FindReplacePanel
 
-        Private pDocumentChangeHandlers As New Dictionary(Of String, String)
-
-
         ' Replace: SimpleIDE.Widgets.FindReplacePanel.OnFindEntryKeyPress
         ''' <summary>
         ''' Handles key press events in the find entry field
@@ -106,71 +103,63 @@ Namespace Widgets
             End Try
         End Sub
         
-        Private Sub OnFindAll(vSender As Object, vE As EventArgs)
-            Try
-                ExecuteSearch()
-            Catch ex As Exception
-                Console.WriteLine($"OnFindAll error: {ex.Message}")
-            End Try
-        End Sub
-        
         ''' <summary>
-        ''' Always performs a fresh search when navigating to next result
+        ''' Performs a fresh search, then advances to the next match once results are ready.
+        ''' Runs the search's completion via a callback rather than assuming ExecuteSearch is
+        ''' synchronous, since project-scope search completes on a background task.
         ''' </summary>
         Private Sub OnFindNext(vSender As Object, vE As EventArgs)
             Try
-                ' Always perform fresh search
-                ExecuteSearch()
-                
-                If pSearchResults.Count = 0 Then
-                    UpdateStatus("No matches found")
-                    Return
-                End If
-                
-                ' Move to next match
-                If pCurrentMatchIndex < 0 Then
-                    pCurrentMatchIndex = 0
-                Else
-                    pCurrentMatchIndex += 1
-                    If pCurrentMatchIndex >= pSearchResults.Count Then
-                        pCurrentMatchIndex = 0  ' Wrap around
+                ExecuteSearch(Sub()
+                    If pSearchResults.Count = 0 Then
+                        UpdateStatus("No matches found")
+                        Return
                     End If
-                End If
-                
-                NavigateToMatch(pCurrentMatchIndex)
-                UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
-                
+
+                    ' Move to next match
+                    If pCurrentMatchIndex < 0 OrElse pCurrentMatchIndex >= pSearchResults.Count Then
+                        pCurrentMatchIndex = 0
+                    Else
+                        pCurrentMatchIndex = (pCurrentMatchIndex + 1) Mod pSearchResults.Count
+                    End If
+
+                    NavigateToSearchResult(pCurrentMatchIndex)
+                    UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
+                End Sub)
+
             Catch ex As Exception
                 Console.WriteLine($"OnFindNext error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Always performs a fresh search when navigating to previous result
+        ''' Performs a fresh search, then advances to the previous match once results are
+        ''' ready. Runs the search's completion via a callback rather than assuming
+        ''' ExecuteSearch is synchronous, since project-scope search completes on a
+        ''' background task.
         ''' </summary>
         Private Sub OnFindPrevious(vSender As Object, vE As EventArgs)
             Try
-                ' Always perform fresh search
-                ExecuteSearch()
-                
-                If pSearchResults.Count = 0 Then
-                    UpdateStatus("No matches found")
-                    Return
-                End If
-                
-                ' Move to previous match
-                If pCurrentMatchIndex < 0 Then
-                    pCurrentMatchIndex = pSearchResults.Count - 1
-                Else
-                    pCurrentMatchIndex -= 1
-                    If pCurrentMatchIndex < 0 Then
-                        pCurrentMatchIndex = pSearchResults.Count - 1  ' Wrap around
+                ExecuteSearch(Sub()
+                    If pSearchResults.Count = 0 Then
+                        UpdateStatus("No matches found")
+                        Return
                     End If
-                End If
-                
-                NavigateToMatch(pCurrentMatchIndex)
-                UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
-                
+
+                    ' Move to previous match
+                    If pCurrentMatchIndex < 0 OrElse pCurrentMatchIndex >= pSearchResults.Count Then
+                        pCurrentMatchIndex = pSearchResults.Count - 1
+                    Else
+                        pCurrentMatchIndex -= 1
+                        If pCurrentMatchIndex < 0 Then
+                            pCurrentMatchIndex = pSearchResults.Count - 1  ' Wrap around
+                        End If
+                    End If
+
+                    NavigateToSearchResult(pCurrentMatchIndex)
+                    UpdateStatus($"Match {pCurrentMatchIndex + 1} of {pSearchResults.Count}")
+                End Sub)
+
             Catch ex As Exception
                 Console.WriteLine($"OnFindPrevious error: {ex.Message}")
             End Try
@@ -271,28 +260,6 @@ Namespace Widgets
         ' ===== Search Implementation (Simplified) =====
         
         ''' <summary>
-        ''' Populates the results tree view from pSearchResults
-        ''' </summary>
-        Private Sub PopulateResults()
-            Try
-                pResultsStore.Clear()
-                
-                for each lResult in pSearchResults
-                    pResultsStore.AppendValues(
-                        System.IO.Path.GetFileName(lResult.FilePath),
-                        lResult.LineText,
-                        lResult.LineNumber,
-                        lResult.ColumnNumber,
-                        lResult.MatchText
-                    )
-                Next
-                
-            Catch ex As Exception
-                Console.WriteLine($"PopulateResults error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Searches in a file by reading from disk
         ''' </summary>
         Private Function SearchInFile(vFilePath As String) As List(Of FindResult)
@@ -330,64 +297,53 @@ Namespace Widgets
         End Function
         
         ''' <summary>
-        ''' Refreshes search results by re-executing the last search
+        ''' Replaces the current/next match in the active file's editor tab. Delegates to
+        ''' IEditor.Replace, which replaces the current selection if it matches the search
+        ''' text, then advances to the next match - the standard single-button Replace UX.
         ''' </summary>
-        Public Sub RefreshResults()
+        Private Sub OnReplace(vSender As Object, vE As EventArgs)
             Try
-                If pLastSearchOptions.SearchText IsNot Nothing Then
-                    ExecuteSearch()
-                    pStatusLabel.Text = "Results refreshed"
-                Else
-                    pStatusLabel.Text = "No previous search to refresh"
+                Dim lTab As TabInfo = GetCurrentTab()
+                If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
+                    UpdateStatus("No file open to replace in")
+                    Return
                 End If
-                
+
+                If String.IsNullOrEmpty(pFindEntry.Text) Then
+                    UpdateStatus("Please enter search text")
+                    Return
+                End If
+
+                lTab.Editor.Replace(pFindEntry.Text, pReplaceEntry.Text,
+                                    pCaseSensitiveCheck.Active, pWholeWordCheck.Active, pRegexCheck.Active)
+                UpdateStatus("Replaced")
+
             Catch ex As Exception
-                Console.WriteLine($"RefreshResults error: {ex.Message}")
+                Console.WriteLine($"OnReplace error: {ex.Message}")
+                UpdateStatus("Replace error: " & ex.Message)
             End Try
         End Sub
 
-        Private Sub OnReplace(vSender As Object, vE As EventArgs)
-            ' TODO: Implement replace functionality
-            UpdateStatus("Replace functionality not yet implemented")
-        End Sub
-        
+        ''' <summary>
+        ''' Replaces every match, either in the current file or across the whole project
+        ''' depending on the current scope selection
+        ''' </summary>
         Private Sub OnReplaceAll(vSender As Object, vE As EventArgs)
-            ' TODO: Implement replace all functionality
-            UpdateStatus("Replace All functionality not yet implemented")
-        End Sub
-
-        Private Sub OnRefresh(vSender As Object, vE As EventArgs)
             Try
-                If pLastSearchOptions.SearchText IsNot Nothing Then
-                    ' Clear current results
-                    pSearchResults.Clear()
-                    pResultsStore.Clear()
-                    
-                    ' Show progress
-                    UpdateStatus("Refreshing search results...")
-                    pProgressBar.Visible = True
-                    pProgressBar.Pulse()
-                    
-
-                    ExecuteSearch()
-                    
-                    ' Update display
-                    PopulateResults()
-                    
-                    ' Hide progress
-                    pProgressBar.Visible = False
-                    
-                    ' Update status
-                    UpdateStatus($"Refreshed: Found {pSearchResults.Count} matches")
-                Else
-                    UpdateStatus("No previous search to refresh")
+                If String.IsNullOrEmpty(pFindEntry.Text) Then
+                    UpdateStatus("Please enter search text")
+                    Return
                 End If
-                
+
+                If pInFileRadio.Active Then
+                    ReplaceAllInCurrentFile()
+                Else
+                    ReplaceAllInProject()
+                End If
+
             Catch ex As Exception
-                Console.WriteLine($"OnRefresh error: {ex.Message}")
-                UpdateStatus($"Refresh failed: {ex.Message}")
-            Finally
-                pProgressBar.Visible = False
+                Console.WriteLine($"OnReplaceAll error: {ex.Message}")
+                UpdateStatus("Replace All error: " & ex.Message)
             End Try
         End Sub
 
@@ -403,156 +359,6 @@ Namespace Widgets
         Private Sub UpdateStatus(vMessage As String)
             pStatusLabel.Text = vMessage
             Console.WriteLine($"Find/Replace: {vMessage}")
-        End Sub
-
-'        ' Core Search Logic
-'        Private Sub ExecuteSeaxrchAndNavigate()
-'            Try
-'                If pCurrentTab Is Nothing Then
-'                    UpdateStatus("No active editor tab")
-'                    Return
-'                End If
-'                
-'                ' Clear previous results and modified file tracking
-'                pResultsStore.Clear()
-'                pSearchResults.Clear()
-'                pCurrentResultIndex = -1
-'                pModifiedFiles.Clear()  ' NEW: Clear stale tracking
-'                
-'                ' Search in current file
-'                ExecuteSearch()
-'                
-'                ' Navigate to first result if found
-'                If pSearchResults.Count > 0 Then
-'                    NavigateToResult(0)
-'                Else
-'                    UpdateStatus($"'{pFindEntry.Text}' not found")
-'                End If
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"error executing search: {ex.Message}")
-'                UpdateStatus($"Search error: {ex.Message}")
-'            End Try
-'        End Sub
-
-        ' Perform search in current file
-        Private Sub PerformFileSearch(vOptions As SearchOptions)
-            Try
-                If pCurrentTab Is Nothing Then Return
-                pLastSearchOptions = vOptions
-                SearchInFile(pCurrentTab.FilePath)
-            Catch ex As Exception
-                Console.WriteLine($"error performing file search: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Enhanced project search with TextMark support
-        Private Sub PerformProjectSearch(vOptions As SearchOptions)
-            Try
-                If String.IsNullOrEmpty(pProjectRoot) Then
-                    UpdateStatus("No project root Set")
-                    Return
-                End If
-                
-                If Not Directory.Exists(pProjectRoot) Then
-                    UpdateStatus("Project root directory does Not exist")
-                    Return
-                End If
-                
-                UpdateStatus("Searching entire project...")
-                
-                ' Clear modified files tracking
-                pModifiedFiles.Clear()
-                
-                ' Get all VB files in project
-                Dim lVBFiles As List(Of String) = ProjectFileScanner.GetVBFiles(pProjectRoot)
-
-                If lVBFiles.Count = 0 Then
-                    UpdateStatus("No VB files found in project")
-                    Return
-                End If
-                
-                ' Clear previous results
-                pSearchResults.Clear()
-                pResultsStore.Clear()
-                
-                Dim lTotalMatches As Integer = 0
-                Dim lFilesSearched As Integer = 0
-                Dim lFilesWithMatches As Integer = 0
-                
-                ' Search each file
-                For Each lFilePath In lVBFiles
-                    Try
-                        ' Skip binary or backup files
-                        If lFilePath.EndsWith(".designer.vb", StringComparison.OrdinalIgnoreCase) OrElse
-                           lFilePath.Contains("\bin\") OrElse lFilePath.Contains("\obj\") OrElse
-                           lFilePath.Contains("\.vs\") Then
-                            Continue For
-                        End If
-                        
-                        lFilesSearched += 1
-                        Dim lFileMatches As List(Of FindResult) = SearchInFile(lFilePath)
-                        
-                        If lFileMatches.Count > 0 Then
-                            lTotalMatches += lFileMatches.Count
-                            lFilesWithMatches += 1
-                        End If
-                        
-                    Catch ex As Exception
-                        Console.WriteLine($"error searching file {lFilePath}: {ex.Message}")
-                    End Try
-                Next
-                
-                ' Update results in UI
-                For Each lResult In pSearchResults
-                    Dim lCurrentPos = lResult.LineNumber()
-                    Dim lDisplayText As String = lResult.LineText.Trim()
-                    
-                    ' Add live tracking indicator for open files
-                    'If lResult.IsLiveTracked() Then
-                      '  lDisplayText = "📍 " & lDisplayText  ' Live tracking indicator
-                    'End If
-                    
-                    pResultsStore.AppendValues(
-                        lResult.LineNumber.ToString(),
-                        lResult.ColumnNumber.ToString(),
-                        lDisplayText,
-                        System.IO.Path.GetFileName(lResult.FilePath)
-                    )
-                Next
-                
-                ' Update status with results
-                If lTotalMatches > 0 Then
-                    'Dim lLiveTrackedResults = pSearchResults.Where(Function(r) r.IsLiveTracked()).ToList()
-                    'Dim lLiveCount As Integer = lLiveTrackedResults.Count
-                    'UpdateStatus($"Found {lTotalMatches} occurrences in {lFilesWithMatches} Of {lFilesSearched} files ({lLiveCount} live-tracked)")
-                Else
-                    UpdateStatus($"'{vOptions.SearchText}' not found in {lFilesSearched} files")
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"Error performing project search: {ex.Message}")
-                UpdateStatus($"Project search error: {ex.Message}")
-            End Try
-        End Sub
-
-        ' Enhanced navigation that handles live tracking
-        Private Sub NavigateToResult(vIndex As Integer)
-            Try
-                If vIndex < 0 OrElse vIndex >= pSearchResults.Count Then Return
-                
-                pCurrentResultIndex = vIndex
-                Dim lResult As FindResult = pSearchResults(vIndex)
-                
-                ' Get current position (live if available)
-                Dim lCurrentPos = lResult.LineNumber()
-                
-                ' Raise event to navigate to result
-                RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
-                
-            Catch ex As Exception
-                Console.WriteLine($"error navigating To result: {ex.Message}")
-            End Try
         End Sub
 
         ''' <summary>
@@ -630,168 +436,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        
-        Private Function VerifyResultStillValid(vResult As FindResult) As Boolean
-            Try
-                ' Get current content from editor or file
-                Dim lCurrentContent As String = Nothing
-                
-                ' First check if file is open in editor
-                Dim lTabArgs As New TabInfoEventArgs()
-                RaiseEvent OnRequestCurrentTab(lTabArgs)
-                
-                If lTabArgs.TabInfo IsNot Nothing AndAlso 
-                   lTabArgs.TabInfo.FilePath = vResult.FilePath AndAlso
-                   lTabArgs.TabInfo.Editor IsNot Nothing Then
-                    ' Get from editor
-                    Dim lEditor As IEditor = lTabArgs.TabInfo.Editor
-                    Dim lLines As List(Of String) = lEditor.TextLines()
-                    
-                    If vResult.LineNumber > 0 AndAlso vResult.LineNumber <= lLines.Count Then
-                        Dim lLine As String = lLines(vResult.LineNumber - 1)
-                        
-                        ' Check if the text still matches at the expected position
-                        If vResult.ColumnNumber > 0 AndAlso 
-                           vResult.ColumnNumber <= lLine.Length - vResult.MatchLength + 1 Then
-                            
-                            Dim lTextAtPosition As String = lLine.Substring(vResult.ColumnNumber - 1, 
-                                                                            Math.Min(vResult.MatchLength, 
-                                                                                   lLine.Length - vResult.ColumnNumber + 1))
-                            
-                            ' Compare considering case sensitivity
-                            Dim lComparison As StringComparison = If(pLastSearchOptions.MatchCase,
-                                                                    StringComparison.Ordinal,
-                                                                    StringComparison.OrdinalIgnoreCase)
-                            
-                            Return String.Equals(lTextAtPosition, vResult.MatchText, lComparison)
-                        End If
-                    End If
-                Else
-                    ' File not open - read from disk
-                    ' Could implement file reading here if needed
-                End If
-                
-                Return False
-                
-            Catch ex As Exception
-                Console.WriteLine($"VerifyResultStillValid error: {ex.Message}")
-                Return False
-            End Try
-        End Function
-        
-        Private Function FindNearbyMatch(vOriginalResult As FindResult) As FindResult
-            Try
-                ' Try to find the match within a reasonable range of the original location
-                Dim lTabArgs As New TabInfoEventArgs()
-                RaiseEvent OnRequestCurrentTab(lTabArgs)
-                
-                If lTabArgs.TabInfo IsNot Nothing AndAlso 
-                   lTabArgs.TabInfo.FilePath = vOriginalResult.FilePath AndAlso
-                   lTabArgs.TabInfo.Editor IsNot Nothing Then
-                    
-                    Dim lEditor As IEditor = lTabArgs.TabInfo.Editor
-                    Dim lLines As List(Of String) = lEditor.TextLines
-                    
-                    ' Search within ±20 lines of original location
-                    Dim lSearchRange As Integer = 20
-                    Dim lStartLine As Integer = Math.Max(0, vOriginalResult.LineNumber - lSearchRange - 1)
-                    Dim lEndLine As Integer = Math.Min(lLines.Count - 1, vOriginalResult.LineNumber + lSearchRange - 1)
-                    
-                    ' Search for the match text
-                    for lLineIndex As Integer = lStartLine To lEndLine
-                        Dim lLine As String = lLines(lLineIndex)
-                        Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions)
-                        
-                        If lMatches.Count > 0 Then
-                            ' Found a match - return new location
-                            Return New FindResult() with {
-                                .FilePath = vOriginalResult.FilePath,
-                                .LineNumber = lLineIndex + 1,
-                                .ColumnNumber = lMatches(0) + 1,
-                                .LineText = lLine.Trim(),
-                                .MatchText = vOriginalResult.MatchText,
-                                .MatchLength = vOriginalResult.MatchLength
-                            }
-                        End If
-                    Next
-                End If
-                
-                Return Nothing
-                
-            Catch ex As Exception
-                Console.WriteLine($"FindNearbyMatch error: {ex.Message}")
-                Return Nothing
-            End Try
-        End Function
-
-        Private Sub TrackDocumentChanges(vFilePath As String, vEditor As IEditor)
-            Try
-                ' Remove old handler if exists
-                If pDocumentChangeHandlers.ContainsKey(vFilePath) Then
-                    '  This is the event signature for IEditor.TextChanged:
-                    '     Event TextChanged(o As Object, e As EventArgs)
-
-                    RemoveHandler vEditor.TextChanged, AddressOf OnTextChanged
-                End If
-                
-                ' Create new handler
-                Dim lHandler As EventHandler = Sub(s, e)
-                    MarkResultsAsStale(vFilePath)
-                End Sub
-                
-                ' Add handler
-                AddHandler vEditor.TextChanged, AddressOf OnTextChanged
-                pDocumentChangeHandlers.Add(vEditor.FilePath, "")
-            Catch ex As Exception
-                Console.WriteLine($"TrackDocumentChanges error: {ex.Message}")
-            End Try
-        End Sub
-
-        Private Sub OnTextChanged(vObject As Object, vE As EventArgs)
-            Try
-                Dim lEditor As IEditor = DirectCast(vObject, IEditor)
-                If lEditor Is Nothing Then Exit Sub
-                MarkResultsAsStale(lEditor.FilePath)
-            Catch ex As Exception
-                Console.WriteLine("FindReplacePanel.OnTextChanged Error:  " + ex.Message)
-            End Try
-        End Sub
-        
-        Private Sub MarkResultsAsStale(vFilePath As String)
-            Try
-                ' Find all results for this file
-                Dim lStaleCount As Integer = 0
-                for each lResult in pSearchResults
-                    If lResult.FilePath = vFilePath Then
-                        lStaleCount += 1
-                    End If
-                Next
-                
-                If lStaleCount > 0 Then
-                    ' Update status to show results are stale
-                    UpdateStatus($"⚠ {lStaleCount} results may be outdated (file edited). Click Refresh to update.")
-                    
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"MarkResultsAsStale error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Automatically refreshes search results when panel gains focus
-        ''' </summary>
-        Public Sub AutoRefreshOnFocus()
-            Try
-                ' If we have previous search text, automatically refresh
-                If Not String.IsNullOrEmpty(pFindEntry.Text) AndAlso pSearchResults.Count > 0 Then
-                    Console.WriteLine("FindReplacePanel: Auto-refreshing results on focus")
-                    ExecuteSearch()
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"AutoRefreshOnFocus error: {ex.Message}")
-            End Try
-        End Sub        
         
     End Class
 

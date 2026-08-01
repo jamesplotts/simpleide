@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports System.Collections.Generic
 Imports System.IO
+Imports System.Linq
 Imports System.Text.RegularExpressions
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
@@ -45,7 +46,6 @@ Namespace Widgets
         Private pCurrentResultIndex As Integer = -1
         Private pIsSearching As Boolean = False
         Private pLastSearchOptions As SearchOptions
-        Private pModifiedFiles As New HashSet(Of String)
         
         ' Current file search state
         Private pCurrentEditor As IEditor
@@ -463,63 +463,6 @@ Namespace Widgets
             Return lOptionsBox
         End Function
 
-        ''' <summary>
-        ''' Creates the tree view for displaying search results
-        ''' </summary>
-        ''' <returns>Configured TreeView widget for search results</returns>
-        Private Function CreateResultsView() As TreeView
-            Try
-                ' Create tree view
-                Dim lTreeView As New TreeView()
-                
-                ' Create model (FilePath, LineText, LineNumber, ColumnNumber, MatchText)
-                pResultsStore = New ListStore(GetType(String), GetType(String), GetType(Integer), GetType(Integer), GetType(String))
-                lTreeView.Model = pResultsStore
-                
-                ' File column - FIXED: Use proper GTK# 3 syntax
-                Dim lFileRenderer As New CellRendererText()
-                Dim lFileColumn As New TreeViewColumn()
-                lFileColumn.Title = "File"
-                lFileColumn.PackStart(lFileRenderer, True)
-                lFileColumn.AddAttribute(lFileRenderer, "text", 0)  ' Use lowercase "text"
-                lFileColumn.Resizable = True
-                lFileColumn.MinWidth = 200
-                lTreeView.AppendColumn(lFileColumn)
-                
-                ' Line column - FIXED: Use proper GTK# 3 syntax
-                Dim lLineRenderer As New CellRendererText()
-                Dim lLineColumn As New TreeViewColumn()
-                lLineColumn.Title = "Line"
-                lLineColumn.PackStart(lLineRenderer, False)
-                lLineColumn.AddAttribute(lLineRenderer, "text", 2)  ' Use lowercase "text"
-                lLineColumn.Resizable = True
-                lLineColumn.MinWidth = 60
-                lTreeView.AppendColumn(lLineColumn)
-                
-                ' Text column - FIXED: Use proper GTK# 3 syntax
-                Dim lTextRenderer As New CellRendererText()
-                Dim lTextColumn As New TreeViewColumn()
-                lTextColumn.Title = "Text"
-                lTextColumn.PackStart(lTextRenderer, True)
-                lTextColumn.AddAttribute(lTextRenderer, "text", 1)  ' Use lowercase "text"
-                lTextColumn.Resizable = True
-                lTextColumn.MinWidth = 300
-                lTreeView.AppendColumn(lTextColumn)
-                
-                ' Configure tree view
-                lTreeView.EnableSearch = True
-                lTreeView.SearchColumn = 1
-                lTreeView.HeadersVisible = True
-                lTreeView.EnableGridLines = TreeViewGridLines.Horizontal
-                
-                Return lTreeView
-                
-            Catch ex As Exception
-                Console.WriteLine($"CreateResultsView error: {ex.Message}")
-                Return New TreeView()
-            End Try
-        End Function
-        
         ' Replace: SimpleIDE.FindReplacePanel.ConnectEvents
         ''' <summary>
         ''' Connects all event handlers including the new QuickFind button
@@ -542,6 +485,7 @@ Namespace Widgets
                 AddHandler pReplaceAllButton.Clicked, AddressOf OnReplaceAll
                 AddHandler pCloseButton.Clicked, AddressOf OnClose
                 AddHandler pQuickFindButton.Clicked, AddressOf OnQuickFindClicked
+                AddHandler pCancelButton.Clicked, AddressOf OnCancelOptimized
                 
                 ' Options events
                 AddHandler pCaseSensitiveCheck.Toggled, AddressOf OnOptionsChanged
@@ -596,17 +540,25 @@ Namespace Widgets
         End Sub
 
         ' ===== Search Implementation =====
-        
+
         ''' <summary>
         ''' Executes search without caching - always fresh from source
         ''' </summary>
-        Private Sub ExecuteSearch()
+        ''' <param name="vOnComplete">
+        ''' Optional callback invoked once results are ready and populated. For current-file
+        ''' scope this happens synchronously before ExecuteSearch returns; for project scope
+        ''' the underlying search runs on background tasks, so the callback is invoked later
+        ''' on the GTK main thread once those tasks finish. Callers that need to inspect
+        ''' pSearchResults immediately after searching (e.g. F3/Shift+F3 navigation) MUST use
+        ''' this callback rather than assuming ExecuteSearch is synchronous.
+        ''' </param>
+        Private Sub ExecuteSearch(Optional vOnComplete As System.Action = Nothing)
             Try
                 If String.IsNullOrEmpty(pFindEntry.Text) Then
                     pStatusLabel.Text = "Please enter search Text"
                     Return
                 End If
-                
+
                 ' Save search options (but NOT results)
                 pLastSearchOptions = New SearchOptions With {
                     .SearchText = pFindEntry.Text,
@@ -616,29 +568,32 @@ Namespace Widgets
                     .UseRegex = pRegexCheck.Active,
                     .Scope = If(pInProjectRadio.Active, SearchScope.eProject, SearchScope.eCurrentFile)
                 }
-                
+
                 ' ALWAYS clear previous results - no caching
                 pResultsStore.Clear()
                 pSearchResults.Clear()
                 pCurrentMatches = Nothing
-                ' Don't reset pCurrentMatchIndex here to maintain position
-                
-                ' Perform fresh search
+                ' Don't reset pCurrentMatchIndex here - callers that want a fresh Find All
+                ' (OnFind) reset it explicitly before calling ExecuteSearch; callers that want
+                ' to advance through results (OnFindNext/OnFindPrevious) rely on it surviving.
+
+                ' Perform fresh search. Current-file search is synchronous, so vOnComplete can
+                ' be invoked immediately; project search may finish on a background task, so
+                ' the callback is threaded through and invoked there instead.
                 If pInFileRadio.Active Then
                     SearchInCurrentFile()
+                    UpdateButtonStates()
+                    vOnComplete?.Invoke()
                 Else
                     ' Use optimized in-memory search if available
                     If pProjectManager IsNot Nothing Then
-                        SearchInProjectOptimized()
+                        SearchInProjectOptimized(vOnComplete)
                     Else
-                        SearchInProject()
+                        SearchInProject(vOnComplete)
                     End If
+                    UpdateButtonStates()
                 End If
-                
-                ' Update UI with fresh results
-                PopulateResults()
-                UpdateButtonStates()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ExecuteSearch error: {ex.Message}")
                 pStatusLabel.Text = "Search error: " & ex.Message
@@ -693,10 +648,11 @@ Namespace Widgets
             End Try
         End Sub
         
-        Private Sub SearchInProject()
+        Private Sub SearchInProject(Optional vOnComplete As System.Action = Nothing)
             Try
                 If String.IsNullOrEmpty(pProjectRoot) Then
                     pStatusLabel.Text = "No project open"
+                    vOnComplete?.Invoke()
                     Return
                 End If
                 
@@ -742,16 +698,19 @@ Namespace Widgets
                 pIsSearching = False
                 
                 pStatusLabel.Text = $"Found {lTotalMatches} match(es) in {lFilesSearched} file(s)"
-                
+
+                vOnComplete?.Invoke()
+
             Catch ex As Exception
                 Console.WriteLine($"SearchInProject error: {ex.Message}")
                 pStatusLabel.Text = "Search error: " & ex.Message
                 pProgressBar.Visible = False
                 pCancelButton.Visible = False
                 pIsSearching = False
+                vOnComplete?.Invoke()
             End Try
         End Sub
-        
+
         Private Function SearchFile(vFilePath As String) As Integer
             Try
                 ' Read file content
@@ -841,212 +800,274 @@ Namespace Widgets
                 Return String.Equals(vText, vSearchText, StringComparison.OrdinalIgnoreCase)
             End If
         End Function
-        
+
         ' ===== Replace Implementation =====
+
+        ''' <summary>
+        ''' Replaces all matches in the current file's open editor tab, which routes through
+        ''' IEditor.ReplaceAll (single undo group, in-memory only - user saves manually)
+        ''' </summary>
         Private Sub ReplaceAllInCurrentFile()
             Try
                 Dim lTab As TabInfo = GetCurrentTab()
                 If lTab Is Nothing OrElse lTab.Editor Is Nothing Then
-                    pStatusLabel.Text = "No file open"
+                    UpdateStatus("No file open")
                     Return
                 End If
-                
-                ' Find all matches
-                Dim lMatches As List(Of EditorPosition) = lTab.Editor.Find(
-                    pLastSearchOptions.SearchText,
-                    pLastSearchOptions.MatchCase,
-                    pLastSearchOptions.WholeWord,
-                    pLastSearchOptions.UseRegex
-                ).ToList()
-                
-                If lMatches.Count = 0 Then
-                    pStatusLabel.Text = "No matches found"
-                    Return
-                End If
-                
-                Try
-                    lTab.Editor.BeginUpdate()
-                    
-                    ' Determine replacement text
-                    Dim lReplaceText As String = pReplaceEntry.Text
-                    
-                    ' Replace from end to beginning to maintain positions
-                    for i As Integer = lMatches.Count - 1 To 0 Step -1
-                        Dim lPosition As EditorPosition = lMatches(i)
-                        
-                        ' Calculate end position
-                        Dim lEndLine As Integer = lPosition.Line
-                        Dim lEndColumn As Integer = lPosition.Column + pLastSearchOptions.SearchText.Length
-                        
-                        ' Handle multi-line matches for regex
-                        If pLastSearchOptions.UseRegex Then
-                            Dim lLineText As String = lTab.Editor.GetLineText(lPosition.Line)
-                            Dim lRegex As New Regex(pLastSearchOptions.SearchText)
-                            Dim lMatch As Match = lRegex.Match(lLineText, lPosition.Column)
-                            If lMatch.Success Then
-                                lEndColumn = lPosition.Column + lMatch.Length
-                            End If
-                        End If
-                        
-                        ' Replace text - using lPosition for start position
-                        lTab.Editor.ReplaceText(lPosition,
-                                                New EditorPosition(lEndLine, lEndColumn), 
-                                                lReplaceText)
-                    Next
-                    
-                    pStatusLabel.Text = $"Replaced {lMatches.Count} occurrence(s)"
-                    
-                    ' Clear search results as text has changed
-                    pCurrentMatches = Nothing
-                    pCurrentMatchIndex = -1
-                    
-                Finally
-                    lTab.Editor.EndUpdate()
-                End Try
-                
+
+                lTab.Editor.ReplaceAll(pFindEntry.Text, pReplaceEntry.Text,
+                                       pCaseSensitiveCheck.Active, pWholeWordCheck.Active, pRegexCheck.Active)
+
+                UpdateStatus("Replace All complete")
+
+                ' Refresh results to reflect the post-replace state
+                ExecuteSearch()
+
             Catch ex As Exception
                 Console.WriteLine($"ReplaceAllInCurrentFile error: {ex.Message}")
-                pStatusLabel.Text = "Replace error: " & ex.Message
+                UpdateStatus("Replace error: " & ex.Message)
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Replaces all matches across the project. Runs a fresh search first so the file
+        ''' list and match counts are current, then for each file: if it's open in an editor
+        ''' tab, replaces via IEditor.ReplaceAll (in-memory, undo available, user saves
+        ''' manually); otherwise replaces the in-memory SourceFileInfo (or raw disk content
+        ''' if no ProjectManager is available) and saves it immediately, since a file with no
+        ''' open tab has no other save path and would otherwise become an invisible,
+        ''' unsaved-and-unsavable in-memory change.
+        ''' </summary>
         Private Sub ReplaceAllInProject()
             Try
-                If String.IsNullOrEmpty(pProjectRoot) Then
-                    pStatusLabel.Text = "No project open"
+                If pProjectManager Is Nothing AndAlso String.IsNullOrEmpty(pProjectRoot) Then
+                    UpdateStatus("No project open")
                     Return
                 End If
-                
-                ' Confirm with user
+
+                If String.IsNullOrEmpty(pFindEntry.Text) Then
+                    UpdateStatus("Please enter search text")
+                    Return
+                End If
+
                 Dim lDialog As New MessageDialog(
                     CType(Toplevel, Window),
                     DialogFlags.Modal,
                     MessageType.Warning,
                     ButtonsType.YesNo,
-                    $"Replace all occurrences of '{pFindEntry.Text}' with '{pReplaceEntry.Text}' in the entire project?{Environment.NewLine}{Environment.NewLine}this action cannot be undone."
+                    $"Replace all occurrences of '{pFindEntry.Text}' with '{pReplaceEntry.Text}' in the entire project?" & Environment.NewLine & Environment.NewLine &
+                    "Files open in an editor tab will be updated in memory (undo available, save manually)." & Environment.NewLine &
+                    "Files not currently open will be updated and saved to disk immediately."
                 )
-                
-                If lDialog.Run() <> CInt(ResponseType.Yes) Then
-                    lDialog.Destroy()
-                    Return
-                End If
+
+                Dim lResponse As Integer = lDialog.Run()
                 lDialog.Destroy()
-                
-                ' Show progress
-                pProgressBar.Visible = True
-                pCancelButton.Visible = True
-                pIsSearching = True
-                
-                ' Get all project files
-                Dim lFiles As New List(Of String)()
-                GetProjectFiles(pProjectRoot, lFiles)
-                
-                Dim lTotalReplaced As Integer = 0
-                Dim lFilesModified As Integer = 0
-                pModifiedFiles.Clear()
-                
-                For Each lFile In lFiles
-                    If Not pIsSearching Then Exit For
-                    
-                    ' Update progress
-                    pProgressBar.Fraction = CDbl(lFilesModified) / CDbl(lFiles.Count)
-                    pStatusLabel.Text = $"Processing {System.IO.Path.GetFileName(lFile)}..."
-                    
-                    ' Process pending events
-                    While Application.EventsPending()
-                        Application.RunIteration()
-                    End While
-                    
-                    ' Replace in file
-                    Dim lReplaced As Integer = ReplaceInFile(lFile)
-                    If lReplaced > 0 Then
-                        lTotalReplaced += lReplaced
-                        lFilesModified += 1
-                        pModifiedFiles.Add(lFile)
-                    End If
-                Next
-                
-                ' Hide progress
-                pProgressBar.Visible = False
-                pCancelButton.Visible = False
-                pIsSearching = False
-                
-                pStatusLabel.Text = $"Replaced {lTotalReplaced} occurrence(s) in {lFilesModified} file(s)"
-                
-                ' Refresh open tabs that were modified
-                RefreshModifiedTabs()
-                
+                If lResponse <> CInt(ResponseType.Yes) Then Return
+
+                ' Run a fresh search first so we replace exactly what's currently found,
+                ' and route the completion through ExecuteSearch's callback so this works
+                ' correctly whether project search resolves synchronously or in the
+                ' background (see ExecuteSearch's vOnComplete remarks).
+                ExecuteSearch(AddressOf CompleteReplaceAllInProject)
+
             Catch ex As Exception
                 Console.WriteLine($"ReplaceAllInProject error: {ex.Message}")
+                UpdateStatus("Replace error: " & ex.Message)
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Performs the actual per-file replacement once a fresh project search has
+        ''' completed and pSearchResults reflects the current match set
+        ''' </summary>
+        Private Sub CompleteReplaceAllInProject()
+            Try
+                If pSearchResults.Count = 0 Then
+                    UpdateStatus("No matches found")
+                    Return
+                End If
+
+                Dim lOpenTabsArgs As New OpenTabsEventArgs()
+                RaiseEvent OnRequestOpenTabs(Me, lOpenTabsArgs)
+                Dim lOpenTabsByPath As New Dictionary(Of String, TabInfo)(StringComparer.OrdinalIgnoreCase)
+                If lOpenTabsArgs.OpenTabs IsNot Nothing Then
+                    For Each lT In lOpenTabsArgs.OpenTabs
+                        If Not String.IsNullOrEmpty(lT.FilePath) Then lOpenTabsByPath(lT.FilePath) = lT
+                    Next
+                End If
+
+                Dim lFilePaths As List(Of String) = pSearchResults.Select(Function(r) r.FilePath).Distinct().ToList()
+
+                Dim lTotalReplaced As Integer = 0
+                Dim lFilesModified As Integer = 0
+
+                pProgressBar.Visible = True
+                pIsSearching = True
+
+                Try
+                    For Each lFilePath In lFilePaths
+                        If Not pIsSearching Then Exit For
+
+                        pStatusLabel.Text = $"Replacing in {System.IO.Path.GetFileName(lFilePath)}..."
+                        While Application.EventsPending()
+                            Application.RunIteration()
+                        End While
+
+                        Dim lReplaced As Integer = 0
+
+                        If lOpenTabsByPath.ContainsKey(lFilePath) AndAlso lOpenTabsByPath(lFilePath).Editor IsNot Nothing Then
+                            ' File has an open tab - replace through the editor so undo,
+                            ' redraw, and the modified-tab indicator all work normally
+                            Dim lEditor As IEditor = lOpenTabsByPath(lFilePath).Editor
+                            lReplaced = pSearchResults.Where(Function(r) r.FilePath = lFilePath).Count()
+                            lEditor.ReplaceAll(pFindEntry.Text, pReplaceEntry.Text,
+                                               pCaseSensitiveCheck.Active, pWholeWordCheck.Active, pRegexCheck.Active)
+
+                        ElseIf pProjectManager IsNot Nothing Then
+                            Dim lSourceFile As SourceFileInfo = pProjectManager.GetSourceFileInfo(lFilePath)
+                            If lSourceFile IsNot Nothing AndAlso lSourceFile.TextLines IsNot Nothing Then
+                                lReplaced = ReplaceAllInSourceFileInfo(lSourceFile, lFilePath)
+                            Else
+                                lReplaced = ReplaceInFileOnDisk(lFilePath)
+                            End If
+                        Else
+                            lReplaced = ReplaceInFileOnDisk(lFilePath)
+                        End If
+
+                        If lReplaced > 0 Then
+                            lTotalReplaced += lReplaced
+                            lFilesModified += 1
+                        End If
+                    Next
+                Finally
+                    pProgressBar.Visible = False
+                    pIsSearching = False
+                End Try
+
+                pStatusLabel.Text = $"Replaced {lTotalReplaced} occurrence(s) in {lFilesModified} file(s)"
+
+                ' Refresh results to reflect the post-replace state
+                ExecuteSearch()
+
+            Catch ex As Exception
+                Console.WriteLine($"CompleteReplaceAllInProject error: {ex.Message}")
                 pStatusLabel.Text = "Replace error: " & ex.Message
                 pProgressBar.Visible = False
-                pCancelButton.Visible = False
                 pIsSearching = False
             End Try
         End Sub
-        
-        Private Function ReplaceInFile(vFilePath As String) As Integer
+
+        ''' <summary>
+        ''' Replaces all matches directly in a SourceFileInfo's in-memory TextLines (used for
+        ''' project files that aren't open in an editor tab) and saves the result to disk
+        ''' immediately, since an unopened file has no other save path
+        ''' </summary>
+        ''' <returns>Number of occurrences replaced</returns>
+        Private Function ReplaceAllInSourceFileInfo(vSourceFile As SourceFileInfo, vFilePath As String) As Integer
             Try
-                ' Read file content
-                Dim lContent As String = File.ReadAllText(vFilePath)
-                Dim lOriginalContent As String = lContent
+                Dim lOriginalContent As String = String.Join(Environment.NewLine, vSourceFile.TextLines)
                 Dim lReplaceCount As Integer = 0
-                
-                If pLastSearchOptions.UseRegex Then
-                    ' Regex replace
-                    Dim lRegex As New Regex(pLastSearchOptions.SearchText,
-                        If(pLastSearchOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
-                    
-                    lContent = lRegex.Replace(lContent, pReplaceEntry.Text)
-                    lReplaceCount = lRegex.Matches(lOriginalContent).Count
+                Dim lNewContent As String = ApplyReplaceAll(lOriginalContent, pLastSearchOptions, pReplaceEntry.Text, lReplaceCount)
+
+                If lReplaceCount = 0 OrElse lNewContent = lOriginalContent Then Return 0
+
+                Dim lNewLines() As String = lNewContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+                vSourceFile.TextLines.Clear()
+                vSourceFile.TextLines.AddRange(lNewLines)
+                vSourceFile.IsModified = True
+                vSourceFile.NotifyRenderingChanged(0, Math.Max(0, vSourceFile.TextLines.Count - 1))
+
+                If Not vSourceFile.SaveContent() Then
+                    Console.WriteLine($"ReplaceAllInSourceFileInfo: failed To save {vFilePath}")
+                End If
+
+                Return lReplaceCount
+
+            Catch ex As Exception
+                Console.WriteLine($"ReplaceAllInSourceFileInfo error for {vFilePath}: {ex.Message}")
+                Return 0
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Replaces all matches directly on disk - only used as a fallback when no
+        ''' ProjectManager is available (no project loaded, ad hoc folder search)
+        ''' </summary>
+        ''' <returns>Number of occurrences replaced</returns>
+        Private Function ReplaceInFileOnDisk(vFilePath As String) As Integer
+            Try
+                Dim lOriginalContent As String = File.ReadAllText(vFilePath)
+                Dim lReplaceCount As Integer = 0
+                Dim lNewContent As String = ApplyReplaceAll(lOriginalContent, pLastSearchOptions, pReplaceEntry.Text, lReplaceCount)
+
+                If lReplaceCount > 0 AndAlso lNewContent <> lOriginalContent Then
+                    File.WriteAllText(vFilePath, lNewContent)
+                End If
+
+                Return lReplaceCount
+
+            Catch ex As Exception
+                Console.WriteLine($"ReplaceInFileOnDisk error in {vFilePath}: {ex.Message}")
+                Return 0
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Performs a whole-content find/replace honoring the given options (plain,
+        ''' whole-word, or regex), mirroring the matching rules used elsewhere in this class
+        ''' </summary>
+        ''' <param name="vReplaceCount">Receives the number of occurrences replaced</param>
+        Private Function ApplyReplaceAll(vContent As String, vOptions As SearchOptions, vReplaceText As String, ByRef vReplaceCount As Integer) As String
+            vReplaceCount = 0
+            Try
+                Dim lContent As String = vContent
+
+                If vOptions.UseRegex Then
+                    Dim lRegex As New Regex(vOptions.SearchText,
+                        If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
+                    vReplaceCount = lRegex.Matches(vContent).Count
+                    If vReplaceCount > 0 Then
+                        lContent = lRegex.Replace(vContent, vReplaceText)
+                    End If
+
+                ElseIf vOptions.WholeWord Then
+                    Dim lPattern As String = "\b" & Regex.Escape(vOptions.SearchText) & "\b"
+                    Dim lRegex As New Regex(lPattern,
+                        If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
+                    vReplaceCount = lRegex.Matches(vContent).Count
+                    If vReplaceCount > 0 Then
+                        lContent = lRegex.Replace(vContent, vReplaceText)
+                    End If
+
                 Else
-                    ' Plain text replace
-                    If pLastSearchOptions.WholeWord Then
-                        ' Whole word replace using regex
-                        Dim lPattern As String = "\b" & Regex.Escape(pLastSearchOptions.SearchText) & "\b"
-                        Dim lRegex As New Regex(lPattern,
-                            If(pLastSearchOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
-                        
-                        lContent = lRegex.Replace(lContent, pReplaceEntry.Text)
-                        lReplaceCount = lRegex.Matches(lOriginalContent).Count
-                    Else
-                        ' Simple replace
-                        Dim lComparison As StringComparison = If(pLastSearchOptions.MatchCase,
-                            StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase)
-                        
-                        ' Count occurrences
-                        Dim lIndex As Integer = 0
-                        While lIndex >= 0
-                            lIndex = lContent.IndexOf(pLastSearchOptions.SearchText, lIndex, lComparison)
-                            If lIndex >= 0 Then
-                                lReplaceCount += 1
-                                lIndex += pLastSearchOptions.SearchText.Length
-                            End If
-                        End While
-                        
-                        ' Perform replacement
-                        If lReplaceCount > 0 Then
-                            If pLastSearchOptions.MatchCase Then
-                                lContent = lContent.Replace(pLastSearchOptions.SearchText, pReplaceEntry.Text)
-                            Else
-                                ' Case-insensitive replace
-                                Dim lRegex As New Regex(Regex.Escape(pLastSearchOptions.SearchText), RegexOptions.IgnoreCase)
-                                lContent = lRegex.Replace(lContent, pReplaceEntry.Text)
-                            End If
+                    Dim lComparison As StringComparison = If(vOptions.MatchCase,
+                        StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase)
+
+                    Dim lIndex As Integer = 0
+                    While lIndex >= 0
+                        lIndex = vContent.IndexOf(vOptions.SearchText, lIndex, lComparison)
+                        If lIndex >= 0 Then
+                            vReplaceCount += 1
+                            lIndex += vOptions.SearchText.Length
+                        End If
+                    End While
+
+                    If vReplaceCount > 0 Then
+                        If vOptions.MatchCase Then
+                            lContent = vContent.Replace(vOptions.SearchText, vReplaceText)
+                        Else
+                            Dim lRegex As New Regex(Regex.Escape(vOptions.SearchText), RegexOptions.IgnoreCase)
+                            lContent = lRegex.Replace(vContent, vReplaceText)
                         End If
                     End If
                 End If
-                
-                ' Write back if changed
-                If lReplaceCount > 0 AndAlso lContent <> lOriginalContent Then
-                    File.WriteAllText(vFilePath, lContent)
-                End If
-                
-                Return lReplaceCount
-                
+
+                Return lContent
+
             Catch ex As Exception
-                Console.WriteLine($"ReplaceInFile error in {vFilePath}: {ex.Message}")
-                Return 0
+                Console.WriteLine($"ApplyReplaceAll error: {ex.Message}")
+                vReplaceCount = 0
+                Return vContent
             End Try
         End Function
         
@@ -1063,32 +1084,22 @@ Namespace Widgets
             End Try
         End Function
         
-        Private Sub NavigateToMatch(vIndex As Integer)
+        ''' <summary>
+        ''' Navigates to a search result by index via the ResultSelected event, which
+        ''' MainWindow handles by opening/switching to the file and moving the cursor.
+        ''' Works uniformly for both current-file and project-wide search results.
+        ''' </summary>
+        ''' <param name="vIndex">Index into pSearchResults to navigate to</param>
+        Private Sub NavigateToSearchResult(vIndex As Integer)
             Try
-                If pCurrentMatches Is Nothing OrElse vIndex < 0 OrElse vIndex >= pCurrentMatches.Count Then
-                    Return
-                End If
-                
-                Dim lMatch As EditorPosition = pCurrentMatches(vIndex)
-                
-                ' Navigate to position
-                pCurrentEditor.GoToPosition(New EditorPosition(lMatch.Line, lMatch.Column))
-                
-                ' Select the match
-                Dim lEndColumn As Integer = lMatch.Column + pLastSearchOptions.SearchText.Length
-                pCurrentEditor.SetSelection(New EditorPosition(lMatch.Line, lMatch.Column), New EditorPosition(lMatch.Line, lEndColumn))
-                
-                ' Update status
-                pStatusLabel.Text = $"Match {vIndex + 1} Of {pCurrentMatches.Count}"
-                
-                ' Ensure editor has focus
-                pCurrentEditor.GrabFocus()
-                
+                If vIndex < 0 OrElse vIndex >= pSearchResults.Count Then Return
+                Dim lResult As FindResult = pSearchResults(vIndex)
+                RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
             Catch ex As Exception
-                Console.WriteLine($"NavigateToMatch error: {ex.Message}")
+                Console.WriteLine($"NavigateToSearchResult error: {ex.Message}")
             End Try
         End Sub
-        
+
         Private Sub GetProjectFiles(vPath As String, vFiles As List(Of String))
             Try
                 ' ProjectFileScanner already skips bin/obj/.git/.claude/etc. during the walk
@@ -1098,27 +1109,6 @@ Namespace Widgets
                 Console.WriteLine($"GetProjectFiles error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub RefreshModifiedTabs()
-            Try
-                ' Get all open tabs
-                Dim lOpenTabsArgs As New OpenTabsEventArgs()
-                RaiseEvent OnRequestOpenTabs(Me, lOpenTabsArgs)
-                
-                If lOpenTabsArgs.OpenTabs IsNot Nothing Then
-                    For Each lTab In lOpenTabsArgs.OpenTabs
-                        If pModifiedFiles.Contains(lTab.FilePath) Then
-                            ' Request file reload
-                            RaiseEvent OpenFileRequested(lTab.FilePath)
-                        End If
-                    Next
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"RefreshModifiedTabs error: {ex.Message}")
-            End Try
-        End Sub
-        
         
         ' ===== Public Methods =====
         
@@ -1179,9 +1169,10 @@ Namespace Widgets
         ' Replace: SimpleIDE.Widgets.FindReplacePanel.OnFind
         Public Sub OnFind(vSender As Object, vE As EventArgs)
             Try
-                ' Use optimized search
-                ExecuteSearchOptimized()
-                
+                ' Fresh Find All - start browsing from the first match again
+                pCurrentMatchIndex = -1
+                ExecuteSearch()
+
             Catch ex As Exception
                 Console.WriteLine($"OnFind error: {ex.Message}")
                 pStatusLabel.Text = "Search error: " & ex.Message

@@ -40,7 +40,13 @@ Namespace Widgets
         ''' <summary>
         ''' Enhanced search that uses in-memory SourceFileInfo instances
         ''' </summary>
-        Private Sub SearchInProjectOptimized()
+        ''' <param name="vOnComplete">
+        ''' Optional callback invoked on the GTK main thread once results are ready - either
+        ''' immediately (synchronous fallback paths) or after the background per-file search
+        ''' tasks finish. See ExecuteSearch's remarks for why callers must use this rather
+        ''' than assuming this method is synchronous.
+        ''' </param>
+        Private Sub SearchInProjectOptimized(Optional vOnComplete As System.Action = Nothing)
             Try
                 ' First try to get ProjectManager if we don't have it
                 If pProjectManager Is Nothing Then
@@ -48,18 +54,19 @@ Namespace Widgets
                     RaiseEvent OnRequestProjectManager(Me, lArgs)
                     pProjectManager = lArgs.ProjectManager
                 End If
-                
+
                 ' Fall back to file-based search if no ProjectManager
                 If pProjectManager Is Nothing Then
                     Console.WriteLine("FindReplacePanel: No ProjectManager available, using file-based search")
-                    SearchInProject() ' Call original method
+                    SearchInProject(vOnComplete) ' Call original method
                     Return
                 End If
-                
+
                 ' Check if we have source files loaded
                 Dim lSourceFiles As Dictionary(Of String, SourceFileInfo) = pProjectManager.SourceFiles
                 If lSourceFiles Is Nothing OrElse lSourceFiles.Count = 0 Then
                     pStatusLabel.Text = "No project files loaded"
+                    vOnComplete?.Invoke()
                     Return
                 End If
                 
@@ -161,13 +168,15 @@ Namespace Widgets
                             Else
                                 pStatusLabel.Text = "Search cancelled"
                             End If
-                            
+
                             ' Hide progress
                             pProgressBar.Visible = False
                             pCancelButton.Visible = False
                             pIsSearching = False
+
+                            vOnComplete?.Invoke()
                         End Sub)
-                        
+
                     Catch ex As Exception
                         Gtk.Application.Invoke(Sub()
                             Console.WriteLine($"Search completion error: {ex.Message}")
@@ -175,18 +184,21 @@ Namespace Widgets
                             pProgressBar.Visible = False
                             pCancelButton.Visible = False
                             pIsSearching = False
+
+                            vOnComplete?.Invoke()
                         End Sub)
                     End Try
-                    
+
                     Return Nothing
                 End Function)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"SearchInProjectOptimized error: {ex.Message}")
                 pStatusLabel.Text = "Search error: " & ex.Message
                 pProgressBar.Visible = False
                 pCancelButton.Visible = False
                 pIsSearching = False
+                vOnComplete?.Invoke()
             End Try
         End Sub
         
@@ -314,44 +326,6 @@ Namespace Widgets
             
             Return lMatches
         End Function
-        
-        ''' <summary>
-        ''' Override the original ExecuteSearch to use optimized version
-        ''' </summary>
-        Private Sub ExecuteSearchOptimized()
-            Try
-                If String.IsNullOrEmpty(pFindEntry.Text) Then
-                    pStatusLabel.Text = "Please enter search text"
-                    Return
-                End If
-                
-                ' Save search options
-                pLastSearchOptions = New SearchOptions With {
-                    .SearchText = pFindEntry.Text,
-                    .ReplaceText = pReplaceEntry.Text,
-                    .MatchCase = pCaseSensitiveCheck.Active,
-                    .WholeWord = pWholeWordCheck.Active,
-                    .UseRegex = pRegexCheck.Active,
-                    .Scope = If(pInProjectRadio.Active, SearchScope.eProject, SearchScope.eCurrentFile)
-                }
-                
-                ' Clear previous results
-                pResultsStore.Clear()
-                pSearchResults.Clear()
-                pCurrentMatches = Nothing
-                pCurrentMatchIndex = -1
-                
-                If pInFileRadio.Active Then
-                    SearchInCurrentFile()  ' Use existing method for current file
-                Else
-                    SearchInProjectOptimized()  ' Use new optimized method
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"ExecuteSearchOptimized error: {ex.Message}")
-                pStatusLabel.Text = "Search error: " & ex.Message
-            End Try
-        End Sub
         
         ''' <summary>
         ''' Modified OnCancel to handle task cancellation
