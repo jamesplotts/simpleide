@@ -18,6 +18,7 @@ Namespace Widgets
         ' Private fields
         Private pThemeManager As ThemeManager
         Private pSettingsManager As SettingsManager
+        Private pProjectManager As ProjectManager
         Private pCurrentTheme As EditorTheme
         Private pModified As Boolean
         Private pIsUpdatingUI As Boolean = False
@@ -54,11 +55,12 @@ Namespace Widgets
         ''' <summary>
         ''' Constructor
         ''' </summary>
-        Public Sub New(vThemeManager As ThemeManager, vSettingsManager As SettingsManager)
+        Public Sub New(vThemeManager As ThemeManager, vSettingsManager As SettingsManager, Optional vProjectManager As ProjectManager = Nothing)
             MyBase.New(Orientation.Vertical, 5)
-            
+
             pThemeManager = vThemeManager
             pSettingsManager = vSettingsManager
+            pProjectManager = vProjectManager
             pCurrentColor = New Gdk.RGBA() with {.Red = 0.5, .Green = 0.5, .Blue = 0.5, .Alpha = 1.0}
             
             BuildUI()
@@ -169,14 +171,37 @@ Namespace Widgets
                 
                 ' Create SourceFileInfo using the content constructor which sets IsDemoMode
                 Dim lPreviewSourceInfo As New SourceFileInfo("ThemePreview.vb", GetPreviewText())
-                
+
+                ' Without a real ProjectManager, this preview text never actually gets
+                ' parsed/tokenized (RequestAsyncParse's own gate silently no-ops when its
+                ' private pProjectManager field is Nothing, which it always was here), so
+                ' theme syntax colors had nothing to apply to and the sample text rendered
+                ' in a single flat foreground color regardless of what the theme specified.
+                ' SourceFileInfo's private pProjectManager field can only be set by
+                ' responding to its own ProjectManagerRequested event (its public
+                ' "ProjectManager" field is a separate, unrelated field that doesn't feed
+                ' the private one RequestAsyncParse actually checks)
+                If pProjectManager IsNot Nothing Then
+                    AddHandler lPreviewSourceInfo.ProjectManagerRequested,
+                        Sub(vSender As Object, vArgs As SourceFileInfo.ProjectManagerRequestEventArgs)
+                            vArgs.ProjectManager = pProjectManager
+                        End Sub
+                End If
+
                 ' Create the editor with proper initialization
                 pPreviewEditor = New CustomDrawingEditor(lPreviewSourceInfo, pThemeManager, pSettingsManager)
                 pPreviewEditor.IsReadOnly = True
-                
+
+                ' Also give the editor itself the ProjectManager so it subscribes to parse-
+                ' completed notifications and redraws once the preview text is tokenized
+                If pProjectManager IsNot Nothing Then
+                    pPreviewEditor.ProjectManager = pProjectManager
+                    lPreviewSourceInfo.RequestAsyncParse()
+                End If
+
                 ' IMPORTANT: Set the ThemeManager before applying theme
                 pPreviewEditor.SetThemeManager(pThemeManager)
-                
+
                 ' Apply current theme
                 pPreviewEditor.ApplyTheme()
                 

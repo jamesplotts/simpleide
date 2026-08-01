@@ -26,7 +26,7 @@ Partial Public Class MainWindow
             Next
             
             ' Create new theme editor
-            pThemeEditor = New ThemeEditor(pThemeManager, pSettingsManager)
+            pThemeEditor = New ThemeEditor(pThemeManager, pSettingsManager, pProjectManager)
             
             ' Subscribe to events
             AddHandler pThemeEditor.ThemeChanged, AddressOf OnThemeEditorThemeChanged
