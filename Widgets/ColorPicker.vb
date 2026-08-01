@@ -55,12 +55,12 @@ Namespace Widgets
         Private pSelectedColorArea As DrawingArea
         
         ' Value entry components
-        Private pHueEntry As SpinButton
-        Private pSatEntry As SpinButton
-        Private pLumEntry As SpinButton
-        Private pRedEntry As SpinButton
-        Private pGreenEntry As SpinButton
-        Private pBlueEntry As SpinButton
+        Private pHueEntry As CustomDrawSpinButton
+        Private pSatEntry As CustomDrawSpinButton
+        Private pLumEntry As CustomDrawSpinButton
+        Private pRedEntry As CustomDrawSpinButton
+        Private pGreenEntry As CustomDrawSpinButton
+        Private pBlueEntry As CustomDrawSpinButton
         Private pHexEntry As CustomDrawTextBox
         Private pColorPreview As DrawingArea
         Private pAddToCustomButton As CustomDrawButton
@@ -249,18 +249,18 @@ Namespace Widgets
                 
                 ' RGB controls in grid
                 lValuesGrid.Attach(New Label("R:"), 0, 0, 1, 1)
-                pRedEntry = New SpinButton(0, 255, 1)
+                pRedEntry = New CustomDrawSpinButton(0, 255, 1)
                 pRedEntry.Value = 255
                 AddHandler pRedEntry.ValueChanged, AddressOf OnRgbValueChanged
                 lValuesGrid.Attach(pRedEntry, 1, 0, 1, 1)
                 
                 lValuesGrid.Attach(New Label("G:"), 2, 0, 1, 1)
-                pGreenEntry = New SpinButton(0, 255, 1)
+                pGreenEntry = New CustomDrawSpinButton(0, 255, 1)
                 AddHandler pGreenEntry.ValueChanged, AddressOf OnRgbValueChanged
                 lValuesGrid.Attach(pGreenEntry, 3, 0, 1, 1)
                 
                 lValuesGrid.Attach(New Label("B:"), 4, 0, 1, 1)
-                pBlueEntry = New SpinButton(0, 255, 1)
+                pBlueEntry = New CustomDrawSpinButton(0, 255, 1)
                 AddHandler pBlueEntry.ValueChanged, AddressOf OnRgbValueChanged
                 lValuesGrid.Attach(pBlueEntry, 5, 0, 1, 1)
                 
@@ -357,19 +357,19 @@ Namespace Widgets
             
             ' Hue
             lGrid.Attach(New Label("Hue:"), 0, 0, 1, 1)
-            pHueEntry = New SpinButton(0, 360, 1)
+            pHueEntry = New CustomDrawSpinButton(0, 360, 1)
             AddHandler pHueEntry.ValueChanged, AddressOf OnHslValueChanged
             lGrid.Attach(pHueEntry, 1, 0, 1, 1)
             
             ' Saturation
             lGrid.Attach(New Label("Sat:"), 0, 1, 1, 1)
-            pSatEntry = New SpinButton(0, 255, 1)
+            pSatEntry = New CustomDrawSpinButton(0, 255, 1)
             AddHandler pSatEntry.ValueChanged, AddressOf OnHslValueChanged
             lGrid.Attach(pSatEntry, 1, 1, 1, 1)
             
             ' Luminance
             lGrid.Attach(New Label("Lum:"), 0, 2, 1, 1)
-            pLumEntry = New SpinButton(0, 255, 1)
+            pLumEntry = New CustomDrawSpinButton(0, 255, 1)
             AddHandler pLumEntry.ValueChanged, AddressOf OnHslValueChanged
             lGrid.Attach(pLumEntry, 1, 2, 1, 1)
             
@@ -386,19 +386,19 @@ Namespace Widgets
             
             ' Red
             lGrid.Attach(New Label("Red:"), 0, 0, 1, 1)
-            pRedEntry = New SpinButton(0, 255, 1)
+            pRedEntry = New CustomDrawSpinButton(0, 255, 1)
             AddHandler pRedEntry.ValueChanged, AddressOf OnRgbValueChanged
             lGrid.Attach(pRedEntry, 1, 0, 1, 1)
             
             ' Green
             lGrid.Attach(New Label("Green:"), 0, 1, 1, 1)
-            pGreenEntry = New SpinButton(0, 255, 1)
+            pGreenEntry = New CustomDrawSpinButton(0, 255, 1)
             AddHandler pGreenEntry.ValueChanged, AddressOf OnRgbValueChanged
             lGrid.Attach(pGreenEntry, 1, 1, 1, 1)
             
             ' Blue
             lGrid.Attach(New Label("Blue:"), 0, 2, 1, 1)
-            pBlueEntry = New SpinButton(0, 255, 1)
+            pBlueEntry = New CustomDrawSpinButton(0, 255, 1)
             AddHandler pBlueEntry.ValueChanged, AddressOf OnRgbValueChanged
             lGrid.Attach(pBlueEntry, 1, 2, 1, 1)
             

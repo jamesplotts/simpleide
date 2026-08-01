@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.547.0</AssemblyVersion>
-    <FileVersion>1.1.547.0</FileVersion>
+    <AssemblyVersion>1.1.577.0</AssemblyVersion>
+    <FileVersion>1.1.577.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.547</Version>
+    <Version>1.1.577</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -254,6 +254,7 @@
     <Compile Include="Widgets/CustomDrawComboBoxPopup.vb" />
     <Compile Include="Widgets/CustomDrawListBox.vb" />
     <Compile Include="Widgets/CustomDrawScrollbar.vb" />
+    <Compile Include="Widgets/CustomDrawSpinButton.vb" />
     <Compile Include="Widgets/CustomDrawTextBox.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.Drawing.vb" />

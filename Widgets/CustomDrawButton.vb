@@ -17,12 +17,27 @@ Namespace Widgets
     Public Class CustomDrawButton
         Inherits DrawingArea
 
+        ''' <summary>
+        ''' Visual style for a CustomDrawButton
+        ''' </summary>
+        Public Enum eButtonStyle
+            ''' <summary>Unknown or unspecified style</summary>
+            eUnspecified
+            ''' <summary>Retro AmigaOS Workbench raised/pressed-in 3D bevel (default)</summary>
+            eBevel
+            ''' <summary>Thin flat outlined face with no 3D bevel edges</summary>
+            eFlat
+            ''' <summary>Sentinel value for enum bounds checking</summary>
+            eLastValue
+        End Enum
+
         ' ===== Private Fields =====
         Protected pLabel As String = ""
         Protected pIconPixbuf As Gdk.Pixbuf
         Protected pIsPressed As Boolean = False
         Protected pIsHovering As Boolean = False
         Protected pThemeManager As ThemeManager
+        Protected pStyle As eButtonStyle = eButtonStyle.eBevel
 
         Protected pFillColor As String = "#C0C0C0"
         Protected pTextColor As String = "#000000"
@@ -30,6 +45,7 @@ Namespace Widgets
         Protected pDarkEdgeColor As String = "#000000"
 
         Private Const BEVEL_WIDTH As Integer = 2
+        Private Const FLAT_BORDER_WIDTH As Integer = 1
         Private Const HORIZONTAL_PADDING As Integer = 10
         Private Const ICON_TEXT_GAP As Integer = 6
 
@@ -37,6 +53,19 @@ Namespace Widgets
         Public Event Clicked(vSender As Object, vArgs As EventArgs)
 
         ' ===== Public Properties =====
+
+        ''' <summary>
+        ''' Gets or sets the visual style (raised bevel vs. thin flat outline)
+        ''' </summary>
+        Public Property Style As eButtonStyle
+            Get
+                Return pStyle
+            End Get
+            Set(value As eButtonStyle)
+                pStyle = value
+                QueueDraw()
+            End Set
+        End Property
 
         ''' <summary>
         ''' Gets or sets the button's text label
@@ -188,27 +217,42 @@ Namespace Widgets
                 Dim lHeight As Integer = AllocatedHeight
                 Dim lPressed As Boolean = IsVisuallyPressed()
 
-                ' Face fill - slightly lightened on hover for basic mouse feedback
-                Dim lFace As String = If(pIsHovering AndAlso Sensitive, LightenColor(pFillColor, 0.08), pFillColor)
+                ' Face fill - slightly lightened on hover for basic mouse feedback, and (for
+                ' the flat style, which has no bevel to invert) darkened instead while pressed
+                ' so a click still gives visual feedback
+                Dim lFace As String = pFillColor
+                If pStyle = eButtonStyle.eFlat AndAlso lPressed Then
+                    lFace = DarkenColor(lFace, 0.12)
+                ElseIf pIsHovering AndAlso Sensitive Then
+                    lFace = LightenColor(lFace, 0.08)
+                End If
                 SetSourceColor(vContext, lFace)
                 vContext.Rectangle(0, 0, lWidth, lHeight)
                 vContext.Fill()
 
-                ' Bevel - light top/left + dark bottom/right when raised, swapped when pressed
-                Dim lTopLeftColor As String = If(lPressed, pDarkEdgeColor, pLightEdgeColor)
-                Dim lBottomRightColor As String = If(lPressed, pLightEdgeColor, pDarkEdgeColor)
+                If pStyle = eButtonStyle.eFlat Then
+                    ' Thin flat outline - no 3D bevel edges
+                    SetSourceColor(vContext, pDarkEdgeColor)
+                    vContext.LineWidth = FLAT_BORDER_WIDTH
+                    vContext.Rectangle(0.5, 0.5, lWidth - 1, lHeight - 1)
+                    vContext.Stroke()
+                Else
+                    ' Bevel - light top/left + dark bottom/right when raised, swapped when pressed
+                    Dim lTopLeftColor As String = If(lPressed, pDarkEdgeColor, pLightEdgeColor)
+                    Dim lBottomRightColor As String = If(lPressed, pLightEdgeColor, pDarkEdgeColor)
 
-                SetSourceColor(vContext, lTopLeftColor)
-                vContext.Rectangle(0, 0, lWidth, BEVEL_WIDTH)                  ' top
-                vContext.Fill()
-                vContext.Rectangle(0, 0, BEVEL_WIDTH, lHeight)                 ' left
-                vContext.Fill()
+                    SetSourceColor(vContext, lTopLeftColor)
+                    vContext.Rectangle(0, 0, lWidth, BEVEL_WIDTH)                  ' top
+                    vContext.Fill()
+                    vContext.Rectangle(0, 0, BEVEL_WIDTH, lHeight)                 ' left
+                    vContext.Fill()
 
-                SetSourceColor(vContext, lBottomRightColor)
-                vContext.Rectangle(0, lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)      ' bottom
-                vContext.Fill()
-                vContext.Rectangle(lWidth - BEVEL_WIDTH, 0, BEVEL_WIDTH, lHeight)      ' right
-                vContext.Fill()
+                    SetSourceColor(vContext, lBottomRightColor)
+                    vContext.Rectangle(0, lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)      ' bottom
+                    vContext.Fill()
+                    vContext.Rectangle(lWidth - BEVEL_WIDTH, 0, BEVEL_WIDTH, lHeight)      ' right
+                    vContext.Fill()
+                End If
 
                 ' Icon/label content - nudged 1px down+right while pressed to reinforce
                 ' the "pushed in" feel
