@@ -668,12 +668,21 @@ Namespace Editors
                 If vTheme IsNot Nothing Then
                     ' Store as demo theme
                     pDemoTheme = vTheme
-                    
-                    ' Update syntax colors and redraw
+
+                    ' Update syntax colors and redraw. UpdateSyntaxColorsFromTheme() only
+                    ' updates pSyntaxColorSet, which nothing in the actual drawing code
+                    ' reads directly - text is painted via GetCachedTokenColor(), backed by
+                    ' pThemeColorCache, which InitializeThemeColorCache() populates once
+                    ' from GetActiveTheme() and then never re-checks for staleness. Without
+                    ' also refreshing that cache here, every syntax color (keyword, string,
+                    ' number, comment, etc.) in the preview kept showing whatever was cached
+                    ' from the last real theme apply, not the theme being edited/previewed -
+                    ' most noticeable on whichever color the user actually just changed
+                    InitializeThemeColorCache()
                     UpdateSyntaxColorsFromTheme()
                     ApplyThemeToWidget()
                     pDrawingArea?.QueueDraw()
-                    
+
                     Console.WriteLine($"SetThemeColors: Demo theme '{vTheme.Name}' applied")
                 End If
             Catch ex As Exception
