@@ -22,37 +22,30 @@ Partial Public Class MainWindow
             
             Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
             
-            ' Create dialog to notify user
-            Dim lDialog As New MessageDialog(
-                Me,
-                DialogFlags.Modal,
-                MessageType.Warning,
-                ButtonsType.None,
-                $"The file '{System.IO.Path.GetFileName(vFilePath)}' has been modified outside the editor."
-            )
-            
-            ' Add appropriate buttons based on whether the file has unsaved changes
+            ' Build message and appropriate buttons based on whether the file has unsaved changes
+            Dim lMessage As String = $"The file '{System.IO.Path.GetFileName(vFilePath)}' has been modified outside the editor."
+            Dim lResponse As ResponseType
             If lTabInfo.Modified Then
-                lDialog.Text = lDialog.Text & $"{Environment.NewLine}{Environment.NewLine}You have unsaved changes. What would you Like To Do?"
-                lDialog.AddButton("Keep My Changes", ResponseType.No)
-                lDialog.AddButton("Reload from Disk", ResponseType.Yes)
-                lDialog.AddButton("Compare", ResponseType.Apply) ' Future feature
+                lMessage &= $"{Environment.NewLine}{Environment.NewLine}You have unsaved changes. What would you Like To Do?"
+                lResponse = ShowCustomButtonDialog(
+                    MessageType.Warning, lMessage,
+                    New String() {"Keep My Changes", "Reload from Disk", "Compare"},
+                    New ResponseType() {ResponseType.No, ResponseType.Yes, ResponseType.Apply})
             Else
-                lDialog.Text = lDialog.Text & $"{Environment.NewLine}{Environment.NewLine}Would you Like To reload it?"
-                lDialog.AddButton("Keep Current", ResponseType.No)
-                lDialog.AddButton("Reload", ResponseType.Yes)
+                lMessage &= $"{Environment.NewLine}{Environment.NewLine}Would you Like To reload it?"
+                lResponse = ShowCustomButtonDialog(
+                    MessageType.Warning, lMessage,
+                    New String() {"Keep Current", "Reload"},
+                    New ResponseType() {ResponseType.No, ResponseType.Yes})
             End If
-            
-            Dim lResponse As Integer = lDialog.Run()
-            lDialog.Destroy()
-            
+
             Select Case lResponse
-                Case CInt(ResponseType.Yes)
+                Case ResponseType.Yes
                     ' User wants to reload from disk
                     lTabInfo.Editor.SourceFileInfo.LoadContent()
                     'ReloadFileFromDisk(lTabInfo)
-                    
-                Case CInt(ResponseType.No)
+
+                Case ResponseType.No
                     ' User wants to keep current version
                     Console.WriteLine($"Keeping current version Of {vFilePath}")
                     ' Mark as modified if it wasn't already
@@ -62,8 +55,8 @@ Partial Public Class MainWindow
                         lTabInfo.Editor.IsModified = True
                         UpdateTabLabel(lTabInfo)
                     End If
-                    
-                Case CInt(ResponseType.Apply)
+
+                Case ResponseType.Apply
                     ' Future: Show diff/compare window
                     ShowInfo("Compare", "File comparison feature coming soon!")
             End Select
@@ -83,26 +76,19 @@ Partial Public Class MainWindow
             Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
             
             ' Show warning dialog
-            Dim lDialog As New MessageDialog(
-                Me,
-                DialogFlags.Modal,
+            Dim lResponse As ResponseType = ShowCustomButtonDialog(
                 MessageType.Warning,
-                ButtonsType.None,
-                $"the file '{System.IO.Path.GetFileName(vFilePath)}' has been deleted outside the Editor."
-            )
-            
-            lDialog.AddButton("Keep in Editor", ResponseType.Yes)
-            lDialog.AddButton("Close Tab", ResponseType.No)
-            
-            If lDialog.Run() = CInt(ResponseType.No) Then
+                $"the file '{System.IO.Path.GetFileName(vFilePath)}' has been deleted outside the Editor.",
+                New String() {"Keep in Editor", "Close Tab"},
+                New ResponseType() {ResponseType.Yes, ResponseType.No})
+
+            If lResponse = ResponseType.No Then
                 CloseTab(lTabInfo)
             Else
                 ' Mark as modified since it no longer exists on disk
                 lTabInfo.Modified = True
                 UpdateTabLabel(lTabInfo)
             End If
-            
-            lDialog.Destroy()
             
         Catch ex As Exception
             Console.WriteLine($"ShowFileDeletedNotification error: {ex.Message}")

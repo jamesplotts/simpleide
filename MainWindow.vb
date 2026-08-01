@@ -570,22 +570,61 @@ Partial Public Class MainWindow
     
     Public Function ShowQuestion(vTitle As String, vMessage As String) As Boolean
         Try
-            Dim lDialog As New MessageDialog(
-                Me,
-                DialogFlags.Modal,
-                MessageType.Question,
-                ButtonsType.YesNo,
-                vMessage
-            )
-            lDialog.Title = vTitle
-            Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
-            lDialog.Destroy()
-            
+            Dim lResponse As ResponseType = ShowCustomButtonDialog(
+                MessageType.Question, vMessage,
+                New String() {"No", "Yes"},
+                New ResponseType() {ResponseType.No, ResponseType.Yes},
+                vTitle)
+
             Return lResponse = ResponseType.Yes
-            
+
         Catch ex As Exception
             Console.WriteLine($"ShowQuestion error: {ex.Message}")
             Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Shows a MessageDialog-style confirmation with custom-drawn bevel buttons instead of
+    ''' native stock ones (MessageDialog's icon+message content area is left native - only
+    ''' the action-area buttons are replaced)
+    ''' </summary>
+    ''' <param name="vMessageType">Icon/severity to show (Question, Warning, etc.)</param>
+    ''' <param name="vMessage">The message body text</param>
+    ''' <param name="vButtonTexts">Button labels, shown left-to-right in this order</param>
+    ''' <param name="vButtonResponses">ResponseType for each button, matched by index to vButtonTexts</param>
+    ''' <param name="vTitle">Optional dialog title</param>
+    ''' <returns>The ResponseType of whichever button the user clicked</returns>
+    Public Function ShowCustomButtonDialog(vMessageType As MessageType, vMessage As String,
+                                            vButtonTexts() As String, vButtonResponses() As ResponseType,
+                                            Optional vTitle As String = "") As ResponseType
+        Dim lDialog As New MessageDialog(Me, DialogFlags.Modal, vMessageType, ButtonsType.None, vMessage)
+        Try
+            If Not String.IsNullOrEmpty(vTitle) Then lDialog.Title = vTitle
+
+            Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+            lButtonBox.Halign = Align.End
+            lButtonBox.BorderWidth = 6
+
+            For i As Integer = 0 To vButtonTexts.Length - 1
+                Dim lButton As New CustomDrawButton(vButtonTexts(i))
+                lButton.ThemeManager = pThemeManager
+                Dim lResponse As ResponseType = vButtonResponses(i)
+                AddHandler lButton.Clicked, Sub() lDialog.Respond(lResponse)
+                lButtonBox.PackStart(lButton, False, False, 0)
+            Next
+
+            Dim lContentBox As Box = TryCast(lDialog.ContentArea, Box)
+            If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
+
+            lDialog.ShowAll()
+            Return CType(lDialog.Run(), ResponseType)
+
+        Catch ex As Exception
+            Console.WriteLine($"ShowCustomButtonDialog error: {ex.Message}")
+            Return ResponseType.Cancel
+        Finally
+            lDialog.Destroy()
         End Try
     End Function
 

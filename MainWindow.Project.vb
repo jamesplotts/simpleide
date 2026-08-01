@@ -272,20 +272,11 @@ Partial Public Class MainWindow
                 Dim lTabInfo As TabInfo = lTabEntry.Value
                 If Not lTabInfo.Modified Then Continue for
 
-                Dim lDialog As New MessageDialog(
-                    Me,
-                    DialogFlags.Modal,
+                Dim lResponse As ResponseType = ShowCustomButtonDialog(
                     MessageType.Question,
-                    ButtonsType.None,
-                    $"Save changes to {System.IO.Path.GetFileName(lTabInfo.FilePath)} before continuing?"
-                )
-                lDialog.AddButton("Don't Save", ResponseType.No)
-                lDialog.AddButton("Cancel", ResponseType.Cancel)
-                lDialog.AddButton("Save", ResponseType.Yes)
-                lDialog.DefaultResponse = ResponseType.Yes
-
-                Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
-                lDialog.Destroy()
+                    $"Save changes to {System.IO.Path.GetFileName(lTabInfo.FilePath)} before continuing?",
+                    New String() {"Don't Save", "Cancel", "Save"},
+                    New ResponseType() {ResponseType.No, ResponseType.Cancel, ResponseType.Yes})
 
                 Select Case lResponse
                     Case ResponseType.Yes

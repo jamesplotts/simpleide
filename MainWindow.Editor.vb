@@ -526,21 +526,11 @@ Partial Public Class MainWindow
     ''' tab's own "x" button) so there's a single source of truth for this prompt
     ''' </remarks>
     Private Function PromptSaveTabChanges(vTabInfo As TabInfo) As ResponseType
-        Dim lDialog As New MessageDialog(
-            Me,
-            DialogFlags.Modal,
+        Return ShowCustomButtonDialog(
             MessageType.Question,
-            ButtonsType.None,
-            $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)} before closing?"
-        )
-        lDialog.AddButton("Don't Save", ResponseType.No)
-        lDialog.AddButton("Cancel", ResponseType.Cancel)
-        lDialog.AddButton("Save", ResponseType.Yes)
-        lDialog.DefaultResponse = ResponseType.Yes
-
-        Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
-        lDialog.Destroy()
-        Return lResponse
+            $"Save changes to {System.IO.Path.GetFileName(vTabInfo.FilePath)} before closing?",
+            New String() {"Don't Save", "Cancel", "Save"},
+            New ResponseType() {ResponseType.No, ResponseType.Cancel, ResponseType.Yes})
     End Function
 
     ''' <summary>

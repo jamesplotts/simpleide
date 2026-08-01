@@ -1054,21 +1054,13 @@ Partial Public Class MainWindow
             End If
             
             ' Confirm with user
-            Dim lDialog As New MessageDialog(
-                Me,
-                DialogFlags.Modal,
+            Dim lResponse As ResponseType = ShowCustomButtonDialog(
                 MessageType.Warning,
-                ButtonsType.None,
-                $"Are you sure you want to revert '{System.IO.Path.GetFileName(lCurrentTab.FilePath)}' to the last saved version?{Environment.NewLine}{Environment.NewLine}All unsaved changes will be lost."
-            )
-            
-            lDialog.AddButton("Cancel", ResponseType.Cancel)
-            lDialog.AddButton("Revert", ResponseType.Yes)
-            
-            Dim lResponse As Integer = lDialog.Run()
-            lDialog.Destroy()
-            
-            If lResponse <> CInt(ResponseType.Yes) Then
+                $"Are you sure you want to revert '{System.IO.Path.GetFileName(lCurrentTab.FilePath)}' to the last saved version?{Environment.NewLine}{Environment.NewLine}All unsaved changes will be lost.",
+                New String() {"Cancel", "Revert"},
+                New ResponseType() {ResponseType.Cancel, ResponseType.Yes})
+
+            If lResponse <> ResponseType.Yes Then
                 Return
             End If
             
