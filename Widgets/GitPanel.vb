@@ -6,6 +6,8 @@ Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 
 Namespace Widgets
@@ -31,6 +33,13 @@ Namespace Widgets
         Private pStageAllButton As CustomDrawButton
         Private pUnstageAllButton As CustomDrawButton
         Private pSelectedFile As String = ""
+
+        ' Theme support for the raw (non-CustomDraw) widgets above - CustomDrawNotebook/Button
+        ' instances self-theme via their own ThemeManager property, these don't
+        Private pStatusTreeViewCssProvider As CssProvider
+        Private pHistoryTreeViewCssProvider As CssProvider
+        Private pDiffTextViewCssProvider As CssProvider
+        Private pCommitMessageEntryCssProvider As CssProvider
         
         ' Git file status
         Private Enum GitFileStatus
@@ -168,15 +177,90 @@ Namespace Widgets
             Return lToolbar
         End Function
         
-         Public Sub SetThemeManager(vThemeManager As ThemeManager)
+        ''' <summary>
+        ''' Applies the app's color theme to this panel's CustomDraw controls and to the
+        ''' status/history TreeViews and diff/commit-message TextViews' background and
+        ''' foreground colors. The diff add/remove/header TextTags (see diff_add/diff_remove/
+        ''' diff_header/diff_linenum) keep their own fixed colors regardless of theme - that's
+        ''' diff-content styling, not panel chrome.
+        ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
                 pThemeManager = vThemeManager
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
                 pNotebook.SetThemeManager(vThemeManager)
                 If pStageAllButton IsNot Nothing Then pStageAllButton.ThemeManager = vThemeManager
                 If pUnstageAllButton IsNot Nothing Then pUnstageAllButton.ThemeManager = vThemeManager
                 If pCommitButton IsNot Nothing Then pCommitButton.ThemeManager = vThemeManager
-            Catch
+
+                ApplyCurrentTheme()
+
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.SetThemeManager error: {ex.Message}")
             End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles live theme changes - the CustomDraw controls redraw themselves via their
+        ''' own ThemeChanged subscriptions, this only needs to refresh the raw widgets' CSS
+        ''' </summary>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the current theme's colors to the status/history TreeViews and the
+        ''' diff/commit-message TextViews via CSS overrides, since none of them are
+        ''' CustomDraw controls with their own theme handling
+        ''' </summary>
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing Then Return
+
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                Dim lBackground As String = lTheme.GetColor(EditorTheme.Tags.eEditorBackgroundColor)
+                Dim lForeground As String = lTheme.GetColor(EditorTheme.Tags.eForegroundColor)
+                Dim lSelectionBackground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionColor)
+                Dim lSelectionForeground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionText)
+
+                Dim lTreeCss As String =
+                    $"treeview {{ background-color: {lBackground}; color: {lForeground}; }}" & Environment.NewLine &
+                    $"treeview:selected {{ background-color: {lSelectionBackground}; color: {lSelectionForeground}; }}"
+
+                Dim lTextViewCss As String = String.Format(
+                    "textview {{ background-color: {0}; color: {1}; }}", lBackground, lForeground)
+
+                ApplyWidgetCss(pStatusTreeView, lTreeCss, pStatusTreeViewCssProvider)
+                ApplyWidgetCss(pHistoryTreeView, lTreeCss, pHistoryTreeViewCssProvider)
+                ApplyWidgetCss(pDiffTextView, lTextViewCss, pDiffTextViewCssProvider)
+                ApplyWidgetCss(pCommitMessageEntry, lTextViewCss, pCommitMessageEntryCssProvider)
+
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Replaces vWidget's tracked CSS provider with a new one built from vCss, removing
+        ''' the old provider first so repeated theme changes don't stack providers
+        ''' </summary>
+        Private Sub ApplyWidgetCss(vWidget As Widget, vCss As String, ByRef vProvider As CssProvider)
+            If vWidget Is Nothing Then Return
+            If vProvider IsNot Nothing Then
+                vWidget.StyleContext.RemoveProvider(vProvider)
+            End If
+            vProvider = New CssProvider()
+            vProvider.LoadFromData(vCss)
+            vWidget.StyleContext.AddProvider(vProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
         End Sub
         
         Private Function CreateChangesPage() As Widget
