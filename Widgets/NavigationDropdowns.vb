@@ -20,10 +20,8 @@ Namespace Widgets
         Inherits Box
 
         ' UI Components
-        Private pClassTrigger As ToggleButton
-        Private pClassTriggerLabel As Label
-        Private pMemberTrigger As ToggleButton
-        Private pMemberTriggerLabel As Label
+        Private pClassTrigger As CustomDrawToggleButton
+        Private pMemberTrigger As CustomDrawToggleButton
         Private pClassLabel As Label
         Private pMemberLabel As Label
         Private pClassPopup As NavigationDropdownPopup
@@ -79,7 +77,8 @@ Namespace Widgets
                 pClassLabel.Halign = Align.Start
                 PackStart(pClassLabel, False, False, 0)
 
-                pClassTrigger = CreateTriggerButton(200, pClassTriggerLabel)
+                pClassTrigger = CreateTriggerButton(200)
+                pClassTrigger.ThemeManager = pThemeManager
                 AddHandler pClassTrigger.Clicked, AddressOf OnClassTriggerClicked
                 PackStart(pClassTrigger, False, False, 0)
 
@@ -89,7 +88,8 @@ Namespace Widgets
                 pMemberLabel.Halign = Align.Start
                 PackStart(pMemberLabel, False, False, 0)
 
-                pMemberTrigger = CreateTriggerButton(250, pMemberTriggerLabel)
+                pMemberTrigger = CreateTriggerButton(250)
+                pMemberTrigger.ThemeManager = pThemeManager
                 AddHandler pMemberTrigger.Clicked, AddressOf OnMemberTriggerClicked
                 PackStart(pMemberTrigger, False, False, 0)
 
@@ -109,26 +109,23 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Creates a combo-box-like trigger button: an elided label plus a dropdown arrow
+        ''' Creates a combo-box-like trigger button: label text plus a dropdown arrow,
+        ''' both drawn as one CustomDrawToggleButton label (the arrow suffix is appended
+        ''' by SetTriggerText below whenever the label changes)
         ''' </summary>
         ''' <param name="vWidth">Fixed width for the trigger, matching the old ComboBoxText sizing</param>
-        ''' <param name="vLabel">Receives the inner Label so callers can update its text later</param>
-        Private Function CreateTriggerButton(vWidth As Integer, ByRef vLabel As Label) As ToggleButton
-            Dim lButton As New ToggleButton()
+        Private Function CreateTriggerButton(vWidth As Integer) As CustomDrawToggleButton
+            Dim lButton As New CustomDrawToggleButton(" ▾")
             lButton.WidthRequest = vWidth
-
-            Dim lBox As New Box(Orientation.Horizontal, 4)
-            vLabel = New Label("")
-            vLabel.Halign = Align.Start
-            vLabel.Ellipsize = Pango.EllipsizeMode.End
-            lBox.PackStart(vLabel, True, True, 2)
-
-            Dim lArrow As New Label("▾") ' ▾
-            lBox.PackStart(lArrow, False, False, 2)
-
-            lButton.Add(lBox)
             Return lButton
         End Function
+
+        ''' <summary>
+        ''' Sets a trigger button's text, keeping the trailing dropdown arrow intact
+        ''' </summary>
+        Private Sub SetTriggerText(vTrigger As CustomDrawToggleButton, vText As String)
+            vTrigger.Label = vText & " ▾"
+        End Sub
 
         ''' <summary>
         ''' Sets the theme manager used to color the popup lists
@@ -138,6 +135,8 @@ Namespace Widgets
                 pThemeManager = vThemeManager
                 pClassPopup.SetThemeManager(vThemeManager)
                 pMemberPopup.SetThemeManager(vThemeManager)
+                If pClassTrigger IsNot Nothing Then pClassTrigger.ThemeManager = vThemeManager
+                If pMemberTrigger IsNot Nothing Then pMemberTrigger.ThemeManager = vThemeManager
 
             Catch ex As Exception
                 Console.WriteLine($"NavigationDropdowns.SetThemeManager error: {ex.Message}")
@@ -151,10 +150,10 @@ Namespace Widgets
             Try
                 pIsUpdating = True
 
-                pClassTriggerLabel.Text = NO_CLASSES_ITEM
+                SetTriggerText(pClassTrigger, NO_CLASSES_ITEM)
                 pClassTrigger.Sensitive = False
 
-                pMemberTriggerLabel.Text = NO_MEMBERS_ITEM
+                SetTriggerText(pMemberTrigger, NO_MEMBERS_ITEM)
                 pMemberTrigger.Sensitive = False
 
             Catch ex As Exception
@@ -232,7 +231,7 @@ Namespace Widgets
                 pClassTrigger.Sensitive = True
                 pCurrentClass = GENERAL_ITEM
                 pCurrentClassTag = Nothing
-                pClassTriggerLabel.Text = GENERAL_ITEM
+                SetTriggerText(pClassTrigger, GENERAL_ITEM)
 
                 UpdateMemberDropdown()
 
@@ -256,7 +255,7 @@ Namespace Widgets
                 pMemberTrigger.Sensitive = True
                 pCurrentMember = DECLARATIONS_ITEM
                 pCurrentMemberTag = Nothing
-                pMemberTriggerLabel.Text = DECLARATIONS_ITEM
+                SetTriggerText(pMemberTrigger, DECLARATIONS_ITEM)
 
             Catch ex As Exception
                 Console.WriteLine($"UpdateMemberDropdown error: {ex.Message}")
@@ -435,7 +434,7 @@ Namespace Widgets
                 Dim lClass As CodeObject = TryCast(vTag, CodeObject)
                 pCurrentClassTag = lClass
                 pCurrentClass = If(lClass IsNot Nothing, lClass.DisplayText, GENERAL_ITEM)
-                pClassTriggerLabel.Text = pCurrentClass
+                SetTriggerText(pClassTrigger, pCurrentClass)
 
                 UpdateMemberDropdown()
 
@@ -464,7 +463,7 @@ Namespace Widgets
                 Dim lMember As CodeMember = TryCast(vTag, CodeMember)
                 pCurrentMemberTag = lMember
                 pCurrentMember = If(lMember IsNot Nothing, lMember.DisplayText, DECLARATIONS_ITEM)
-                pMemberTriggerLabel.Text = pCurrentMember
+                SetTriggerText(pMemberTrigger, pCurrentMember)
 
                 If lMember IsNot Nothing Then
                     RaiseEvent NavigationRequested(lMember.StartLine - 1)
@@ -585,7 +584,7 @@ Namespace Widgets
         Private Sub SelectClass(vClass As CodeObject)
             pCurrentClassTag = vClass
             pCurrentClass = If(vClass IsNot Nothing, vClass.DisplayText, GENERAL_ITEM)
-            pClassTriggerLabel.Text = pCurrentClass
+            SetTriggerText(pClassTrigger, pCurrentClass)
             UpdateMemberDropdown()
         End Sub
 
@@ -595,7 +594,7 @@ Namespace Widgets
         Private Sub SelectMember(vMember As CodeMember)
             pCurrentMemberTag = vMember
             pCurrentMember = If(vMember IsNot Nothing, vMember.DisplayText, DECLARATIONS_ITEM)
-            pMemberTriggerLabel.Text = pCurrentMember
+            SetTriggerText(pMemberTrigger, pCurrentMember)
         End Sub
 
         ''' <summary>

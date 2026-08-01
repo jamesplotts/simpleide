@@ -62,8 +62,8 @@ Namespace Widgets
         Private pDefaultBranchEntry As CustomDrawTextBox
         Private pAutoFetchCheck As CheckButton
         Private pFetchIntervalSpin As SpinButton
-        Private pGitCredentialStorageCombo As ComboBoxText
-        Private pGitCredentialTypeCombo As ComboBoxText
+        Private pGitCredentialStorageCombo As CustomDrawComboBox
+        Private pGitCredentialTypeCombo As CustomDrawComboBox
         Private pGitTokenEntry As CustomDrawTextBox
         Private pGitTokenVisibleCheck As CheckButton
         Private pGitRemoteUrlEntry As CustomDrawTextBox
@@ -74,11 +74,11 @@ Namespace Widgets
         Private pShowArtifactsCheck As CheckButton
         Private pAutoContextCheck As CheckButton
         Private pMem0EnabledCheck As CheckButton
-        Private pAISettingsButton As Button
+        Private pAISettingsButton As CustomDrawButton
         
         ' Advanced tab controls
         Private pEnableLoggingCheck As CheckButton
-        Private pLogLevelCombo As ComboBoxText
+        Private pLogLevelCombo As CustomDrawComboBox
         Private pMaxLogSizeSpin As SpinButton
         Private pEnableTelemetryCheck As CheckButton
         Private pCheckUpdatesCheck As CheckButton
@@ -220,14 +220,14 @@ Namespace Widgets
                 lHeaderBox.PackStart(lTitle, True, True, 0)
                 
                 ' Apply button
-                Dim lApplyButton As New Button("_Apply")
-                lApplyButton.UseUnderline = True
+                Dim lApplyButton As New CustomDrawButton("Apply")
+                lApplyButton.ThemeManager = pThemeManager
                 AddHandler lApplyButton.Clicked, AddressOf OnApplyClicked
                 lHeaderBox.PackEnd(lApplyButton, False, False, 0)
-                
+
                 ' Save button
-                Dim lSaveButton As New Button("_Save")
-                lSaveButton.UseUnderline = True
+                Dim lSaveButton As New CustomDrawButton("Save")
+                lSaveButton.ThemeManager = pThemeManager
                 AddHandler lSaveButton.Clicked, AddressOf OnSaveClicked
                 lHeaderBox.PackEnd(lSaveButton, False, False, 5)
                 
@@ -579,8 +579,9 @@ Namespace Widgets
             ' Credential Storage Method
             Dim lStorageBox As New Box(Orientation.Horizontal, 10)
             lStorageBox.PackStart(New Label("Storage method:"), False, False, 0)
-            pGitCredentialStorageCombo = New ComboBoxText()
-            
+            pGitCredentialStorageCombo = New CustomDrawComboBox()
+            pGitCredentialStorageCombo.ThemeManager = pThemeManager
+
             ' Detect and populate available storage methods
             DetectAndPopulateStorageMethods()
             
@@ -591,7 +592,8 @@ Namespace Widgets
             ' Credential Type
             Dim lCredTypeBox As New Box(Orientation.Horizontal, 10)
             lCredTypeBox.PackStart(New Label("Credential type:"), False, False, 0)
-            pGitCredentialTypeCombo = New ComboBoxText()
+            pGitCredentialTypeCombo = New CustomDrawComboBox()
+            pGitCredentialTypeCombo.ThemeManager = pThemeManager
             pGitCredentialTypeCombo.AppendText("None (use system)")
             pGitCredentialTypeCombo.AppendText("Personal Access Token")
             pGitCredentialTypeCombo.AppendText("OAuth Token")
@@ -746,7 +748,8 @@ Namespace Widgets
             lConfigBox.PackStart(pMem0EnabledCheck, False, False, 0)
             
             ' AI Settings Button
-            pAISettingsButton = New Button("Configure AI Connection...")
+            pAISettingsButton = New CustomDrawButton("Configure AI Connection...")
+            pAISettingsButton.ThemeManager = pThemeManager
             AddHandler pAISettingsButton.Clicked, AddressOf OnAISettingsClicked
             lConfigBox.PackStart(pAISettingsButton, False, False, 10)
             
@@ -796,7 +799,8 @@ Namespace Widgets
             
             Dim lLogLevelBox As New Box(Orientation.Horizontal, 10)
             lLogLevelBox.PackStart(New Label("Log level:"), False, False, 0)
-            pLogLevelCombo = New ComboBoxText()
+            pLogLevelCombo = New CustomDrawComboBox()
+            pLogLevelCombo.ThemeManager = pThemeManager
             pLogLevelCombo.AppendText("Error")
             pLogLevelCombo.AppendText("Warning")
             pLogLevelCombo.AppendText("Info")
