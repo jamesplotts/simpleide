@@ -155,7 +155,8 @@ Namespace Widgets
                 ' Create ColorPicker in horizontal mode for Theme Editor
                 pColorPicker = New ColorPicker(ColorPicker.LayoutMode.eHorizontal)
                 pColorPicker.BorderWidth = 5
-                
+                pColorPicker.ThemeManager = pThemeManager
+
                 ' Subscribe to color change events
                 AddHandler pColorPicker.ColorChanged, AddressOf OnColorPickerColorChanged
                 AddHandler pColorPicker.ColorSelected, AddressOf OnColorPickerColorSelected

@@ -1108,16 +1108,23 @@ End Function
     ''' </summary>
     Private Sub OnEditorCursorPositionChanged(vLine As Integer, vColumn As Integer)
         Try
-            ' Update status bar (existing functionality)
-            UpdateStatusBar("")
-            
-            ' Update navigation dropdowns for current tab (new functionality)
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+
+            ' Update the status bar's Ln/Col display - UpdateStatusBar("") only clears
+            ' any transient main-status message and never touched pLineNumberEntry, so
+            ' the Ln/Col display previously only ever changed on focus-out/Escape from
+            ' the entry itself, not on real cursor movement (typing, arrow keys,
+            ' clicking, or a programmatic navigation like Object Explorer's
+            ' double-click-to-definition)
+            UpdateStatusBar("")
+            If lCurrentTab IsNot Nothing Then UpdateCursorPosition(lCurrentTab)
+
+            ' Update navigation dropdowns for current tab (new functionality)
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.NavigationDropdowns IsNot Nothing Then
                 ' Update navigation dropdowns position
                 lCurrentTab.NavigationDropdowns.UpdatePosition(vLine)
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnEditorCursorPositionChanged error: {ex.Message}")
         End Try

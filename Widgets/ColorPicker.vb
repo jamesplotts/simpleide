@@ -4,6 +4,7 @@ Imports Gdk
 Imports Cairo
 Imports System
 Imports System.Collections.Generic
+Imports SimpleIDE.Managers
 
 ' ColorPicker.vb
 ' Created: 2025-08-19 05:53:32
@@ -29,6 +30,7 @@ Namespace Widgets
         Private pLayoutMode As LayoutMode
         Private pCurrentColor As Gdk.RGBA
         Private pIsUpdating As Boolean = False
+        Private pThemeManager As ThemeManager
         
         ' Color gradient components
         Private pGradientArea As DrawingArea
@@ -86,6 +88,28 @@ Namespace Widgets
             End Set
         End Property
         
+        ''' <summary>
+        ''' Gets or sets the ThemeManager used to color the value-entry and Add-to-Custom
+        ''' controls - forwards to each already-theme-aware CustomDraw* child rather than
+        ''' this Box itself doing any drawing
+        ''' </summary>
+        Public Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+            Set(value As ThemeManager)
+                pThemeManager = value
+                If pHueEntry IsNot Nothing Then pHueEntry.ThemeManager = value
+                If pSatEntry IsNot Nothing Then pSatEntry.ThemeManager = value
+                If pLumEntry IsNot Nothing Then pLumEntry.ThemeManager = value
+                If pRedEntry IsNot Nothing Then pRedEntry.ThemeManager = value
+                If pGreenEntry IsNot Nothing Then pGreenEntry.ThemeManager = value
+                If pBlueEntry IsNot Nothing Then pBlueEntry.ThemeManager = value
+                If pHexEntry IsNot Nothing Then pHexEntry.ThemeManager = value
+                If pAddToCustomButton IsNot Nothing Then pAddToCustomButton.ThemeManager = value
+            End Set
+        End Property
+
         ''' <summary>
         ''' Constructor for the color picker
         ''' </summary>
