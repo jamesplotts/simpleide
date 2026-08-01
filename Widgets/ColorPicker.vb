@@ -1288,13 +1288,18 @@ Namespace Widgets
         ''' <param name="vColor">The color to set</param>
         ''' <remarks>
         ''' This method is used when external code needs to set the color
-        ''' and ensure immediate visual feedback
+        ''' and ensure immediate visual feedback. Deliberately has no "skip if
+        ''' unchanged" guard - a caller like ThemeEditor's property-list selection
+        ''' handler calls this to load a newly-selected property's color for editing,
+        ''' and that property may legitimately resolve to the exact same RGB value as
+        ''' whatever was already displayed (e.g. Bevel Light/Dark both fall back to
+        ''' BackgroundColor when unset, so switching between "Background", "Bevel
+        ''' Light", and "Bevel Dark" can show numerically identical colors three times
+        ''' in a row) - skipping the refresh in that case left the picker looking
+        ''' "stuck" and gave no indication the selection had actually changed
         ''' </remarks>
         Public Sub SetColor(vColor As Gdk.RGBA)
             Try
-                ' Only update if the color is actually different
-                If ColorsEqual(pCurrentColor, vColor) Then Return
-                
                 pIsUpdating = True
                 
                 ' Set the internal color

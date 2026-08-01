@@ -40,8 +40,26 @@ Namespace Managers
         End Function
         
         
+        ''' <summary>
+        ''' Gets the tracked SourceFileInfo for a file path
+        ''' </summary>
+        ''' <param name="vFilePath">Full path of the file to look up</param>
+        ''' <returns>The tracked SourceFileInfo, or Nothing if this path isn't tracked (e.g. a
+        ''' file opened via CLI --open or a file picker that isn't part of the loaded
+        ''' project's known source list yet)</returns>
+        ''' <remarks>
+        ''' Previously indexed pSourceFiles directly, which threw an unhandled
+        ''' KeyNotFoundException for any untracked path - OpenFile() (MainWindow.Editor.vb)
+        ''' already treats a Nothing return as the expected "not tracked yet, create a new
+        ''' SourceFileInfo" signal via CreateEmptyFile, so the exception path never needed
+        ''' to exist; it just meant --open (or any caller) on a file not already known to
+        ''' the project silently failed to open at all, with the error swallowed by
+        ''' OpenFile's own Try/Catch
+        ''' </remarks>
         Public Function GetSourceInfo(vFilePath As String) As SourceFileInfo
-            Return pSourceFiles(vFilePath)
+            Dim lSourceInfo As SourceFileInfo = Nothing
+            pSourceFiles.TryGetValue(vFilePath, lSourceInfo)
+            Return lSourceInfo
         End Function
         
         ''' <summary>
@@ -286,11 +304,24 @@ Namespace Managers
 
         
 ' Replace: SimpleIDE.Managers.ProjectManager.CreateEmptyFile
+''' <summary>
+''' Creates and tracks a new SourceFileInfo for vFileName - if the path already exists on
+''' disk, SourceFileInfo's own constructor loads its real content (the template text below
+''' is only ever used for a genuinely new/nonexistent file)
+''' </summary>
+''' <param name="vFileName">Either a full path (e.g. from OpenFile with an already-tracked
+''' or on-disk file), or a bare name relative to the current project's directory (e.g.
+''' from a "New File" UI action)</param>
 Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo
     Try
-        ' Create path for new file
-        Dim lFilePath As String = Path.Combine(pCurrentProjectInfo.ProjectDirectory, vFileName)
-        
+        ' A caller may pass an already-absolute path (OpenFile does, for any file not yet
+        ' tracked) - only combine with the project directory for a genuinely relative name,
+        ' so this doesn't need pCurrentProjectInfo at all for the absolute-path case (it may
+        ' not be populated yet if the project is still loading)
+        Dim lFilePath As String = If(Path.IsPathRooted(vFileName), vFileName,
+            Path.Combine(pCurrentProjectInfo.ProjectDirectory, vFileName))
+        Dim lRootNamespace As String = If(pCurrentProjectInfo?.GetEffectiveRootNamespace(), "SimpleIDE")
+
         ' Create new SourceFileInfo
         Dim lFileInfo As New SourceFileInfo(lFilePath, $"' {vFileName}" & Environment.NewLine & _
                            Environment.NewLine & _
@@ -298,13 +329,13 @@ Public Function CreateEmptyFile(vFileName As String) As SourceFileInfo
                            Environment.NewLine & _
                            $"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}" & Environment.NewLine & _
                            Environment.NewLine & _
-                           "Namespace " & pCurrentProjectInfo.GetEffectiveRootNamespace() & Environment.NewLine & _
+                           "Namespace " & lRootNamespace & Environment.NewLine & _
                            Environment.NewLine & _
                            "End Namespace")
-                           
-        
+
+
         ' Set project root namespace
-        lFileInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+        lFileInfo.ProjectRootNamespace = lRootNamespace
         lFileInfo.ProjectManager = Me
         
         ' IMPORTANT: Wire up events for the new SourceFileInfo
