@@ -92,8 +92,8 @@ Namespace Widgets
         ' ===== Private Fields - UI Components =====
         Private pToolbar As Toolbar
         Private pDrawingArea As DrawingArea
-        Private pHScrollBar As Scrollbar
-        Private pVScrollBar As Scrollbar
+        Private pHScrollBar As CustomDrawScrollbar
+        Private pVScrollBar As CustomDrawScrollbar
         Private pCornerBox As DrawingArea
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
@@ -215,8 +215,10 @@ Namespace Widgets
                                      EventMask.KeyReleaseMask Or EventMask.LeaveNotifyMask
                 
                 ' Create scrollbars
-                pVScrollBar = New Scrollbar(Orientation.Vertical, Nothing)
-                pHScrollBar = New Scrollbar(Orientation.Horizontal, Nothing)
+                pVScrollBar = New CustomDrawScrollbar(Orientation.Vertical)
+                pVScrollBar.ThemeManager = pThemeManager
+                pHScrollBar = New CustomDrawScrollbar(Orientation.Horizontal)
+                pHScrollBar.ThemeManager = pThemeManager
                 
                 ' Create corner box
                 pCornerBox = New DrawingArea()

@@ -32,8 +32,8 @@ Namespace Widgets
         Private pGridBox As Box                    ' Vertical box containing header and content
         Private pDrawingArea As DrawingArea        ' Main content area
         Private pHeaderArea As DrawingArea         ' Header row
-        Private pVScrollbar As Scrollbar           ' Vertical scrollbar (always visible)
-        Private pHScrollbar As Scrollbar           ' Horizontal scrollbar
+        Private pVScrollbar As CustomDrawScrollbar  ' Vertical scrollbar (always visible)
+        Private pHScrollbar As CustomDrawScrollbar  ' Horizontal scrollbar
         Private pCornerBox As DrawingArea          ' Corner between scrollbars
         
         ' ===== Data Storage =====
@@ -203,7 +203,7 @@ Namespace Widgets
                 pGridBox.PackStart(pDrawingArea, True, True, 0)
                 
                 ' Create horizontal scrollbar (optional, at bottom)
-                pHScrollbar = New Scrollbar(Orientation.Horizontal, New Adjustment(0, 0, 100, 1, 10, 10))
+                pHScrollbar = New CustomDrawScrollbar(Orientation.Horizontal)
                 pHScrollbar.NoShowAll = True  ' Hidden by default
                 pGridBox.PackStart(pHScrollbar, False, False, 0)
                 
@@ -211,7 +211,7 @@ Namespace Widgets
                 pMainBox.PackStart(pGridBox, True, True, 0)
                 
                 ' Create vertical scrollbar (always visible on right)
-                pVScrollbar = New Scrollbar(Orientation.Vertical, New Adjustment(0, 0, 100, 1, 10, 10))
+                pVScrollbar = New CustomDrawScrollbar(Orientation.Vertical)
                 pVScrollbar.WidthRequest = SCROLLBAR_WIDTH
                 pMainBox.PackStart(pVScrollbar, False, False, 0)
                 
@@ -364,7 +364,10 @@ Namespace Widgets
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
                 pThemeManager = vThemeManager
-                
+
+                If pVScrollbar IsNot Nothing Then pVScrollbar.ThemeManager = vThemeManager
+                If pHScrollbar IsNot Nothing Then pHScrollbar.ThemeManager = vThemeManager
+
                 If pThemeManager IsNot Nothing Then
                     ' Get and apply current theme
                     Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
