@@ -45,7 +45,7 @@ Namespace Dialogs
         Private pNuGetAddButton As CustomDrawButton
         Private pNuGetRemoveButton As CustomDrawButton
         Private pNuGetUpdateButton As CustomDrawButton
-        Private pNuGetVersionCombo As ComboBoxText
+        Private pNuGetVersionCombo As CustomDrawComboBox
         Private pNuGetSpinner As Spinner
         Private pNuGetStatusLabel As Label
         Private pCurrentSearchTask As Task(Of NuGetClient.SearchResult)
@@ -287,7 +287,8 @@ Namespace Dialogs
             Dim lVersionBox As New Box(Orientation.Horizontal, 5)
             lVersionBox.PackStart(New Label("Version:"), False, False, 0)
             
-            pNuGetVersionCombo = New ComboBoxText()
+            pNuGetVersionCombo = New CustomDrawComboBox()
+            pNuGetVersionCombo.ThemeManager = pThemeManager
             pNuGetVersionCombo.Sensitive = False
             lVersionBox.PackStart(pNuGetVersionCombo, False, False, 0)
             

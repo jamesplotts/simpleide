@@ -14,7 +14,7 @@ Namespace Dialogs
         Private pSettingsManager As SettingsManager
         Private pThemeManager As ThemeManager
         Private pApiKeyEntry As CustomDrawTextBox
-        Private pModelCombo As ComboBoxText
+        Private pModelCombo As CustomDrawComboBox
         Private pMaxTokensSpinButton As SpinButton
         Private pTemperatureSpinButton As SpinButton
         Private pStreamResponsesCheckButton As CheckButton
@@ -120,7 +120,8 @@ Namespace Dialogs
                 lModelLabel.Xalign = 0
                 lModelBox.PackStart(lModelLabel, False, False, 0)
                 
-                pModelCombo = New ComboBoxText()
+                pModelCombo = New CustomDrawComboBox()
+                pModelCombo.ThemeManager = pThemeManager
                 pModelCombo.AppendText("claude-3-opus-20240229")
                 pModelCombo.AppendText("claude-3-sonnet-20240229")
                 pModelCombo.AppendText("claude-3-haiku-20240307")
@@ -307,11 +308,11 @@ Namespace Dialogs
         End Sub
         
         ' Helper to select item in ComboBoxText
-        Private Sub SelectComboBoxItem(vCombo As ComboBoxText, vText As String)
+        Private Sub SelectComboBoxItem(vCombo As CustomDrawComboBox, vText As String)
             Try
-                Dim lModel As ITreeModel = vCombo.Model
+                Dim lModel As ITreeModel = vCombo.InnerCombo.Model
                 Dim lIter As TreeIter
-                
+
                 If lModel.GetIterFirst(lIter) Then
                     Dim lIndex As Integer = 0
                     Do
@@ -323,9 +324,9 @@ Namespace Dialogs
                         lIndex += 1
                     Loop While lModel.IterNext(lIter)
                 End If
-                
+
                 ' Default to first item if not found
-                If vCombo.Active = -1 AndAlso vCombo.Model.IterNChildren() > 0 Then
+                If vCombo.Active = -1 AndAlso vCombo.InnerCombo.Model.IterNChildren() > 0 Then
                     vCombo.Active = 0
                 End If
                 

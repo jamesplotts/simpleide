@@ -12,9 +12,9 @@ Namespace Dialogs
         Inherits Dialog
 
         ' Private fields
-        Private pConfigurationCombo As ComboBoxText
-        Private pPlatformCombo As ComboBoxText
-        Private pVerbosityCombo As ComboBoxText
+        Private pConfigurationCombo As CustomDrawComboBox
+        Private pPlatformCombo As CustomDrawComboBox
+        Private pVerbosityCombo As CustomDrawComboBox
         Private pOutputPathEntry As CustomDrawTextBox
         Private pAdditionalArgsEntry As CustomDrawTextBox
         Private pRestorePackagesCheck As CheckButton
@@ -89,7 +89,8 @@ Namespace Dialogs
             lConfigLabel.Halign = Align.Start
             lBuildGrid.Attach(lConfigLabel, 0, 0, 1, 1)
             
-            pConfigurationCombo = New ComboBoxText()
+            pConfigurationCombo = New CustomDrawComboBox()
+            pConfigurationCombo.ThemeManager = pThemeManager
             pConfigurationCombo.AppendText("Debug")
             pConfigurationCombo.AppendText("Release")
             pConfigurationCombo.AppendText("Test")
@@ -100,7 +101,8 @@ Namespace Dialogs
             lPlatformLabel.Halign = Align.Start
             lBuildGrid.Attach(lPlatformLabel, 0, 1, 1, 1)
             
-            pPlatformCombo = New ComboBoxText()
+            pPlatformCombo = New CustomDrawComboBox()
+            pPlatformCombo.ThemeManager = pThemeManager
             pPlatformCombo.AppendText("any CPU")
             pPlatformCombo.AppendText("x86")
             pPlatformCombo.AppendText("x64")
@@ -113,7 +115,8 @@ Namespace Dialogs
             lVerbosityLabel.Halign = Align.Start
             lBuildGrid.Attach(lVerbosityLabel, 0, 2, 1, 1)
             
-            pVerbosityCombo = New ComboBoxText()
+            pVerbosityCombo = New CustomDrawComboBox()
+            pVerbosityCombo.ThemeManager = pThemeManager
             pVerbosityCombo.AppendText("Quiet")
             pVerbosityCombo.AppendText("Minimal")
             pVerbosityCombo.AppendText("Normal")

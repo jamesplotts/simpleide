@@ -16,7 +16,7 @@ Namespace Dialogs
         Private pProjectNameEntry As CustomDrawTextBox
         Private pLocationEntry As CustomDrawTextBox
         Private pBrowseButton As CustomDrawButton
-        Private pProjectTypeCombo As ComboBoxText
+        Private pProjectTypeCombo As CustomDrawComboBox
         Private pCreateDirectoryCheck As CheckButton
         Private pInitializeGitCheck As CheckButton
         Private pSolutionNameEntry As CustomDrawTextBox
@@ -172,7 +172,8 @@ Namespace Dialogs
                 Dim lTypeBox As New Box(Orientation.Vertical, 5)
                 lTypeBox.BorderWidth = 10
                 
-                pProjectTypeCombo = New ComboBoxText()
+                pProjectTypeCombo = New CustomDrawComboBox()
+                pProjectTypeCombo.ThemeManager = pThemeManager
                 for each lTemplate in pTemplates
                     pProjectTypeCombo.AppendText(lTemplate.Name)
                 Next
