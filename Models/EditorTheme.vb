@@ -47,17 +47,24 @@ Namespace Models
 
         ''' <summary>
         ''' Light bevel edge color for CustomDraw* retro 3D controls (CustomDrawButton's
-        ''' raised top/left, CustomDrawTextBox's sunken bottom/right). Empty means "derive
-        ''' automatically from the control's face color" (Lighten by a fixed amount) -
-        ''' set explicitly to override, e.g. for themes whose face color already sits near
-        ''' a luminance extreme and loses contrast on one auto-derived edge
+        ''' raised top/left, CustomDrawTextBox's sunken bottom/right). Every built-in theme
+        ''' sets this explicitly (a value hand-picked for that theme's background, not just
+        ''' a blind Lighten of it, since a theme with an already-near-white background would
+        ''' otherwise get a "light" edge indistinguishable from its own face). Empty is still
+        ''' supported as "derive automatically from the control's face color" (Lighten by a
+        ''' fixed amount) purely as a fallback for custom/user-created themes that don't set
+        ''' it - leaving it blank is not the intended state for a theme meant to look
+        ''' deliberately designed, since the Theme Editor's property list otherwise still
+        ''' shows a concrete resolved color with no visual indication it's a fallback
         ''' </summary>
         Public Property BevelLightColor As String
 
         ''' <summary>
         ''' Dark bevel edge color for CustomDraw* retro 3D controls (CustomDrawButton's
-        ''' raised bottom/right, CustomDrawTextBox's sunken top/left). Empty means "derive
-        ''' automatically from the control's face color" (Darken by a fixed amount)
+        ''' raised bottom/right, CustomDrawTextBox's sunken top/left). Every built-in theme
+        ''' sets this explicitly - see BevelLightColor's doc comment for why. Empty still
+        ''' falls back to auto-deriving from the face color (Darken by a fixed amount) for
+        ''' custom/user-created themes that don't set it
         ''' </summary>
         Public Property BevelDarkColor As String
         
@@ -140,8 +147,8 @@ Namespace Models
             TabInactiveColor = "#252526"       ' Slightly lighter than background
             TabHoverColor = "#2D2D30"          ' Even lighter for hover
             AccentColor = "#007ACC"            ' VS Code blue accent
-            BevelLightColor = ""               ' "" = auto-derive from face color
-            BevelDarkColor = ""                ' "" = auto-derive from face color
+            BevelLightColor = "#6A6A6A"        ' Explicit - see BevelLightColor doc comment
+            BevelDarkColor = "#000000"         ' Explicit - see BevelDarkColor doc comment
 
             
             ' Status colors
@@ -273,6 +280,8 @@ Namespace Models
             lVSCodeTheme.LineNumberBackgroundColor = "#1E1E1E"
             lVSCodeTheme.CurrentLineNumberColor = "#C6C6C6"
             lVSCodeTheme.CursorColor = "#AEAFAD"
+            lVSCodeTheme.BevelLightColor = "#6A6A6A"
+            lVSCodeTheme.BevelDarkColor = "#000000"
             lVSCodeTheme.ErrorColor = "#F48771"
             lVSCodeTheme.WarningColor = "#CCA700"
             lVSCodeTheme.InfoColor = "#75BEFF"
@@ -297,6 +306,11 @@ Namespace Models
             lLightTheme.LineNumberBackgroundColor = "#F3F3F3"
             lLightTheme.CurrentLineNumberColor = "#0B216F"
             lLightTheme.CursorColor = "#000000"
+            ' Auto-deriving from a pure-white background would saturate to #FFFFFF -
+            ' indistinguishable from the background itself - so this uses a slightly
+            ' darker off-white instead of the formula's degenerate result
+            lLightTheme.BevelLightColor = "#F0F0F0"
+            lLightTheme.BevelDarkColor = "#B2B2B2"
             lLightTheme.ErrorColor = "#D32F2F"
             lLightTheme.WarningColor = "#F57C00"
             lLightTheme.InfoColor = "#1976D2"
