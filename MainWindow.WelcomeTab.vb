@@ -71,7 +71,8 @@ Partial Public Class MainWindow
             lDescription.Add( "License granted under GNU GPLv3:" )
             lDescription.Add( "https://www.gnu.org/licenses/gpl-3.0.html" )
             lDescription.Add( " " )
-            lDescription.Add( "Website: https://github.com/jamesplotts/simpleide" )
+            lDescription.Add( "Website:" )
+            lDescription.Add( "https://github.com/jamesplotts/simpleide" )
             
             lWelcomeWidget.SetIdeDescription(lDescription)
             
@@ -96,9 +97,13 @@ Partial Public Class MainWindow
             ' Apply current theme colors
             ApplyWelcomeTheme(lWelcomeWidget)
             
+            ' Theme the three CustomDrawButton actions (New Project/Open Project/Open File)
+            lWelcomeWidget.ThemeManager = pThemeManager
+
             ' Wire up event handlers
             AddHandler lWelcomeWidget.NewProjectClicked, AddressOf OnNewProject
             AddHandler lWelcomeWidget.OpenProjectClicked, AddressOf OnOpenProject
+            AddHandler lWelcomeWidget.LinkClicked, AddressOf OnWelcomeLinkClicked
             AddHandler lWelcomeWidget.OpenFileClicked, AddressOf OnOpenFile
             AddHandler lWelcomeWidget.RecentFileClicked, AddressOf OnWelcomeRecentFileClicked
             
@@ -141,27 +146,33 @@ Partial Public Class MainWindow
     ''' <param name="vWelcomeWidget">The welcome widget to apply theme to</param>
     Private Sub ApplyWelcomeTheme(vWelcomeWidget As WelcomeTabWidget)
         Try
-            ' Determine if using dark theme
-            Dim lIsDarkTheme As Boolean = False
-            If pSettingsManager IsNot Nothing Then
-                ' Check if the current theme is dark based on theme name
-                Dim lThemeName As String = pThemeManager.GetCurrentTheme
-                lIsDarkTheme = (lThemeName.ToLower().Contains("dark") OrElse 
-                               lThemeName.ToLower().Contains("monokai") OrElse
-                               lThemeName.ToLower().Contains("dracula"))
-            End If
-            
+            ' Read the theme's own IsDarkTheme property directly instead of guessing from
+            ' its name - the previous name-substring heuristic ("dark"/"monokai"/"dracula")
+            ' happened to work for every built-in theme's name but would silently
+            ' misclassify any theme (custom or future) whose name doesn't happen to
+            ' contain one of those words, regardless of its actual IsDarkTheme value
+            Dim lIsDarkTheme As Boolean = pThemeManager?.GetCurrentThemeObject()?.IsDarkTheme = True
+
             ' Apply the theme using the existing UpdateTheme method
             vWelcomeWidget.UpdateTheme(lIsDarkTheme)
-            
+
         Catch ex As Exception
             Console.WriteLine($"ApplyWelcomeTheme error: {ex.Message}")
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handles a hyperlink click (e.g. the GitHub URL) from the welcome tab widget
+    ''' </summary>
+    ''' <param name="vSender">The welcome widget</param>
+    ''' <param name="vUrl">The URL to open in the default browser</param>
+    Private Sub OnWelcomeLinkClicked(vSender As Object, vUrl As String)
+        OpenUrl(vUrl)
+    End Sub
+
     ' Add: SimpleIDE.MainWindow.OnWelcomeRecentFileClicked
     ' To: MainWindow.WelcomeTab.vb
-    
+
     ''' <summary>
     ''' Handles recent file click from the welcome tab widget
     ''' </summary>

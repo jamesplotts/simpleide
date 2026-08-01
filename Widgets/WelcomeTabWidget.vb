@@ -1,20 +1,25 @@
 ' WelcomeTabWidget.vb
-' Custom-drawn welcome tab that doesn't rely on GTK layouts
+' Custom-drawn welcome tab that doesn't rely on GTK layouts (mostly - see pDrawingArea)
 
 Imports Gtk
 Imports Gdk
 Imports Cairo
 Imports System
 Imports System.Collections.Generic
+Imports SimpleIDE.Managers
 
 Namespace Widgets
 
     ''' <summary>
-    ''' A custom-drawn welcome tab widget that displays version info, shortcuts, and recent files
+    ''' A custom-drawn welcome tab widget that displays version info, shortcuts, and recent files.
+    ''' Inherits Fixed (not DrawingArea directly) so the New Project/Open Project/Open File
+    ''' actions can be real CustomDrawButton widgets, positioned to track the layout this
+    ''' class already computes for its Cairo-painted content (penguin image, description,
+    ''' keyboard shortcuts, recent files, scrollbar) on an internal pDrawingArea child
     ''' </summary>
     Public Class WelcomeTabWidget
-        Inherits DrawingArea
-        
+        Inherits Fixed
+
         ' ===== Events =====
         
         ''' <summary>
@@ -36,15 +41,30 @@ Namespace Widgets
         ''' Raised when a recent file is clicked
         ''' </summary>
         Public Event RecentFileClicked As EventHandler(Of String)
-        
+
+        ''' <summary>
+        ''' Raised when a hyperlink in the description (e.g. the GitHub URL) is clicked
+        ''' </summary>
+        Public Event LinkClicked As EventHandler(Of String)
+
         ' ===== Private Fields =====
-        
+
         Private pVersionInfo As String = "SimpleIDE v1.0"
         Private pRecentFiles As New List(Of String)()
         Private pThemeColors As WelcomeThemeColors
-        Private pHoveredButton As String = Nothing
         Private pPressedButton As String = Nothing
-        
+        Private pThemeManager As ThemeManager
+
+        ' The Cairo-painted content (everything except the three action buttons below)
+        Private pDrawingArea As DrawingArea
+
+        ' Real CustomDrawButton widgets for the three Quick Start actions - positioned via
+        ' Move() from DrawQuickStart to track the same layout math used to paint everything
+        ' above them, rather than duplicating that computation in a second place
+        Private pNewProjectButton As CustomDrawButton
+        Private pOpenProjectButton As CustomDrawButton
+        Private pOpenFileButton As CustomDrawButton
+
         ' Layout constants
         Private Shadows Const MARGIN As Integer = 40
         Private Const COLUMN_SPACING As Integer = 60
@@ -55,19 +75,19 @@ Namespace Widgets
         Private Const TITLE_SIZE As Double = 24
         Private Const HEADING_SIZE As Double = 16
         Private Const NORMAL_SIZE As Double = 14
-        
-        ' Button rectangles for hit testing
-        Private pNewProjectRect As Cairo.Rectangle
-        Private pOpenProjectRect As Cairo.Rectangle
-        Private pOpenFileRect As Cairo.Rectangle
+
+        ' Hit-test rectangles for content that's still Cairo-painted (in content/unscrolled
+        ' coordinates - callers must add/subtract pTopOffset as the existing code already did)
         Private pRecentFileRects As New List(Of Cairo.Rectangle)()
+        Private pLinkRects As New List(Of Cairo.Rectangle)()
+        Private pLinkUrls As New List(Of String)()
 
         Private pLastMouseX As Double
         Private pLastMouseY As Double
-        
+
         Private pPenguinPixbuf As Gdk.Pixbuf = Nothing
         Private pIdeDescription As New List(Of String)
-        
+
         Private pTopOffset As Integer = 0
         Private pContentHeight As Integer = 0
         Private pViewportHeight As Integer = 0
@@ -78,36 +98,69 @@ Namespace Widgets
         Private pIsDraggingScrollbar As Boolean = False
         Private pScrollDragStartY As Double = 0
         Private pScrollDragStartOffset As Integer = 0
-        
 
-        
+        ' ===== Public Properties =====
+
+        ''' <summary>
+        ''' Gets or sets the ThemeManager used to theme the three CustomDrawButton actions
+        ''' </summary>
+        Public Property ThemeManager As ThemeManager
+            Get
+                Return pThemeManager
+            End Get
+            Set(value As ThemeManager)
+                pThemeManager = value
+                pNewProjectButton.ThemeManager = value
+                pOpenProjectButton.ThemeManager = value
+                pOpenFileButton.ThemeManager = value
+            End Set
+        End Property
+
         ' ===== Constructor =====
-        
+
         ''' <summary>
         ''' Initializes a new instance of the WelcomeTabWidget class
         ''' </summary>
         Public Sub New()
-            ' Enable events
-            CanFocus = True
-            Events = EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or 
-                    EventMask.PointerMotionMask Or EventMask.LeaveNotifyMask Or
-                    EventMask.EnterNotifyMask Or EventMask.ExposureMask Or
-                    EventMask.ScrollMask 
-            
             ' Set minimum size
             SetSizeRequest(800, 600)
-            
+
             ' Initialize theme colors
             InitializeThemeColors()
-            
-            ' Connect event handlers
-            AddHandler Me.Drawn, AddressOf OnDraw
-            AddHandler Me.ButtonPressEvent, AddressOf OnButtonPress
-            AddHandler Me.ButtonReleaseEvent, AddressOf OnButtonRelease
-            AddHandler Me.MotionNotifyEvent, AddressOf OnMotionNotify
-            AddHandler Me.LeaveNotifyEvent, AddressOf OnLeaveNotify
-            AddHandler Me.ScrollEvent, AddressOf OnScrollEvent
+
+            ' The Cairo-painted background/content, filling this Fixed's whole area
+            pDrawingArea = New DrawingArea()
+            pDrawingArea.CanFocus = True
+            pDrawingArea.Events = EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or
+                    EventMask.PointerMotionMask Or EventMask.LeaveNotifyMask Or
+                    EventMask.EnterNotifyMask Or EventMask.ExposureMask Or
+                    EventMask.ScrollMask
+            AddHandler pDrawingArea.Drawn, AddressOf OnDraw
+            AddHandler pDrawingArea.ButtonPressEvent, AddressOf OnButtonPress
+            AddHandler pDrawingArea.ButtonReleaseEvent, AddressOf OnButtonRelease
+            AddHandler pDrawingArea.MotionNotifyEvent, AddressOf OnMotionNotify
+            AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnLeaveNotify
+            AddHandler pDrawingArea.ScrollEvent, AddressOf OnScrollEvent
+            Put(pDrawingArea, 0, 0)
+
             AddHandler Me.SizeAllocated, AddressOf OnSizeAllocated
+
+            ' The three Quick Start action buttons - repositioned each draw to track the
+            ' Cairo layout computed in DrawQuickStart; initial position doesn't matter
+            pNewProjectButton = New CustomDrawButton("📁 New Project")
+            pNewProjectButton.SetSizeRequest(BUTTON_WIDTH, BUTTON_HEIGHT)
+            AddHandler pNewProjectButton.Clicked, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent NewProjectClicked(Me, EventArgs.Empty)
+            Put(pNewProjectButton, 0, 0)
+
+            pOpenProjectButton = New CustomDrawButton("📂 Open Project")
+            pOpenProjectButton.SetSizeRequest(BUTTON_WIDTH, BUTTON_HEIGHT)
+            AddHandler pOpenProjectButton.Clicked, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent OpenProjectClicked(Me, EventArgs.Empty)
+            Put(pOpenProjectButton, 0, 0)
+
+            pOpenFileButton = New CustomDrawButton("📄 Open File")
+            pOpenFileButton.SetSizeRequest(BUTTON_WIDTH, BUTTON_HEIGHT)
+            AddHandler pOpenFileButton.Clicked, Sub(vSender As Object, vArgs As EventArgs) RaiseEvent OpenFileClicked(Me, EventArgs.Empty)
+            Put(pOpenFileButton, 0, 0)
 
             ' Load the penguin image
             LoadPenguinImage()
@@ -354,7 +407,10 @@ Namespace Widgets
         End Function
 
         ''' <summary>
-        ''' Draws text with word wrapping
+        ''' Draws text with word wrapping - a line that looks like a URL (starts with
+        ''' "http://" or "https://") is drawn as a clickable hyperlink instead of plain
+        ''' text, same visual treatment (Link/LinkHover color, underline on hover) and
+        ''' hit-testing pattern DrawRecentFiles already uses for recent-file entries
         ''' </summary>
         ''' <param name="vContext">Cairo context</param>
         ''' <param name="vText">Text to draw</param>
@@ -363,16 +419,48 @@ Namespace Widgets
         ''' <param name="vMaxWidth">Maximum width before wrapping</param>
         ''' <param name="vFontSize">Font size</param>
         ''' <returns>Y position after the last line</returns>
-        Private Function DrawLines(vContext As Context, vX As Integer, vY As Integer, 
+        Private Function DrawLines(vContext As Context, vX As Integer, vY As Integer,
                                          vMaxWidth As Integer, vFontSize As Double) As Integer
-            ' Draw each line
+            pLinkRects.Clear()
+            pLinkUrls.Clear()
+
+            Dim lLineHeight As Integer = CInt(vFontSize) + 4
             Dim lY As Integer = vY
             for each lLine As String in pIdeDescription
-                lY += CInt(vFontSize) + 4
-                vContext.MoveTo(vX, lY)
-                vContext.ShowText(lLine)
+                Dim lLineTop As Integer = lY
+                lY += lLineHeight
+
+                If lLine.StartsWith("http://") OrElse lLine.StartsWith("https://") Then
+                    Dim lExtents As TextExtents = vContext.TextExtents(lLine)
+                    Dim lLinkRect As New Cairo.Rectangle(vX, lLineTop, lExtents.Width, lLineHeight)
+                    pLinkRects.Add(lLinkRect)
+                    pLinkUrls.Add(lLine)
+
+                    Dim lIsHovered As Boolean = IsPointInRect(pLastMouseX, pLastMouseY, lLinkRect)
+                    If lIsHovered Then
+                        vContext.SetSourceRGB(pThemeColors.LinkHover.R, pThemeColors.LinkHover.G, pThemeColors.LinkHover.B)
+                    Else
+                        vContext.SetSourceRGB(pThemeColors.Link.R, pThemeColors.Link.G, pThemeColors.Link.B)
+                    End If
+                    vContext.MoveTo(vX, lY)
+                    vContext.ShowText(lLine)
+
+                    If lIsHovered Then
+                        vContext.MoveTo(vX, lY + 2)
+                        vContext.LineTo(vX + lExtents.Width, lY + 2)
+                        vContext.LineWidth = 1
+                        vContext.Stroke()
+                    End If
+
+                    ' Restore the normal (semi-transparent) description text color that
+                    ' the caller set before calling DrawLines, for any lines after this one
+                    vContext.SetSourceRGBA(pThemeColors.Text.R, pThemeColors.Text.G, pThemeColors.Text.B, 0.8)
+                Else
+                    vContext.MoveTo(vX, lY)
+                    vContext.ShowText(lLine)
+                End If
             Next
-            
+
             Return lY
         End Function
 
@@ -392,7 +480,10 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Draws the Quick Start section with buttons
+        ''' Draws the Quick Start section heading and positions the three real
+        ''' CustomDrawButton actions to match this same layout - Move() maps this
+        ''' method's content-space Y down by the current scroll offset, matching what
+        ''' the Cairo Translate in OnDraw does for everything that's still hand-painted
         ''' </summary>
         Private Function DrawQuickStart(vContext As Context, vX As Integer, vY As Integer, vWidth As Integer) As Integer
             ' Draw section heading
@@ -401,64 +492,20 @@ Namespace Widgets
             vContext.SetSourceRGB(pThemeColors.Heading.R, pThemeColors.Heading.G, pThemeColors.Heading.B)
             vContext.MoveTo(vX, vY + HEADING_SIZE)
             vContext.ShowText("Quick Start")
-            
+
             Dim lButtonY As Integer = vY + HEADING_SIZE + 20
-            
-            ' Draw New Project button
-            pNewProjectRect = New Cairo.Rectangle(vX, lButtonY, BUTTON_WIDTH, BUTTON_HEIGHT)
-            DrawButton(vContext, pNewProjectRect, "📁 New Project", "new-project")
+
+            Move(pNewProjectButton, vX, lButtonY - pTopOffset)
             lButtonY += BUTTON_HEIGHT + 15
-            
-            ' Draw Open Project button
-            pOpenProjectRect = New Cairo.Rectangle(vX, lButtonY, BUTTON_WIDTH, BUTTON_HEIGHT)
-            DrawButton(vContext, pOpenProjectRect, "📂 Open Project", "open-project")
+
+            Move(pOpenProjectButton, vX, lButtonY - pTopOffset)
             lButtonY += BUTTON_HEIGHT + 15
-            
-            ' Draw Open File button
-            pOpenFileRect = New Cairo.Rectangle(vX, lButtonY, BUTTON_WIDTH, BUTTON_HEIGHT)
-            DrawButton(vContext, pOpenFileRect, "📄 Open File", "open-file")
+
+            Move(pOpenFileButton, vX, lButtonY - pTopOffset)
             lButtonY += BUTTON_HEIGHT + 15
-            
+
             Return lButtonY
         End Function
-
-        
-        ''' <summary>
-        ''' Draws a button with hover and pressed states
-        ''' </summary>
-        Private Sub DrawButton(vContext As Context, vRect As Cairo.Rectangle, vText As String, vButtonId As String)
-            ' Determine button state
-            Dim lIsHovered As Boolean = (pHoveredButton = vButtonId)
-            Dim lIsPressed As Boolean = (pPressedButton = vButtonId)
-            
-            ' Draw button background
-            vContext.Rectangle(vRect.X, vRect.Y, vRect.Width, vRect.Height)
-            If lIsPressed Then
-                vContext.SetSourceRGB(pThemeColors.ButtonPressed.R, pThemeColors.ButtonPressed.G, pThemeColors.ButtonPressed.B)
-            ElseIf lIsHovered Then
-                vContext.SetSourceRGB(pThemeColors.ButtonHover.R, pThemeColors.ButtonHover.G, pThemeColors.ButtonHover.B)
-            Else
-                vContext.SetSourceRGB(pThemeColors.Button.R, pThemeColors.Button.G, pThemeColors.Button.B)
-            End If
-            vContext.FillPreserve()
-            
-            ' Draw button border
-            vContext.SetSourceRGB(pThemeColors.Accent.R, pThemeColors.Accent.G, pThemeColors.Accent.B)
-            vContext.LineWidth = If(lIsHovered, 2, 1)
-            vContext.Stroke()
-            
-            ' Draw button text
-            vContext.SelectFontFace("Sans", FontSlant.Normal, FontWeight.Normal)
-            vContext.SetFontSize(NORMAL_SIZE)
-            vContext.SetSourceRGB(pThemeColors.ButtonText.R, pThemeColors.ButtonText.G, pThemeColors.ButtonText.B)
-            
-            ' Center text in button
-            Dim lExtents As TextExtents = vContext.TextExtents(vText)
-            Dim lTextX As Double = vRect.X + (vRect.Width - lExtents.Width) / 2
-            Dim lTextY As Double = vRect.Y + (vRect.Height + lExtents.Height) / 2
-            vContext.MoveTo(lTextX, lTextY)
-            vContext.ShowText(vText)
-        End Sub
 
         
         ''' <summary>
@@ -599,10 +646,10 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
             If vArgs.Event.Button <> 1 Then Return ' Only handle left button
-            
+
             Dim lX As Double = vArgs.Event.X
             Dim lY As Double = vArgs.Event.Y
-            
+
             ' Check if clicking on scrollbar
             If pScrollbarVisible AndAlso IsPointInRect(lX, lY, pScrollThumbRect) Then
                 pIsDraggingScrollbar = True
@@ -610,40 +657,42 @@ Namespace Widgets
                 pScrollDragStartOffset = pTopOffset
                 Return
             End If
-            
-            ' Apply scroll offset to click coordinates for button detection
+
+            ' Apply scroll offset to click coordinates - the three Quick Start buttons are
+            ' real widgets now and handle their own press/click directly, so only content
+            ' that's still Cairo-painted (recent files, description hyperlinks) needs
+            ' manual hit-testing here
             lY += pTopOffset
-            
-            ' Check buttons (rest of existing code)
-            If IsPointInRect(lX, lY, pNewProjectRect) Then
-                pPressedButton = "new-project"
-            ElseIf IsPointInRect(lX, lY, pOpenProjectRect) Then
-                pPressedButton = "open-project"
-            ElseIf IsPointInRect(lX, lY, pOpenFileRect) Then
-                pPressedButton = "open-file"
-            Else
-                ' Check recent files
-                For i As Integer = 0 To pRecentFileRects.Count - 1
-                    If IsPointInRect(lX, lY, pRecentFileRects(i)) Then
-                        pPressedButton = $"recent_{i}"
+
+            pPressedButton = Nothing
+            For i As Integer = 0 To pRecentFileRects.Count - 1
+                If IsPointInRect(lX, lY, pRecentFileRects(i)) Then
+                    pPressedButton = $"recent_{i}"
+                    Exit For
+                End If
+            Next
+            If pPressedButton Is Nothing Then
+                For i As Integer = 0 To pLinkRects.Count - 1
+                    If IsPointInRect(lX, lY, pLinkRects(i)) Then
+                        pPressedButton = $"link_{i}"
                         Exit For
                     End If
                 Next
             End If
-            
+
             If pPressedButton IsNot Nothing Then
                 QueueDraw()
             End If
-            
+
             vArgs.RetVal = True
         End Sub
-        
+
         ''' <summary>
         ''' Handles mouse button release
         ''' </summary>
         Private Sub OnButtonRelease(vSender As Object, vArgs As ButtonReleaseEventArgs)
             If vArgs.Event.Button <> 1 Then Return
-            
+
             ' Stop scrollbar dragging
             If pIsDraggingScrollbar Then
                 pIsDraggingScrollbar = False
@@ -651,56 +700,47 @@ Namespace Widgets
                 vArgs.RetVal = True
                 Return
             End If
-            
-            ' Rest of existing button release code...
+
             If pPressedButton Is Nothing Then Return
-            
+
             Dim lX As Double = vArgs.Event.X
             Dim lY As Double = vArgs.Event.Y + pTopOffset  ' Apply scroll offset
-            
-            ' Check if still over the pressed button
-            Select Case pPressedButton
-                Case "new-project"
-                    If IsPointInRect(lX, lY, pNewProjectRect) Then
-                        RaiseEvent NewProjectClicked(Me, EventArgs.Empty)
+
+            ' Check if still over the pressed element
+            If pPressedButton.StartsWith("recent_") Then
+                Dim lIndex As Integer = Integer.Parse(pPressedButton.Substring(7))
+                If lIndex < pRecentFileRects.Count AndAlso IsPointInRect(lX, lY, pRecentFileRects(lIndex)) Then
+                    If lIndex < pRecentFiles.Count Then
+                        RaiseEvent RecentFileClicked(Me, pRecentFiles(lIndex))
                     End If
-                Case "open-project"
-                    If IsPointInRect(lX, lY, pOpenProjectRect) Then
-                        RaiseEvent OpenProjectClicked(Me, EventArgs.Empty)
+                End If
+            ElseIf pPressedButton.StartsWith("link_") Then
+                Dim lIndex As Integer = Integer.Parse(pPressedButton.Substring(5))
+                If lIndex < pLinkRects.Count AndAlso IsPointInRect(lX, lY, pLinkRects(lIndex)) Then
+                    If lIndex < pLinkUrls.Count Then
+                        RaiseEvent LinkClicked(Me, pLinkUrls(lIndex))
                     End If
-                Case "open-file"
-                    If IsPointInRect(lX, lY, pOpenFileRect) Then
-                        RaiseEvent OpenFileClicked(Me, EventArgs.Empty)
-                    End If
-                Case Else
-                    If pPressedButton.StartsWith("recent_") Then
-                        Dim lIndex As Integer = Integer.Parse(pPressedButton.Substring(7))
-                        If lIndex < pRecentFileRects.Count AndAlso IsPointInRect(lX, lY, pRecentFileRects(lIndex)) Then
-                            If lIndex < pRecentFiles.Count Then
-                                RaiseEvent RecentFileClicked(Me, pRecentFiles(lIndex))
-                            End If
-                        End If
-                    End If
-            End Select
-            
+                End If
+            End If
+
             pPressedButton = Nothing
             QueueDraw()
             vArgs.RetVal = True
         End Sub
-        
+
         ''' <summary>
         ''' Handles mouse motion
         ''' </summary>
         Private Sub OnMotionNotify(vSender As Object, vArgs As MotionNotifyEventArgs)
             Dim lX As Double = vArgs.Event.X
             Dim lY As Double = vArgs.Event.Y
-            
+
             ' Handle scrollbar dragging
             If pIsDraggingScrollbar Then
                 Dim lDelta As Double = lY - pScrollDragStartY
                 Dim lMaxScroll As Integer = Math.Max(0, pContentHeight - pViewportHeight)
                 Dim lScrollRange As Integer = pViewportHeight - pScrollThumbRect.Height
-                
+
                 If lScrollRange > 0 Then
                     Dim lNewOffset As Integer = pScrollDragStartOffset + CInt((lDelta / lScrollRange) * lMaxScroll)
                     pTopOffset = Math.Max(0, Math.Min(lMaxScroll, lNewOffset))
@@ -709,29 +749,15 @@ Namespace Widgets
                 vArgs.RetVal = True
                 Return
             End If
-            
-            ' Store mouse position for hover detection
+
+            ' Store mouse position for hover detection (recent files, description
+            ' hyperlinks - both re-check IsPointInRect against this live each draw, so a
+            ' redraw here is enough to keep their hover highlighting current; the three
+            ' Quick Start buttons handle their own hover internally now)
             pLastMouseX = lX
             pLastMouseY = lY + pTopOffset  ' Apply scroll offset
-            
-            ' Rest of existing hover detection code...
-            Dim lOldHovered As String = pHoveredButton
-            
-            ' Check button hovers (with scroll offset)
-            If IsPointInRect(lX, lY + pTopOffset, pNewProjectRect) Then
-                pHoveredButton = "new-project"
-            ElseIf IsPointInRect(lX, lY + pTopOffset, pOpenProjectRect) Then
-                pHoveredButton = "open-project"
-            ElseIf IsPointInRect(lX, lY + pTopOffset, pOpenFileRect) Then
-                pHoveredButton = "open-file"
-            Else
-                pHoveredButton = Nothing
-            End If
-            
-            If lOldHovered <> pHoveredButton Then
-                QueueDraw()
-            End If
-            
+            QueueDraw()
+
             vArgs.RetVal = True
         End Sub
         
@@ -776,7 +802,6 @@ Namespace Widgets
         ''' Handles mouse leave
         ''' </summary>
         Private Sub OnLeaveNotify(vSender As Object, vArgs As LeaveNotifyEventArgs)
-            pHoveredButton = Nothing
             pPressedButton = Nothing
             QueueDraw()
             vArgs.RetVal = True
@@ -903,9 +928,18 @@ Namespace Widgets
         End Sub        
         
         ''' <summary>
-        ''' Handles widget size allocation changes to update scrollbar visibility
+        ''' Handles widget size allocation changes to update scrollbar visibility - also
+        ''' keeps the internal pDrawingArea (which does all the actual Cairo painting)
+        ''' sized and positioned to exactly fill this Fixed's own allocation, since Fixed
+        ''' does not do that automatically for its children
         ''' </summary>
         Private Sub OnSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
+            If pDrawingArea IsNot Nothing AndAlso
+               (pDrawingArea.WidthRequest <> vArgs.Allocation.Width OrElse pDrawingArea.HeightRequest <> vArgs.Allocation.Height) Then
+                pDrawingArea.SetSizeRequest(vArgs.Allocation.Width, vArgs.Allocation.Height)
+                Move(pDrawingArea, 0, 0)
+            End If
+
             ' Recalculate content height and scrollbar visibility
             pViewportHeight = vArgs.Allocation.Height
             pContentHeight = CalculateContentHeight()
