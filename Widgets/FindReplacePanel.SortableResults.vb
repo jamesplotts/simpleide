@@ -564,18 +564,18 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Connects the enhanced events including context menu
+        ''' Connects the results view's context menu and keyboard navigation. Called once from
+        ''' the constructor, separately from (and after) ConnectEvents - it must NOT call
+        ''' ConnectEvents itself, since that would double-subscribe every handler already wired
+        ''' there and cause every button click/search to fire twice.
         ''' </summary>
         Private Sub ConnectSortableEvents()
             Try
-                ' Connect existing events
-                ConnectEvents()
-                
-                ' Add context menu handler for results view
                 If pResultsView IsNot Nothing Then
                     AddHandler pResultsView.ButtonPressEvent, AddressOf OnResultsButtonPress
+                    AddHandler pResultsView.KeyPressEvent, AddressOf OnResultsKeyPress
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ConnectSortableEvents error: {ex.Message}")
             End Try
@@ -594,20 +594,16 @@ Namespace Widgets
                         ' Enter - go to result
                         OnResultActivated(pResultsView, New RowActivatedArgs())
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.F3
-                        ' F3 - next result in same file
-                        NavigateToNextInFile()
-                        vArgs.RetVal = True
-                        
-                    Case Gdk.Key.F3
+                        ' F3 - next result in same file; Shift+F3 - previous result in same file
                         If (lModifiers And Gdk.ModifierType.ShiftMask) = Gdk.ModifierType.ShiftMask Then
-                            ' Handle Ctrl combinations first
-                            ' Shift+F3 - previous result in same file
                             NavigateToPreviousInFile()
-                            vArgs.RetVal = True
-                         End If
-                End Select 
+                        Else
+                            NavigateToNextInFile()
+                        End If
+                        vArgs.RetVal = True
+                End Select
                 ' Remember the compiler is case-insenstive so cannot tell between Gdk.Key.C or Gdk.Key.c
                 Select Case lKeyString.ToLower().Trim()
                     Case "c"
@@ -718,52 +714,6 @@ Namespace Widgets
                 Console.WriteLine($"SelectResult error: {ex.Message}")
             End Try
         End Sub
-        
-        ''' <summary>
-        ''' Highlights all results in the current file
-        ''' </summary>
-        Public Sub HighlightAllInCurrentFile()
-            Try
-                Dim lTab As TabInfo = GetCurrentTab()
-                If lTab Is Nothing OrElse lTab.Editor Is Nothing Then Return
-                
-                ' Get all results for current file
-                Dim lFileResults = pSearchResults.Where(Function(r) r.FilePath = lTab.FilePath).ToList()
-                
-                If lFileResults.Count = 0 Then
-                    pStatusLabel.Text = "No results in current file"
-                    Return
-                End If
-                
-                ' Convert to EditorPositions
-                Dim lPositions As New List(Of EditorPosition)()
-                For Each lResult In lFileResults
-                    lPositions.Add(New EditorPosition(lResult.LineNumber - 1, lResult.ColumnNumber - 1))
-                Next
-                
-                ' Highlight in editor (would need to implement this in the editor)
-                ' For now, just update status
-                pStatusLabel.Text = $"Found {lFileResults.Count} match(es) in current file"
-                
-            Catch ex As Exception
-                Console.WriteLine($"HighlightAllInCurrentFile error: {ex.Message}")
-            End Try
-        End Sub
-
-
-        ' Helper Methods
-        Private Function GetCurrentSearchOptions() As SearchOptions
-            Dim lOptions As SearchOptions
-            lOptions.SearchText = pFindEntry.Text
-            lOptions.ReplaceText = pReplaceEntry.Text
-            lOptions.MatchCase = pCaseSensitiveCheck.Active
-            lOptions.WholeWord = pWholeWordCheck.Active
-            lOptions.UseRegex = pRegexCheck.Active
-            lOptions.Scope = If(pInFileRadio.Active, SearchScope.eCurrentFile, SearchScope.eProject)
-            lOptions.FileFilter = "*.vb" ' Default filter
-            Return lOptions
-        End Function
-
         
     End Class
     

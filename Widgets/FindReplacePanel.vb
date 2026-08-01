@@ -226,7 +226,9 @@ Namespace Widgets
             MyBase.New(Orientation.Vertical, 5)
             InitializeUI()
             ConnectEvents()
-            InitializeEscapeHandling() 
+            ConnectSortableEvents()
+            SetupSortFunctions()
+            InitializeEscapeHandling()
         End Sub
 
         ''' <summary>
