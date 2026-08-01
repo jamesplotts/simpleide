@@ -170,38 +170,39 @@ Namespace Widgets
                 ' Interface preview - a real CustomDrawTextBox and CustomDrawButton themed
                 ' from pCurrentTheme directly (via ApplyExplicitTheme, bypassing
                 ' ThemeManager), so bevel/text-box/button colors can be checked visually
-                ' without leaving the Theme Editor or affecting the app's actual theme
+                ' without leaving the Theme Editor or affecting the app's actual theme.
+                ' Everything (controls + swatches) stays on a single horizontal row - the
+                ' whole ThemeEditor is hosted inside a ScrolledWindow by MainWindow, and an
+                ' earlier two-row version (swatches on their own row underneath) added just
+                ' enough height to tip the content past the ScrolledWindow's viewport,
+                ' turning on an unwanted scrollbar/border for the whole dialog
                 Dim lInterfaceFrame As New Frame("Interface Preview")
-                Dim lInterfaceBox As New Box(Orientation.Vertical, 8)
+                Dim lInterfaceBox As New Box(Orientation.Horizontal, 10)
                 lInterfaceBox.BorderWidth = 8
-
-                Dim lControlsRow As New Box(Orientation.Horizontal, 10)
 
                 pPreviewTextBox = New CustomDrawTextBox()
                 pPreviewTextBox.Text = "Sample text"
                 pPreviewTextBox.InnerEntry.WidthChars = 20
-                lControlsRow.PackStart(pPreviewTextBox, False, False, 0)
+                lInterfaceBox.PackStart(pPreviewTextBox, False, False, 0)
 
                 pPreviewButton = New CustomDrawButton("Sample Button")
-                lControlsRow.PackStart(pPreviewButton, False, False, 0)
+                lInterfaceBox.PackStart(pPreviewButton, False, False, 0)
 
-                lInterfaceBox.PackStart(lControlsRow, False, False, 0)
-
-                ' Small labeled color swatches for the remaining theme colors that have no
-                ' other preview surface in this dialog (status colors used only by the
-                ' build panel/error list, tab-strip colors, and the accent color, whose
-                ' real in-editor uses - bracket-match flash, popup borders - don't trigger
-                ' passively in a static read-only snippet)
-                Dim lSwatchRow As New Box(Orientation.Horizontal, 10)
-                lSwatchRow.PackStart(CreateColorSwatch("Error", EditorTheme.Tags.eErrorColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Warning", EditorTheme.Tags.eWarningColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Info", EditorTheme.Tags.eInfoColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Success", EditorTheme.Tags.eSuccessColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Editor Bg", EditorTheme.Tags.eEditorBackgroundColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Tab Inactive", EditorTheme.Tags.eTabInactiveColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Tab Hover", EditorTheme.Tags.eTabHoverColor), False, False, 0)
-                lSwatchRow.PackStart(CreateColorSwatch("Accent", EditorTheme.Tags.eAccentColor), False, False, 0)
-                lInterfaceBox.PackStart(lSwatchRow, False, False, 0)
+                ' Small color swatches (name shown as a tooltip, not a packed label, to
+                ' keep this whole row no taller than the textbox/button already are) for
+                ' the remaining theme colors that have no other preview surface in this
+                ' dialog (status colors used only by the build panel/error list, tab-strip
+                ' colors, and the accent color, whose real in-editor uses - bracket-match
+                ' flash, popup borders - don't trigger passively in a static read-only
+                ' snippet)
+                lInterfaceBox.PackStart(CreateColorSwatch("Error", EditorTheme.Tags.eErrorColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Warning", EditorTheme.Tags.eWarningColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Info", EditorTheme.Tags.eInfoColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Success", EditorTheme.Tags.eSuccessColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Editor Background", EditorTheme.Tags.eEditorBackgroundColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Inactive Tab", EditorTheme.Tags.eTabInactiveColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Tab Hover", EditorTheme.Tags.eTabHoverColor), False, False, 0)
+                lInterfaceBox.PackStart(CreateColorSwatch("Accent", EditorTheme.Tags.eAccentColor), False, False, 0)
 
                 lInterfaceFrame.Add(lInterfaceBox)
                 lPreviewBox.PackStart(lInterfaceFrame, False, False, 0)
@@ -1564,17 +1565,19 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Builds a small labeled color swatch (a bordered square over a caption) for
-        ''' previewing a theme color that has no other widget to show it in this dialog
+        ''' Builds a small bordered color swatch for previewing a theme color that has no
+        ''' other widget to show it in this dialog - its name is exposed only as a hover
+        ''' tooltip (not a packed label) so adding it to the Interface Preview row doesn't
+        ''' add any height beyond the row's existing tallest control
         ''' </summary>
-        ''' <param name="vLabel">Short caption drawn under the swatch</param>
+        ''' <param name="vLabel">Name shown as this swatch's tooltip</param>
         ''' <param name="vTag">Theme property this swatch tracks</param>
-        ''' <returns>A Box containing the swatch and its label, ready to pack</returns>
+        ''' <returns>The swatch DrawingArea, ready to pack directly</returns>
         Private Function CreateColorSwatch(vLabel As String, vTag As EditorTheme.Tags) As Widget
-            Dim lBox As New Box(Orientation.Vertical, 2)
-
             Dim lSwatch As New DrawingArea()
-            lSwatch.SetSizeRequest(28, 20)
+            lSwatch.SetSizeRequest(22, 22)
+            lSwatch.TooltipText = vLabel
+            lSwatch.Valign = Align.Center
             AddHandler lSwatch.Drawn,
                 Sub(vSender As Object, vArgs As DrawnArgs)
                     Try
@@ -1597,14 +1600,8 @@ Namespace Widgets
                     End Try
                 End Sub
             pColorSwatches(vTag) = lSwatch
-            lBox.PackStart(lSwatch, False, False, 0)
 
-            Dim lCaption As New Label(vLabel)
-            Dim lCaptionCss As String = "label { font-size: 9px; }"
-            CssHelper.ApplyCssToWidget(lCaption, lCaptionCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-            lBox.PackStart(lCaption, False, False, 0)
-
-            Return lBox
+            Return lSwatch
         End Function
 
         ''' <summary>
