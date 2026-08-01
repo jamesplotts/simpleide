@@ -17,6 +17,13 @@ Namespace Editors
         Private pLastSearchText As String = ""
         Private pLastSearchResults As List(Of EditorPosition)
 
+        ' Persistent "highlight all matches" state - independent of the single-match
+        ' selection used by Find/FindNext/FindPrevious. Bucketed by line so the per-character
+        ' draw loop (DrawContent) can do an O(1) per-line lookup instead of scanning every
+        ' match for every character of every visible line.
+        Private pSearchHighlights As Dictionary(Of Integer, List(Of Tuple(Of Integer, Integer)))
+        Private pSearchHighlightsActive As Boolean = False
+
         ''' <summary>
         ''' Handles the editor context menu's "Find" item by asking the host (MainWindow) to
         ''' show the Find panel, pre-filled the same way Ctrl+F pre-fills it
@@ -562,84 +569,74 @@ Namespace Editors
         End Sub
         
         ''' <summary>
-        ''' Finds all occurrences and highlights them
+        ''' Finds all occurrences and highlights them with a persistent background
         ''' </summary>
         Public Function FindAllAndHighlight(vFindText As String, vCaseSensitive As Boolean) As Integer
             Try
                 ' Find all occurrences
                 Dim lMatches As List(Of EditorPosition) = FindAll(vFindText, vCaseSensitive)
-                
+
                 ' Store for navigation
                 pLastSearchResults = lMatches
                 pCurrentSearchIndex = -1
                 pLastSearchText = vFindText
-                
-                ' Highlight all matches (if you have highlighting support)
-                HighlightSearchResults(lMatches, vFindText.Length)
-                
+
+                ' Highlight all matches
+                HighlightSearchMatches(lMatches, vFindText.Length)
+
                 ' Return count of matches
                 Return lMatches.Count
-                
+
             Catch ex As Exception
                 Console.WriteLine($"FindAllAndHighlight error: {ex.Message}")
                 Return 0
             End Try
         End Function
-        
+
         ''' <summary>
-        ''' Highlights search results visually
+        ''' Highlights every position in vMatches with a persistent background that remains
+        ''' until ClearSearchHighlights is called - independent of the single-match selection
+        ''' used by Find/FindNext/FindPrevious
         ''' </summary>
-        Private Sub HighlightSearchResults(vMatches As List(Of EditorPosition), vMatchLength As Integer)
+        ''' <param name="vMatches">Match start positions to highlight</param>
+        ''' <param name="vMatchLength">Length in characters of each match</param>
+        Public Sub HighlightSearchMatches(vMatches As IEnumerable(Of EditorPosition), vMatchLength As Integer) Implements IEditor.HighlightSearchMatches
             Try
-                ' Clear previous highlights
-                ' TODO: ClearSearchHighlights()
-                
-                ' Apply highlight color to each match
+                Dim lByLine As New Dictionary(Of Integer, List(Of Tuple(Of Integer, Integer)))
+
                 for each lMatch in vMatches
-                    If lMatch.Line < pLineCount Then
-                        ' TODO: Search Highlighting: Mark the line for special rendering
-                        ' You would need to implement a way to store and render these highlights
-                        ' For example, add to a list of highlighted regions
-                        ' AddSearchHighlight(lMatch.Line, lMatch.Column, vMatchLength)
+                    Dim lRanges As List(Of Tuple(Of Integer, Integer)) = Nothing
+                    If Not lByLine.TryGetValue(lMatch.Line, lRanges) Then
+                        lRanges = New List(Of Tuple(Of Integer, Integer))()
+                        lByLine(lMatch.Line) = lRanges
                     End If
+                    lRanges.Add(Tuple.Create(lMatch.Column, lMatch.Column + vMatchLength))
                 Next
-                
-                ' Queue redraw to show highlights
+
+                pSearchHighlights = lByLine
+                pSearchHighlightsActive = lByLine.Count > 0
                 pDrawingArea?.QueueDraw()
-                
+
             Catch ex As Exception
-                Console.WriteLine($"HighlightSearchResults error: {ex.Message}")
+                Console.WriteLine($"HighlightSearchMatches error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Example usage for various scenarios
+        ''' Clears any active search-match highlighting set by HighlightSearchMatches
         ''' </summary>
-        Private Sub ExampleUsage()
-            ' Simple find all
-            Dim lMatches As List(Of EditorPosition) = FindAll("TODO")
-            
-            ' Case-insensitive search
-            Dim lCaseInsensitive As List(Of EditorPosition) = FindAll("error", False)
-            
-            ' Find whole words only
-            Dim lWholeWords As List(Of EditorPosition) = FindAllExtended("End", True, True, False)
-            
-            ' Regex search for VB.NET method declarations
-            Dim lMethods As List(Of EditorPosition) = FindAllExtended(
-                "^\s*(Public|Private|Protected|Friend)\s+(Sub|Function)\s+\w+", 
-                True, False, True)
-            
-            ' Search in selection only
-            Dim lInSelection As List(Of EditorPosition) = FindAllExtended(
-                "Dim", True, True, False, True)
-            
-            ' Process all matches
-            for each lPosition in lMatches
-                Console.WriteLine($"Found at Line {lPosition.Line + 1}, Column {lPosition.Column + 1}")
-            Next
+        Public Sub ClearSearchHighlights() Implements IEditor.ClearSearchHighlights
+            Try
+                If Not pSearchHighlightsActive Then Return
+                pSearchHighlightsActive = False
+                pSearchHighlights = Nothing
+                pDrawingArea?.QueueDraw()
+
+            Catch ex As Exception
+                Console.WriteLine($"ClearSearchHighlights error: {ex.Message}")
+            End Try
         End Sub
-        
+
     End Class
     
 End Namespace

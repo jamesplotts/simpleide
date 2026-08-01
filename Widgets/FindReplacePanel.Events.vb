@@ -96,6 +96,7 @@ Namespace Widgets
                     pCurrentMatches = Nothing
                     pCurrentMatchIndex = -1
                     pStatusLabel.Text = "Ready"
+                    GetCurrentTab()?.Editor?.ClearSearchHighlights()
                 End If
                 
             Catch ex As Exception

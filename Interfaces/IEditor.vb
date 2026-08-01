@@ -138,6 +138,20 @@ Namespace Interfaces
         Sub FindPrevious()
         Sub Replace(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean)
         Sub ReplaceAll(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean)
+
+        ''' <summary>
+        ''' Highlights every position in vMatches with a persistent background that remains
+        ''' until ClearSearchHighlights is called - independent of the single-match selection
+        ''' used by Find/FindNext/FindPrevious
+        ''' </summary>
+        ''' <param name="vMatches">Match start positions to highlight</param>
+        ''' <param name="vMatchLength">Length in characters of each match</param>
+        Sub HighlightSearchMatches(vMatches As IEnumerable(Of EditorPosition), vMatchLength As Integer)
+
+        ''' <summary>
+        ''' Clears any active search-match highlighting set by HighlightSearchMatches
+        ''' </summary>
+        Sub ClearSearchHighlights()
         
         ' Formatting
         Sub ApplyTheme()

@@ -149,10 +149,17 @@ Namespace Editors
                     
                     ' Get character tokens for this line (using byte array instead of CharacterColorInfo)
                     Dim lCharTokens() As Byte = Nothing
-                    If pSourceFileInfo IsNot Nothing AndAlso 
-                       pSourceFileInfo.CharacterTokens IsNot Nothing AndAlso 
+                    If pSourceFileInfo IsNot Nothing AndAlso
+                       pSourceFileInfo.CharacterTokens IsNot Nothing AndAlso
                        lLineIndex < pSourceFileInfo.CharacterTokens.Length Then
                         lCharTokens = pSourceFileInfo.CharacterTokens(lLineIndex)
+                    End If
+
+                    ' Look up this line's search-match ranges once (not per-character) - see
+                    ' HighlightSearchMatches in CustomDrawingEditor.Search.vb
+                    Dim lSearchHighlightRanges As List(Of Tuple(Of Integer, Integer)) = Nothing
+                    If pSearchHighlightsActive AndAlso pSearchHighlights IsNot Nothing Then
+                        pSearchHighlights.TryGetValue(lLineIndex, lSearchHighlightRanges)
                     End If
                     
                     ' Calculate Y position for this line
@@ -217,6 +224,22 @@ Namespace Editors
                             vContext.Rectangle(lX, lLineTop + lAscent + 1, pCharWidth, pLineHeight)
                             vContext.Fill()
                             lPairPattern.Dispose()
+                        End If
+
+                        ' Highlight "find all matches" results set via HighlightSearchMatches
+                        ' (CustomDrawingEditor.Search.vb), persistent until ClearSearchHighlights
+                        If lSearchHighlightRanges IsNot Nothing Then
+                            for each lRange in lSearchHighlightRanges
+                                If lColIndex >= lRange.Item1 AndAlso lColIndex < lRange.Item2 Then
+                                    Dim lFindColor As Cairo.Color = HexToCairoColor(pFindHighlightColor)
+                                    Dim lFindPattern As New Cairo.SolidPattern(lFindColor.R, lFindColor.G, lFindColor.B, 0.45)
+                                    vContext.SetSource(lFindPattern)
+                                    vContext.Rectangle(lX, lLineTop + lAscent + 1, pCharWidth, pLineHeight)
+                                    vContext.Fill()
+                                    lFindPattern.Dispose()
+                                    Exit for
+                                End If
+                            Next
                         End If
 
                         ' FIXED: Don't skip spaces - we still need to draw them (even if invisible)

@@ -582,14 +582,21 @@ Namespace Widgets
                 ' the callback is threaded through and invoked there instead.
                 If pInFileRadio.Active Then
                     SearchInCurrentFile()
+                    UpdateSearchHighlights()
                     UpdateButtonStates()
                     vOnComplete?.Invoke()
                 Else
                     ' Use optimized in-memory search if available
                     If pProjectManager IsNot Nothing Then
-                        SearchInProjectOptimized(vOnComplete)
+                        SearchInProjectOptimized(Sub()
+                            UpdateSearchHighlights()
+                            vOnComplete?.Invoke()
+                        End Sub)
                     Else
-                        SearchInProject(vOnComplete)
+                        SearchInProject(Sub()
+                            UpdateSearchHighlights()
+                            vOnComplete?.Invoke()
+                        End Sub)
                     End If
                     UpdateButtonStates()
                 End If
@@ -1085,6 +1092,32 @@ Namespace Widgets
         End Function
         
         ''' <summary>
+        ''' Highlights every current-search match that falls in the active tab's file (for
+        ''' either scope - project-wide results are filtered down to that one file), or
+        ''' clears highlighting if there's no active tab or no matches in it
+        ''' </summary>
+        Private Sub UpdateSearchHighlights()
+            Try
+                Dim lTab As TabInfo = GetCurrentTab()
+                If lTab Is Nothing OrElse lTab.Editor Is Nothing Then Return
+
+                Dim lFileMatches As List(Of EditorPosition) = pSearchResults.
+                    Where(Function(r) r.FilePath = lTab.FilePath).
+                    Select(Function(r) New EditorPosition(r.LineNumber - 1, r.ColumnNumber - 1)).
+                    ToList()
+
+                If lFileMatches.Count > 0 Then
+                    lTab.Editor.HighlightSearchMatches(lFileMatches, pLastSearchOptions.SearchText.Length)
+                Else
+                    lTab.Editor.ClearSearchHighlights()
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"UpdateSearchHighlights error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
         ''' Navigates to a search result by index via the ResultSelected event, which
         ''' MainWindow handles by opening/switching to the file and moving the cursor.
         ''' Works uniformly for both current-file and project-wide search results.
@@ -1141,6 +1174,7 @@ Namespace Widgets
             pCurrentMatches = Nothing
             pCurrentMatchIndex = -1
             pStatusLabel.Text = "Ready"
+            GetCurrentTab()?.Editor?.ClearSearchHighlights()
         End Sub
         
         Public Function HasSearchText() As Boolean
