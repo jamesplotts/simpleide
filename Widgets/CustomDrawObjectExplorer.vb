@@ -764,6 +764,7 @@ Namespace Widgets
                 ' Custom-drawn scrollbars similarly need explicit re-theming
                 If pVScrollBar IsNot Nothing Then pVScrollBar.ThemeManager = vThemeManager
                 If pHScrollBar IsNot Nothing Then pHScrollBar.ThemeManager = vThemeManager
+                If pScaleCombo IsNot Nothing Then pScaleCombo.ThemeManager = vThemeManager
 
                 ' Refresh display with new theme
                 RefreshTheme()

@@ -23,7 +23,7 @@ Namespace Widgets
         Private pRefreshButton As ToolButton
         Private pSearchEntry As CustomDrawTextBox
         Private pSearchItem As ToolItem
-        Private pScaleCombo As ComboBoxText
+        Private pScaleCombo As CustomDrawComboBox
         Private pScaleItem As ToolItem
         
         ' ===== Search State =====
@@ -186,7 +186,8 @@ Namespace Widgets
                 lScaleBox.PackStart(lScaleLabel, False, False, 0)
                 
                 ' Create combo box with preset scales
-                pScaleCombo = New ComboBoxText()
+                pScaleCombo = New CustomDrawComboBox()
+                pScaleCombo.ThemeManager = pThemeManager
                 pScaleCombo.AppendText("50%")
                 pScaleCombo.AppendText("75%")
                 pScaleCombo.AppendText("100%")
@@ -219,10 +220,10 @@ Namespace Widgets
                 Dim lCurrentScaleText As String = $"{pCurrentScale}%"
                 Dim lIndex As Integer = -1
                 
-                for i As Integer = 0 To pScaleCombo.Model.IterNChildren() - 1
+                for i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
                     Dim lIter As TreeIter
-                    If pScaleCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.Model.GetValue(lIter, 0))
+                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
+                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
                         If lText = lCurrentScaleText Then
                             lIndex = i
                             Exit for
@@ -235,7 +236,7 @@ Namespace Widgets
                 Else
                     ' Add custom value and select it
                     pScaleCombo.AppendText(lCurrentScaleText)
-                    pScaleCombo.Active = pScaleCombo.Model.IterNChildren() - 1
+                    pScaleCombo.Active = pScaleCombo.InnerCombo.Model.IterNChildren() - 1
                 End If
                 
             Catch ex As Exception

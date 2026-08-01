@@ -7,6 +7,7 @@ Imports System
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 
 Namespace Editors
@@ -27,7 +28,7 @@ Namespace Editors
         Private pGridSize As Integer = 10
         Private pShowTransparency As Boolean = True
         Private pStatusLabel As Label
-        Private pZoomCombo As ComboBoxText
+        Private pZoomCombo As CustomDrawComboBox
         Private pSettingsManager As SettingsManager
         
         ' Events
@@ -134,7 +135,7 @@ Namespace Editors
             
             ' Zoom combo
             Dim lZoomItem As New ToolItem()
-            pZoomCombo = New ComboBoxText()
+            pZoomCombo = New CustomDrawComboBox()
             pZoomCombo.AppendText("10%")
             pZoomCombo.AppendText("25%")
             pZoomCombo.AppendText("50%")
@@ -464,10 +465,10 @@ Namespace Editors
             End If
             
             ' Select current zoom
-            For i As Integer = 0 To pZoomCombo.Model.IterNChildren() - 1
+            For i As Integer = 0 To pZoomCombo.InnerCombo.Model.IterNChildren() - 1
                 Dim lIter As TreeIter = Nothing
-                If pZoomCombo.Model.IterNthChild(lIter, Nothing, i) Then
-                    If pZoomCombo.Model.GetValue(lIter, 0).ToString() = $"{lZoomPercent}%" Then
+                If pZoomCombo.InnerCombo.Model.IterNthChild(lIter, Nothing, i) Then
+                    If pZoomCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = $"{lZoomPercent}%" Then
                         pZoomCombo.Active = i
                         Exit For
                     End If

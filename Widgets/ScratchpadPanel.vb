@@ -20,7 +20,7 @@ Namespace Widgets
         Private pCurrentScratchpad As ScratchpadData
         Private pTextView As TextView
         Private pTextBuffer As TextBuffer
-        Private pScratchpadCombo As ComboBoxText
+        Private pScratchpadCombo As CustomDrawComboBox
         Private pScopeLabel As Label
         Private pStatusLabel As Label
         Private pSaveTimer As UInteger
@@ -111,7 +111,7 @@ Namespace Widgets
                 lBox.MarginBottom = 5
                 
                 ' Scratchpad selector
-                pScratchpadCombo = New ComboBoxText()
+                pScratchpadCombo = New CustomDrawComboBox()
                 pScratchpadCombo.WidthRequest = 200
                 lBox.PackStart(pScratchpadCombo, False, False, 0)
                 

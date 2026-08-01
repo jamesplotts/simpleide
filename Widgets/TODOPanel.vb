@@ -22,9 +22,9 @@ Namespace Widgets
 
         ' Filter controls
         Private pSearchEntry As CustomDrawTextBox
-        Private pPriorityCombo As ComboBoxText
-        Private pCategoryCombo As ComboBoxText
-        Private pStatusCombo As ComboBoxText
+        Private pPriorityCombo As CustomDrawComboBox
+        Private pCategoryCombo As CustomDrawComboBox
+        Private pStatusCombo As CustomDrawComboBox
         Private pOverdueToggle As CustomDrawToggleButton
         Private pRefreshButton As CustomDrawButton
         Private pAddButton As CustomDrawButton
@@ -98,7 +98,7 @@ Namespace Widgets
             pToolbar.PackStart(pSearchEntry, False, False, 0)
 
             ' Priority filter
-            pPriorityCombo = New ComboBoxText()
+            pPriorityCombo = New CustomDrawComboBox()
             pPriorityCombo.AppendText("All Priorities")
             pPriorityCombo.AppendText("Critical")
             pPriorityCombo.AppendText("High")
@@ -109,7 +109,7 @@ Namespace Widgets
             pToolbar.PackStart(pPriorityCombo, False, False, 0)
 
             ' Category filter
-            pCategoryCombo = New ComboBoxText()
+            pCategoryCombo = New CustomDrawComboBox()
             pCategoryCombo.AppendText("All Categories")
             pCategoryCombo.AppendText("Bug")
             pCategoryCombo.AppendText("Feature")
@@ -125,7 +125,7 @@ Namespace Widgets
             pToolbar.PackStart(pCategoryCombo, False, False, 0)
 
             ' Status filter
-            pStatusCombo = New ComboBoxText()
+            pStatusCombo = New CustomDrawComboBox()
             pStatusCombo.AppendText("All Status")
             pStatusCombo.AppendText("Pending")
             pStatusCombo.AppendText("in Progress")
@@ -512,6 +512,12 @@ Namespace Widgets
                 }
                     If lButton IsNot Nothing Then
                         lButton.ThemeManager = vThemeManager
+                    End If
+                Next
+
+                For Each lCombo As CustomDrawComboBox In New CustomDrawComboBox() {pPriorityCombo, pCategoryCombo, pStatusCombo}
+                    If lCombo IsNot Nothing Then
+                        lCombo.ThemeManager = vThemeManager
                     End If
                 Next
             Catch ex As Exception
@@ -924,9 +930,9 @@ Namespace Widgets
         
         Private pTitleEntry As CustomDrawTextBox
         Private pDescriptionTextView As TextView
-        Private pPriorityCombo As ComboBoxText
-        Private pCategoryCombo As ComboBoxText
-        Private pStatusCombo As ComboBoxText
+        Private pPriorityCombo As CustomDrawComboBox
+        Private pCategoryCombo As CustomDrawComboBox
+        Private pStatusCombo As CustomDrawComboBox
         Private pDueDateCalendar As Calendar
         Private pDueDateCheckButton As CheckButton
         Private pProgressScale As Scale
@@ -1100,7 +1106,8 @@ Namespace Widgets
                 Dim lPriCatBox As New Box(Orientation.Horizontal, 10)
                 
                 Dim lPriorityFrame As New Frame("Priority")
-                pPriorityCombo = New ComboBoxText()
+                pPriorityCombo = New CustomDrawComboBox()
+                pPriorityCombo.ThemeManager = pThemeManager
                 pPriorityCombo.AppendText("Low")
                 pPriorityCombo.AppendText("Medium")
                 pPriorityCombo.AppendText("High")
@@ -1110,7 +1117,8 @@ Namespace Widgets
                 lPriCatBox.PackStart(lPriorityFrame, True, True, 0)
                 
                 Dim lCategoryFrame As New Frame("Category")
-                pCategoryCombo = New ComboBoxText()
+                pCategoryCombo = New CustomDrawComboBox()
+                pCategoryCombo.ThemeManager = pThemeManager
                 pCategoryCombo.AppendText("Bug")
                 pCategoryCombo.AppendText("Feature")
                 pCategoryCombo.AppendText("documentation")
@@ -1130,7 +1138,8 @@ Namespace Widgets
                 Dim lStatusProgressBox As New Box(Orientation.Horizontal, 10)
                 
                 Dim lStatusFrame As New Frame("Status")
-                pStatusCombo = New ComboBoxText()
+                pStatusCombo = New CustomDrawComboBox()
+                pStatusCombo.ThemeManager = pThemeManager
                 pStatusCombo.AppendText("Pending")
                 pStatusCombo.AppendText("in Progress")
                 pStatusCombo.AppendText("Completed")
