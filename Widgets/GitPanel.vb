@@ -23,13 +23,13 @@ Namespace Widgets
         Private pDiffTextView As TextView
         Private pDiffBuffer As TextBuffer
         Private pCommitMessageEntry As TextView
-        Private pCommitButton As Button
+        Private pCommitButton As CustomDrawButton
         Private pPushButton As ToolButton
         Private pPullButton As ToolButton
         Private pRefreshButton As ToolButton
         Private pBranchLabel As Label
-        Private pStageAllButton As Button
-        Private pUnstageAllButton As Button
+        Private pStageAllButton As CustomDrawButton
+        Private pUnstageAllButton As CustomDrawButton
         Private pSelectedFile As String = ""
         
         ' Git file status
@@ -172,6 +172,9 @@ Namespace Widgets
             Try
                 pThemeManager = vThemeManager
                 pNotebook.SetThemeManager(vThemeManager)
+                If pStageAllButton IsNot Nothing Then pStageAllButton.ThemeManager = vThemeManager
+                If pUnstageAllButton IsNot Nothing Then pUnstageAllButton.ThemeManager = vThemeManager
+                If pCommitButton IsNot Nothing Then pCommitButton.ThemeManager = vThemeManager
             Catch
             End Try
         End Sub
@@ -189,10 +192,10 @@ Namespace Widgets
             lButtonBox.MarginStart = 6
             lButtonBox.MarginEnd = 6
             
-            pStageAllButton = New Button("Stage All")
+            pStageAllButton = New CustomDrawButton("Stage All")
             lButtonBox.PackStart(pStageAllButton, False, False, 0)
-            
-            pUnstageAllButton = New Button("Unstage All")
+
+            pUnstageAllButton = New CustomDrawButton("Unstage All")
             lButtonBox.PackStart(pUnstageAllButton, False, False, 0)
             
             lTopBox.PackStart(lButtonBox, False, False, 0)
@@ -257,7 +260,7 @@ Namespace Widgets
             
             ' Commit button
             Dim lCommitButtonBox As New Box(Orientation.Horizontal, 6)
-            pCommitButton = New Button("Commit")
+            pCommitButton = New CustomDrawButton("Commit")
             pCommitButton.Sensitive = False
             lCommitButtonBox.PackEnd(pCommitButton, False, False, 0)
             lCommitBox.PackStart(lCommitButtonBox, False, False, 0)

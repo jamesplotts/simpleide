@@ -16,7 +16,7 @@ Namespace Editors
         Private pProjectFile As String
         Private pGrid As Grid
         Private pIsModified As Boolean = False
-        Private pGenerateKeyButton As Button
+        Private pGenerateKeyButton As CustomDrawButton
         
         ' Assembly information entries
         Private pTitleEntry As CustomDrawTextBox
@@ -35,14 +35,14 @@ Namespace Editors
         ' Signing
         Private pSignAssemblyCheck As CheckButton
         Private pKeyFileEntry As CustomDrawTextBox
-        Private pKeyFileBrowseButton As Button
+        Private pKeyFileBrowseButton As CustomDrawButton
         Private pDelaySignCheck As CheckButton
         
         ' Build settings
-        Private pOutputTypeCombo As ComboBoxText
-        Private pTargetFrameworkCombo As ComboBoxText
-        Private pPlatformTargetCombo As ComboBoxText
-        Private pLangVersionCombo As ComboBoxText
+        Private pOutputTypeCombo As CustomDrawComboBox
+        Private pTargetFrameworkCombo As CustomDrawComboBox
+        Private pPlatformTargetCombo As CustomDrawComboBox
+        Private pLangVersionCombo As CustomDrawComboBox
         
         ' Events
         Public Event Modified(vIsModified As Boolean)
@@ -166,11 +166,11 @@ Namespace Editors
                 pKeyFileEntry.Sensitive = False
                 AddHandler pKeyFileEntry.Changed, AddressOf OnFieldChanged
 
-                pKeyFileBrowseButton = New Button("Browse...")
+                pKeyFileBrowseButton = New CustomDrawButton("Browse...")
                 pKeyFileBrowseButton.Sensitive = False
                 AddHandler pKeyFileBrowseButton.Clicked, AddressOf OnBrowseKeyFile
 
-                pGenerateKeyButton = New Button("Generate...")
+                pGenerateKeyButton = New CustomDrawButton("Generate...")
                 pGenerateKeyButton.Sensitive = False
                 AddHandler pGenerateKeyButton.Clicked, AddressOf OnGenerateKeyFile
                 
@@ -227,10 +227,10 @@ Namespace Editors
                 lButtonBox.MarginEnd = 12    ' FIXED: Was MarginRight
                 lButtonBox.MarginBottom = 12
                 
-                Dim lSaveButton As New Button("Save")
+                Dim lSaveButton As New CustomDrawButton("Save")
                 AddHandler lSaveButton.Clicked, AddressOf OnSave
-                
-                Dim lRevertButton As New Button("Revert")
+
+                Dim lRevertButton As New CustomDrawButton("Revert")
                 AddHandler lRevertButton.Clicked, AddressOf OnRevert
                 
                 lButtonBox.PackStart(lRevertButton, False, False, 0)
@@ -269,12 +269,12 @@ Namespace Editors
             pGrid.Attach(vEntry, 1, vRow, 1, 1)
         End Sub
         
-        Private Sub AddLabeledCombo(vLabelText As String, ByRef vCombo As ComboBoxText, vRow As Integer, vItems() As String)
+        Private Sub AddLabeledCombo(vLabelText As String, ByRef vCombo As CustomDrawComboBox, vRow As Integer, vItems() As String)
             Dim lLabel As New Label(vLabelText)
             lLabel.Halign = Align.Start
             pGrid.Attach(lLabel, 0, vRow, 1, 1)
-            
-            vCombo = New ComboBoxText()
+
+            vCombo = New CustomDrawComboBox()
             For Each lItem In vItems
                 vCombo.AppendText(lItem)
             Next
@@ -382,10 +382,10 @@ Namespace Editors
                 ' Target Framework - FIXED: Proper TreeIter handling
                 Dim lTargetFramework As String = GetNodeValue(vDoc, "//TargetFramework")
                 If Not String.IsNullOrEmpty(lTargetFramework) Then
-                    For i As Integer = 0 To pTargetFrameworkCombo.Model.IterNChildren() - 1
+                    For i As Integer = 0 To pTargetFrameworkCombo.InnerCombo.Model.IterNChildren() - 1
                         Dim lIter As TreeIter = Nothing
-                        If pTargetFrameworkCombo.Model.IterNthChild(lIter, i) Then
-                            If pTargetFrameworkCombo.Model.GetValue(lIter, 0).ToString() = lTargetFramework Then
+                        If pTargetFrameworkCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
+                            If pTargetFrameworkCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lTargetFramework Then
                                 pTargetFrameworkCombo.Active = i
                                 Exit For
                             End If
@@ -396,10 +396,10 @@ Namespace Editors
                 ' Platform Target - FIXED: Proper TreeIter handling
                 Dim lPlatformTarget As String = GetNodeValue(vDoc, "//PlatformTarget")
                 If Not String.IsNullOrEmpty(lPlatformTarget) Then
-                    For i As Integer = 0 To pPlatformTargetCombo.Model.IterNChildren() - 1
+                    For i As Integer = 0 To pPlatformTargetCombo.InnerCombo.Model.IterNChildren() - 1
                         Dim lIter As TreeIter = Nothing
-                        If pPlatformTargetCombo.Model.IterNthChild(lIter, i) Then
-                            If pPlatformTargetCombo.Model.GetValue(lIter, 0).ToString() = lPlatformTarget Then
+                        If pPlatformTargetCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
+                            If pPlatformTargetCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lPlatformTarget Then
                                 pPlatformTargetCombo.Active = i
                                 Exit For
                             End If
@@ -410,10 +410,10 @@ Namespace Editors
                 ' Language Version - FIXED: Proper TreeIter handling
                 Dim lLangVersion As String = GetNodeValue(vDoc, "//LangVersion")
                 If Not String.IsNullOrEmpty(lLangVersion) Then
-                    For i As Integer = 0 To pLangVersionCombo.Model.IterNChildren() - 1
+                    For i As Integer = 0 To pLangVersionCombo.InnerCombo.Model.IterNChildren() - 1
                         Dim lIter As TreeIter = Nothing
-                        If pLangVersionCombo.Model.IterNthChild(lIter, i) Then
-                            If pLangVersionCombo.Model.GetValue(lIter, 0).ToString() = lLangVersion Then
+                        If pLangVersionCombo.InnerCombo.Model.IterNthChild(lIter, i) Then
+                            If pLangVersionCombo.InnerCombo.Model.GetValue(lIter, 0).ToString() = lLangVersion Then
                                 pLangVersionCombo.Active = i
                                 Exit For
                             End If

@@ -7,6 +7,7 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Editors
     
@@ -22,9 +23,9 @@ Namespace Editors
         Private pEditor As CustomDrawingEditor
         Private pArtifactTypeLabel As Label
         Private pArtifactNameLabel As Label
-        Private pAcceptButton As Button
-        Private pRejectButton As Button
-        Private pCompareButton As Button
+        Private pAcceptButton As CustomDrawButton
+        Private pRejectButton As CustomDrawButton
+        Private pCompareButton As CustomDrawButton
         Private pStatusLabel As Label
         
         ' SourceFileInfo for the editor
@@ -117,15 +118,18 @@ Namespace Editors
                 pHeaderBox.PackStart(pArtifactNameLabel, True, True, 0)
                 
                 ' Action buttons
-                pCompareButton = New Button("Compare")
+                pCompareButton = New CustomDrawButton("Compare")
+                pCompareButton.ThemeManager = pThemeManager
                 AddHandler pCompareButton.Clicked, AddressOf OnCompareClicked
                 pHeaderBox.PackEnd(pCompareButton, False, False, 0)
-                
-                pRejectButton = New Button("Reject")
+
+                pRejectButton = New CustomDrawButton("Reject")
+                pRejectButton.ThemeManager = pThemeManager
                 AddHandler pRejectButton.Clicked, AddressOf OnRejectClicked
                 pHeaderBox.PackEnd(pRejectButton, False, False, 5)
-                
-                pAcceptButton = New Button("Accept")
+
+                pAcceptButton = New CustomDrawButton("Accept")
+                pAcceptButton.ThemeManager = pThemeManager
                 AddHandler pAcceptButton.Clicked, AddressOf OnAcceptClicked
                 pHeaderBox.PackEnd(pAcceptButton, False, False, 0)
                 

@@ -6,17 +6,18 @@ Imports System.Text.RegularExpressions
 Imports System.Threading.Tasks
 Imports System.Collections.Generic
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
 
 Namespace Widgets
     Public Class HelpViewerPanel
         Inherits Box
-        
+
         ' Private fields
         Private pTextView As TextView
-        Private pUrlCombo As ComboBoxText
-        Private pBackButton As Button
-        Private pForwardButton As Button
-        Private pHomeButton As Button
+        Private pUrlCombo As CustomDrawComboBox
+        Private pBackButton As CustomDrawButton
+        Private pForwardButton As CustomDrawButton
+        Private pHomeButton As CustomDrawButton
         Private pStatusLabel As Label
         Private pProgressSpinner As Spinner
         Private pHttpClient As New HttpClient()
@@ -44,22 +45,19 @@ Namespace Widgets
             lToolbar.MarginBottom = 4
             
             ' Navigation buttons
-            pBackButton = New Button()
-            pBackButton.Image = Image.NewFromIconName("go-previous", IconSize.SmallToolbar)
+            pBackButton = New CustomDrawButton("", LoadToolbarIcon("go-previous"))
             pBackButton.TooltipText = "Go back"
             pBackButton.Sensitive = False
             AddHandler pBackButton.Clicked, AddressOf OnBackClicked
             lToolbar.PackStart(pBackButton, False, False, 0)
-            
-            pForwardButton = New Button()
-            pForwardButton.Image = Image.NewFromIconName("go-next", IconSize.SmallToolbar)
+
+            pForwardButton = New CustomDrawButton("", LoadToolbarIcon("go-next"))
             pForwardButton.TooltipText = "Go forward"
             pForwardButton.Sensitive = False
             AddHandler pForwardButton.Clicked, AddressOf OnForwardClicked
             lToolbar.PackStart(pForwardButton, False, False, 0)
-            
-            pHomeButton = New Button()
-            pHomeButton.Image = Image.NewFromIconName("go-home", IconSize.SmallToolbar)
+
+            pHomeButton = New CustomDrawButton("", LoadToolbarIcon("go-home"))
             pHomeButton.TooltipText = "Go to help home"
             AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
             lToolbar.PackStart(pHomeButton, False, False, 0)
@@ -69,7 +67,7 @@ Namespace Widgets
             lToolbar.PackStart(lSeparator, False, False, 6)
             
             ' Quick links dropdown
-            pUrlCombo = New ComboBoxText()
+            pUrlCombo = New CustomDrawComboBox()
             pUrlCombo.TooltipText = "Select a help topic or enter custom Url"
             
             ' Add quick links to dropdown
@@ -135,7 +133,21 @@ Namespace Widgets
             ' Load welcome content
             ShowWelcome()
         End Sub
-        
+
+        ''' <summary>
+        ''' Loads a themed icon by name for use as a CustomDrawButton's IconPixbuf
+        ''' </summary>
+        ''' <param name="vIconName">Icon theme name (e.g. "go-previous")</param>
+        ''' <returns>The loaded pixbuf, or Nothing if it couldn't be loaded</returns>
+        Private Function LoadToolbarIcon(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"LoadToolbarIcon error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
         Private Sub InitializeQuickLinks()
             pQuickLinks.Add("VB.NET Language Reference", "https://learn.microsoft.com/en-us/dotnet/Visual-basic/")
             pQuickLinks.Add("GTK# documentation", "https://docs.gtk.org/gtk3/")
