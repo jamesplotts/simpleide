@@ -258,15 +258,14 @@ Namespace Managers
                 lCss.AppendLine($"}}")
                 lCss.AppendLine()
                 
-                ' Menu styles
+                ' Menu styles - use the theme's own BackgroundColor/ForegroundColor rather
+                ' than a fixed VS-Code-gray fallback, so the menu bar matches the rest of
+                ' the app instead of standing out as an obviously different shade on any
+                ' theme whose background isn't close to that specific gray (e.g. Solarized
+                ' Dark's dark teal #002B36 vs. the old hardcoded #2D2D30)
                 lCss.AppendLine($"menu, menubar, menuitem {{")
-                If vTheme.IsDarkTheme Then
-                    lCss.AppendLine($"    background-color: #2D2D30;")
-                    lCss.AppendLine($"    color: #CCCCCC;")
-                Else
-                    lCss.AppendLine($"    background-color: #F0F0F0;")
-                    lCss.AppendLine($"    color: #000000;")
-                End If
+                lCss.AppendLine($"    background-color: {vTheme.BackgroundColor};")
+                lCss.AppendLine($"    color: {vTheme.ForegroundColor};")
                 lCss.AppendLine($"}}")
                 lCss.AppendLine()
                 
