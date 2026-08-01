@@ -7,6 +7,8 @@ Imports System.Threading.Tasks
 Imports System.Collections.Generic
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Widgets
+Imports SimpleIDE.Models
+Imports SimpleIDE.Managers
 
 Namespace Widgets
     Public Class HelpViewerPanel
@@ -24,13 +26,80 @@ Namespace Widgets
         Private pHistory As New List(Of String)
         Private pHistoryIndex As Integer = -1
         Private pQuickLinks As New Dictionary(Of String, String)
-        
+
+        ' Theme support
+        Private pThemeManager As ThemeManager
+        Private pTextViewCssProvider As CssProvider
+
         ' Events
         Public Event TitleChanged(vTitle As String)
-        
+
         Public Sub New()
             MyBase.New(Orientation.Vertical, 0)
             Initialize()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the app's color theme to this panel's CustomDraw controls and to the help
+        ''' content TextView's background/foreground. The content formatting tags (h1/h2/h3/
+        ''' code/link/bold/italic, see CreateTextTags) keep their own fixed accent colors
+        ''' regardless of theme - they're content styling, not panel chrome.
+        ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                pThemeManager = vThemeManager
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
+                pUrlCombo.ThemeManager = vThemeManager
+                pBackButton.ThemeManager = vThemeManager
+                pForwardButton.ThemeManager = vThemeManager
+                pHomeButton.ThemeManager = vThemeManager
+
+                ApplyCurrentTheme()
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpViewerPanel.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles live theme changes - the CustomDraw controls redraw themselves via their
+        ''' own ThemeChanged subscriptions, this only needs to refresh the TextView's CSS
+        ''' </summary>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the current theme's background/foreground to the help content TextView
+        ''' </summary>
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing OrElse pTextView Is Nothing Then Return
+
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                Dim lCss As String = String.Format(
+                    "textview {{ background-color: {0}; color: {1}; }}",
+                    lTheme.EditorBackgroundColor, lTheme.ForegroundColor)
+
+                If pTextViewCssProvider IsNot Nothing Then
+                    pTextView.StyleContext.RemoveProvider(pTextViewCssProvider)
+                End If
+                pTextViewCssProvider = New CssProvider()
+                pTextViewCssProvider.LoadFromData(lCss)
+                pTextView.StyleContext.AddProvider(pTextViewCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpViewerPanel.ApplyCurrentTheme error: {ex.Message}")
+            End Try
         End Sub
         
         Private Sub Initialize()

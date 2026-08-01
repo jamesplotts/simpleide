@@ -524,11 +524,17 @@ Namespace Managers
                 Dim lApiKey As String = If(pSettingsManager IsNot Nothing, 
                     pSettingsManager.GetString("AI.ApiKey", ""), "")
                     
-                pAIAssistantPanel = New AIAssistantPanel(lApiKey)    
-                            
+                pAIAssistantPanel = New AIAssistantPanel(lApiKey)
+
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "bot")
-                
+
+                ' This tab is created lazily, so if the theme was already set before this ran,
+                ' the new panel needs to be brought up to date immediately
+                If pThemeManager IsNot Nothing Then
+                    pAIAssistantPanel.SetThemeManager(pThemeManager)
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"CreateAIAssistantTab error: {ex.Message}")
             End Try
@@ -574,11 +580,17 @@ Namespace Managers
                 
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pHelpViewerPanel, "Help", "help-circle")
-                
+
+                ' This tab is created lazily, so if the theme was already set before this ran,
+                ' the new panel needs to be brought up to date immediately
+                If pThemeManager IsNot Nothing Then
+                    pHelpViewerPanel.SetThemeManager(pThemeManager)
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"CreateHelpViewerTab error: {ex.Message}")
             End Try
-        End Sub      
+        End Sub
           
         ' Update help title - PUBLIC METHOD
         Public Sub UpdateHelpTitle(vTitle As String)
@@ -1089,8 +1101,13 @@ Namespace Managers
                     pFindPanel.SetThemeManager(vThemeManager)
                 End If
 
-                ' Pass to other panels that might need it
-                ' (Future: other panels can get theme support too)
+                If pAIAssistantPanel IsNot Nothing Then
+                    pAIAssistantPanel.SetThemeManager(vThemeManager)
+                End If
+
+                If pHelpViewerPanel IsNot Nothing Then
+                    pHelpViewerPanel.SetThemeManager(vThemeManager)
+                End If
 
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.SetThemeManager error: {ex.Message}")

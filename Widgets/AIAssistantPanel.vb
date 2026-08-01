@@ -10,6 +10,7 @@ Imports System.Text.Json
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports SimpleIDE.Editors
+Imports SimpleIDE.Managers
 
 Namespace Widgets
     Public Class AIAssistantPanel
@@ -28,6 +29,11 @@ Namespace Widgets
         Private pFileSystemBridge As AIFileSystemBridge
         Private pIsProcessing As Boolean = False
         Private pConversationHistory As New List(Of ImprovedAIAssistantPanel.ChatMessage)
+
+        ' Theme support
+        Private pThemeManager As ThemeManager
+        Private pChatViewCssProvider As CssProvider
+        Private pPromptEntryCssProvider As CssProvider
         
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
@@ -88,7 +94,86 @@ Namespace Widgets
             pApiClient = New EnhancedClaudeApiClient(vApiKey)
             pFileSystemBridge = New AIFileSystemBridge()
         End Sub
-        
+
+        ''' <summary>
+        ''' Applies the app's color theme to this panel's CustomDraw controls and to the
+        ''' chat/prompt TextViews' background and foreground colors. The per-message role tags
+        ''' (user/assistant/code/action/error, see CreateChatTags) keep their own fixed accent
+        ''' colors regardless of theme - they're message-content styling, not panel chrome.
+        ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                pThemeManager = vThemeManager
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
+                pSendButton.ThemeManager = vThemeManager
+                pCreateProjectButton.ThemeManager = vThemeManager
+                pAddFileButton.ThemeManager = vThemeManager
+                pModifyCodeButton.ThemeManager = vThemeManager
+                pExplainCodeButton.ThemeManager = vThemeManager
+                pFixErrorsButton.ThemeManager = vThemeManager
+                pRefactorButton.ThemeManager = vThemeManager
+                pGenerateTestsButton.ThemeManager = vThemeManager
+
+                ApplyCurrentTheme()
+
+            Catch ex As Exception
+                Console.WriteLine($"AIAssistantPanel.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles live theme changes - the CustomDraw buttons redraw themselves via their
+        ''' own ThemeChanged subscriptions, this only needs to refresh the TextViews' CSS
+        ''' </summary>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the current theme's background/foreground to the chat and prompt TextViews
+        ''' </summary>
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing Then Return
+
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                Dim lCss As String = String.Format(
+                    "textview {{ background-color: {0}; color: {1}; }}",
+                    lTheme.EditorBackgroundColor, lTheme.ForegroundColor)
+
+                If pChatView IsNot Nothing Then
+                    If pChatViewCssProvider IsNot Nothing Then
+                        pChatView.StyleContext.RemoveProvider(pChatViewCssProvider)
+                    End If
+                    pChatViewCssProvider = New CssProvider()
+                    pChatViewCssProvider.LoadFromData(lCss)
+                    pChatView.StyleContext.AddProvider(pChatViewCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+                End If
+
+                If pPromptEntry IsNot Nothing Then
+                    If pPromptEntryCssProvider IsNot Nothing Then
+                        pPromptEntry.StyleContext.RemoveProvider(pPromptEntryCssProvider)
+                    End If
+                    pPromptEntryCssProvider = New CssProvider()
+                    pPromptEntryCssProvider.LoadFromData(lCss)
+                    pPromptEntry.StyleContext.AddProvider(pPromptEntryCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"AIAssistantPanel.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+
         Private Sub BuildUI()
             ' Create toolbar
             Dim lToolbar As Widget = CreateToolbar()
