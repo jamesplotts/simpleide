@@ -236,9 +236,18 @@ Namespace Widgets
                 If pGlobalCssRegistered Then Return
                 pGlobalCssRegistered = True
 
+                ' NOTE: background-image is deliberately left alone on the "button" node
+                ' (only stripped on the combobox's own top-level node). Some themes render
+                ' the dropdown arrow indicator as a background-image layer on the button
+                ' itself rather than a separate child node - wiping it out here made every
+                ' combo box render as a plain rectangle indistinguishable from a button,
+                ' with no visible affordance that it opens a list
                 Dim lCss As String =
-                    ".customdraw-combobox, .customdraw-combobox button {" &
+                    ".customdraw-combobox {" &
                     " background-color: transparent; background-image: none;" &
+                    " border: none; box-shadow: none; padding: 0px 4px; min-height: 0px; }" &
+                    ".customdraw-combobox button {" &
+                    " background-color: transparent;" &
                     " border: none; box-shadow: none; padding: 0px 4px; min-height: 0px; }" &
                     ".customdraw-combobox button:focus { outline: none; }"
                 CssHelper.ApplyCssGlobally(lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
