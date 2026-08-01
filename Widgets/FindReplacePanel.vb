@@ -85,7 +85,6 @@ Namespace Widgets
         Public Enum SearchScope
             eUnspecified
             eCurrentFile
-            eOpenFiles 
             eProject
             eLastValue
         End Enum
