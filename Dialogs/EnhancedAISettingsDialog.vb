@@ -25,7 +25,7 @@ Namespace Dialogs
         ' Claude API tab controls
         Private pClaudeApiKeyEntry As CustomDrawTextBox
         Private pClaudeApiKeyShowButton As CustomDrawToggleButton
-        Private pModelCombo As ComboBoxText
+        Private pModelCombo As CustomDrawComboBox
         Private pMaxTokensSpinButton As SpinButton
         Private pTemperatureSpinButton As SpinButton
         Private pStreamResponsesCheckButton As CheckButton
@@ -210,7 +210,8 @@ Namespace Dialogs
             Dim lModelBox As New Box(Orientation.Horizontal, 6)
             lModelBox.PackStart(New Label("Model:"), False, False, 0)
             
-            pModelCombo = New ComboBoxText()
+            pModelCombo = New CustomDrawComboBox()
+            pModelCombo.ThemeManager = pThemeManager
             pModelCombo.AppendText("claude-3-opus-20240229")
             pModelCombo.AppendText("claude-3-sonnet-20240229")
             pModelCombo.AppendText("claude-3-haiku-20240307")
@@ -851,16 +852,16 @@ Namespace Dialogs
         
         ' ===== Helper Methods =====
         
-        Private Sub SelectComboBoxItem(vCombo As ComboBoxText, vText As String)
+        Private Sub SelectComboBoxItem(vCombo As CustomDrawComboBox, vText As String)
             Try
-                Dim lModel As ITreeModel = vCombo.Model
+                Dim lModel As ITreeModel = vCombo.InnerCombo.Model
                 Dim lIter As TreeIter
-                
+
                 If lModel.GetIterFirst(lIter) Then
                     Do
                         Dim lValue As String = lModel.GetValue(lIter, 0).ToString()
                         If lValue = vText Then
-                            vCombo.SetActiveIter(lIter)
+                            vCombo.InnerCombo.SetActiveIter(lIter)
                             Return
                         End If
                     Loop While lModel.IterNext(lIter)

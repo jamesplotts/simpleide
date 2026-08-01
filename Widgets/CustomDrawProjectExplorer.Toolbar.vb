@@ -19,7 +19,7 @@ Namespace Widgets
         Private pExpandAllButton As ToolButton
         Private pCloseButton As ToolButton
         Private pScaleLabel As Label
-        Private pScaleCombo As ComboBoxText
+        Private pScaleCombo As CustomDrawComboBox
         
         ' ===== Toolbar Initialization =====
         
@@ -110,7 +110,8 @@ Namespace Widgets
                 lScaleBox.PackStart(pScaleLabel, False, False, 0)
                 
                 ' Create combo box with preset scales
-                pScaleCombo = New ComboBoxText()
+                pScaleCombo = New CustomDrawComboBox()
+                pScaleCombo.ThemeManager = pThemeManager
                 pScaleCombo.AppendText("50%")
                 pScaleCombo.AppendText("75%")
                 pScaleCombo.AppendText("100%")
@@ -122,10 +123,10 @@ Namespace Widgets
                 ' Set current scale
                 Dim lCurrentScaleText As String = $"{pCurrentScale}%"
                 Dim lIndex As Integer = -1
-                For i As Integer = 0 To pScaleCombo.Model.IterNChildren() - 1
+                For i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
                     Dim lIter As TreeIter
-                    If pScaleCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.Model.GetValue(lIter, 0))
+                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
+                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
                         If lText = lCurrentScaleText Then
                             lIndex = i
                             Exit For
@@ -303,10 +304,10 @@ Namespace Widgets
                 Dim lScaleText As String = $"{pCurrentScale}%"
                 
                 ' Find and select the matching scale
-                For i As Integer = 0 To pScaleCombo.Model.IterNChildren() - 1
+                For i As Integer = 0 To pScaleCombo.InnerCombo.Model.IterNChildren() - 1
                     Dim lIter As TreeIter
-                    If pScaleCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
-                        Dim lText As String = CStr(pScaleCombo.Model.GetValue(lIter, 0))
+                    If pScaleCombo.InnerCombo.Model.IterNthChild(lIter, TreeIter.Zero, i) Then
+                        Dim lText As String = CStr(pScaleCombo.InnerCombo.Model.GetValue(lIter, 0))
                         If lText = lScaleText Then
                             pScaleCombo.Active = i
                             Return
