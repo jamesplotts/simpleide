@@ -22,7 +22,7 @@ Namespace Widgets
         Private pStatusLabel As Label
         
         ' ===== Theme Support Fields =====
-        Private pThemeButton As ToggleButton
+        Private pThemeButton As CustomDrawToggleButton
         Private pUseDarkTheme As Boolean = False
         Private pSettingsManager As SettingsManager
         Private pCurrentHtmlContent As String = ""
@@ -502,7 +502,7 @@ Namespace Widgets
                 lToolbar.Add(New SeparatorToolItem())
                 
                 ' THEME TOGGLE BUTTON
-                pThemeButton = New ToggleButton()
+                pThemeButton = New CustomDrawToggleButton()
                 pThemeButton.Label = "🌙"  ' Moon icon for dark mode
                 pThemeButton.TooltipText = "Toggle dark mode"
                 pThemeButton.Active = pUseDarkTheme
