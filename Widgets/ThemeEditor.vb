@@ -26,10 +26,10 @@ Namespace Widgets
         Private pThemeListStore As ListStore
         Private pPreviewEditor As CustomDrawingEditor
         Private pThemeNameLabel As Label
-        Private pOpenFolderButton As Button
-        Private pImportButton As Button
-        Private pSaveButton As Button
-        Private pApplyButton As Button
+        Private pOpenFolderButton As CustomDrawButton
+        Private pImportButton As CustomDrawButton
+        Private pSaveButton As CustomDrawButton
+        Private pApplyButton As CustomDrawButton
         Private pThemeContextMenu As Menu
 
         Private pThemeListBox As CustomDrawListBox
@@ -99,18 +99,21 @@ Namespace Widgets
                 ' Theme control buttons
                 Dim lThemeButtonBox As New Box(Orientation.Horizontal, 5)
                 
-                Dim lNewButton As New Button("New Theme")
+                Dim lNewButton As New CustomDrawButton("New Theme")
+                lNewButton.ThemeManager = pThemeManager
                 AddHandler lNewButton.Clicked, AddressOf OnNewTheme
                 lThemeButtonBox.PackStart(lNewButton, True, True, 0)
-                
-                pOpenFolderButton = New Button("Open Folder")
+
+                pOpenFolderButton = New CustomDrawButton("Open Folder")
+                pOpenFolderButton.ThemeManager = pThemeManager
                 AddHandler pOpenFolderButton.Clicked, AddressOf OnOpenFolder
                 lThemeButtonBox.PackStart(pOpenFolderButton, True, True, 0)
-                
+
                 lLeftBox.PackStart(lThemeButtonBox, False, False, 0)
-                
+
                 ' Import button
-                pImportButton = New Button("Import Theme...")
+                pImportButton = New CustomDrawButton("Import Theme...")
+                pImportButton.ThemeManager = pThemeManager
                 AddHandler pImportButton.Clicked, AddressOf OnImportTheme
                 lLeftBox.PackStart(pImportButton, False, False, 0)
                 
@@ -187,12 +190,14 @@ Namespace Widgets
                 ' Action buttons
                 Dim lButtonBox As New Box(Orientation.Horizontal, 5)
                 
-                pSaveButton = New Button("Save Theme")
+                pSaveButton = New CustomDrawButton("Save Theme")
+                pSaveButton.ThemeManager = pThemeManager
                 pSaveButton.Sensitive = False
                 AddHandler pSaveButton.Clicked, AddressOf OnSaveTheme
                 lButtonBox.PackStart(pSaveButton, False, False, 0)
-                
-                pApplyButton = New Button("Apply Theme")
+
+                pApplyButton = New CustomDrawButton("Apply Theme")
+                pApplyButton.ThemeManager = pThemeManager
                 pApplyButton.Sensitive = False
                 AddHandler pApplyButton.Clicked, AddressOf OnApplyTheme
                 lButtonBox.PackStart(pApplyButton, False, False, 0)
@@ -523,7 +528,8 @@ Namespace Widgets
 
                 lBox.PackStart(New Label("Base Theme:"), False, False, 0)
 
-                Dim lCombo As New ComboBoxText()
+                Dim lCombo As New CustomDrawComboBox()
+                lCombo.ThemeManager = pThemeManager
                 for each lThemeName in pThemeManager.GetAvailableThemes()
                     lCombo.AppendText(lThemeName)
                 Next

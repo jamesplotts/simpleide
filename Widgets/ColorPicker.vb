@@ -63,7 +63,7 @@ Namespace Widgets
         Private pBlueEntry As SpinButton
         Private pHexEntry As CustomDrawTextBox
         Private pColorPreview As DrawingArea
-        Private pAddToCustomButton As Button
+        Private pAddToCustomButton As CustomDrawButton
         
         ' Events
         Public Event ColorChanged(vColor As Gdk.RGBA)
@@ -148,7 +148,7 @@ Namespace Widgets
                 lCustomBox.PackStart(pCustomColorsGrid, False, False, 0)
                 
                 ' Add to custom colors button
-                pAddToCustomButton = New Button("Add to Custom Colors")
+                pAddToCustomButton = New CustomDrawButton("Add to Custom Colors")
                 AddHandler pAddToCustomButton.Clicked, AddressOf OnAddToCustomColors
                 lCustomBox.PackStart(pAddToCustomButton, False, False, 0)
                 
@@ -300,7 +300,7 @@ Namespace Widgets
                 lPaletteBox.PackStart(pCustomColorsGrid, False, False, 0)
                 
                 ' Add to custom button
-                pAddToCustomButton = New Button("Add to Custom")
+                pAddToCustomButton = New CustomDrawButton("Add to Custom")
                 pAddToCustomButton.HeightRequest = 25
                 AddHandler pAddToCustomButton.Clicked, AddressOf OnAddToCustomColors
                 lPaletteBox.PackStart(pAddToCustomButton, False, False, 0)
