@@ -681,6 +681,15 @@ Namespace Editors
                     InitializeThemeColorCache()
                     UpdateSyntaxColorsFromTheme()
                     ApplyThemeToWidget()
+
+                    ' The line number gutter is a separate widget (LineNumberWidget) that
+                    ' only repaints from its own cached colors, refreshed via
+                    ' UpdateLineNumberWidget() -> GetActiveTheme() (which already correctly
+                    ' resolves pDemoTheme here) - without calling it, LineNumberColor/
+                    ' LineNumberBackgroundColor/CurrentLineNumberColor edits never reached
+                    ' the gutter at all
+                    UpdateLineNumberWidget()
+
                     pDrawingArea?.QueueDraw()
 
                     Console.WriteLine($"SetThemeColors: Demo theme '{vTheme.Name}' applied")

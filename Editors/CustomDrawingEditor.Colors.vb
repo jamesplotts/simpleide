@@ -207,9 +207,7 @@ Namespace Editors
                 
                 ' Cache all token type colors as Cairo.Color objects
                 pThemeColorCache(SyntaxTokenType.eNormal) = HexToCairoColor(lTheme.ForegroundColor)
-                pThemeColorCache(SyntaxTokenType.eIdentifier) = HexToCairoColor(lTheme.ForegroundColor)
-                pThemeColorCache(SyntaxTokenType.eOperator) = HexToCairoColor(lTheme.ForegroundColor)
-                
+
                 ' Use syntax colors if available
                 If lTheme.SyntaxColors IsNot Nothing Then
                     pThemeColorCache(SyntaxTokenType.eKeyword) = HexToCairoColor(
@@ -224,6 +222,14 @@ Namespace Editors
                         lTheme.SyntaxColors(SyntaxColorSet.Tags.eType))
                     pThemeColorCache(SyntaxTokenType.ePreprocessor) = HexToCairoColor(
                         lTheme.SyntaxColors(SyntaxColorSet.Tags.ePreprocessor))
+                    ' Identifier and Operator were previously hardcoded to ForegroundColor
+                    ' here, silently ignoring the theme's own Identifier/Operator syntax
+                    ' color settings entirely - editing either in the Theme Editor never
+                    ' had any visible effect no matter what value was picked
+                    pThemeColorCache(SyntaxTokenType.eIdentifier) = HexToCairoColor(
+                        lTheme.SyntaxColors(SyntaxColorSet.Tags.eIdentifier))
+                    pThemeColorCache(SyntaxTokenType.eOperator) = HexToCairoColor(
+                        lTheme.SyntaxColors(SyntaxColorSet.Tags.eOperator))
                 Else
                     ' Fallback colors if syntax colors not available
                     pThemeColorCache(SyntaxTokenType.eKeyword) = HexToCairoColor("#569CD6")
@@ -232,6 +238,8 @@ Namespace Editors
                     pThemeColorCache(SyntaxTokenType.eNumber) = HexToCairoColor("#B5CEA8")
                     pThemeColorCache(SyntaxTokenType.eType) = HexToCairoColor("#4EC9B0")
                     pThemeColorCache(SyntaxTokenType.ePreprocessor) = HexToCairoColor("#C586C0")
+                    pThemeColorCache(SyntaxTokenType.eIdentifier) = HexToCairoColor(lTheme.ForegroundColor)
+                    pThemeColorCache(SyntaxTokenType.eOperator) = HexToCairoColor(lTheme.ForegroundColor)
                 End If
                 
                 ' Initialize font cache for bold/italic variants
