@@ -560,34 +560,25 @@ Partial Public Class MainWindow
     Private Sub HandleGitConflictedFiles(vConflictedFiles As List(Of TabInfo))
         Try
             for each lTab in vConflictedFiles
-                Dim lDialog As New MessageDialog(
-                    Me,
-                    DialogFlags.Modal,
+                Dim lResponse As ResponseType = ShowCustomButtonDialog(
                     MessageType.Warning,
-                    ButtonsType.None,
                     $"The file '{System.IO.Path.GetFileName(lTab.FilePath)}' has unsaved changes " &
                     $"but was also modified by the git operation.{Environment.NewLine}{Environment.NewLine}" &
-                    "What would you Like To Do?"
-                )
-                
-                lDialog.AddButton("Keep My Changes", ResponseType.No)
-                lDialog.AddButton("Reload from Git", ResponseType.Yes)
-                lDialog.AddButton("Save As...", ResponseType.Apply)
-                
-                Dim lResponse As Integer = lDialog.Run()
-                lDialog.Destroy()
-                
+                    "What would you Like To Do?",
+                    New String() {"Keep My Changes", "Reload from Git", "Save As..."},
+                    New ResponseType() {ResponseType.No, ResponseType.Yes, ResponseType.Apply})
+
                 Select Case lResponse
-                    Case CInt(ResponseType.Yes)
+                    Case ResponseType.Yes
                         ' Reload from git (discard local changes)
                         ReloadFileAfterGitOperation(lTab, False)
-                        
-                    Case CInt(ResponseType.No)
+
+                    Case ResponseType.No
                         ' Keep local changes
                         Console.WriteLine($"Keeping local changes for {lTab.FilePath}")
                         ' File remains modified
-                        
-                    Case CInt(ResponseType.Apply)
+
+                    Case ResponseType.Apply
                         ' Save local changes with a different name
                         SaveFileAs(lTab)
                         ' Then reload original from git

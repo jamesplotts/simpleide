@@ -130,23 +130,13 @@ Partial Public Class MainWindow
                 ' Check if there are unsaved changes
                 If pPreferencesTab.IsModified Then
                     ' FIX: Create a custom dialog since ShowQuestion only takes 2 parameters
-                    Dim lDialog As New MessageDialog(
-                        Me,
-                        DialogFlags.Modal,
+                    Dim lResponse As ResponseType = ShowCustomButtonDialog(
                         MessageType.Question,
-                        ButtonsType.None,
-                        "The preferences have unsaved changes. Do you want to save them before closing?"
-                    )
-                    lDialog.Title = "Unsaved Changes"
-                    
-                    ' Add custom buttons
-                    lDialog.AddButton("Save", ResponseType.Yes)
-                    lDialog.AddButton("Discard", ResponseType.No)
-                    lDialog.AddButton("Cancel", ResponseType.Cancel)
-                    
-                    Dim lResponse As ResponseType = CType(lDialog.Run(), ResponseType)
-                    lDialog.Destroy()
-                    
+                        "The preferences have unsaved changes. Do you want to save them before closing?",
+                        New String() {"Save", "Discard", "Cancel"},
+                        New ResponseType() {ResponseType.Yes, ResponseType.No, ResponseType.Cancel},
+                        "Unsaved Changes")
+
                     Select Case lResponse
                         Case ResponseType.Yes  ' Save
                             If Not pPreferencesTab.Save() Then

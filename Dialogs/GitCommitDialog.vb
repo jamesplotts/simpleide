@@ -3,6 +3,7 @@ Imports Gtk
 Imports System
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Dialogs
     
@@ -15,7 +16,7 @@ Namespace Dialogs
         Private pStagedFilesView As TreeView
         Private pStagedFilesStore As ListStore
         Private pGitManager As GitManager
-        Private pCommitButton As Button
+        Private pCommitButton As CustomDrawButton
         Private pAmendCheck As CheckButton
         Private pSignOffCheck As CheckButton
         
@@ -161,13 +162,22 @@ Namespace Dialogs
                 ' Add main box to dialog
                 ContentArea.PackStart(lMainBox, True, True, 0)
                 
-                ' Dialog buttons
-                AddButton("Cancel", ResponseType.Cancel)
-                pCommitButton = CType(AddButton("Commit", ResponseType.Ok), Button)
+                ' Dialog buttons - custom-drawn, wired directly to Respond()
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                lButtonBox.BorderWidth = 6
+
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                AddHandler lCancelButton.Clicked, Sub() Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+
+                pCommitButton = New CustomDrawButton("Commit")
                 pCommitButton.Sensitive = False
-                
-                ' Make Commit button suggested action
-                pCommitButton.StyleContext.AddClass("suggested-action")
+                AddHandler pCommitButton.Clicked, Sub() Respond(ResponseType.Ok)
+                lButtonBox.PackStart(pCommitButton, False, False, 0)
+
+                Dim lContentBox As Box = TryCast(ContentArea, Box)
+                If lContentBox IsNot Nothing Then lContentBox.PackStart(lButtonBox, False, False, 0)
                 
             Catch ex As Exception
                 Console.WriteLine($"BuildUI error: {ex.Message}")
