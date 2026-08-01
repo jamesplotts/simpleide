@@ -131,7 +131,13 @@ Partial Public Class MainWindow
                     End If
                 End If
             Next
-            
+
+            ' Scratchpad tabs have TabInfo.Editor = Nothing (they don't implement IEditor), so
+            ' the loop above never reaches them - theme them directly here instead
+            for each lScratchpadPanel in pScratchpadPanels.Values
+                lScratchpadPanel.SetThemeManager(pThemeManager)
+            Next
+
             ' UPDATE: Apply theme to Object Explorer
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.OnThemeChanged()

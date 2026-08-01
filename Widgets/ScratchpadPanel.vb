@@ -26,6 +26,10 @@ Namespace Widgets
         Private pSaveTimer As UInteger
         Private pIsModified As Boolean = False
         Private pIsUpdating As Boolean = False
+
+        ' Theme support
+        Private pThemeManager As ThemeManager
+        Private pTextViewCssProvider As CssProvider
         
         ' Toolbar buttons
         Private pNewButton As ToolButton
@@ -55,7 +59,66 @@ Namespace Widgets
             ' Select default scratchpad
             SelectDefaultScratchpad()
         End Sub
-        
+
+        ''' <summary>
+        ''' Applies the app's color theme to the scratchpad combo and the main text view's
+        ''' background/foreground. The hyperlink tag (see ConfigureHyperlinkDetection) keeps
+        ''' its own fixed color regardless of theme - that's content styling, not panel chrome.
+        ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+                pThemeManager = vThemeManager
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
+                If pScratchpadCombo IsNot Nothing Then pScratchpadCombo.ThemeManager = vThemeManager
+
+                ApplyCurrentTheme()
+
+            Catch ex As Exception
+                Console.WriteLine($"ScratchpadPanel.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles live theme changes - the combo redraws itself via its own ThemeChanged
+        ''' subscription, this only needs to refresh the text view's CSS
+        ''' </summary>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            ApplyCurrentTheme()
+        End Sub
+
+        ''' <summary>
+        ''' Applies the current theme's background/foreground to the scratchpad text view
+        ''' </summary>
+        Private Sub ApplyCurrentTheme()
+            Try
+                If pThemeManager Is Nothing OrElse pTextView Is Nothing Then Return
+
+                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
+                If lTheme Is Nothing Then Return
+
+                Dim lCss As String = String.Format(
+                    "textview {{ background-color: {0}; color: {1}; }}",
+                    lTheme.EditorBackgroundColor, lTheme.ForegroundColor)
+
+                If pTextViewCssProvider IsNot Nothing Then
+                    pTextView.StyleContext.RemoveProvider(pTextViewCssProvider)
+                End If
+                pTextViewCssProvider = New CssProvider()
+                pTextViewCssProvider.LoadFromData(lCss)
+                pTextView.StyleContext.AddProvider(pTextViewCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
+            Catch ex As Exception
+                Console.WriteLine($"ScratchpadPanel.ApplyCurrentTheme error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== UI Building =====
         
         Private Sub BuildUI()

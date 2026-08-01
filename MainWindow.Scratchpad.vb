@@ -227,7 +227,13 @@ Partial Public Class MainWindow
 
             ' Store in dictionary
             pScratchpadPanels(lTabId) = lScratchpadPanel
-            
+
+            ' This panel is created lazily, so if the theme was already set before this ran,
+            ' it needs to be brought up to date immediately
+            If pThemeManager IsNot Nothing Then
+                lScratchpadPanel.SetThemeManager(pThemeManager)
+            End If
+
             ' Store tab info (use special key to avoid conflicts with file paths)
             pOpenTabs($"scratchpad:{lTabId}") = lTabInfo
             
