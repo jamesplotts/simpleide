@@ -438,6 +438,10 @@ Partial Public Class MainWindow
             AddHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
             AddHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
 
+            ' Editor context menu Find/Replace requests
+            AddHandler vEditor.FindRequested, AddressOf OnEditorFindRequested
+            AddHandler vEditor.ReplaceRequested, AddressOf OnEditorReplaceRequested
+
             ' Navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
@@ -499,7 +503,10 @@ Partial Public Class MainWindow
             RemoveHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
             RemoveHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
 
-            
+            RemoveHandler vEditor.FindRequested, AddressOf OnEditorFindRequested
+            RemoveHandler vEditor.ReplaceRequested, AddressOf OnEditorReplaceRequested
+
+
             ' Unhook navigation update event for CustomDrawingEditor
             If TypeOf vEditor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)

@@ -267,7 +267,9 @@ Namespace Editors
         Public Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestGotoDefinition
         Public Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext) Implements IEditor.CodeSenseRequested
         Public Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs) Implements IEditor.CodeSenseCancelled
- 
+        Public Event FindRequested(vSender As Object, vArgs As EventArgs) Implements IEditor.FindRequested
+        Public Event ReplaceRequested(vSender As Object, vArgs As EventArgs) Implements IEditor.ReplaceRequested
+
         ''' <summary>
         ''' Raised when the navigation dropdowns need to be updated due to cursor context change
         ''' </summary>

@@ -17,12 +17,28 @@ Namespace Editors
         Private pLastSearchText As String = ""
         Private pLastSearchResults As List(Of EditorPosition)
 
+        ''' <summary>
+        ''' Handles the editor context menu's "Find" item by asking the host (MainWindow) to
+        ''' show the Find panel, pre-filled the same way Ctrl+F pre-fills it
+        ''' </summary>
         Public Sub OnContextMenuFind(o As Object, e As EventArgs)
-            ' TODO: Implement CustomDrawingEditor.OnContextMenuFind in CustomDrawingEditor.Search.vb
+            Try
+                RaiseEvent FindRequested(Me, EventArgs.Empty)
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuFind error: {ex.Message}")
+            End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Handles the editor context menu's "Replace" item by asking the host (MainWindow)
+        ''' to show the Find panel focused on the Replace entry, the same way Ctrl+H does
+        ''' </summary>
         Public Sub OnContextMenuReplace(o As Object, e As EventArgs)
-            ' TODO: Implement CustomDrawingEditor.OnContextMenuReplace in CustomDrawingEditor.Search.vb
+            Try
+                RaiseEvent ReplaceRequested(Me, EventArgs.Empty)
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuReplace error: {ex.Message}")
+            End Try
         End Sub
 
         ' ===== Find Implementation =====

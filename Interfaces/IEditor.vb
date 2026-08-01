@@ -61,7 +61,9 @@ Namespace Interfaces
         Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs)
         Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs)
         Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext)
-        Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs)  
+        Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs)
+        Event FindRequested(vSender As Object, vArgs As EventArgs)
+        Event ReplaceRequested(vSender As Object, vArgs As EventArgs)
         
         ' Helper method for setting file path (used by EditorFactory)
         Sub SetThemeManager(vThemeManager As ThemeManager)

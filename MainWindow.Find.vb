@@ -238,6 +238,28 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Handles a CustomDrawingEditor's context-menu "Find" request the same way Ctrl+F does
+    ''' </summary>
+    Private Sub OnEditorFindRequested(vSender As Object, vArgs As EventArgs)
+        Try
+            ShowFindPanel()
+        Catch ex As Exception
+            Console.WriteLine($"OnEditorFindRequested error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles a CustomDrawingEditor's context-menu "Replace" request the same way Ctrl+H does
+    ''' </summary>
+    Private Sub OnEditorReplaceRequested(vSender As Object, vArgs As EventArgs)
+        Try
+            ShowFindPanelForReplace()
+        Catch ex As Exception
+            Console.WriteLine($"OnEditorReplaceRequested error: {ex.Message}")
+        End Try
+    End Sub
+
     ' ===== Quick Find Methods (Ctrl+F, Ctrl+H) =====
     
     Public Sub QuickFind()
