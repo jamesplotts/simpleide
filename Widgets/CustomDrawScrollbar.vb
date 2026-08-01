@@ -125,6 +125,15 @@ Namespace Widgets
                 pOrientation = vOrientation
                 pAdjustment = New Adjustment(0, 0, 100, 1, 10, 10)
                 AddHandler pAdjustment.ValueChanged, AddressOf OnAdjustmentValueChanged
+                ' Gtk.Adjustment raises "Changed" (not "ValueChanged") when its range
+                ' properties - Lower/Upper/PageSize/StepIncrement/PageIncrement - change,
+                ' which is exactly what callers like CustomDrawObjectExplorer's
+                ' UpdateScrollbars() do right after content loads. Without listening for
+                ' this too, the thumb's size/position were computed correctly but never
+                ' actually painted until some unrelated event (a hover, a scroll) queued a
+                ' redraw for its own reasons - the thumb looked like it just wasn't drawn
+                ' at all until the user happened to interact with the scrollbar
+                AddHandler pAdjustment.Changed, AddressOf OnAdjustmentChanged
 
                 CanFocus = False
                 Events = EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or
@@ -164,6 +173,10 @@ Namespace Widgets
         Private Sub OnAdjustmentValueChanged(vSender As Object, vArgs As EventArgs)
             QueueDraw()
             RaiseEvent ValueChanged(Me, EventArgs.Empty)
+        End Sub
+
+        Private Sub OnAdjustmentChanged(vSender As Object, vArgs As EventArgs)
+            QueueDraw()
         End Sub
 
         ' ===== Theme =====
