@@ -869,7 +869,7 @@ Module Program
         Console.WriteLine($"  Processors: {Environment.ProcessorCount}")
         Console.WriteLine()
         Console.WriteLine("Copyright (C) 2026 VbIDE Contributors")
-        Console.WriteLine("Licensed under GPL v3.0 - See --license for details")
+        Console.WriteLine("Licensed under the MIT License - See --license for details")
         Console.WriteLine("For more information, visit: https://github.com/jamesplotts/simpleide")
     End Sub
     

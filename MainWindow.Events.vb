@@ -472,7 +472,7 @@ Partial Public Class MainWindow
             lAboutDialog.Comments = StringResources.Instance.GetString(StringResources.KEY_ABOUT_TEXT)
             lAboutDialog.Website = "https://github.com/jamesplotts/simpleide"
             lAboutDialog.WebsiteLabel = "Project Website"
-            lAboutDialog.License = "GPL-3.0 license"
+            lAboutDialog.LicenseType = Gtk.License.MitX11
             lAboutDialog.Authors = {"James Duane Plotts"}
             
             ' Set icon
