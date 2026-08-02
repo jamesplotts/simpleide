@@ -134,9 +134,10 @@ Namespace Widgets
                 pThemeColors.CloseButton = DarkenColor(ParseColor(lTheme.ForegroundColor), 0.3)
                 pThemeColors.CloseButtonHover = ParseColor(lTheme.ErrorColor)
                 
-                ' Apply CSS for buttons
-                ApplyButtonStyles()
-                
+                ' All five nav buttons (dropdown/scroll/close-all/hide-panel) are
+                ' CustomDrawButton now, themed via their own ThemeManager property rather
+                ' than GTK CSS - nothing left here needs a CSS provider applying to it
+
                 ' Redraw
                 pTabBar.QueueDraw()
                 
@@ -173,58 +174,6 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadDefaultTheme error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Applies CSS styles to navigation buttons
-        ''' </summary>
-        Private Sub ApplyButtonStyles()
-            Try
-                Dim lCss As String = $"
-                    button {{
-                        background: {ColorToHex(pThemeColors.Background)};
-                        color: {ColorToHex(pThemeColors.Text)};
-                        border: 1px solid {ColorToHex(pThemeColors.Border)};
-                        padding: 2px;
-                        min-width: 24px;
-                        min-height: 24px;
-                    }}
-                    button:hover {{
-                        background: {ColorToHex(pThemeColors.HoverTab)};
-                    }}
-                    button:active {{
-                        background: {ColorToHex(pThemeColors.ActiveTab)};
-                    }}
-                "
-                
-                Dim lProvider As New CssProvider()
-                lProvider.LoadFromData(lCss)
-                
-                ' Apply to native nav buttons - pHidePanelButton is now a CustomDrawButton
-                ' (themed via its own ThemeManager property, set where it's constructed),
-                ' not a native Gtk.Button, so GTK CSS no longer has any effect on it
-                ApplyCssToWidget(pLeftScrollButton, lProvider)
-                ApplyCssToWidget(pRightScrollButton, lProvider)
-                ApplyCssToWidget(pDropdownButton, lProvider)
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyButtonStyles error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Applies CSS provider to a widget
-        ''' </summary>
-        Private Sub ApplyCssToWidget(vWidget As Widget, vProvider As CssProvider)
-            Try
-                If vWidget IsNot Nothing Then
-                    Dim lContext As StyleContext = vWidget.StyleContext
-                    lContext.AddProvider(vProvider, StyleProviderPriority.Application)
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"ApplyCssToWidget error: {ex.Message}")
             End Try
         End Sub
         

@@ -40,10 +40,10 @@ Namespace Widgets
         Private pThemeColors As ThemeColors
         Private pTotalTabsWidth As Integer = 0  ' Total width of all visible tabs for scrolling        
         ' Navigation buttons
-        Private pLeftScrollButton As Button
-        Private pRightScrollButton As Button
-        Private pDropdownButton As Button
-        Private pCloseAllButton As Button
+        Private pLeftScrollButton As CustomDrawButton
+        Private pRightScrollButton As CustomDrawButton
+        Private pDropdownButton As CustomDrawButton
+        Private pCloseAllButton As CustomDrawButton
         Private pHidePanelButton As CustomDrawButton
         Private pShowHidePanelButton As Boolean = False  
         Private pShowCloseButtons As Boolean = True 
@@ -146,21 +146,25 @@ Namespace Widgets
                 ' Create top toolbar for navigation buttons and tab bar
                 Dim lTopBar As New Box(Orientation.Horizontal, 0)
                 
-                ' LEFT SIDE: Dropdown menu button (moved to first position)
-                pDropdownButton = New Button()
-                pDropdownButton.Label = "▼"  ' Use Unicode down arrow as text
-                pDropdownButton.Relief = ReliefStyle.None
+                ' LEFT SIDE: Dropdown menu button (moved to first position). CustomDrawButton
+                ' (icon, not the old "▼" Unicode-glyph label) so it gets the same bevel/flat
+                ' Style option as everything else in the CustomDraw control library - the old
+                ' native Button label glyphs ("▼"/"◀"/"▶"/"✕") also all rendered as blank tofu
+                ' once tried through CustomDrawButton's raw Cairo text path (no Pango font
+                ' fallback), which is why these are icons now rather than just swapping the
+                ' widget type and keeping the same label text
+                pDropdownButton = New CustomDrawButton("", CreateNavIconPixbuf("pan-down-symbolic"))
                 pDropdownButton.TooltipText = "Show all tabs"
+                pDropdownButton.ThemeManager = pThemeManager
                 ' FIXED: Set NoShowAll initially to prevent ShowAll from showing it
                 pDropdownButton.NoShowAll = True
                 pDropdownButton.Visible = False ' Hidden by default
                 lTopBar.PackStart(pDropdownButton, False, False, 0)
-                
+
                 ' Left scroll button (now second)
-                pLeftScrollButton = New Button()
-                pLeftScrollButton.Label = "◀"  ' Use Unicode left arrow as text
-                pLeftScrollButton.Relief = ReliefStyle.None
+                pLeftScrollButton = New CustomDrawButton("", CreateNavIconPixbuf("go-previous"))
                 pLeftScrollButton.TooltipText = "Scroll left"
+                pLeftScrollButton.ThemeManager = pThemeManager
                 pLeftScrollButton.NoShowAll = True
                 pLeftScrollButton.Visible = False ' Hidden by default
                 lTopBar.PackStart(pLeftScrollButton, False, False, 0)
@@ -181,19 +185,17 @@ Namespace Widgets
                 ' RIGHT SIDE buttons (in order from left to right in the right area)
                 
                 ' Right scroll button
-                pRightScrollButton = New Button()
-                pRightScrollButton.Label = "▶"  ' Use Unicode right arrow as text
-                pRightScrollButton.Relief = ReliefStyle.None
+                pRightScrollButton = New CustomDrawButton("", CreateNavIconPixbuf("go-next"))
                 pRightScrollButton.TooltipText = "Scroll right"
+                pRightScrollButton.ThemeManager = pThemeManager
                 pRightScrollButton.NoShowAll = True
                 pRightScrollButton.Visible = False ' Hidden by default
                 lTopBar.PackEnd(pRightScrollButton, False, False, 0)
-                
+
                 ' Close all tabs button
-                pCloseAllButton = New Button()
-                pCloseAllButton.Label = "✕"  ' Use Unicode X as text
-                pCloseAllButton.Relief = ReliefStyle.None
+                pCloseAllButton = New CustomDrawButton("", CreateNavIconPixbuf("window-close"))
                 pCloseAllButton.TooltipText = "Close all tabs"
+                pCloseAllButton.ThemeManager = pThemeManager
                 pCloseAllButton.NoShowAll = True
                 pCloseAllButton.Visible = False ' Hidden by default
                 lTopBar.PackEnd(pCloseAllButton, False, False, 0)
@@ -252,9 +254,21 @@ Namespace Widgets
                 Console.WriteLine($"InitializeComponents error: {ex.Message}")
             End Try
         End Sub
-                
 
-        
+        ''' <summary>
+        ''' Loads a themed icon for the nav buttons (dropdown/scroll/close-all), matching
+        ''' AIAssistantPanel.CreateActionButton's icon-loading pattern
+        ''' </summary>
+        ''' <param name="vIconName">Icon theme name to load</param>
+        Private Function CreateNavIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"CreateNavIconPixbuf icon load error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
         ' ===== Public Properties =====
         
         ''' <summary>
