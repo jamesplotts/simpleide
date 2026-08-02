@@ -286,6 +286,7 @@ Namespace Editors
                 ' Force redraw of all components
                 pLineNumberWidget?.QueueDraw()
                 pDrawingArea?.QueueDraw()
+                pClientAreaBox?.QueueDraw()
                 
                 Console.WriteLine("ApplyTheme: Theme applied To all components")
                 

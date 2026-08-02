@@ -25,6 +25,13 @@ Namespace Editors
         
         ' ===== Core Components =====
         Private pMainGrid As Grid
+        ''' <summary>
+        ''' Wraps the gutter (pLineNumberWidget) and text (pDrawingArea) together so a
+        ''' sunken bevel border can be painted in the reserved BorderWidth padding around
+        ''' just the two of them - see OnClientAreaBevelDrawn (Drawing partial) - without
+        ''' the scrollbars, which stay as separate pMainGrid cells outside this box
+        ''' </summary>
+        Private pClientAreaBox As Box
         Private pDrawingArea As DrawingArea
         Private pVScrollbar As CustomDrawScrollbar
         Private pHScrollbar As CustomDrawScrollbar
@@ -418,26 +425,37 @@ Namespace Editors
                 pHScrollbar = New CustomDrawScrollbar(Orientation.Horizontal)
                 pVScrollbar = New CustomDrawScrollbar(Orientation.Vertical)
                 
-                ' Layout grid (2x2)
-                ' [0,0] = LineNumbers | [1,0] = DrawingArea
-                ' [0,1] = Empty       | [1,1] = VScrollbar
-                ' [0,2] = Empty       | [1,2] = HScrollbar
-                
+                ' Wrap the gutter + text drawing area together in a box with reserved
+                ' interior padding (BorderWidth), so a sunken bevel border can be painted
+                ' in that padding around the combined code client area - without eating
+                ' into the gutter/text render bounds, and without including the
+                ' scrollbars, which remain separate pMainGrid cells outside this box
+                pClientAreaBox = New Box(Orientation.Horizontal, 0)
+                pClientAreaBox.BorderWidth = CLIENT_AREA_BEVEL_WIDTH
+
                 If pLineNumberWidget IsNot Nothing Then
-                    pMainGrid.Attach(pLineNumberWidget, 0, 0, 1, 1)
+                    pClientAreaBox.PackStart(pLineNumberWidget, False, False, 0)
                     pLineNumberWidget.SetSizeRequest(50, -1)
                 End If
-                
-                pMainGrid.Attach(pDrawingArea, 1, 0, 1, 1)
-                pMainGrid.Attach(pVScrollbar, 2, 0, 1, 1)
-                pMainGrid.Attach(pHScrollbar, 1, 1, 1, 1)
-                
+
+                pClientAreaBox.PackStart(pDrawingArea, True, True, 0)
+                AddHandler pClientAreaBox.Drawn, AddressOf OnClientAreaBevelDrawn
+
+                ' Layout grid (2x2)
+                ' [0,0] = ClientAreaBox (gutter + text, bordered) | [1,0] = VScrollbar
+                ' [0,1] = HScrollbar                              | [1,1] = Empty
+                pMainGrid.Attach(pClientAreaBox, 0, 0, 1, 1)
+                pMainGrid.Attach(pVScrollbar, 1, 0, 1, 1)
+                pMainGrid.Attach(pHScrollbar, 0, 1, 1, 1)
+
                 ' Configure grid expansion using Widget methods
+                pClientAreaBox.Hexpand = True
+                pClientAreaBox.Vexpand = True
                 pDrawingArea.Hexpand = True
                 pDrawingArea.Vexpand = True
                 pHScrollbar.Hexpand = True
                 pVScrollbar.Vexpand = True
-                
+
                 ' Add grid to editor
                 Add(pMainGrid)
                 
@@ -1130,7 +1148,8 @@ Namespace Editors
                 
                 ' Queue a redraw to show new colors
                 pDrawingArea?.QueueDraw()
-                
+                pClientAreaBox?.QueueDraw()
+
                 Console.WriteLine("OnThemeChanged: Theme cache updated and redraw queued")
                 
             Catch ex As Exception

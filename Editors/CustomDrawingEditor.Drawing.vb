@@ -21,8 +21,55 @@ Namespace Editors
         
         Private pThemeManager As ThemeManager
 
+        ' Interior padding reserved on pClientAreaBox (via its BorderWidth) for the sunken
+        ' bevel border painted in OnClientAreaBevelDrawn - matches CustomDrawTextBox/
+        ' CustomDrawComboBox's own sunken-"well" bevel width convention
+        Private Const CLIENT_AREA_BEVEL_WIDTH As Integer = 4
+
         ' ===== Main Drawing Event Handlers =====
-        
+
+        ''' <summary>
+        ''' Paints a sunken 3D bevel (dark top/left, light bottom/right - the same "well"
+        ''' convention CustomDrawTextBox/CustomDrawComboBox use) into pClientAreaBox's
+        ''' reserved BorderWidth padding, around the combined gutter+text client area.
+        ''' Runs before GTK's own default container draw handler paints the (inset)
+        ''' children on top, so no fill is needed here for the interior - only the border
+        ''' ring itself.
+        ''' </summary>
+        Private Sub OnClientAreaBevelDrawn(vSender As Object, vArgs As DrawnArgs)
+            Try
+                Dim lWidth As Integer = pClientAreaBox.AllocatedWidth
+                Dim lHeight As Integer = pClientAreaBox.AllocatedHeight
+                If lWidth <= 0 OrElse lHeight <= 0 Then Return
+
+                Dim lContext As Cairo.Context = vArgs.Cr
+                Dim lCurrentTheme As EditorTheme = GetActiveTheme()
+
+                Dim lBevel As Integer = Math.Min(CLIENT_AREA_BEVEL_WIDTH, Math.Min(lWidth, lHeight) \ 2)
+                If lBevel <= 0 Then Return
+
+                Dim lDarkColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eBevelDarkColor)
+                Dim lLightColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eBevelLightColor)
+
+                ' Sunken look: dark top/left, light bottom/right - the inverse of
+                ' CustomDrawButton's raised bevel, matching CustomDrawTextBox's convention
+                lContext.SetSourceRGB(lDarkColor.R, lDarkColor.G, lDarkColor.B)
+                lContext.Rectangle(0, 0, lWidth, lBevel)                      ' top
+                lContext.Fill()
+                lContext.Rectangle(0, 0, lBevel, lHeight)                     ' left
+                lContext.Fill()
+
+                lContext.SetSourceRGB(lLightColor.R, lLightColor.G, lLightColor.B)
+                lContext.Rectangle(0, lHeight - lBevel, lWidth, lBevel)       ' bottom
+                lContext.Fill()
+                lContext.Rectangle(lWidth - lBevel, 0, lBevel, lHeight)       ' right
+                lContext.Fill()
+
+            Catch ex As Exception
+                Console.WriteLine($"OnClientAreaBevelDrawn error: {ex.Message}")
+            End Try
+        End Sub
+
         Private Shadows Function OnDrawn(vSender As Object, vArgs As DrawnArgs) As Boolean
             Try
                 Static bolAlreadyRun as Boolean

@@ -186,6 +186,7 @@ Namespace Editors
                     pHScrollbar = Nothing
                     pCornerBox = Nothing
                     pMainGrid = Nothing
+                    pClientAreaBox = Nothing
                     
                     Console.WriteLine("CustomDrawingEditor disposed")
                 End If

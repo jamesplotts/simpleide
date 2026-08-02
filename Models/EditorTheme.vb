@@ -411,6 +411,10 @@ Namespace Models
                         Return HexToCairoColor(If(String.IsNullOrEmpty(TabHoverColor), "#2D2D30", TabHoverColor))
                     Case EditorTheme.Tags.eAccentColor
                         Return HexToCairoColor(If(String.IsNullOrEmpty(AccentColor), "#007ACC", AccentColor))
+                    Case EditorTheme.Tags.eBevelLightColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(BevelLightColor), "#F0F0F0", BevelLightColor))
+                    Case EditorTheme.Tags.eBevelDarkColor
+                        Return HexToCairoColor(If(String.IsNullOrEmpty(BevelDarkColor), "#808080", BevelDarkColor))
 
                    Case EditorTheme.Tags.eKeywordText
                        Return HexToCairoColor(SyntaxColors(SyntaxColorSet.Tags.eKeyword))
