@@ -69,11 +69,35 @@ Namespace Widgets
 
                 ' The actual tab-bar drawing code (CustomDrawNotebook.Drawing.vb) reads these
                 ' four properties specifically, not ActiveTab/InactiveTab/HoverTab above - they
-                ' must be kept in sync or tab colors stop updating on theme change
-                pThemeColors.EditorBackground = ParseColor(lTheme.EditorBackgroundColor)
-                pThemeColors.TabInactive = ParseColor(lTheme.TabInactiveColor)
-                pThemeColors.TabHover = ParseColor(lTheme.TabHoverColor)
-                pThemeColors.Accent = ParseColor(lTheme.AccentColor)
+                ' must be kept in sync or tab colors stop updating on theme change.
+                '
+                ' EditorTheme.EditorBackgroundColor/TabInactiveColor/TabHoverColor/AccentColor
+                ' are ALWAYS derived here rather than read from the theme object. They're only
+                ' ever explicitly set by EditorTheme.SetDefaults() (the "Default Dark" theme),
+                ' and since every New EditorTheme(name) constructor calls SetDefaults() first,
+                ' 8 of the 9 built-in themes (everything except "Default Dark" itself) inherit
+                ' actual non-empty values from it and never override them - so a plain
+                ' "is it empty" check can't tell a theme's genuine value apart from Default
+                ' Dark's leftover default, and every tab looked frozen on Default Dark's exact
+                ' palette no matter which theme was actually selected, even though the
+                ' surrounding background/text genuinely changed per theme. Deriving fresh from
+                ' each theme's own BackgroundColor/IsDarkTheme/SelectionColor - which every
+                ' theme (built-in or custom) always sets meaningfully - fixes this for all
+                ' themes uniformly, current and future, without needing every theme definition
+                ' to remember 4 extra fields.
+                Dim lBackgroundRgba As Gdk.RGBA = ParseColor(lTheme.BackgroundColor)
+
+                pThemeColors.EditorBackground = lBackgroundRgba
+
+                pThemeColors.TabInactive = If(lTheme.IsDarkTheme,
+                    LightenColor(lBackgroundRgba, 0.08),
+                    DarkenColor(lBackgroundRgba, 0.06))
+
+                pThemeColors.TabHover = If(lTheme.IsDarkTheme,
+                    LightenColor(lBackgroundRgba, 0.14),
+                    DarkenColor(lBackgroundRgba, 0.10))
+
+                pThemeColors.Accent = ParseColor(lTheme.SelectionColor)
                 
                 ' Text colors
                 pThemeColors.Text = ParseColor(lTheme.ForegroundColor)

@@ -113,13 +113,23 @@ Namespace Widgets
         ''' </summary>
         Public Sub New(vThemeManager As ThemeManager)
             MyBase.New(Orientation.Vertical, 0)
-            
+
             Try
                 pThemeManager = vThemeManager
                 InitializeComponents()
                 SetupEventHandlers()
-                
-                
+
+                ' InitializeComponents already seeded pThemeColors and painted the initial
+                ' theme via its own ApplyTheme() call, but that's a one-time paint - nothing
+                ' here subscribed to live theme changes. SetThemeManager() is the only method
+                ' that does that, and every construction site across the app passes the
+                ' ThemeManager straight into this constructor instead of also calling
+                ' SetThemeManager() afterward, so the tab bar background (and every other
+                ' theme-derived color) never updated again after the very first paint.
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawNotebook constructor error: {ex.Message}")
             End Try
