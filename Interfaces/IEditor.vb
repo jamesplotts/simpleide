@@ -64,7 +64,7 @@ Namespace Interfaces
         Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs)
         Event FindRequested(vSender As Object, vArgs As EventArgs)
         Event ReplaceRequested(vSender As Object, vArgs As EventArgs)
-        
+
         ' Helper method for setting file path (used by EditorFactory)
         Sub SetThemeManager(vThemeManager As ThemeManager)
         

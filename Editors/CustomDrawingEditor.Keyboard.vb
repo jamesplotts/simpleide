@@ -48,6 +48,10 @@ Namespace Editors
                 
                 ' SPECIAL HANDLING FOR TAB AND SHIFT+TAB (by KeyValue to avoid enum issues)
                 ' Tab = 65289 (0xFF09), ISO_Left_Tab = 65056 (0xFE20)
+                ' Ctrl+Tab / Ctrl+Shift+Tab (MainWindow's tab-cycling shortcuts) are
+                ' intercepted globally by a Gtk.Key.SnooperInstall callback in
+                ' MainWindow.Keyboard.vb, which runs before this handler ever sees the
+                ' event - no special-casing needed here.
                 If vArgs.Event.KeyValue = 65289 Then
                     ' Regular Tab key
                     If Not pIsReadOnly Then

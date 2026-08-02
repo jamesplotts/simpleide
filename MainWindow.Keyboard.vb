@@ -12,7 +12,13 @@ Partial Public Class MainWindow
 
     Private pLastKeyEventTime As DateTime = DateTime.MinValue
     Private pLastKeyEventKey As Gdk.Key = Gdk.Key.VoidSymbol
-    
+
+    ' Held for the app's lifetime so the native GTK side's callback pointer never outlives
+    ' its managed delegate (Gtk.Key.SnooperInstall keeps a reference internally too, but
+    ' this matches the same defensive pattern already used for other long-lived native
+    ' callback delegates in this codebase, e.g. CustomDrawingEditor's pKeyPressHandler)
+    Private pTabCyclingSnooper As Gtk.KeySnoopFunc
+
     ' Replace: SimpleIDE.MainWindow.SetupKeyboardShortcuts
     ''' <summary>
     ''' Setup keyboard handling - simplified without accelerators
@@ -20,21 +26,94 @@ Partial Public Class MainWindow
     Private Sub SetupKeyboardShortcuts()
         Try
             Console.WriteLine("Setting up direct keyboard handling...")
-            
+
             ' Connect the main window keyboard handler
             AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
 
 #If DEBUG
             ' ADD: Connect the diagnostic keyboard handler
             AddHandler Me.KeyPressEvent, AddressOf OnKeyPressForDiagnostics
-#End If            
+#End If
+
+            ' Ctrl+Tab / Ctrl+Shift+Tab need a global key snooper, not a plain
+            ' KeyPressEvent handler - see InstallTabCyclingSnooper for why
+            InstallTabCyclingSnooper()
+
             Console.WriteLine("Keyboard handling setup complete")
-            
+
         Catch ex As Exception
             Console.WriteLine($"SetupKeyboardShortcuts error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Installs a GTK key snooper to implement Ctrl+Tab/Ctrl+Shift+Tab cycling through the
+    ''' main panel's tabs (editors, Help, Scratchpad, etc.), working no matter where
+    ''' keyboard focus currently is in the IDE
+    ''' </summary>
+    ''' <remarks>
+    ''' A plain KeyPressEvent handler on Me (the window) is not enough: GtkWidget has a
+    ''' built-in default key binding on Tab for focus navigation (move-focus), and whichever
+    ''' widget currently has keyboard focus gets first chance at the event and consumes it
+    ''' via that binding before it would ever reach this window's own key-press-event
+    ''' handler - this is why Ctrl+Tab previously did nothing while, say, the code editor,
+    ''' the Help tab's URL bar, or a bottom panel text box had focus. A key snooper
+    ''' (Gtk.Key.SnooperInstall) runs before any of that normal per-widget dispatch, for
+    ''' every key event in the whole application, so it always gets first chance regardless
+    ''' of focus. The action itself is scoped to pNotebook (the main panel) unconditionally,
+    ''' via SwitchToNextTab/SwitchToPreviousTab - it never touches the bottom panel's own
+    ''' tabs, no matter which widget had focus when the shortcut was pressed.
+    ''' </remarks>
+    Private Sub InstallTabCyclingSnooper()
+        Try
+            pTabCyclingSnooper = New Gtk.KeySnoopFunc(AddressOf OnTabCyclingKeySnoop)
+            Gtk.Key.SnooperInstall(pTabCyclingSnooper)
+        Catch ex As Exception
+            Console.WriteLine($"InstallTabCyclingSnooper error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Global key snoop callback - handles Ctrl+Tab/Ctrl+Shift+Tab from anywhere in the
+    ''' IDE by cycling the main panel's tabs, and otherwise leaves every other key event
+    ''' alone
+    ''' </summary>
+    ''' <param name="vGrabWidget">The widget that would normally receive this event</param>
+    ''' <param name="vEvent">The raw key event</param>
+    ''' <returns>1 to consume the event (stop normal delivery), 0 to let it proceed as usual</returns>
+    Private Function OnTabCyclingKeySnoop(vGrabWidget As Widget, vEvent As Gdk.EventKey) As Integer
+        Const KEY_TAB As UInteger = 65289
+        Const KEY_ISO_LEFT_TAB As UInteger = 65056
+        Try
+            If vEvent.Type <> Gdk.EventType.KeyPress Then Return 0
+
+            Dim lModifiers As ModifierType = vEvent.State And Not (ModifierType.LockMask Or
+                                                                     ModifierType.Mod2Mask Or
+                                                                     ModifierType.ReleaseMask)
+            If (lModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then Return 0
+
+            Dim lHasShift As Boolean = (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask
+            Dim lIsPrevious As Boolean = vEvent.KeyValue = KEY_ISO_LEFT_TAB OrElse
+                                          (vEvent.KeyValue = KEY_TAB AndAlso lHasShift)
+            Dim lIsNext As Boolean = vEvent.KeyValue = KEY_TAB AndAlso Not lHasShift
+
+            If Not lIsPrevious AndAlso Not lIsNext Then Return 0
+            If pNotebook Is Nothing Then Return 0
+
+            If lIsPrevious Then
+                SwitchToPreviousTab()
+            Else
+                SwitchToNextTab()
+            End If
+
+            Return 1
+
+        Catch ex As Exception
+            Console.WriteLine($"OnTabCyclingKeySnoop error: {ex.Message}")
+            Return 0
+        End Try
+    End Function
+
     ' Replace: SimpleIDE.MainWindow.OnWindowKeyPress
     ' Replace: SimpleIDE.MainWindow.OnWindowKeyPress
     ''' <summary>
@@ -209,11 +288,6 @@ Partial Public Class MainWindow
                         vArgs.RetVal = True
                         Return
                         
-                    Case "tab"
-                        ' Ctrl+Tab - Next Tab
-                        SwitchToNextTab()
-                        vArgs.RetVal = True
-                        Return
                 End Select
             End If
             
@@ -239,6 +313,7 @@ Partial Public Class MainWindow
                          ' TODO: OnBuildSolution(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
+
                 End Select
             End If
 
