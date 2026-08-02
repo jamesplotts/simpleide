@@ -981,7 +981,7 @@ Namespace Widgets
                 
                 ' Add icon width if present
                 If Not String.IsNullOrEmpty(lTab.IconName) Then
-                    lWidth += ICON_SIZE + 4
+                    lWidth += ICON_SIZE + ICON_TEXT_GAP
                 End If
                 
                 ' Add modified indicator width if modified

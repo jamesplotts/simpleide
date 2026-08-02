@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.912.0</AssemblyVersion>
-    <FileVersion>1.1.912.0</FileVersion>
+    <AssemblyVersion>1.1.916.0</AssemblyVersion>
+    <FileVersion>1.1.916.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.912</Version>
+    <Version>1.1.916</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -234,6 +234,7 @@
     <Compile Include="Utilities/FoldStateStore.vb" />
     <Compile Include="Utilities/FontMetrics.vb" />
     <Compile Include="Utilities/GitIgnoreHelper.vb" />
+    <Compile Include="Utilities/IconContrastHelper.vb" />
     <Compile Include="Utilities/InputDialog.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="Utilities/ListBoxItem.vb" />

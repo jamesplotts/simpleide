@@ -5,16 +5,22 @@ Imports Cairo
 Imports System
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
-    
+
     Partial Public Class CustomDrawNotebook
-        
+
         ' ===== Drawing Constants =====
         Private Const ICON_SIZE As Integer = 16
         Private Const CLOSE_BUTTON_SIZE As Integer = 16
         Private Const TAB_PADDING As Integer = 8
         Private Const MODIFIED_DOT_SIZE As Integer = 6
+        ' Gap between the icon and the label text - matches CustomDrawButton's own
+        ' ICON_TEXT_GAP so icon+label spacing reads consistently across the CustomDraw
+        ' control library (was a bare "4" inlined at each of the two call sites before,
+        ' with no guarantee they'd stay in sync)
+        Private Const ICON_TEXT_GAP As Integer = 6
         
         ' ===== Main Drawing Method =====
         
@@ -130,7 +136,7 @@ Namespace Widgets
                 ' Draw icon if present
                 If Not String.IsNullOrEmpty(lTab.IconName) Then
                     DrawTabIcon(vContext, lTab.IconName, lContentX, lContentY)
-                    lContentX += ICON_SIZE + 4
+                    lContentX += ICON_SIZE + ICON_TEXT_GAP
                 End If
                 
                 ' Draw modified indicator
@@ -473,13 +479,30 @@ Namespace Widgets
                 End Try
                 
                 If lPixbuf IsNot Nothing Then
+                    ' Contrast: invert the icon's colors if its own predominant luminance
+                    ' matches the tab bar background's - e.g. a dark themed icon on a dark
+                    ' theme's tab bar - so it doesn't blend into the background, mirroring
+                    ' CustomDrawButton's own icon-contrast handling
+                    Dim lBackgroundIsDark As Boolean = pThemeManager IsNot Nothing AndAlso
+                        pThemeManager.GetCurrentThemeObject() IsNot Nothing AndAlso
+                        pThemeManager.GetCurrentThemeObject().IsDarkTheme
+                    Dim lIconIsDark As Boolean = IconContrastHelper.ComputeIsDark(lPixbuf)
+
+                    Dim lDrawPixbuf As Pixbuf = lPixbuf
+                    Dim lInvertedPixbuf As Pixbuf = Nothing
+                    If lIconIsDark = lBackgroundIsDark Then
+                        lInvertedPixbuf = IconContrastHelper.Invert(lPixbuf)
+                        lDrawPixbuf = lInvertedPixbuf
+                    End If
+
                     ' Draw the icon
                     vContext.Save()
-                    Gdk.CairoHelper.SetSourcePixbuf(vContext, lPixbuf, vX, vY)
+                    Gdk.CairoHelper.SetSourcePixbuf(vContext, lDrawPixbuf, vX, vY)
                     vContext.Paint()
                     vContext.Restore()
-                    
-                    ' Dispose the pixbuf
+
+                    ' Dispose the pixbuf(s)
+                    lInvertedPixbuf?.Dispose()
                     lPixbuf.Dispose()
                 End If
                 

@@ -5,9 +5,9 @@ Imports Gtk
 Imports Gdk
 Imports Cairo
 Imports System
-Imports System.Runtime.InteropServices
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
 
@@ -126,7 +126,7 @@ Namespace Widgets
             End Get
             Set(value As Gdk.Pixbuf)
                 pSourceIconPixbuf = value
-                pSourceIconIsDark = ComputeIconIsDark(value)
+                pSourceIconIsDark = IconContrastHelper.ComputeIsDark(value)
                 UpdateDisplayIcon()
                 UpdateRequestedSize()
                 QueueDraw()
@@ -179,7 +179,7 @@ Namespace Widgets
             Try
                 pLabel = vLabel
                 pSourceIconPixbuf = vIcon
-                pSourceIconIsDark = ComputeIconIsDark(vIcon)
+                pSourceIconIsDark = IconContrastHelper.ComputeIsDark(vIcon)
                 pIconPixbuf = vIcon ' displayed as-is until a ThemeManager is assigned and can decide whether inversion is needed
                 CanFocus = True
                 Events = EventMask.ButtonPressMask Or EventMask.ButtonReleaseMask Or
@@ -301,7 +301,7 @@ Namespace Widgets
                 End If
 
                 If pSourceIconIsDark = pBackgroundIsDark Then
-                    pIconPixbuf = InvertPixbufColors(pSourceIconPixbuf)
+                    pIconPixbuf = IconContrastHelper.Invert(pSourceIconPixbuf)
                 Else
                     pIconPixbuf = pSourceIconPixbuf
                 End If
@@ -311,94 +311,6 @@ Namespace Widgets
                 pIconPixbuf = pSourceIconPixbuf
             End Try
         End Sub
-
-        ''' <summary>
-        ''' Samples a pixbuf's opaque pixels and reports whether its average luminance is
-        ''' predominantly dark - used to decide whether an icon needs contrast-inverting
-        ''' against the current theme background
-        ''' </summary>
-        ''' <param name="vPixbuf">Icon to sample - Nothing/fully-transparent returns False</param>
-        ''' <returns>True if the icon's average luminance is dark (below the midpoint)</returns>
-        Private Function ComputeIconIsDark(vPixbuf As Gdk.Pixbuf) As Boolean
-            Try
-                If vPixbuf Is Nothing Then Return False
-
-                Dim lChannels As Integer = vPixbuf.NChannels
-                Dim lHasAlpha As Boolean = vPixbuf.HasAlpha
-                Dim lRowstride As Integer = vPixbuf.Rowstride
-                Dim lWidth As Integer = vPixbuf.Width
-                Dim lHeight As Integer = vPixbuf.Height
-                Dim lLength As Integer = lRowstride * lHeight
-                If lLength <= 0 Then Return False
-
-                Dim lBytes(lLength - 1) As Byte
-                Marshal.Copy(vPixbuf.Pixels, lBytes, 0, lLength)
-
-                Dim lLuminanceSum As Double = 0
-                Dim lOpaquePixelCount As Integer = 0
-
-                For lY As Integer = 0 To lHeight - 1
-                    Dim lRowStart As Integer = lY * lRowstride
-                    For lX As Integer = 0 To lWidth - 1
-                        Dim lOffset As Integer = lRowStart + lX * lChannels
-                        If lHasAlpha AndAlso lBytes(lOffset + 3) < 32 Then Continue For ' skip near-transparent pixels
-                        Dim lR As Byte = lBytes(lOffset)
-                        Dim lG As Byte = lBytes(lOffset + 1)
-                        Dim lB As Byte = lBytes(lOffset + 2)
-                        lLuminanceSum += (0.299 * lR + 0.587 * lG + 0.114 * lB)
-                        lOpaquePixelCount += 1
-                    Next
-                Next
-
-                If lOpaquePixelCount = 0 Then Return False ' fully transparent icon - nothing to judge
-
-                Dim lAverageLuminance As Double = lLuminanceSum / lOpaquePixelCount ' 0 (black) .. 255 (white)
-                Return lAverageLuminance < 128.0
-
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawButton.ComputeIconIsDark error: {ex.Message}")
-                Return False
-            End Try
-        End Function
-
-        ''' <summary>
-        ''' Returns a copy of a pixbuf with its RGB channels inverted (255-value), leaving
-        ''' alpha untouched - turns dark line-art into light line-art (and vice versa) while
-        ''' keeping transparent background pixels transparent
-        ''' </summary>
-        Private Function InvertPixbufColors(vPixbuf As Gdk.Pixbuf) As Gdk.Pixbuf
-            Try
-                Dim lCopy As Gdk.Pixbuf = vPixbuf.Copy()
-                Dim lChannels As Integer = lCopy.NChannels
-                Dim lHasAlpha As Boolean = lCopy.HasAlpha
-                Dim lRowstride As Integer = lCopy.Rowstride
-                Dim lWidth As Integer = lCopy.Width
-                Dim lHeight As Integer = lCopy.Height
-                Dim lLength As Integer = lRowstride * lHeight
-                If lLength <= 0 Then Return lCopy
-
-                Dim lBytes(lLength - 1) As Byte
-                Marshal.Copy(lCopy.Pixels, lBytes, 0, lLength)
-
-                For lY As Integer = 0 To lHeight - 1
-                    Dim lRowStart As Integer = lY * lRowstride
-                    For lX As Integer = 0 To lWidth - 1
-                        Dim lOffset As Integer = lRowStart + lX * lChannels
-                        If lHasAlpha AndAlso lBytes(lOffset + 3) = 0 Then Continue For ' nothing visible to invert
-                        lBytes(lOffset) = CByte(255 - lBytes(lOffset))
-                        lBytes(lOffset + 1) = CByte(255 - lBytes(lOffset + 1))
-                        lBytes(lOffset + 2) = CByte(255 - lBytes(lOffset + 2))
-                    Next
-                Next
-
-                Marshal.Copy(lBytes, 0, lCopy.Pixels, lLength)
-                Return lCopy
-
-            Catch ex As Exception
-                Console.WriteLine($"CustomDrawButton.InvertPixbufColors error: {ex.Message}")
-                Return vPixbuf
-            End Try
-        End Function
 
         ' ===== Drawing =====
 
