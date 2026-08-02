@@ -393,8 +393,19 @@ Partial Public Class MainWindow
 
             InitializeBottomPanel()
             
-            ' Add bottom panel to center paned
-            pCenterVPaned.Pack2(pBottomPanelManager.GetWidget(), False, False)
+            ' Add bottom panel to center paned. shrink:=True is critical here - with
+            ' shrink:=False (the original setting), GTK permanently reserves the bottom
+            ' panel's full natural minimum height in the paned's own size requisition the
+            ' moment the panel becomes visible, regardless of what pCenterVPaned.Position is
+            ' set to afterward. If the window has no slack left (e.g. already filling the
+            ' screen), GTK has no choice but to grow the toplevel window itself to satisfy
+            ' that minimum - which is what was actually causing the window to grow taller
+            ' than the screen and get pushed off the top by the window manager whenever the
+            ' bottom panel was first shown. shrink:=True lets the paned allocate the panel
+            ' less than its natural size (clipped/scrolled internally, same as every other
+            ' dockable panel in a normal IDE), so showing it only takes space within the
+            ' existing window instead of growing the window.
+            pCenterVPaned.Pack2(pBottomPanelManager.GetWidget(), False, True)
             
             ' Add center paned to main paned
             pMainHPaned.Pack2(pCenterVPaned, True, False)
