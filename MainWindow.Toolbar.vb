@@ -92,7 +92,7 @@ Partial Public Class MainWindow
                 lImg.Show()
                 pSaveButton.IconWidget = lImg
             Catch ex As Exception
-                pSaveButton.IconWidget = Image.NewFromIconName("document-Save", lIconSize)
+                pSaveButton.IconWidget = Image.NewFromIconName("document-save", lIconSize)
             End Try
             pSaveButton.Label = "Save"
             pSaveButton.TooltipText = "Save File (Ctrl+S)"
@@ -280,7 +280,7 @@ Partial Public Class MainWindow
                 lImg.Show()
                 pStopButton.IconWidget = lImg
             Catch ex As Exception
-                pStopButton.IconWidget = Image.NewFromIconName("media-playback-Stop", lIconSize)
+                pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
             End Try            
             pStopButton.Label = "Stop"
             pStopButton.TooltipText = "Stop Debugging"
@@ -294,7 +294,7 @@ Partial Public Class MainWindow
                 lImg.Show()
                 pOutputPanelToggleButton.IconWidget = lImg
             Catch ex As Exception
-                pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("media-playback-Stop", lIconSize)
+                pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
             End Try            
             pOutputPanelToggleButton.Label = "Stop"
             pOutputPanelToggleButton.TooltipText = "Stop Debugging"
@@ -630,7 +630,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pUndoButton.IconWidget = lImg
                 Catch ex As Exception
-                    pUndoButton.IconWidget = Image.NewFromIconName("edit-Undo", vIconSize)
+                    pUndoButton.IconWidget = Image.NewFromIconName("edit-undo", vIconSize)
                 End Try
             End If
             
@@ -640,7 +640,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pRedoButton.IconWidget = lImg
                 Catch ex As Exception
-                    pRedoButton.IconWidget = Image.NewFromIconName("edit-Redo", vIconSize)
+                    pRedoButton.IconWidget = Image.NewFromIconName("edit-redo", vIconSize)
                 End Try
             End If
             
@@ -650,7 +650,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pCutButton.IconWidget = lImg
                 Catch ex As Exception
-                    pCutButton.IconWidget = Image.NewFromIconName("edit-Cut", vIconSize)
+                    pCutButton.IconWidget = Image.NewFromIconName("edit-cut", vIconSize)
                 End Try
             End If
             
@@ -660,7 +660,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pCopyButton.IconWidget = lImg
                 Catch ex As Exception
-                    pCopyButton.IconWidget = Image.NewFromIconName("edit-Copy", vIconSize)
+                    pCopyButton.IconWidget = Image.NewFromIconName("edit-copy", vIconSize)
                 End Try
             End If
             
@@ -670,7 +670,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pPasteButton.IconWidget = lImg
                 Catch ex As Exception
-                    pPasteButton.IconWidget = Image.NewFromIconName("edit-Paste", vIconSize)
+                    pPasteButton.IconWidget = Image.NewFromIconName("edit-paste", vIconSize)
                 End Try
             End If
 
@@ -750,7 +750,7 @@ Partial Public Class MainWindow
                     lImg.Show()
                     pStopButton.IconWidget = lImg
                 Catch ex As Exception
-                    pStopButton.IconWidget = Image.NewFromIconName("media-playback-Stop", vIconSize)
+                    pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", vIconSize)
                 End Try            
             End If
 

@@ -112,14 +112,14 @@ Namespace Editors
             
             ' Save button
             Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-Save", IconSize.SmallToolbar)
+            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
             lSaveButton.TooltipText = "Save image (Ctrl+S)"
             AddHandler lSaveButton.Clicked, AddressOf OnSave
             lToolbar.Insert(lSaveButton, -1)
             
             ' Save As button
             Dim lSaveAsButton As New ToolButton(Nothing, "Save As")
-            lSaveAsButton.IconWidget = Image.NewFromIconName("document-Save-as", IconSize.SmallToolbar)
+            lSaveAsButton.IconWidget = Image.NewFromIconName("document-save-as", IconSize.SmallToolbar)
             lSaveAsButton.TooltipText = "Save image as..."
             AddHandler lSaveAsButton.Clicked, AddressOf OnSaveAs
             lToolbar.Insert(lSaveAsButton, -1)

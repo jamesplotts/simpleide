@@ -56,7 +56,7 @@ Namespace Utilities
         Public Sub New(vApiKey As String, Optional vMem0ApiKey As String = "")
             pApiKey = vApiKey
             pHttpClient = New HttpClient()
-            pHttpClient.DefaultRequestHeaders.Add("anthropic-Version", "2023-06-01")
+            pHttpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01")
             pHttpClient.DefaultRequestHeaders.Add("x-api-key", pApiKey)
             
             ' Initialize Mem0 if API key provided

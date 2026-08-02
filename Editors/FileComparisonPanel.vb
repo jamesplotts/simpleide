@@ -297,7 +297,7 @@ Namespace Editors
                 ' Sync scrolling button
                 pSyncScrollButton = New ToggleToolButton()
                 pSyncScrollButton.Label = "Sync Scroll"
-                pSyncScrollButton.IconName = "view-Refresh"
+                pSyncScrollButton.IconName = "view-refresh"
                 pSyncScrollButton.TooltipText = "Synchronize scrolling between editors"
                 pSyncScrollButton.Active = pSyncScrolling
                 AddHandler pSyncScrollButton.Toggled, AddressOf OnSyncScrollToggled
@@ -306,7 +306,7 @@ Namespace Editors
                 ' Show differences button
                 pShowDifferencesButton = New ToggleToolButton()
                 pShowDifferencesButton.Label = "Highlight"
-                pShowDifferencesButton.IconName = "format-Text-underline"
+                pShowDifferencesButton.IconName = "format-text-underline"
                 pShowDifferencesButton.TooltipText = "Highlight differences"
                 pShowDifferencesButton.Active = pShowDifferences
                 AddHandler pShowDifferencesButton.Toggled, AddressOf OnShowDifferencesToggled

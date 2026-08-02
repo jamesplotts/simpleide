@@ -50,7 +50,7 @@ Partial Public Class MainWindow
     ' Open online documentation
     Public Sub OnOnlineDocumentation(vSender As Object, vArgs As EventArgs)
         Try
-            OpenUrl("https://learn.microsoft.com/en-us/dotnet/Visual-basic/")
+            OpenUrl("https://learn.microsoft.com/en-us/dotnet/visual-basic/")
             
         Catch ex As Exception
             Console.WriteLine($"OnOnlineDocumentation error: {ex.Message}")

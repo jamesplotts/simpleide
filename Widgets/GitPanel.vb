@@ -144,7 +144,7 @@ Namespace Widgets
             
             ' Refresh button
             pRefreshButton = New ToolButton(Nothing, "Refresh")
-            pRefreshButton.IconWidget = Image.NewFromIconName("view-Refresh", IconSize.SmallToolbar)
+            pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
             pRefreshButton.TooltipText = "Refresh git Status"
             lToolbar.Insert(pRefreshButton, -1)
             

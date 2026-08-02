@@ -265,7 +265,7 @@ Namespace Widgets
             
             ' Clear conversation
             Dim lClearButton As New ToolButton(Nothing, "Clear")
-            lClearButton.IconWidget = Image.NewFromIconName("edit-Clear", IconSize.SmallToolbar)
+            lClearButton.IconWidget = Image.NewFromIconName("edit-clear", IconSize.SmallToolbar)
             lClearButton.TooltipText = "Clear conversation"
             AddHandler lClearButton.Clicked, AddressOf OnClearConversation
             lToolbar.Insert(lClearButton, -1)
@@ -274,7 +274,7 @@ Namespace Widgets
             
             ' Save conversation
             Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-Save", IconSize.SmallToolbar)
+            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
             lSaveButton.TooltipText = "Save conversation"
             AddHandler lSaveButton.Clicked, AddressOf OnSaveConversation
             lToolbar.Insert(lSaveButton, -1)

@@ -218,12 +218,12 @@ Namespace Widgets
         End Function
 
         Private Sub InitializeQuickLinks()
-            pQuickLinks.Add("VB.NET Language Reference", "https://learn.microsoft.com/en-us/dotnet/Visual-basic/")
+            pQuickLinks.Add("VB.NET Language Reference", "https://learn.microsoft.com/en-us/dotnet/visual-basic/")
             pQuickLinks.Add("GTK# documentation", "https://docs.gtk.org/gtk3/")
             pQuickLinks.Add(".NET documentation", "https://learn.microsoft.com/en-us/dotnet/")
             pQuickLinks.Add("Linux Deployment", "https://learn.microsoft.com/en-us/dotnet/core/install/linux")
-            pQuickLinks.Add("VB.NET Keywords", "https://learn.microsoft.com/en-us/dotnet/Visual-basic/Language-Reference/Keywords/")
-            pQuickLinks.Add("VB.NET Operators", "https://learn.microsoft.com/en-us/dotnet/Visual-basic/Language-Reference/Operators/")
+            pQuickLinks.Add("VB.NET Keywords", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/keywords/")
+            pQuickLinks.Add("VB.NET Operators", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/operators/")
             pQuickLinks.Add("GTK# Tutorial", "https://www.mono-project.com/docs/GUI/gtksharp/beginners-guide/")
         End Sub
         
@@ -427,7 +427,7 @@ Namespace Widgets
         
         ' Public methods for specific help topics
         Public Sub ShowVBNetHelp()
-            LoadUrl("https://learn.microsoft.com/en-us/dotnet/Visual-basic/")
+            LoadUrl("https://learn.microsoft.com/en-us/dotnet/visual-basic/")
         End Sub
         
         Public Sub ShowGtkHelp()

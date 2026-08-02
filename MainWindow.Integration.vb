@@ -411,7 +411,7 @@ End Sub
     Public Async Function TriggerCICD(vProvider As String) As Task(Of Boolean)
         Try
             Select Case vProvider.ToLower()
-                Case "github", "github-Actions"
+                Case "github", "github-actions"
                     Return Await TriggerGitHubActions()
                 Case "gitlab", "gitlab-ci"
                     Return Await TriggerGitLabCI()

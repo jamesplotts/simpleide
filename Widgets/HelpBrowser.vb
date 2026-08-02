@@ -106,15 +106,15 @@ Namespace Widgets
         <div Class='section'>
             <h2>Visual Basic .NET</h2>
             <div Class='links'>
-                <a href='https://learn.microsoft.com/en-us/dotnet/Visual-basic/'>
+                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/'>
                     VB.NET Language Reference
                     <div Class='Description'>Complete Visual Basic .NET documentation</div>
                 </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/Visual-basic/programming-guide/'>
+                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/'>
                     VB.NET Programming Guide
                     <div Class='Description'>Detailed programming concepts and examples</div>
                 </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/Visual-basic/Language-Reference/'>
+                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/'>
                     Language Reference
                     <div Class='Description'>Keywords, Operators, and statements Reference</div>
                 </a>
@@ -799,9 +799,9 @@ Namespace Widgets
                 ' Map topic to URL
                 Select Case vTopic.ToLower()
                     Case "getting-started"
-                        NavigateToUrl("https://learn.microsoft.com/en-us/dotnet/Visual-basic/getting-started/")
-                    Case "Language-Reference"
-                        NavigateToUrl("https://learn.microsoft.com/en-us/dotnet/Visual-basic/Language-Reference/")
+                        NavigateToUrl("https://learn.microsoft.com/en-us/dotnet/visual-basic/getting-started/")
+                    Case "language-reference"
+                        NavigateToUrl("https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/")
                     Case "gtk-sharp"
                         NavigateToUrl("https://www.mono-project.com/docs/GUI/gtksharp/")
                     Case Else

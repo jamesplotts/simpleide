@@ -108,7 +108,7 @@ Namespace Editors
             
             ' Save button
             Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-Save", IconSize.SmallToolbar)
+            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
             lSaveButton.TooltipText = "Save Manifest"
             AddHandler lSaveButton.Clicked, AddressOf OnSave
             lToolbar.Insert(lSaveButton, -1)
@@ -133,7 +133,7 @@ Namespace Editors
             
             ' Template menu
             Dim lTemplateButton As New MenuToolButton(Nothing, "Templates")
-            lTemplateButton.IconWidget = Image.NewFromIconName("document-New", IconSize.SmallToolbar)
+            lTemplateButton.IconWidget = Image.NewFromIconName("document-new", IconSize.SmallToolbar)
             lTemplateButton.TooltipText = "Insert Template"
             lTemplateButton.Menu = CreateTemplateMenu()
             lToolbar.Insert(lTemplateButton, -1)

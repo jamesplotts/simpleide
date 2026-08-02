@@ -137,7 +137,7 @@ Partial Public Class MainWindow
             pMenuBar.Append(lFileMenuItem)
             
             ' New Project
-            Dim lNewProject As MenuItem = CreateMenuItemWithIcon("New _Project...", "document-New")
+            Dim lNewProject As MenuItem = CreateMenuItemWithIcon("New _Project...", "document-new")
             AddHandler lNewProject.Activated, AddressOf OnNewProject
             lFileMenu.Append(lNewProject)
             
@@ -156,7 +156,7 @@ Partial Public Class MainWindow
             lFileMenu.Append(New SeparatorMenuItem())
             
             ' New File
-            Dim lNewFile As MenuItem = CreateMenuItemWithIcon("New _File...", "document-New")
+            Dim lNewFile As MenuItem = CreateMenuItemWithIcon("New _File...", "document-new")
             AddHandler lNewFile.Activated, AddressOf OnNewFile
             lFileMenu.Append(lNewFile)
             
@@ -168,12 +168,12 @@ Partial Public Class MainWindow
             lFileMenu.Append(New SeparatorMenuItem())
             
             ' Save
-            Dim lSave As MenuItem = CreateMenuItemWithIcon("_Save", "document-Save")
+            Dim lSave As MenuItem = CreateMenuItemWithIcon("_Save", "document-save")
             AddHandler lSave.Activated, AddressOf OnSave
             lFileMenu.Append(lSave)
             
             ' Save As
-            Dim lSaveAs As MenuItem = CreateMenuItemWithIcon("Save _As...", "document-Save-as")
+            Dim lSaveAs As MenuItem = CreateMenuItemWithIcon("Save _As...", "document-save-as")
             AddHandler lSaveAs.Activated, AddressOf OnSaveAs
             lFileMenu.Append(lSaveAs)
             
@@ -214,29 +214,29 @@ Partial Public Class MainWindow
             pMenuBar.Append(lEditMenuItem)
             
             ' Undo
-            Dim lUndo As MenuItem = CreateMenuItemWithIcon("_Undo", "edit-Undo")
+            Dim lUndo As MenuItem = CreateMenuItemWithIcon("_Undo", "edit-undo")
             AddHandler lUndo.Activated, AddressOf OnUndo
             lEditMenu.Append(lUndo)
             
             ' Redo
-            Dim lRedo As MenuItem = CreateMenuItemWithIcon("_Redo", "edit-Redo")
+            Dim lRedo As MenuItem = CreateMenuItemWithIcon("_Redo", "edit-redo")
             AddHandler lRedo.Activated, AddressOf OnRedo
             lEditMenu.Append(lRedo)
             
             lEditMenu.Append(New SeparatorMenuItem())
             
             ' Cut
-            Dim lCut As MenuItem = CreateMenuItemWithIcon("Cu_t", "edit-Cut")
+            Dim lCut As MenuItem = CreateMenuItemWithIcon("Cu_t", "edit-cut")
             AddHandler lCut.Activated, AddressOf OnCut
             lEditMenu.Append(lCut)
             
             ' Copy
-            Dim lCopy As MenuItem = CreateMenuItemWithIcon("_Copy", "edit-Copy")
+            Dim lCopy As MenuItem = CreateMenuItemWithIcon("_Copy", "edit-copy")
             AddHandler lCopy.Activated, AddressOf OnCopy
             lEditMenu.Append(lCopy)
             
             ' Paste
-            Dim lPaste As MenuItem = CreateMenuItemWithIcon("_Paste", "edit-Paste")
+            Dim lPaste As MenuItem = CreateMenuItemWithIcon("_Paste", "edit-paste")
             AddHandler lPaste.Activated, AddressOf OnPaste
             lEditMenu.Append(lPaste)
             
@@ -251,12 +251,12 @@ Partial Public Class MainWindow
             lEditMenu.Append(New SeparatorMenuItem())
             
             ' Find
-            Dim lFind As MenuItem = CreateMenuItemWithIcon("_Find...", "edit-Find")
+            Dim lFind As MenuItem = CreateMenuItemWithIcon("_Find...", "edit-find")
             AddHandler lFind.Activated, AddressOf ShowFindPanel
             lEditMenu.Append(lFind)
             
             ' Replace
-            Dim lReplace As MenuItem = CreateMenuItemWithIcon("R_eplace...", "edit-Find-Replace")
+            Dim lReplace As MenuItem = CreateMenuItemWithIcon("R_eplace...", "edit-find-replace")
             ' TODO: AddHandler lReplace.Activated, AddressOf OnReplace
             lEditMenu.Append(lReplace)
             
@@ -861,10 +861,10 @@ Partial Public Class MainWindow
     Private Sub PopulateDotNetHelpMenu(vMenu As Menu)
         Try
             Dim lLinks As New Dictionary(Of String, String) From {
-                {"VB.NET documentation", "https://docs.microsoft.com/en-us/dotnet/Visual-basic/"},
+                {"VB.NET documentation", "https://docs.microsoft.com/en-us/dotnet/visual-basic/"},
                 {".NET API Browser", "https://docs.microsoft.com/en-us/dotnet/api/"},
-                {"VB.NET Language Reference", "https://docs.microsoft.com/en-us/dotnet/Visual-basic/Language-Reference/"},
-                {"VB.NET Programming Guide", "https://docs.microsoft.com/en-us/dotnet/Visual-basic/programming-guide/"}
+                {"VB.NET Language Reference", "https://docs.microsoft.com/en-us/dotnet/visual-basic/language-reference/"},
+                {"VB.NET Programming Guide", "https://docs.microsoft.com/en-us/dotnet/visual-basic/programming-guide/"}
             }
             
             for each kvp in lLinks
