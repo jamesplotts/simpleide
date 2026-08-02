@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.896.0</AssemblyVersion>
-    <FileVersion>1.1.896.0</FileVersion>
+    <AssemblyVersion>1.1.910.0</AssemblyVersion>
+    <FileVersion>1.1.910.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.896</Version>
+    <Version>1.1.910</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -374,6 +374,7 @@
     <EmbeddedResource Include="Resources/outdentdark.png" />
     <EmbeddedResource Include="Resources/saveall.png" />
     <EmbeddedResource Include="Resources/pencil.png" />
+    <EmbeddedResource Include="Resources/git.png" />
     <EmbeddedResource Include="Resources/Strings.xml" />
   </ItemGroup>
   <ItemGroup>

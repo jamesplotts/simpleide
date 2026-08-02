@@ -109,22 +109,24 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Creates a combo-box-like trigger button: label text plus a dropdown arrow,
-        ''' both drawn as one CustomDrawToggleButton label (the arrow suffix is appended
-        ''' by SetTriggerText below whenever the label changes)
+        ''' Creates a combo-box-like trigger button: label text plus a vector-drawn dropdown
+        ''' arrow reserved on the right (CustomDrawButton.ShowDropdownArrow) - previously a
+        ''' "▾" Unicode glyph appended to the label text itself, which rendered as a blank
+        ''' tofu box under CustomDrawButton's raw Cairo ShowText (no font-fallback chain)
         ''' </summary>
         ''' <param name="vWidth">Fixed width for the trigger, matching the old ComboBoxText sizing</param>
         Private Function CreateTriggerButton(vWidth As Integer) As CustomDrawToggleButton
-            Dim lButton As New CustomDrawToggleButton(" ▾")
+            Dim lButton As New CustomDrawToggleButton()
+            lButton.ShowDropdownArrow = True
             lButton.WidthRequest = vWidth
             Return lButton
         End Function
 
         ''' <summary>
-        ''' Sets a trigger button's text, keeping the trailing dropdown arrow intact
+        ''' Sets a trigger button's text
         ''' </summary>
         Private Sub SetTriggerText(vTrigger As CustomDrawToggleButton, vText As String)
-            vTrigger.Label = vText & " ▾"
+            vTrigger.Label = vText
         End Sub
 
         ''' <summary>

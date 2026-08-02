@@ -286,7 +286,13 @@ Partial Public Class MainWindow
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.OnThemeChanged()
             End If
-            
+
+            ' Reload hand-authored dark/light toolbar icon variants (undo, cut, build, etc.) -
+            ' each CustomDrawButton's own automatic icon contrast-inversion already keeps
+            ' itself in sync via its ThemeManager subscription, but the dark/light PNG *asset*
+            ' swap only happens here
+            RefreshToolbarAppearance()
+
             ' Update status bar
             If vTheme IsNot Nothing Then
                 UpdateStatusBar($"Theme changed to: {vTheme.Name}")

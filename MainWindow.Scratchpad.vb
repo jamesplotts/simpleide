@@ -14,7 +14,7 @@ Partial Public Class MainWindow
     ' ===== Private Fields =====
     Private pScratchpadManager As ScratchpadManager
     Private pScratchpadPanels As New Dictionary(Of String, ScratchpadPanel)()
-    Private pScratchpadButton As ToolButton
+    Private pScratchpadButton As CustomDrawButton
     
     ' ===== Initialization =====
     
@@ -70,29 +70,15 @@ Partial Public Class MainWindow
 
     ' ===== Toolbar Button Creation =====
     
-    Private Sub CreateScratchpadToolbarButton()
+    Private Sub CreateScratchpadToolbarButton(vPixelSize As Integer, vShowLabel As Boolean)
         Try
             ' Add separator before scratchpad button
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
-            ' Scratchpad button with pencil icon
-            pScratchpadButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.pencil.png", pToolbar.IconSize)
-                lImg.Show()
-                pScratchpadButton.IconWidget = lImg
-            Catch ex As Exception
-                ' Fallback to stock icon
-                pScratchpadButton.IconWidget = Image.NewFromIconName("accessories-text-editor", pToolbar.IconSize)
-            End Try
-            pScratchpadButton.Label = "Scratchpad"
-            pScratchpadButton.TooltipText = "Toggle Scratchpad"
+
+            pScratchpadButton = AddToolbarButton("pencil", False, "accessories-text-editor", "Scratchpad",
+                "Toggle Scratchpad", vPixelSize, vShowLabel)
             AddHandler pScratchpadButton.Clicked, AddressOf OnOpenScratchpad
 
-
-            
-             pToolbar.Insert(pScratchpadButton, -1)
-            
         Catch ex As Exception
             Console.WriteLine($"CreateScratchpadToolbarButton error: {ex.Message}")
         End Try

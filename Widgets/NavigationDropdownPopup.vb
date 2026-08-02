@@ -14,10 +14,14 @@ Namespace Widgets
     ''' dropdown (a flat sorted list) - replaces GTK's native ComboBoxText popup rendering
     ''' </summary>
     ''' <remarks>
-    ''' Dismissed on focus loss (clicking anywhere else in the application), Escape, or a
-    ''' committed selection - deliberately avoids an explicit pointer/device grab since
-    ''' that can't be interactively verified without real mouse input; focus-loss dismissal
-    ''' is a well-established, simpler alternative used by many custom GTK popups
+    ''' Dismissed on Escape, a committed selection, or a click anywhere outside the popup -
+    ''' the outside-click case uses a GTK (not X-server) grab via Gtk.Grab.Add: while held,
+    ''' GTK redirects any button-press event whose natural target isn't this window or a
+    ''' descendant of it (e.g. a click in the main editor window) to this window's own
+    ''' ButtonPressEvent instead, which is how GtkMenu and other same-process popups dismiss
+    ''' on outside click without needing a raw pointer/device grab. FocusOutEvent is kept as
+    ''' a secondary trigger (e.g. Alt-Tab to another application, which the in-process grab
+    ''' above doesn't cover).
     ''' </remarks>
     Public Class NavigationDropdownPopup
         Inherits Gtk.Window
@@ -129,6 +133,7 @@ Namespace Widgets
                 AddHandler pDrawingArea.LeaveNotifyEvent, AddressOf OnLeaveNotify
                 AddHandler Me.KeyPressEvent, AddressOf OnKeyPress
                 AddHandler Me.FocusOutEvent, AddressOf OnFocusOut
+                AddHandler Me.ButtonPressEvent, AddressOf OnOutsideButtonPress
 
             Catch ex As Exception
                 Console.WriteLine($"NavigationDropdownPopup constructor error: {ex.Message}")
@@ -176,6 +181,7 @@ Namespace Widgets
                 ShowAll()
                 pDrawingArea.GrabFocus()
                 Me.GrabFocus()
+                Gtk.Grab.Add(Me)
 
             Catch ex As Exception
                 Console.WriteLine($"ShowFor error: {ex.Message}")
@@ -188,6 +194,7 @@ Namespace Widgets
         Public Sub HidePopup(vRaiseCancelled As Boolean)
             Try
                 If Not Visible Then Return
+                Gtk.Grab.Remove(Me)
                 Hide()
                 If vRaiseCancelled Then RaiseEvent PopupCancelled()
 
@@ -253,6 +260,7 @@ Namespace Widgets
                 Return
             End If
             Dim lTag As Object = pItems(pHighlightedIndex).Tag
+            Gtk.Grab.Remove(Me)
             Hide()
             RaiseEvent ItemSelected(lTag)
         End Sub
@@ -296,6 +304,16 @@ Namespace Widgets
         End Function
 
         Private Sub OnFocusOut(vSender As Object, vArgs As FocusOutEventArgs)
+            HidePopup(True)
+        End Sub
+
+        ''' <summary>
+        ''' Fires only for a button-press whose natural target is outside this window's own
+        ''' hierarchy, redirected here by the Gtk.Grab.Add held while the popup is open (see
+        ''' class remarks) - a click on pDrawingArea itself is dispatched there directly and
+        ''' never reaches this handler
+        ''' </summary>
+        Private Sub OnOutsideButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
             HidePopup(True)
         End Sub
 

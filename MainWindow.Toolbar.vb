@@ -1,6 +1,7 @@
 ' MainWindow.Toolbar.vb - Toolbar creation and management for MainWindow
 Imports Gtk
 Imports System
+Imports System.Collections.Generic
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports SimpleIDE.Widgets
@@ -8,383 +9,250 @@ Imports SimpleIDE.Managers
 Imports SimpleIDE.Interfaces
 
 Partial Public Class MainWindow
-    
-    ' Toolbar buttons
-    Private pNewButton As ToolButton
-    Private pOpenButton As ToolButton
-    Private pSaveButton As ToolButton
-    Private pSaveAllButton As ToolButton
-    Private pUndoButton As ToolButton
-    Private pRedoButton As ToolButton
-    Private pCutButton As ToolButton
-    Private pCopyButton As ToolButton
-    Private pPasteButton As ToolButton
-    Private pFindButton As ToolButton
-    Private pBuildButton As ToolButton
-    Private pRunButton As ToolButton
-    Private pStopButton As ToolButton
-    Private pGitButton As ToolButton
-    Private pAIButton As ToolButton
-    Private pHelpButton As ToolButton
-    Private pReferencesButton As ToolButton
-    Private pOutdentToolButton As ToolButton
-    Private pIndentToolButton As ToolButton
-    Private pToggleCommentButton As ToolButton
-    Private pOutputPanelToggleButton As ToolButton
-    Private pQuickFindClipboardButton As  ToolButton
 
-    
+    ' Toolbar buttons - all bevel-styled CustomDrawButton (see AddToolbarButton), matching
+    ' the retro 3D look already used for the notebook nav buttons and the Explorer toolbars
+    Private pNewButton As CustomDrawButton
+    Private pOpenButton As CustomDrawButton
+    Private pSaveButton As CustomDrawButton
+    Private pSaveAllButton As CustomDrawButton
+    Private pUndoButton As CustomDrawButton
+    Private pRedoButton As CustomDrawButton
+    Private pCutButton As CustomDrawButton
+    Private pCopyButton As CustomDrawButton
+    Private pPasteButton As CustomDrawButton
+    Private pFindButton As CustomDrawButton
+    Private pBuildButton As CustomDrawButton
+    Private pRunButton As CustomDrawButton
+    Private pStopButton As CustomDrawButton
+    Private pGitButton As CustomDrawButton
+    Private pAIButton As CustomDrawButton
+    Private pHelpButton As CustomDrawButton
+    Private pOutdentToolButton As CustomDrawButton
+    Private pIndentToolButton As CustomDrawButton
+    Private pToggleCommentButton As CustomDrawButton
+    Private pOutputPanelToggleButton As CustomDrawButton
+    Private pQuickFindClipboardButton As CustomDrawButton
+
+    ''' <summary>
+    ''' Records how one toolbar button's icon was loaded, so RefreshToolbarAppearance can
+    ''' reload every button's icon (at a new pixel size and/or dark/light variant) and
+    ''' re-apply the current show-labels setting without duplicating each button's load
+    ''' logic a second time, the way CreateToolbar/UpdateToolbarIcons used to
+    ''' </summary>
+    Private Class ToolbarIconSpec
+        Public Button As CustomDrawButton
+        Public ResourceBaseName As String
+        Public UsesDarkVariant As Boolean
+        Public FallbackIconName As String
+        Public LabelText As String
+    End Class
+
+    Private pToolbarIconSpecs As New List(Of ToolbarIconSpec)
+
     ' ===== Toolbar Creation =====
-    
+
     Private Sub CreateToolbar()
         Try
             pToolbar = New Toolbar()
-            Dim lDark As String = ""
-            If pThemeManager.GetCurrentThemeObject.IsDarkTheme Then lDark = "dark"
+            pToolbarIconSpecs = New List(Of ToolbarIconSpec)
 
-    
-            ' Set initial values from settings
-            If pSettingsManager.ToolbarShowLabels Then
-                pToolbar.ToolbarStyle = ToolbarStyle.Both
-            Else
-                pToolbar.ToolbarStyle = ToolbarStyle.Icons
-            End If
-            
-            If pSettingsManager.ToolbarLargeIcons Then
-                pToolbar.IconSize = IconSize.LargeToolbar
-            Else
-                pToolbar.IconSize = IconSize.SmallToolbar
-            End If   
+            Dim lPixelSize As Integer = GetToolbarIconPixelSize()
+            Dim lShowLabels As Boolean = pSettingsManager.ToolbarShowLabels
 
-            ' Create toolbar buttons with proper icon size
-            Dim lIconSize As IconSize = pToolbar.IconSize
-         
             ' File operations
-            pNewButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.new.png", lIconSize)
-                lImg.Show()
-                pNewButton.IconWidget = lImg
-            Catch ex As Exception
-                pNewButton.IconWidget = Image.NewFromIconName("document-new", lIconSize)
-            End Try
-            pNewButton.Label = "New"
-            pNewButton.TooltipText = "New File (Ctrl+N)"
+            pNewButton = AddToolbarButton("new", False, "document-new", "New", "New File (Ctrl+N)", lPixelSize, lShowLabels)
             AddHandler pNewButton.Clicked, AddressOf OnNewFile
-            pToolbar.Insert(pNewButton, -1)
-            
-            pOpenButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.open.png", lIconSize)
-                lImg.Show()
-                pOpenButton.IconWidget = lImg
-            Catch ex As Exception
-                pOpenButton.IconWidget = Image.NewFromIconName("document-open", lIconSize)
-            End Try
-            pOpenButton.Label = "Open"
-            pOpenButton.TooltipText = "Open File (Ctrl+O)"
+
+            pOpenButton = AddToolbarButton("open", False, "document-open", "Open", "Open File (Ctrl+O)", lPixelSize, lShowLabels)
             AddHandler pOpenButton.Clicked, AddressOf OnOpenFile
-            pToolbar.Insert(pOpenButton, -1)
-            
-            pSaveButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.disc.png", lIconSize)
-                lImg.Show()
-                pSaveButton.IconWidget = lImg
-            Catch ex As Exception
-                pSaveButton.IconWidget = Image.NewFromIconName("document-save", lIconSize)
-            End Try
-            pSaveButton.Label = "Save"
-            pSaveButton.TooltipText = "Save File (Ctrl+S)"
+
+            pSaveButton = AddToolbarButton("disc", False, "document-save", "Save", "Save File (Ctrl+S)", lPixelSize, lShowLabels)
             AddHandler pSaveButton.Clicked, AddressOf OnSaveFile
-            pToolbar.Insert(pSaveButton, -1)
-            
-            pSaveAllButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.saveall.png", lIconSize)
-                lImg.Show()
-                pSaveAllButton.IconWidget = lImg
-            Catch ex As Exception
-                pSaveAllButton.IconWidget = Image.NewFromIconName("document-saveall", lIconSize)
-            End Try
-            pSaveAllButton.Label = "Save All"
-            pSaveAllButton.TooltipText = "Save All Files (Ctrl+Shift+S)"
+
+            pSaveAllButton = AddToolbarButton("saveall", False, "document-saveall", "Save All", "Save All Files (Ctrl+Shift+S)", lPixelSize, lShowLabels)
             AddHandler pSaveAllButton.Clicked, AddressOf OnSaveAll
-            pToolbar.Insert(pSaveAllButton, -1)
-            
+
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
+
             ' Edit operations
-            pUndoButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.undo" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pUndoButton.IconWidget = lImg
-            Catch ex As Exception
-                pUndoButton.IconWidget = Image.NewFromIconName("edit-undo", lIconSize)
-            End Try
-            pUndoButton.Label = "Undo"
-            pUndoButton.TooltipText = "Undo (Ctrl+Z)"
+            pUndoButton = AddToolbarButton("undo", True, "edit-undo", "Undo", "Undo (Ctrl+Z)", lPixelSize, lShowLabels)
             AddHandler pUndoButton.Clicked, AddressOf OnUndo
-            pToolbar.Insert(pUndoButton, -1)
-            
-            pRedoButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.redo" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pRedoButton.IconWidget = lImg
-            Catch ex As Exception
-                pRedoButton.IconWidget = Image.NewFromIconName("edit-redo", lIconSize)
-            End Try
-            pRedoButton.Label = "Redo"
-            pRedoButton.TooltipText = "Redo (Ctrl+y)"
+
+            pRedoButton = AddToolbarButton("redo", True, "edit-redo", "Redo", "Redo (Ctrl+y)", lPixelSize, lShowLabels)
             AddHandler pRedoButton.Clicked, AddressOf OnRedo
-            pToolbar.Insert(pRedoButton, -1)
-            
+
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
-            pCutButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.cut" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pCutButton.IconWidget = lImg
-            Catch ex As Exception
-                pCutButton.IconWidget = Image.NewFromIconName("edit-cut", lIconSize)
-            End Try
-            pCutButton.Label = "Cut"
-            pCutButton.TooltipText = "Cut (Ctrl+x)"
+
+            pCutButton = AddToolbarButton("cut", True, "edit-cut", "Cut", "Cut (Ctrl+x)", lPixelSize, lShowLabels)
             AddHandler pCutButton.Clicked, AddressOf OnCut
-            pToolbar.Insert(pCutButton, -1)
-            
-            pCopyButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.copy" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pCopyButton.IconWidget = lImg
-            Catch ex As Exception
-                pCopyButton.IconWidget = Image.NewFromIconName("edit-copy", lIconSize)
-            End Try
-            pCopyButton.Label = "Copy"
-            pCopyButton.TooltipText = "Copy (Ctrl+C)"
+
+            pCopyButton = AddToolbarButton("copy", True, "edit-copy", "Copy", "Copy (Ctrl+C)", lPixelSize, lShowLabels)
             AddHandler pCopyButton.Clicked, AddressOf OnCopy
-            pToolbar.Insert(pCopyButton, -1)
-            
-            pPasteButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.paste" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pPasteButton.IconWidget = lImg
-            Catch ex As Exception
-                pPasteButton.IconWidget = Image.NewFromIconName("edit-paste", lIconSize)
-            End Try
-            pPasteButton.Label = "Paste"
-            pPasteButton.TooltipText = "Paste (Ctrl+V)"
+
+            pPasteButton = AddToolbarButton("paste", True, "edit-paste", "Paste", "Paste (Ctrl+V)", lPixelSize, lShowLabels)
             AddHandler pPasteButton.Clicked, AddressOf OnPaste
-            pToolbar.Insert(pPasteButton, -1)
-            
+
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
+
             ' Find
-            pFindButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.find" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pFindButton.IconWidget = lImg
-            Catch ex As Exception
-                pFindButton.IconWidget = Image.NewFromIconName("edit-find", lIconSize)
-            End Try
-            pFindButton.Label = "Find"
-            pFindButton.TooltipText = "Find (Ctrl+F)"
+            pFindButton = AddToolbarButton("find", True, "edit-find", "Find", "Find (Ctrl+F)", lPixelSize, lShowLabels)
             AddHandler pFindButton.Clicked, AddressOf OnShowFindPanel
-            pToolbar.Insert(pFindButton, -1)
 
-            ' ADD NEW QUICK FIND FROM CLIPBOARD BUTTON HERE
-            CreateQuickFindFromClipboardButton()
-            
+            CreateQuickFindFromClipboardButton(lPixelSize, lShowLabels)
+
             pToolbar.Insert(New SeparatorToolItem(), -1)
 
-            ' outdent button
-            pOutdentToolButton = New ToolButton(Nothing, "Outdent")
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pOutdentToolButton.IconWidget = lImg
-            Catch ex As Exception
-                pOutdentToolButton.IconWidget = Image.NewFromIconName("format-indent-less", lIconSize)
-            End Try
-            pOutdentToolButton.TooltipText = "Outdent (Ctrl+[ or Shift+Tab)"
+            ' Outdent button
+            pOutdentToolButton = AddToolbarButton("outdent", True, "format-indent-less", "Outdent", "Outdent (Ctrl+[ or Shift+Tab)", lPixelSize, lShowLabels)
             AddHandler pOutdentToolButton.Clicked, AddressOf OnOutdent
-            pOutdentToolButton.Sensitive = True
-            pToolbar.Insert(pOutdentToolButton, -1)
-            
+
             ' Indent button
-            pIndentToolButton = New ToolButton(Nothing, "Indent")
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pIndentToolButton.IconWidget = lImg
-            Catch ex As Exception
-                pIndentToolButton.IconWidget = Image.NewFromIconName("format-indent-more", lIconSize)
-            End Try
-            pIndentToolButton.TooltipText = "Indent (Ctrl+] or Tab when Text is selected)"
+            pIndentToolButton = AddToolbarButton("indent", True, "format-indent-more", "Indent", "Indent (Ctrl+] or Tab when Text is selected)", lPixelSize, lShowLabels)
             AddHandler pIndentToolButton.Clicked, AddressOf OnIndent
-            pIndentToolButton.Sensitive = True
-            pToolbar.Insert(pIndentToolButton, -1)
-    
+
             ' Toggle Comment button
-            pToggleCommentButton = New ToolButton(Nothing, "Comment")
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pToggleCommentButton.IconWidget = lImg
-            Catch ex As Exception
-                pToggleCommentButton.IconWidget = Image.NewFromIconName("format-text-bold", lIconSize)
-            End Try
-            pToggleCommentButton.TooltipText = "Toggle Comment Block (Ctrl+')"
+            pToggleCommentButton = AddToolbarButton("comment", True, "format-text-bold", "Comment", "Toggle Comment Block (Ctrl+')", lPixelSize, lShowLabels)
             AddHandler pToggleCommentButton.Clicked, AddressOf OnToggleComment
-            pToolbar.Insert(pToggleCommentButton, -1)
 
             pToolbar.Insert(New SeparatorToolItem(), -1)
 
             ' Build operations
-            pBuildButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_start" + lDark + ".png", lIconSize)
-                lImg.Show()
-                pBuildButton.IconWidget = lImg
-            Catch ex As Exception
-                pBuildButton.IconWidget = Image.NewFromIconName("media-eject", lIconSize)
-            End Try            
-            pBuildButton.Label = "Build"
-            pBuildButton.TooltipText = "Build project (F6)"
+            pBuildButton = AddToolbarButton("build_start", True, "media-eject", "Build", "Build project (F6)", lPixelSize, lShowLabels)
             AddHandler pBuildButton.Clicked, AddressOf OnBuildProject
-            pToolbar.Insert(pBuildButton, -1)
-            
-            pRunButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.run.png", lIconSize)
-                lImg.Show()
-                pRunButton.IconWidget = lImg
-            Catch ex As Exception
-                pRunButton.IconWidget = Image.NewFromIconName("media-playback-start", lIconSize)
-            End Try            
-            pRunButton.Label = "Run"
-            ' Updated tooltip to reflect build-before-run behavior
-            pRunButton.TooltipText = "Run project (builds If needed) (Shift+F5)"
-            AddHandler pRunButton.Clicked, AddressOf OnRunProject
-            pToolbar.Insert(pRunButton, -1)            
-            
-            pStopButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build-Stop.png", lIconSize)
-                lImg.Show()
-                pStopButton.IconWidget = lImg
-            Catch ex As Exception
-                pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
-            End Try            
-            pStopButton.Label = "Stop"
-            pStopButton.TooltipText = "Stop Debugging"
-            AddHandler pStopButton.Clicked, AddressOf OnStopDebugging
-            pToolbar.Insert(pStopButton, -1)
-            
 
-            pOutputPanelToggleButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.bottom.png", lIconSize)
-                lImg.Show()
-                pOutputPanelToggleButton.IconWidget = lImg
-            Catch ex As Exception
-                pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("media-playback-stop", lIconSize)
-            End Try            
-            pOutputPanelToggleButton.Label = "Stop"
-            pOutputPanelToggleButton.TooltipText = "Stop Debugging"
+            pRunButton = AddToolbarButton("run", True, "media-playback-start", "Run", "Run project (builds If needed) (Shift+F5)", lPixelSize, lShowLabels)
+            AddHandler pRunButton.Clicked, AddressOf OnRunProject
+
+            pStopButton = AddToolbarButton("build_stop", True, "media-playback-stop", "Stop", "Stop Debugging", lPixelSize, lShowLabels)
+            AddHandler pStopButton.Clicked, AddressOf OnStopDebugging
+
+            pOutputPanelToggleButton = AddToolbarButton("bottom", False, "view-paged", "Output", "Toggle Output Panel", lPixelSize, lShowLabels)
             AddHandler pOutputPanelToggleButton.Clicked, AddressOf ToggleBottomPanel
-            pToolbar.Insert(pOutputPanelToggleButton, -1)
 
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
+
             ' Git
-            pGitButton = New ToolButton(Nothing, Nothing)
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.git.png", lIconSize)
-                lImg.Show()
-                pGitButton.IconWidget = lImg
-            Catch ex As Exception
-                pGitButton.IconWidget = Image.NewFromIconName("git", lIconSize)
-            End Try            
-            pGitButton.Label = "git"
-            pGitButton.TooltipText = "git Status"
+            pGitButton = AddToolbarButton("git", False, "git", "git", "git Status", lPixelSize, lShowLabels)
             AddHandler pGitButton.Clicked, AddressOf OnShowGitPanel
-            pToolbar.Insert(pGitButton, -1)
-            
-            ' AI Assistant
-            pAIButton = New ToolButton(Nothing, Nothing)
-            Dim lAIIcon As New Image()
-            lAIIcon.SetFromIconName("chat", lIconSize)
-            lAIIcon.Show()
-            pAIButton.IconWidget = lAIIcon
-            pAIButton.Label = "AI"
-            pAIButton.TooltipText = "AI Assistant"
+
+            ' AI Assistant - no embedded PNG for this one, always the "chat" themed icon
+            pAIButton = AddToolbarButton("", False, "chat", "AI", "AI Assistant", lPixelSize, lShowLabels)
             AddHandler pAIButton.Clicked, AddressOf OnShowAIAssistant
-            pToolbar.Insert(pAIButton, -1)
-            
-            ' Help
-            pHelpButton = New ToolButton(Nothing, Nothing)
-            Dim lHelpIcon As New Image()
-            lHelpIcon.SetFromIconName("help-browser", lIconSize)
-            lHelpIcon.Show()
-            pHelpButton.IconWidget = lHelpIcon
-            pHelpButton.Label = "Help"
-            pHelpButton.TooltipText = "Help (F1)"
+
+            ' Help - no embedded PNG for this one, always the "help-browser" themed icon
+            pHelpButton = AddToolbarButton("", False, "help-browser", "Help", "Help (F1)", lPixelSize, lShowLabels)
             AddHandler pHelpButton.Clicked, AddressOf OnShowHelpPanel
-            pToolbar.Insert(pHelpButton, -1)
 
-            CreateScratchpadToolbarButton()
+            CreateScratchpadToolbarButton(lPixelSize, lShowLabels)
 
-            'CreateDiagnosticToolbarButton()
+            'CreateDiagnosticToolbarButton(lPixelSize, lShowLabels)
 
-            ' Force show all toolbar items
-            For Each lItem As Widget In pToolbar.Children
-                lItem.Show()
-            Next
-    
             pToolbar.ShowAll()
-            UpdateToolbarIcons(lIconSize)
-            
+
         Catch ex As Exception
             Console.WriteLine($"CreateToolbar error: {ex.Message}")
         End Try
     End Sub
 
-    Public Function GetEmbeddedIcon(vResourceName As String, vIconSize As IconSize) As Gtk.Image
-        Using lStream As System.IO.Stream = GetType(MainWindow).Assembly.GetManifestResourceStream(vResourceName)
-            If lStream IsNot Nothing Then
-                Dim lPB As New Gdk.Pixbuf(lStream)
+    ''' <summary>
+    ''' Creates one bevel-styled toolbar button, wires it into pToolbarIconSpecs so
+    ''' RefreshToolbarAppearance can reload it later, and inserts it into pToolbar
+    ''' </summary>
+    ''' <param name="vResourceBaseName">Embedded PNG base name with no "SimpleIDE." prefix, no
+    ''' "dark" suffix, and no ".png" extension (e.g. "undo") - pass "" to skip straight to the
+    ''' themed fallback icon (used by buttons with no embedded PNG asset at all)</param>
+    ''' <param name="vUsesDarkVariant">Whether a hand-authored "{name}dark.png" embedded
+    ''' variant exists and should be preferred while the active theme is dark</param>
+    ''' <param name="vFallbackIconName">Themed icon-theme name used if the embedded resource
+    ''' can't be loaded</param>
+    ''' <param name="vLabelText">Label shown under/beside the icon when labels are enabled</param>
+    ''' <param name="vTooltip">Tooltip text</param>
+    ''' <param name="vPixelSize">Icon pixel size to load/scale to</param>
+    ''' <param name="vShowLabel">Whether to show vLabelText now (Toolbar > Show Labels setting)</param>
+    Private Function AddToolbarButton(vResourceBaseName As String, vUsesDarkVariant As Boolean,
+                                       vFallbackIconName As String, vLabelText As String, vTooltip As String,
+                                       vPixelSize As Integer, vShowLabel As Boolean) As CustomDrawButton
+        Dim lButton As New CustomDrawButton()
+        Try
+            lButton.IconPixbuf = LoadToolbarIconPixbuf(vResourceBaseName, vUsesDarkVariant, vFallbackIconName, vPixelSize)
+            lButton.Label = If(vShowLabel, vLabelText, "")
+            lButton.TooltipText = vTooltip
+            lButton.Style = CustomDrawButton.eButtonStyle.eBevel
+            lButton.ThemeManager = pThemeManager
 
-                ' Gdk.Pixbuf implements GLib.IIcon, so New Gtk.Image(pixbuf, iconSize) silently
-                ' resolves to the (GLib.IIcon, IconSize) overload instead of actually scaling
-                ' the pixbuf - that overload renders the pixbuf at its native embedded pixel
-                ' size and ignores vIconSize entirely, which is why toggling the toolbar's
-                ' Button Size (View > Toolbar > Button Size) never visibly changed anything.
-                ' Explicitly rescale the pixbuf to the requested icon size's real pixel
-                ' dimensions before wrapping it.
-                Dim lWidth As Integer = 0
-                Dim lHeight As Integer = 0
-                If Gtk.Icon.SizeLookup(vIconSize, lWidth, lHeight) AndAlso lWidth > 0 AndAlso lHeight > 0 Then
-                    If lPB.Width <> lWidth OrElse lPB.Height <> lHeight Then
-                        lPB = lPB.ScaleSimple(lWidth, lHeight, Gdk.InterpType.Bilinear)
-                    End If
-                End If
+            pToolbarIconSpecs.Add(New ToolbarIconSpec() With {
+                .Button = lButton,
+                .ResourceBaseName = vResourceBaseName,
+                .UsesDarkVariant = vUsesDarkVariant,
+                .FallbackIconName = vFallbackIconName,
+                .LabelText = vLabelText
+            })
 
-                Dim lImg As New Gtk.Image(lPB)
-                lImg.Show()
-                Return lImg
-            Else
-                Throw New Exception("")
-            End If
-        End Using
+            Dim lItem As New ToolItem()
+            lItem.Add(lButton)
+            pToolbar.Insert(lItem, -1)
+
+        Catch ex As Exception
+            Console.WriteLine($"AddToolbarButton error: {ex.Message}")
+        End Try
+        Return lButton
     End Function
-    
+
+    ''' <summary>
+    ''' Loads an icon pixbuf for a main-toolbar button at the given pixel size - tries the
+    ''' embedded "SimpleIDE.{name}[dark].png" resource first, falling back to a themed
+    ''' icon-theme lookup if the resource is missing or vResourceBaseName is blank
+    ''' </summary>
+    Private Function LoadToolbarIconPixbuf(vResourceBaseName As String, vUsesDarkVariant As Boolean,
+                                            vFallbackIconName As String, vPixelSize As Integer) As Gdk.Pixbuf
+        Try
+            If Not String.IsNullOrEmpty(vResourceBaseName) Then
+                Dim lDarkSuffix As String = ""
+                If vUsesDarkVariant AndAlso pThemeManager IsNot Nothing AndAlso pThemeManager.GetCurrentThemeObject.IsDarkTheme Then
+                    lDarkSuffix = "dark"
+                End If
+                Dim lResourceName As String = $"SimpleIDE.{vResourceBaseName}{lDarkSuffix}.png"
+
+                Using lStream As System.IO.Stream = GetType(MainWindow).Assembly.GetManifestResourceStream(lResourceName)
+                    If lStream IsNot Nothing Then
+                        Dim lPixbuf As New Gdk.Pixbuf(lStream)
+                        If lPixbuf.Width <> vPixelSize OrElse lPixbuf.Height <> vPixelSize Then
+                            lPixbuf = lPixbuf.ScaleSimple(vPixelSize, vPixelSize, Gdk.InterpType.Bilinear)
+                        End If
+                        Return lPixbuf
+                    End If
+                End Using
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"LoadToolbarIconPixbuf embedded resource error ({vResourceBaseName}): {ex.Message}")
+        End Try
+
+        Try
+            Return Gtk.IconTheme.Default.LoadIcon(vFallbackIconName, vPixelSize, IconLookupFlags.UseBuiltin)
+        Catch ex As Exception
+            Console.WriteLine($"LoadToolbarIconPixbuf fallback icon load error ({vFallbackIconName}): {ex.Message}")
+            Return Nothing
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Resolves the current Toolbar Button Size setting to an actual icon pixel dimension
+    ''' </summary>
+    Private Function GetToolbarIconPixelSize() As Integer
+        Try
+            Dim lIconSize As IconSize = If(pSettingsManager.ToolbarLargeIcons, IconSize.LargeToolbar, IconSize.SmallToolbar)
+            Dim lWidth As Integer = 0
+            Dim lHeight As Integer = 0
+            If Gtk.Icon.SizeLookup(lIconSize, lWidth, lHeight) AndAlso lWidth > 0 Then
+                Return lWidth
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"GetToolbarIconPixelSize error: {ex.Message}")
+        End Try
+        Return If(pSettingsManager.ToolbarLargeIcons, 24, 16)
+    End Function
+
     ' Toolbar event handlers
 
     ''' <summary>
@@ -401,40 +269,40 @@ Partial Public Class MainWindow
                 ' Fallback to old method
                 ShowBottomPanel(1) ' Find Results tab
             End If
-            
+
             ' Get the current editor
             Dim lEditor As IEditor = GetCurrentEditor()
             Dim lHasSelection As Boolean = False
             Dim lWordAtCursor As String = ""
-            
+
             ' Check if there's selected text
             If lEditor IsNot Nothing AndAlso lEditor.HasSelection Then
                 Dim lSelectedText As String = lEditor.SelectedText
-                
+
                 ' Only use if it's a single line
-                If Not String.IsNullOrEmpty(lSelectedText) AndAlso 
-                   Not lSelectedText.Contains(vbLf) AndAlso 
+                If Not String.IsNullOrEmpty(lSelectedText) AndAlso
+                   Not lSelectedText.Contains(vbLf) AndAlso
                    Not lSelectedText.Contains(vbCr) Then
-                    
+
                     lHasSelection = True
-                    
+
                     ' Set the search text in the find panel
                     pBottomPanelManager?.FindPanel?.SetSearchText(lSelectedText)
-                    
+
                     ' Execute the find with current options
                     pBottomPanelManager?.FindPanel?.OnFind(Nothing, Nothing)
                 End If
             ElseIf lEditor IsNot Nothing Then
                 ' No selection - get word at cursor
                 lWordAtCursor = lEditor.GetWordAtCursor()
-                
+
                 ' If there's a word at cursor, use it as search text
                 If Not String.IsNullOrEmpty(lWordAtCursor) Then
                     pBottomPanelManager?.FindPanel?.SetSearchText(lWordAtCursor)
                     pBottomPanelManager?.FindPanel?.OnFind(Nothing, Nothing)
                 End If
             End If
-            
+
             ' Focus search entry based on context
             If String.IsNullOrEmpty(lWordAtCursor) AndAlso Not lHasSelection Then
                 ' No word at cursor and no selection - select all existing text
@@ -443,12 +311,12 @@ Partial Public Class MainWindow
                 ' Has word at cursor or selection - don't select text
                 pBottomPanelManager?.FindPanel?.FocusSearchEntryNoSelect()
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnShowFindPanel error: {ex.Message}")
         End Try
     End Sub
-    
+
     ''' <summary>
     ''' Handles help toolbar button click - opens help in a center tab
     ''' </summary>
@@ -457,30 +325,30 @@ Partial Public Class MainWindow
             ' Open help in a new tab instead of bottom panel
             Console.WriteLine($"OnShowHelpPanel Called")
             OpenHelpTab()
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnShowHelpPanel error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnShowGitPanel(vSender As Object, vArgs As EventArgs)
         Try
             ' Show bottom panel with Git tab
             If pBottomPanelManager IsNot Nothing Then
                 pBottomPanelManager.ShowTabByType(BottomPanelManager.BottomPanelTab.eGit)
-                
+
                 ' Refresh git status
                 pBottomPanelManager.GitPanel?.RefreshStatus()
             Else
                 ' Fallback to old method
                 ShowBottomPanel(5) ' git tab
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnShowGitPanel error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnShowAIAssistant(vSender As Object, vArgs As EventArgs)
         Try
             ' Show bottom panel with AI Assistant tab
@@ -490,56 +358,56 @@ Partial Public Class MainWindow
                 ' Fallback to old method
                 ShowBottomPanel(3) ' AI Assistant tab
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnShowAIAssistant error: {ex.Message}")
         End Try
     End Sub
-    
+
     ' Update toolbar button states based on current context
     Private Sub UpdateToolbarButtons()
         Try
             Dim lHasCurrentTab As Boolean = GetCurrentTabInfo() IsNot Nothing
             Dim lHasCurrentEditor As Boolean = GetCurrentEditor() IsNot Nothing
-            
+
             ' File operations - New and Open should always be enabled
             pNewButton.Sensitive = True
             pOpenButton.Sensitive = True
             pSaveButton.Sensitive = lHasCurrentTab
             pSaveAllButton.Sensitive = lHasCurrentTab
-            
+
             ' Edit operations
             pUndoButton.Sensitive = lHasCurrentEditor
             pRedoButton.Sensitive = lHasCurrentEditor
             pCutButton.Sensitive = lHasCurrentEditor
             pCopyButton.Sensitive = lHasCurrentEditor
             pPasteButton.Sensitive = lHasCurrentEditor
-            
+
             ' Find
             pFindButton.Sensitive = True ' Always enabled
-            
+
             ' Build operations
             Dim lHasProject As Boolean = Not String.IsNullOrEmpty(pCurrentProject)
             pBuildButton.Sensitive = lHasProject
             pRunButton.Sensitive = lHasProject
             pStopButton.Sensitive = pIsDebugging
-            
+
             ' Git, AI, Help - always enabled
             pGitButton.Sensitive = True
             pAIButton.Sensitive = True
             pHelpButton.Sensitive = True
-            
+
         Catch ex As Exception
             Console.WriteLine($"UpdateToolbarButtons error: {ex.Message}")
         End Try
     End Sub
-    
+
     ' ===== Toolbar Settings Application =====
-    
+
     Private Sub ApplyToolbarSettings()
         Try
             If pToolbar Is Nothing Then Return
-            
+
             ' Apply visibility
             If pSettingsManager.ShowToolbar Then
                 pToolbar.Show()
@@ -547,285 +415,68 @@ Partial Public Class MainWindow
                 pToolbar.Hide()
                 Return ' Don't need to apply other settings if hidden
             End If
-            
-            ' Apply icon size and style
-            Dim lIconSize As IconSize
-            Dim lToolbarStyle As ToolbarStyle
-            
-            If pSettingsManager.ToolbarLargeIcons Then
-                lIconSize = IconSize.LargeToolbar
-            Else
-                lIconSize = IconSize.SmallToolbar
-            End If
-            
-            If pSettingsManager.ToolbarShowLabels Then
-                lToolbarStyle = ToolbarStyle.Both
-            Else
-                lToolbarStyle = ToolbarStyle.Icons
-            End If
-            
-            ' Apply settings to toolbar
-            pToolbar.IconSize = lIconSize
-            pToolbar.ToolbarStyle = lToolbarStyle
-            
-            ' Update all icon widgets with new size
-            UpdateToolbarIcons(lIconSize)
-            
+
+            RefreshToolbarAppearance()
+
             ' Force redraw
             pToolbar.ShowAll()
-            
+
         Catch ex As Exception
             Console.WriteLine($"ApplyToolbarSettings error: {ex.Message}")
         End Try
     End Sub
-    
-    Private Sub UpdateToolbarIcons(vIconSize As IconSize)
+
+    ''' <summary>
+    ''' Reloads every toolbar button's icon (at the current Button Size/theme) and re-applies
+    ''' the current Show Labels setting - called after a toolbar display setting changes, and
+    ''' after a color theme change so hand-authored dark/light icon variants stay in sync
+    ''' (the icon's own contrast-inversion, for buttons with no hand-authored variant, keeps
+    ''' itself in sync automatically via CustomDrawButton's own ThemeManager subscription)
+    ''' </summary>
+    Private Sub RefreshToolbarAppearance()
         Try
-            Dim lDark as String = ""
-            if pThemeManager.GetCurrentThemeObject.IsDarkTheme then lDark = "dark"
-            ' Update each button's icon with the new size
-            If pNewButton IsNot Nothing AndAlso pNewButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.new.png", vIconSize)
-                    lImg.Show()
-                    pNewButton.IconWidget = lImg
-                Catch ex As Exception
-                    pNewButton.IconWidget = Image.NewFromIconName("document-new", vIconSize)
-                End Try
-            End If
-            
-            If pOpenButton IsNot Nothing AndAlso pOpenButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.open.png", vIconSize)
-                    lImg.Show()
-                    pOpenButton.IconWidget = lImg
-                Catch ex As Exception
-                    pOpenButton.IconWidget = Image.NewFromIconName("document-open", vIconSize)
-                End Try
-            End If
-            
-            If pSaveButton IsNot Nothing AndAlso pSaveButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.disc.png", vIconSize)
-                    lImg.Show()
-                    pSaveButton.IconWidget = lImg
-                Catch ex As Exception
-                    pSaveButton.IconWidget = Image.NewFromIconName("document-save", vIconSize)
-                End Try
-            End If
-            
-            If pSaveAllButton IsNot Nothing AndAlso pSaveAllButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.saveall.png", vIconSize)
-                    lImg.Show()
-                    pSaveAllButton.IconWidget = lImg
-                Catch ex As Exception
-                    pSaveAllButton.IconWidget = Image.NewFromIconName("document-saveall", vIconSize)
-                End Try
-            End If
-            
-            If pUndoButton IsNot Nothing AndAlso pUndoButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.undo" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pUndoButton.IconWidget = lImg
-                Catch ex As Exception
-                    pUndoButton.IconWidget = Image.NewFromIconName("edit-undo", vIconSize)
-                End Try
-            End If
-            
-            If pRedoButton IsNot Nothing AndAlso pRedoButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.redo" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pRedoButton.IconWidget = lImg
-                Catch ex As Exception
-                    pRedoButton.IconWidget = Image.NewFromIconName("edit-redo", vIconSize)
-                End Try
-            End If
-            
-            If pCutButton IsNot Nothing AndAlso pCutButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.cut" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pCutButton.IconWidget = lImg
-                Catch ex As Exception
-                    pCutButton.IconWidget = Image.NewFromIconName("edit-cut", vIconSize)
-                End Try
-            End If
-            
-            If pCopyButton IsNot Nothing AndAlso pCopyButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.copy" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pCopyButton.IconWidget = lImg
-                Catch ex As Exception
-                    pCopyButton.IconWidget = Image.NewFromIconName("edit-copy", vIconSize)
-                End Try
-            End If
-            
-            If pPasteButton IsNot Nothing AndAlso pPasteButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.paste" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pPasteButton.IconWidget = lImg
-                Catch ex As Exception
-                    pPasteButton.IconWidget = Image.NewFromIconName("edit-paste", vIconSize)
-                End Try
-            End If
+            If pToolbarIconSpecs Is Nothing Then Return
 
-            If pToggleCommentButton IsNot Nothing AndAlso pToggleCommentButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pToggleCommentButton.IconWidget = lImg
-                Catch ex As Exception
-                    pToggleCommentButton.IconWidget = Image.NewFromIconName("format-text-bold", vIconSize)
-                End Try
-            End If
+            Dim lPixelSize As Integer = GetToolbarIconPixelSize()
+            Dim lShowLabels As Boolean = pSettingsManager.ToolbarShowLabels
 
-            If pOutdentToolButton IsNot Nothing AndAlso pOutdentToolButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.outdent" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pOutdentToolButton.IconWidget = lImg
-                Catch ex As Exception
-                    pOutdentToolButton.IconWidget = Image.NewFromIconName("format-indent-less", vIconSize)
-                End Try
-            End If
+            For Each lSpec As ToolbarIconSpec In pToolbarIconSpecs
+                lSpec.Button.IconPixbuf = LoadToolbarIconPixbuf(lSpec.ResourceBaseName, lSpec.UsesDarkVariant, lSpec.FallbackIconName, lPixelSize)
+                lSpec.Button.Label = If(lShowLabels, lSpec.LabelText, "")
+            Next
 
-            If pIndentToolButton IsNot Nothing AndAlso pIndentToolButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.indent" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pIndentToolButton.IconWidget = lImg
-                Catch ex As Exception
-                    pIndentToolButton.IconWidget = Image.NewFromIconName("format-indent-more", vIconSize)
-                End Try
-            End If
-
-            If pToggleCommentButton IsNot Nothing AndAlso pToggleCommentButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.comment" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pToggleCommentButton.IconWidget = lImg
-                Catch ex As Exception
-                    pToggleCommentButton.IconWidget = Image.NewFromIconName("format-text-bold", vIconSize)
-                End Try
-            End If
-
-            If pFindButton IsNot Nothing AndAlso pFindButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.find" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pFindButton.IconWidget = lImg
-                Catch ex As Exception
-                    pFindButton.IconWidget = Image.NewFromIconName("edit-find", vIconSize)
-                End Try
-            End If
-            
-            If pBuildButton IsNot Nothing AndAlso pBuildButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_start" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pBuildButton.IconWidget = lImg
-                Catch ex As Exception
-                    pBuildButton.IconWidget = Image.NewFromIconName("system-run", vIconSize)
-                End Try            
-            End If
-            
-            If pRunButton IsNot Nothing AndAlso pRunButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.run.png", vIconSize)
-                    lImg.Show()
-                    pRunButton.IconWidget = lImg
-                Catch ex As Exception
-                    pRunButton.IconWidget = Image.NewFromIconName("media-playback-start", vIconSize)
-                End Try            
-            End If
-            
-            If pStopButton IsNot Nothing AndAlso pStopButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.build_stop" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pStopButton.IconWidget = lImg
-                Catch ex As Exception
-                    pStopButton.IconWidget = Image.NewFromIconName("media-playback-stop", vIconSize)
-                End Try            
-            End If
-
-            If pQuickFindClipboardButton IsNot Nothing AndAlso pQuickFindClipboardButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.magnifier" + lDark + ".png", vIconSize)
-                    lImg.Show()
-                    pQuickFindClipboardButton.IconWidget = lImg
-                Catch ex As Exception
-                    pQuickFindClipboardButton.IconWidget = Image.NewFromIconName("edit-find-replace", vIconSize)
-                End Try            
-            End If
-
-            If pOutputPanelToggleButton IsNot Nothing AndAlso pOutputPanelToggleButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.bottom.png", vIconSize)
-                    lImg.Show()
-                    pOutputPanelToggleButton.IconWidget = lImg
-                Catch ex As Exception
-                    pOutputPanelToggleButton.IconWidget = Image.NewFromIconName("view-paged", vIconSize)
-                End Try            
-            End If
-
-            
-            If pGitButton IsNot Nothing AndAlso pGitButton.IconWidget IsNot Nothing Then
-                Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.git.png", vIconSize)
-                    lImg.Show()
-                    pGitButton.IconWidget = lImg
-                Catch ex As Exception
-                    pGitButton.IconWidget = Image.NewFromIconName("git", vIconSize)
-                End Try            
-            End If
-            
-            If pAIButton IsNot Nothing AndAlso pAIButton.IconWidget IsNot Nothing Then
-                DirectCast(pAIButton.IconWidget, Image).SetFromIconName("chat", vIconSize)
-            End If
-            
-            If pHelpButton IsNot Nothing AndAlso pHelpButton.IconWidget IsNot Nothing Then
-                DirectCast(pHelpButton.IconWidget, Image).SetFromIconName("help-browser", vIconSize)
-            End If
-            
         Catch ex As Exception
-            Console.WriteLine($"UpdateToolbarIcons error: {ex.Message}")
+            Console.WriteLine($"RefreshToolbarAppearance error: {ex.Message}")
         End Try
     End Sub
-    
 
 
     Private Sub OnToggleToolbar(vSender As Object, vArgs As EventArgs)
         Try
             Dim lMenuItem As CheckMenuItem = DirectCast(vSender, CheckMenuItem)
             pSettingsManager.ShowToolbar = lMenuItem.Active
-            
+
             ' Apply toolbar visibility
             ApplyToolbarSettings()
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnToggleToolbar error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnToggleToolbarLabels(vSender As Object, vArgs As EventArgs)
         Try
             Dim lMenuItem As CheckMenuItem = DirectCast(vSender, CheckMenuItem)
             pSettingsManager.ToolbarShowLabels = lMenuItem.Active
-            
+
             ' Apply toolbar style
             ApplyToolbarSettings()
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnToggleToolbarLabels error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnToolbarLargeButtons(vSender As Object, vArgs As EventArgs)
         Try
             Dim lMenuItem As RadioMenuItem = DirectCast(vSender, RadioMenuItem)
@@ -833,91 +484,58 @@ Partial Public Class MainWindow
                 pSettingsManager.ToolbarLargeIcons = True
                 ApplyToolbarSettings()
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnToolbarLargeButtons error: {ex.Message}")
         End Try
     End Sub
-    
-    Private Sub OnToolbarSmallButtons(vSender As Object, vArgs As EventArgs)  
+
+    Private Sub OnToolbarSmallButtons(vSender As Object, vArgs As EventArgs)
         Try
             Dim lMenuItem As RadioMenuItem = DirectCast(vSender, RadioMenuItem)
             If lMenuItem.Active Then
                 pSettingsManager.ToolbarLargeIcons = False
                 ApplyToolbarSettings()
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnToolbarSmallButtons error: {ex.Message}")
         End Try
     End Sub
 
-    ' Add: SimpleIDE.MainWindow.CreateDiagnosticToolbarButton
-    ' To: MainWindow.Toolbar.vb
-    
     ''' <summary>
     ''' Creates a diagnostic toolbar button for running merge diagnostics
     ''' </summary>
-    Private Sub CreateDiagnosticToolbarButton()
+    ''' <remarks>Not currently called from CreateToolbar (see the commented-out call) - kept
+    ''' converted to the current CustomDrawButton pattern for consistency if re-enabled</remarks>
+    Private Sub CreateDiagnosticToolbarButton(vPixelSize As Integer, vShowLabel As Boolean)
         Try
-            ' Add separator before diagnostic button
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            
-            ' Create diagnostic button with bug icon
-            Dim pDiagnosticButton As New ToolButton(Nothing, Nothing)
-            Dim lDiagIcon As New Image()
-            lDiagIcon.SetFromIconName("dialog-warning", pToolbar.IconSize)
-            lDiagIcon.Show()
-            pDiagnosticButton.IconWidget = lDiagIcon
-            pDiagnosticButton.Label = "Diagnostics"
-            pDiagnosticButton.TooltipText = "Run Merge Diagnostics (Debug Partial Class merging)"
-           ' AddHandler pDiagnosticButton.Clicked, AddressOf OnRunDiagnostics
-            pToolbar.Insert(pDiagnosticButton, -1)
-            
+
+            Dim lDiagnosticButton As CustomDrawButton = AddToolbarButton("", False, "dialog-warning", "Diagnostics",
+                "Run Merge Diagnostics (Debug Partial Class merging)", vPixelSize, vShowLabel)
+            ' AddHandler lDiagnosticButton.Clicked, AddressOf OnRunDiagnostics
+
             Console.WriteLine("Diagnostic toolbar button added successfully")
-            
+
         Catch ex As Exception
             Console.WriteLine($"CreateDiagnosticToolbarButton error: {ex.Message}")
         End Try
     End Sub
-    
- 
 
-    ' Replace: SimpleIDE.MainWindow.CreateQuickFindFromClipboardButton
     ''' <summary>
     ''' Creates a toolbar button for quick find using clipboard content with F2 shortcut
     ''' </summary>
-    Private Sub CreateQuickFindFromClipboardButton()
+    Private Sub CreateQuickFindFromClipboardButton(vPixelSize As Integer, vShowLabel As Boolean)
         Try
-            ' Add separator before quick find button
             pToolbar.Insert(New SeparatorToolItem(), -1)
-            Dim lDark As String = ""
-            If pThemeManager IsNot Nothing AndAlso pThemeManager.GetCurrentThemeObject.IsDarkTheme Then 
-                lDark = "dark"
-            End If
-    
-            ' Create quick find button with appropriate icon
-            pQuickFindClipboardButton = New ToolButton(Nothing, Nothing)
-            ' Try to use embedded icon first
-            Try
-                Dim lImg As Gtk.Image = GetEmbeddedIcon("SimpleIDE.magnifier" + lDark + ".png", pToolbar.IconSize)
-                lImg.Show()
-                pQuickFindClipboardButton.IconWidget = lImg
-            Catch ex As Exception
-                ' Fallback to system icons
-                Dim lIcon As New Image()
-                lIcon.SetFromIconName("edit-find-replace", pToolbar.IconSize)
-                lIcon.Show()
-                pQuickFindClipboardButton.IconWidget = lIcon
-            End Try
-            
-            pQuickFindClipboardButton.Label = "Quick Find"
-            pQuickFindClipboardButton.TooltipText = "Quick Find from Clipboard (F2) - Searches for clipboard text in entire project"
+
+            pQuickFindClipboardButton = AddToolbarButton("magnifier", True, "edit-find-replace", "Quick Find",
+                "Quick Find from Clipboard (F2) - Searches for clipboard text in entire project", vPixelSize, vShowLabel)
             AddHandler pQuickFindClipboardButton.Clicked, AddressOf OnQuickFindFromClipboard
-            pToolbar.Insert(pQuickFindClipboardButton, -1)
-            
+
             Console.WriteLine("Quick Find from Clipboard button added successfully")
-            
+
         Catch ex As Exception
             Console.WriteLine($"CreateQuickFindFromClipboardButton error: {ex.Message}")
         End Try
