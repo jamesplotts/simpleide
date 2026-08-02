@@ -635,13 +635,23 @@ Namespace Widgets
                 
                 ' Update current index
                 pCurrentTabIndex = vIndex
-                
-                ' Show new tab's widget
+
+                ' Show new tab's widget - must use ShowAll (recursive), not Show(). AppendPage
+                ' sets NoShowAll=True on every tab widget and never calls ShowAll on it unless
+                ' it was the very first tab ever added to this notebook, so a tab's own children
+                ' (toolbar buttons, text entries, etc.) are never individually shown - they sit
+                ' at GTK's default Visible=False until something recurses into them. Using plain
+                ' Show() here only made the outer container visible while its contents stayed
+                ' invisible, so a newly-added tab appeared to have no controls at all until some
+                ' later ShowAll() pass (e.g. from opening another tab) happened to catch it while
+                ' it was still the current tab.
                 Dim lNewWidget As Widget = pTabs(vIndex).Widget
                 If lNewWidget IsNot Nothing Then
-                    lNewWidget.Show()
+                    lNewWidget.NoShowAll = False
+                    lNewWidget.ShowAll()
+                    lNewWidget.NoShowAll = True
                     lNewWidget.Visible = True
-                    
+
                     ' Find and focus first focusable widget
                     FocusFirstFocusableChild(lNewWidget)
                 End If

@@ -1,802 +1,379 @@
-' HelpBrowser.vb - WebKit-based help browser for SimpleIDE
+' HelpBrowser.vb - Native GTK-based help browser for SimpleIDE
+'
+' This widget used to embed WebKit.WebView to render HTML help content. WebKitGTK's
+' GTK3-compatible library (libwebkit2gtk-4.0/4.1) was removed from Debian's repositories
+' starting with Debian 13 ("trixie") in favor of a GTK4-only rewrite (libwebkitgtk-6.0),
+' which is ABI-incompatible with this GTK3 application - every WebKit.WebView construction
+' throws System.DllNotFoundException on that OS ("libwebkit2gtk-4.0.so.37" not found), so
+' the Help tab never rendered anything at all, on any page. This widget was rewritten to
+' render its own generated content (Home, Keyboard Shortcuts, etc.) with native GTK
+' widgets instead, and to open real external documentation links in the user's system
+' default browser rather than trying to embed them - which also means every link now
+' automatically follows the app's theme via the same global CSS provider every other
+' native widget uses, instead of needing separate HTML dark-mode CSS injection.
 Imports Gtk
-Imports WebKit
 Imports System.Diagnostics
+Imports System.Collections.Generic
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
 
 Namespace Widgets
-    
+
+    ''' <summary>
+    ''' Displays SimpleIDE's built-in Help content (resource links, keyboard shortcuts,
+    ''' etc.) using native GTK widgets, and opens external documentation URLs in the
+    ''' system's default web browser
+    ''' </summary>
     Public Class HelpBrowser
         Inherits Box
-        
-        ' Private fields
-        Private pWebView As WebView
+
+        ''' <summary>
+        ''' Identifies the Home page's URL, used for dedup checks and history tracking
+        ''' </summary>
+        Public Const HOME_URL As String = "simpleide://home"
+
+        ''' <summary>
+        ''' Describes one navigable page in this browser's back/forward history
+        ''' </summary>
+        Private Class PageEntry
+            Public Property Title As String
+            Public Property Url As String
+            Public Property Sections As List(Of HelpSection)
+        End Class
+
+        ' Toolbar controls
         Private pUrlBar As CustomDrawTextBox
         Private pSearchEntry As CustomDrawTextBox
         Private pBackButton As ToolButton
         Private pForwardButton As ToolButton
         Private pRefreshButton As ToolButton
         Private pHomeButton As ToolButton
-        Private pExternalButton As ToolButton
-        Private pProgressBar As ProgressBar
         Private pStatusLabel As Label
-        
-        ' ===== Theme Support Fields =====
-        Private pThemeButton As CustomDrawToggleButton
-        Private pUseDarkTheme As Boolean = False
+
+        ' Content area
+        Private pContentBox As Box
+        Private pScrolled As ScrolledWindow
+
+        ' History
+        Private pHistory As New List(Of PageEntry)
+        Private pHistoryIndex As Integer = -1
+
         Private pSettingsManager As SettingsManager
-        Private pCurrentHtmlContent As String = ""
-        Private pCurrentBaseUri As String = ""
-        Private pIsInternalContent As Boolean = False     
-           
-        ' Constants
-        Private Const HOME_HTML As String = "<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8'>
-    <Title>SimpleIDE Help</Title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-            Color: #333;
-        }
-        .container {
-            max-Width: 1200px;
-            margin: 0 auto;
-        }
-        h1 {
-            Color: #2c3e50;
-            margin-bottom: 30px;
-        }
-        .section {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h2 {
-            Color: #34495e;
-            margin-top: 0;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
-        }
-        .links {
-            display: grid;
-            grid-Template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        a {
-            display: block;
-            padding: 12px;
-            background: #3498db;
-            Color: white;
-            Text-decoration: none;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-        a:hover {
-            background: #2980b9;
-        }
-        .Description {
-            font-size: 0.9em;
-            opacity: 0.9;
-            margin-top: 3px;
-        }
-        .search-tip {
-            background: #e8f4f8;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div Class='container'>
-        <h1>SimpleIDE Help Resources</h1>
-        
-        <div Class='search-tip'>
-            <strong>Tip:</strong> Use the search box above To search documentation. For example, Try searching For 'TreeView', 'TextBuffer', or 'async await'.
-        </div>
-        
-        <div Class='section'>
-            <h2>Visual Basic .NET</h2>
-            <div Class='links'>
-                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/'>
-                    VB.NET Language Reference
-                    <div Class='Description'>Complete Visual Basic .NET documentation</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/'>
-                    VB.NET Programming Guide
-                    <div Class='Description'>Detailed programming concepts and examples</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/'>
-                    Language Reference
-                    <div Class='Description'>Keywords, Operators, and statements Reference</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/api/?view=net-8.0'>
-                    .NET 8 API Browser
-                    <div Class='Description'>Browse .NET classes and namespaces</div>
-                </a>
-            </div>
-        </div>
-        
-        <div Class='section'>
-            <h2>GTK# Development</h2>
-            <div Class='links'>
-                <a href='https://www.mono-project.com/docs/GUI/gtksharp/'>
-                    GTK# documentation
-                    <div Class='Description'>Official GTK# documentation</div>
-                </a>
-                <a href='https://docs.gtk.org/gtk3/'>
-                    GTK 3 Reference
-                    <div Class='Description'>Complete GTK+ 3 API Reference</div>
-                </a>
-                <a href='https://docs.gtk.org/gtk3/visual_index.html'>
-                    GTK Widget Gallery
-                    <div Class='Description'>Visual index of all GTK widgets</div>
-                </a>
-                <a href='https://devdocs.io/gtk~3.20/'>
-                    DevDocs GTK
-                    <div Class='Description'>Fast, offline-capable documentation browser</div>
-                </a>
-            </div>
-        </div>
-        
-        <div Class='section'>
-            <h2>.NET Core &amp; CLI</h2>
-            <div Class='links'>
-                <a href='https://learn.microsoft.com/en-us/dotnet/'>
-                    .NET documentation
-                    <div Class='Description'>Main .NET documentation portal</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/core/tools/'>
-                    .NET CLI Reference
-                    <div Class='Description'>Command-Line interface documentation</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/core/diagnostics/'>
-                    .NET Diagnostics
-                    <div Class='Description'>Debugging and diagnostic tools</div>
-                </a>
-                <a href='https://www.nuget.org/'>
-                    NuGet Gallery
-                    <div Class='Description'>Browse and search .NET Packages</div>
-                </a>
-            </div>
-        </div>
-        
-        <div Class='section'>
-            <h2>Additional Resources</h2>
-            <div Class='links'>
-                <a href='https://stackoverflow.com/questions/tagged/gtk%23'>
-                    Stack Overflow - GTK#
-                    <div Class='Description'>Community Q&amp;A for GTK# development</div>
-                </a>
-                <a href='https://github.com/GtkSharp/GtkSharp'>
-                    GTK# GitHub Repository
-                    <div Class='Description'>Source code and issue tracker</div>
-                </a>
-                <a href='https://www.mono-project.com/docs/GUI/gtksharp/widgets/buttons/'>
-                    GTK# Widget Examples
-                    <div Class='Description'>code examples for common widgets</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/core/porting/'>
-                    .NET Porting Guide
-                    <div Class='Description'>Migrating from .NET Framework to .NET Core</div>
-                </a>
-            </div>
-        </div>
-        
-        <div Class='section'>
-            <h2>SimpleIDE Features</h2>
-            <div Class='links'>
-                <a href='https://www.mono-project.com/docs/GUI/gtksharp/hello-world/'>
-                    Getting Started With GTK#
-                    <div Class='Description'>Create your first GTK# application</div>
-                </a>
-                <a href='https://docs.gtk.org/gtk3/class.TextView.html'>
-                    GtkTextView documentation
-                    <div Class='Description'>Text editing Widget used in SimpleIDE</div>
-                </a>
-                <a href='https://docs.gtk.org/gtk3/class.TreeView.html'>
-                    GtkTreeView documentation
-                    <div Class='Description'>Tree/list Widget for project explorer</div>
-                </a>
-                <a href='https://github.com/GtkSharp/GtkSharp/tree/develop/Source/Samples'>
-                    GTK# code Samples
-                    <div Class='Description'>Example code for common tasks</div>
-                </a>
-                <a href='https://developer.gnome.org/gtk3/stable/'>
-                    GNOME Developer Docs
-                    <div Class='Description'>Additional GTK documentation</div>
-                </a>
-            </div>
-        </div>
-        
-        <div Class='section'>
-            <h2>Linux Development</h2>
-            <div Class='links'>
-                <a href='https://learn.microsoft.com/en-us/dotnet/core/install/linux'>
-                    .NET On Linux
-                    <div Class='Description'>Installing and using .NET on Linux</div>
-                </a>
-                <a href='https://www.mono-project.com/docs/'>
-                    Mono documentation
-                    <div Class='Description'>Cross-Platform .NET framework</div>
-                </a>
-                <a href='https://learn.microsoft.com/en-us/dotnet/core/deploying/linux'>
-                    Linux Deployment
-                    <div Class='Description'>Deploying .NET apps on Linux</div>
-                </a>
-                <a href='https://code.visualstudio.com/docs/languages/dotnet'>
-                    VS code .NET Support
-                    <div Class='Description'>Alternative Editor for .NET development</div>
-                </a>
-            </div>
-        </div>
-    </div>
-</body>
-</html>"
+        Private pThemeManager As ThemeManager
 
-        ' Properties
-        Public ReadOnly Property WebView As WebView
-            Get
-                Return pWebView
-            End Get
-        End Property
-        
-        Public ReadOnly Property CurrentUrl As String
-            Get
-                Return If(pWebView?.Uri, "")
-            End Get
-        End Property
-        
-        Public ReadOnly Property IsLoading As Boolean
-            Get
-                Return pWebView IsNot Nothing AndAlso pWebView.IsLoading
-            End Get
-        End Property
-
-        
         ' Events
         Public Event NavigationCompleted(vUrl As String)
         Public Event LoadingStateChanged(vIsLoading As Boolean)
-        
-        Public Sub New(vSettingsManager as SettingsManager)
+
+        ''' <summary>
+        ''' Gets the URL of the page currently displayed
+        ''' </summary>
+        Public ReadOnly Property CurrentUrl As String
+            Get
+                If pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count Then
+                    Return pHistory(pHistoryIndex).Url
+                End If
+                Return ""
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets the title of the page currently displayed
+        ''' </summary>
+        Public ReadOnly Property Title As String
+            Get
+                If pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count Then
+                    Return pHistory(pHistoryIndex).Title
+                End If
+                Return ""
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets whether content is currently loading - always False, since native
+        ''' rendering is synchronous
+        ''' </summary>
+        Public ReadOnly Property IsLoading As Boolean
+            Get
+                Return False
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets whether there is an earlier page to navigate back to
+        ''' </summary>
+        Public ReadOnly Property CanGoBack As Boolean
+            Get
+                Return pHistoryIndex > 0
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets whether there is a later page to navigate forward to
+        ''' </summary>
+        Public ReadOnly Property CanGoForward As Boolean
+            Get
+                Return pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count - 1
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Initializes a new HelpBrowser
+        ''' </summary>
+        ''' <param name="vSettingsManager">The shared settings manager</param>
+        Public Sub New(vSettingsManager As SettingsManager)
             MyBase.New(Orientation.Vertical, 0)
             pSettingsManager = vSettingsManager
             Try
-                BuildUIWithTheme()
+                BuildUI()
                 ConnectEvents()
-                
-                ' Load home page
-                NavigateToHome()
+                ' Deliberately no initial navigation here - both call sites (OpenHelpTab,
+                ' OpenHelpTabWithSections) call SetThemeManager immediately after
+                ' construction and then explicitly navigate themselves.
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser: error initializing: {ex.Message}")
             End Try
         End Sub
-        
-'        Private Sub BuildUI()
-'            Try
-'                ' Create main toolbar
-'                Dim lToolbar As New Toolbar()
-'                lToolbar.ToolbarStyle = ToolbarStyle.Icons
-'                lToolbar.IconSize = IconSize.Menu
-'                
-'                ' Navigation buttons
-'                pBackButton = New ToolButton()
-'                pBackButton.IconWidget = Image.NewFromIconName("go-previous", IconSize.Menu)
-'                pBackButton.TooltipText = "Go back"
-'                'pBackButton.Relief = ReliefStyle.None
-'                
-'                pForwardButton = New ToolButton()
-'                pForwardButton.IconWidget = Image.NewFromIconName("go-next", IconSize.Menu)
-'                pForwardButton.TooltipText = "Go forward"
-''                pForwardButton.Relief = ReliefStyle.None
-'                
-'                pRefreshButton = New ToolButton()
-'                pRefreshButton.IconWidget = Image.NewFromIconName("view-Refresh", IconSize.Menu)
-'                pRefreshButton.TooltipText = "Refresh"
-'                'pRefreshButton.Relief = ReliefStyle.None
-'                
-'                pHomeButton = New ToolButton()
-'                pHomeButton.IconWidget = Image.NewFromIconName("go-home", IconSize.Menu)
-'                pHomeButton.TooltipText = "Home"
-'                'pHomeButton.Relief = ReliefStyle.None
-'                
-'                pExternalButton = New Button()
-'                pExternalButton.Image = Image.NewFromIconName("applications-internet", IconSize.Menu)
-'                pExternalButton.TooltipText = "Open in external browser"
-'                pExternalButton.Relief = ReliefStyle.None
-'                
-'                ' URL bar
-'                pUrlBar = New Entry()
-'                pUrlBar.WidthRequest = 400
-'                pUrlBar.PlaceholderText = "Enter Url or topic..."
-'                
-'                ' Search entry
-'                Dim lSearchLabel As New Label("Search:")
-'                lSearchLabel.MarginStart = 10
-'                
-'                pSearchEntry = New Entry()
-'                pSearchEntry.WidthRequest = 200
-'                pSearchEntry.PlaceholderText = "Search documentation..."
-'                
-'                ' Add items to toolbar
-'                Dim lBackItem As New ToolItem()
-'                lBackItem.Add(pBackButton)
-'                lToolbar.Add(lBackItem)
-'                
-'                Dim lForwardItem As New ToolItem()
-'                lForwardItem.Add(pForwardButton)
-'                lToolbar.Add(lForwardItem)
-'                
-'                Dim lRefreshItem As New ToolItem()
-'                lRefreshItem.Add(pRefreshButton)
-'                lToolbar.Add(lRefreshItem)
-'                
-'                Dim lHomeItem As New ToolItem()
-'                lHomeItem.Add(pHomeButton)
-'                lToolbar.Add(lHomeItem)
-'                
-'                Dim lExternalItem As New ToolItem()
-'                lExternalItem.Add(pExternalButton)
-'                lToolbar.Add(lExternalItem)
-'                
-'                lToolbar.Add(New SeparatorToolItem())
-'                
-'                ' URL bar tool item
-'                Dim lUrlItem As New ToolItem()
-'                lUrlItem.Add(pUrlBar)
-'                lUrlItem.Expand = True
-'                lToolbar.Add(lUrlItem)
-'                
-'                lToolbar.Add(New SeparatorToolItem())
-'                
-'                ' Search items
-'                Dim lSearchLabelItem As New ToolItem()
-'                lSearchLabelItem.Add(lSearchLabel)
-'                lToolbar.Add(lSearchLabelItem)
-'                
-'                Dim lSearchItem As New ToolItem()
-'                lSearchItem.Add(pSearchEntry)
-'                lToolbar.Add(lSearchItem)
-'                
-'                ' Pack toolbar
-'                PackStart(lToolbar, False, False, 0)
-'                
-'                ' Create WebView
-'                pWebView = New WebView()
-'                
-'                ' Create scrolled window for WebView
-'                Dim lScrolled As New ScrolledWindow()
-'                lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-'                lScrolled.Add(pWebView)
-'                
-'                ' Pack scrolled window
-'                PackStart(lScrolled, True, True, 0)
-'                
-'                ' Status bar
-'                Dim lStatusBox As New Box(Orientation.Horizontal, 5)
-'                lStatusBox.BorderWidth = 2
-'                
-'                pProgressBar = New ProgressBar()
-'                pProgressBar.WidthRequest = 100
-'                pProgressBar.Visible = False
-'                lStatusBox.PackStart(pProgressBar, False, False, 0)
-'                
-'                pStatusLabel = New Label("Ready")
-'                pStatusLabel.Halign = Align.Start
-'                lStatusBox.PackStart(pStatusLabel, True, True, 0)
-'                
-'                PackEnd(lStatusBox, False, False, 0)
-'                
-'            Catch ex As Exception
-'                Console.WriteLine($"HelpBrowser.BuildUI: error: {ex.Message}")
-'            End Try
-'        End Sub
-        
-        Private Sub ConnectEvents()
-            Try
-                ' Button events
-                AddHandler pBackButton.Clicked, AddressOf OnBackClicked
-                AddHandler pForwardButton.Clicked, AddressOf OnForwardClicked
-                AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
-                AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
-                AddHandler pExternalButton.Clicked, AddressOf OnExternalClicked
-                
-                ' URL bar events
-                AddHandler pUrlBar.Activated, AddressOf OnUrlActivated
-                
-                ' Search events
-                AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
-                
-                ' WebView events
-                AddHandler pWebView.LoadChanged, AddressOf OnLoadChanged
-                AddHandler pWebView.LoadFailed, AddressOf OnLoadFailed
-                AddHandler pWebView.DecidePolicy, AddressOf OnDecidePolicy
-                
-                ' Monitor property changes for progress and title
-                ' FIXED: Use a timer to poll for changes instead of NotifySignal
-                Dim lTimer As UInteger = GLib.Timeout.Add(100, Function()
-                    Try
-                        If pWebView.EstimatedLoadProgress > 0 AndAlso pWebView.EstimatedLoadProgress < 1.0 Then
-                            OnLoadProgressChanged()
-                        End If
-                        
-                        If Not String.IsNullOrEmpty(pWebView.Title) AndAlso pStatusLabel.Text <> pWebView.Title Then
-                            OnTitleChanged()
-                        End If
-                    Catch ex As Exception
-                        Console.WriteLine($"HelpBrowser Progress timer error: {ex.Message}")
-                    End Try
-                    Return True ' Continue timer
-                End Function)
-                
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.ConnectEvents: error: {ex.Message}")
-            End Try
-        End Sub
-        
-       
+
         ''' <summary>
-        ''' Enhanced BuildUI method with theme toggle button
+        ''' Builds the toolbar and native content area
         ''' </summary>
-        Private Sub BuildUIWithTheme()
+        Private Sub BuildUI()
             Try
                 Orientation = Orientation.Vertical
                 Spacing = 0
-                
+
                 ' Toolbar
                 Dim lToolbar As New Toolbar()
                 lToolbar.ToolbarStyle = ToolbarStyle.Icons
-                
-                ' Navigation buttons
-                pBackButton = New toolButton(Nothing, "Back")
+
+                pBackButton = New ToolButton(Nothing, "Back")
                 pBackButton.IconWidget = Image.NewFromIconName("go-previous", IconSize.SmallToolbar)
                 pBackButton.TooltipText = "Go back"
                 pBackButton.Sensitive = False
-                
+
                 pForwardButton = New ToolButton(Nothing, "Forward")
                 pForwardButton.IconWidget = Image.NewFromIconName("go-next", IconSize.SmallToolbar)
                 pForwardButton.TooltipText = "Go forward"
                 pForwardButton.Sensitive = False
-                
+
                 pRefreshButton = New ToolButton(Nothing, "Refresh")
                 pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
                 pRefreshButton.TooltipText = "Refresh page"
-                
+
                 pHomeButton = New ToolButton(Nothing, "Home")
                 pHomeButton.IconWidget = Image.NewFromIconName("go-home", IconSize.SmallToolbar)
                 pHomeButton.TooltipText = "Go to home page"
-                
-                pExternalButton = New ToolButton(Nothing, "External")
-                pExternalButton.IconWidget = Image.NewFromIconName("web-browser", IconSize.SmallToolbar)
-                pExternalButton.TooltipText = "Open in external browser"
-                
-                ' Add navigation buttons
+
                 Dim lBackItem As New ToolItem()
                 lBackItem.Add(pBackButton)
                 lToolbar.Add(lBackItem)
-                
+
                 Dim lForwardItem As New ToolItem()
                 lForwardItem.Add(pForwardButton)
                 lToolbar.Add(lForwardItem)
-                
+
                 Dim lRefreshItem As New ToolItem()
                 lRefreshItem.Add(pRefreshButton)
                 lToolbar.Add(lRefreshItem)
-                
+
                 Dim lHomeItem As New ToolItem()
                 lHomeItem.Add(pHomeButton)
                 lToolbar.Add(lHomeItem)
-                
-                Dim lExternalItem As New ToolItem()
-                lExternalItem.Add(pExternalButton)
-                lToolbar.Add(lExternalItem)
-                
-                lToolbar.Add(New SeparatorToolItem())
-                
-                ' THEME TOGGLE BUTTON
-                pThemeButton = New CustomDrawToggleButton()
-                pThemeButton.Label = "🌙"  ' Moon icon for dark mode
-                pThemeButton.TooltipText = "Toggle dark mode"
-                pThemeButton.Active = pUseDarkTheme
-                AddHandler pThemeButton.Toggled, AddressOf OnThemeToggled
-                
-                Dim lThemeItem As New ToolItem()
-                lThemeItem.Add(pThemeButton)
-                lToolbar.Add(lThemeItem)
-                
-                lToolbar.Add(New SeparatorToolItem())
-                
-                ' URL bar
-                pUrlBar = New CustomDrawTextBox("Enter URL or search term...")
-                pUrlBar.WidthRequest = 400
 
-                ' Search box
-                Dim lSearchLabel As New Label("Search:")
-                lSearchLabel.MarginStart = 5
-                lSearchLabel.MarginEnd = 5
+                lToolbar.Add(New SeparatorToolItem())
 
-                pSearchEntry = New CustomDrawTextBox("Search documentation...")
-                pSearchEntry.WidthRequest = 200
-                
-                ' URL bar tool item
+                ' URL bar - opens whatever's entered in the system's default browser
+                pUrlBar = New CustomDrawTextBox("Enter a URL to open in your browser...")
+                pUrlBar.WidthRequest = 300
+
                 Dim lUrlItem As New ToolItem()
                 lUrlItem.Add(pUrlBar)
                 lUrlItem.Expand = True
                 lToolbar.Add(lUrlItem)
-                
+
                 lToolbar.Add(New SeparatorToolItem())
-                
-                ' Search items
+
+                Dim lSearchLabel As New Label("Search:")
+                lSearchLabel.MarginStart = 5
+                lSearchLabel.MarginEnd = 5
+
+                pSearchEntry = New CustomDrawTextBox("Search Microsoft Learn...")
+                pSearchEntry.WidthRequest = 200
+
                 Dim lSearchLabelItem As New ToolItem()
                 lSearchLabelItem.Add(lSearchLabel)
                 lToolbar.Add(lSearchLabelItem)
-                
+
                 Dim lSearchItem As New ToolItem()
                 lSearchItem.Add(pSearchEntry)
                 lToolbar.Add(lSearchItem)
-                
-                ' Pack toolbar
+
                 PackStart(lToolbar, False, False, 0)
-                
-                ' Create WebView
-                pWebView = New WebView()
-                
-                ' Create scrolled window for WebView
-                Dim lScrolled As New ScrolledWindow()
-                lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-                lScrolled.Add(pWebView)
-                
-                ' Pack scrolled window
-                PackStart(lScrolled, True, True, 0)
-                
+
+                ' Native content area
+                pContentBox = New Box(Orientation.Vertical, 0)
+                pContentBox.BorderWidth = 16
+
+                pScrolled = New ScrolledWindow()
+                pScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+                pScrolled.Add(pContentBox)
+
+                PackStart(pScrolled, True, True, 0)
+
                 ' Status bar
                 Dim lStatusBox As New Box(Orientation.Horizontal, 5)
                 lStatusBox.BorderWidth = 2
-                
-                pProgressBar = New ProgressBar()
-                pProgressBar.WidthRequest = 100
-                pProgressBar.Visible = False
-                lStatusBox.PackStart(pProgressBar, False, False, 0)
-                
+
                 pStatusLabel = New Label("Ready")
                 pStatusLabel.Halign = Align.Start
                 lStatusBox.PackStart(pStatusLabel, True, True, 0)
-                
-                PackEnd(lStatusBox, False, False, 0)
-                
-                If pSettingsManager IsNot Nothing Then
-                    pUseDarkTheme = pSettingsManager.GetBooleanSetting("HelpBrowserDarkMode", False)
-                    If pThemeButton IsNot Nothing Then
-                        pThemeButton.Active = pUseDarkTheme
-                    End If
-                End If
 
-                
+                PackEnd(lStatusBox, False, False, 0)
+
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.BuildUIWithTheme error: {ex.Message}")
-            End Try
-        End Sub            
-        
-        ' Event handlers
-        Private Sub OnBackClicked(sender As Object, e As EventArgs)
-            Try
-                If pWebView.CanGoBack Then
-                    pWebView.GoBack()
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnBackClicked: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.BuildUI error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub OnForwardClicked(sender As Object, e As EventArgs)
+
+        ''' <summary>
+        ''' Wires up toolbar button and entry events
+        ''' </summary>
+        Private Sub ConnectEvents()
             Try
-                If pWebView.CanGoForward Then
-                    pWebView.GoForward()
-                End If
+                AddHandler pBackButton.Clicked, AddressOf OnBackClicked
+                AddHandler pForwardButton.Clicked, AddressOf OnForwardClicked
+                AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
+                AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
+                AddHandler pUrlBar.Activated, AddressOf OnUrlActivated
+                AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnForwardClicked: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.ConnectEvents error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub OnRefreshClicked(sender As Object, e As EventArgs)
-            Try
-                pWebView.Reload()
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnRefreshClicked: error: {ex.Message}")
-            End Try
+
+        Private Sub OnBackClicked(vSender As Object, vArgs As EventArgs)
+            GoBack()
         End Sub
-        
-        Private Sub OnHomeClicked(sender As Object, e As EventArgs)
-            Try
-                NavigateToHome()
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnHomeClicked: error: {ex.Message}")
-            End Try
+
+        Private Sub OnForwardClicked(vSender As Object, vArgs As EventArgs)
+            GoForward()
         End Sub
-        
-        Private Sub OnExternalClicked(sender As Object, e As EventArgs)
-            Try
-                Dim lCurrentUrl As String = pWebView.Uri
-                If Not String.IsNullOrEmpty(lCurrentUrl) AndAlso (lCurrentUrl.StartsWith("http://") OrElse lCurrentUrl.StartsWith("https://")) Then
-                    Process.Start(New ProcessStartInfo With {
-                        .FileName = lCurrentUrl,
-                        .UseShellExecute = True
-                    })
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnExternalClicked: error: {ex.Message}")
-            End Try
+
+        Private Sub OnRefreshClicked(vSender As Object, vArgs As EventArgs)
+            Reload()
         End Sub
-        
-        Private Sub OnUrlActivated(sender As Object, e As EventArgs)
+
+        Private Sub OnHomeClicked(vSender As Object, vArgs As EventArgs)
+            NavigateToHome()
+        End Sub
+
+        Private Sub OnUrlActivated(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lUrl As String = pUrlBar.Text.Trim()
                 If Not String.IsNullOrEmpty(lUrl) Then
-                    ' Add protocol if missing
-                    If Not lUrl.StartsWith("http://") AndAlso Not lUrl.StartsWith("https://") AndAlso Not lUrl.StartsWith("file://") Then
+                    If Not lUrl.StartsWith("http://") AndAlso Not lUrl.StartsWith("https://") Then
                         lUrl = "https://" & lUrl
                     End If
                     NavigateToUrl(lUrl)
                 End If
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnUrlActivated: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.OnUrlActivated error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub OnSearchActivated(sender As Object, e As EventArgs)
+
+        Private Sub OnSearchActivated(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lSearchTerm As String = pSearchEntry.Text.Trim()
                 If Not String.IsNullOrEmpty(lSearchTerm) Then
-                    ' Search on Microsoft Learn by default
-                    Dim lSearchUrl As String = $"https://learn.microsoft.com/en-us/search/?terms={Uri.EscapeDataString(lSearchTerm)}&Category=documentation"
+                    Dim lSearchUrl As String = $"https://learn.microsoft.com/en-us/search/?terms={Uri.EscapeDataString(lSearchTerm)}&category=documentation"
                     NavigateToUrl(lSearchUrl)
                 End If
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnSearchActivated: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.OnSearchActivated error: {ex.Message}")
             End Try
         End Sub
-        
-        Private Sub OnLoadChanged(sender As Object, e As LoadChangedArgs)
-            Try
-                Select Case e.LoadEvent
-                    Case LoadEvent.Started
-                        pProgressBar.Visible = True
-                        pStatusLabel.Text = "Loading..."
-                        RaiseEvent LoadingStateChanged(True)
-                    Case LoadEvent.Committed
-                        pUrlBar.Text = pWebView.Uri
-                    Case LoadEvent.Finished
-                        pProgressBar.Visible = False
-                        pStatusLabel.Text = "Ready"
-                        UpdateNavigationButtons()
-                        RaiseEvent LoadingStateChanged(False)
-                        RaiseEvent NavigationCompleted(pWebView.Uri)
-                End Select
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnLoadChanged: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnLoadFailed(sender As Object, e As LoadFailedArgs)
-            Try
-                pProgressBar.Visible = False
-                pStatusLabel.Text = $"Failed to load: {e.FailingUri}"
-                Console.WriteLine($"HelpBrowser.OnLoadFailed: Failed to load {e.FailingUri} - error: {e.error}")
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnLoadFailed: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnLoadProgressChanged()
-            Try
-                Dim lProgress As Double = pWebView.EstimatedLoadProgress
-                pProgressBar.Fraction = lProgress
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnLoadProgressChanged: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnTitleChanged()
-            Try
-                Dim lTitle As String = pWebView.Title
-                If Not String.IsNullOrEmpty(lTitle) Then
-                    pStatusLabel.Text = lTitle
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnTitleChanged: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Private Sub OnDecidePolicy(sender As Object, e As DecidePolicyArgs)
-            Try
-                ' FIXED: Access the request properly from DecidePolicyArgs
-                Dim lDecision As PolicyDecision = e.Decision
-                Dim lDecisionType As PolicyDecisionType = e.DecisionType
-                
-                If lDecisionType = PolicyDecisionType.NavigationAction Then
-                    ' Cast to NavigationPolicyDecision to access navigation details
-                    Dim lNavDecision As NavigationPolicyDecision = CType(lDecision, NavigationPolicyDecision)
-                    Dim lAction As NavigationAction = lNavDecision.NavigationAction
-                    Dim lRequest As URIRequest = lAction.Request
-                    Dim lUri As String = lRequest.Uri
-                    
-                    ' Allow local files, data URLs, and HTTP/HTTPS
-                    If lUri.StartsWith("file://") OrElse lUri.StartsWith("http://") OrElse lUri.StartsWith("https://") OrElse lUri.StartsWith("Data:") Then
-                        lNavDecision.Use() ' Allow navigation
-                    Else
-                        ' Open in external browser for other protocols
-                        Process.Start(New ProcessStartInfo With {
-                            .FileName = lUri,
-                            .UseShellExecute = True
-                        })
-                        lNavDecision.Ignore() ' Prevent navigation in WebView
-                    End If
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnDecidePolicy: error: {ex.Message}")
-                ' On error, allow navigation
-                If e.Decision IsNot Nothing Then
-                    e.Decision.Use()
-                End If
-            End Try
-        End Sub
-        
-        Private Sub UpdateNavigationButtons()
-            Try
-                pBackButton.Sensitive = pWebView.CanGoBack
-                pForwardButton.Sensitive = pWebView.CanGoForward
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.UpdateNavigationButtons: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ' Public methods
-        
+
         ''' <summary>
-        ''' Override NavigateToUrl to track internal vs external content
+        ''' Wires the shared ThemeManager into this browser's CustomDraw controls; the
+        ''' native content area (Labels, Buttons, Frames) already follows the app-wide
+        ''' theme automatically via ThemeManager's global screen-level CSS provider
         ''' </summary>
+        ''' <param name="vThemeManager">The shared ThemeManager instance</param>
+        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+            Try
+                pThemeManager = vThemeManager
+                If pUrlBar IsNot Nothing Then pUrlBar.ThemeManager = vThemeManager
+                If pSearchEntry IsNot Nothing Then pSearchEntry.ThemeManager = vThemeManager
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.SetThemeManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Navigates to the built-in Home page
+        ''' </summary>
+        Public Sub NavigateToHome()
+            ShowSections("SimpleIDE Help", BuildHomeSections(), HOME_URL)
+        End Sub
+
+        ''' <summary>
+        ''' Displays a set of built-in sections as a page, pushing it onto the back/forward
+        ''' history (or refreshing in place if it's the same page already showing)
+        ''' </summary>
+        ''' <param name="vTitle">The page's title</param>
+        ''' <param name="vSections">The sections to render</param>
+        ''' <param name="vUrl">Optional identifying URL; defaults to a synthetic simpleide:// URL derived from the title</param>
+        Public Sub ShowSections(vTitle As String, vSections As List(Of HelpSection), Optional vUrl As String = "")
+            Try
+                Dim lUrl As String = If(String.IsNullOrEmpty(vUrl), $"simpleide://{vTitle}", vUrl)
+                Dim lEntry As New PageEntry With {.Title = vTitle, .Url = lUrl, .Sections = vSections}
+
+                If pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count AndAlso pHistory(pHistoryIndex).Url = lUrl Then
+                    ' Re-navigating to the page already showing - refresh its content in place
+                    pHistory(pHistoryIndex) = lEntry
+                Else
+                    ' Truncate any forward history before branching to a new page
+                    If pHistoryIndex < pHistory.Count - 1 Then
+                        pHistory.RemoveRange(pHistoryIndex + 1, pHistory.Count - pHistoryIndex - 1)
+                    End If
+                    pHistory.Add(lEntry)
+                    pHistoryIndex = pHistory.Count - 1
+                End If
+
+                RenderCurrentPage()
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.ShowSections error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Opens vUrl in the system's default web browser and shows a small in-app
+        ''' confirmation page, since the app can no longer embed real web pages
+        ''' </summary>
+        ''' <param name="vUrl">The URL to open</param>
         Public Sub NavigateToUrl(vUrl As String)
             Try
-                pIsInternalContent = False  ' External URLs don't get themed
-                If Not String.IsNullOrEmpty(vUrl) Then
-                    pWebView.LoadUri(vUrl)
-                End If
+                If String.IsNullOrEmpty(vUrl) Then Return
+
+                OpenExternalUrl(vUrl)
+
+                Dim lSection As New HelpSection("Opened in Your Browser")
+                lSection.Items.Add(New HelpResourceItem(vUrl, "This link was opened in your system's default web browser.", vUrl))
+                ShowSections("Opened Externally", New List(Of HelpSection) From {lSection}, vUrl)
+
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.NavigateToUrl error: {ex.Message}")
             End Try
         End Sub
-        
-        Public Sub NavigateToHtml(vHtml As String, Optional vBaseUri As String = "")
-            Try
-                If Not String.IsNullOrEmpty(vHtml) Then
-                    pWebView.LoadHtml(vHtml, vBaseUri)
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.NavigateToHtml: error: {ex.Message}")
-            End Try
-        End Sub
-        
-        Public Sub NavigateToHome()
-            Try
-                ' Load the home HTML directly
-                pWebView.LoadHtml(HOME_HTML, "about:blank")
-                pUrlBar.Text = "simpleide://home"
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.NavigateToHome: error: {ex.Message}")
-            End Try
-        End Sub
-        
+
+        ''' <summary>
+        ''' Maps a known help topic identifier to a documentation URL and opens it
+        ''' </summary>
+        ''' <param name="vTopic">The topic identifier</param>
         Public Sub NavigateToTopic(vTopic As String)
             Try
-                ' Map topic to URL
                 Select Case vTopic.ToLower()
                     Case "getting-started"
                         NavigateToUrl("https://learn.microsoft.com/en-us/dotnet/visual-basic/getting-started/")
@@ -805,166 +382,304 @@ Namespace Widgets
                     Case "gtk-sharp"
                         NavigateToUrl("https://www.mono-project.com/docs/GUI/gtksharp/")
                     Case Else
-                        NavigateToUrl($"https://learn.microsoft.com/en-us/search/?terms={vTopic}&Category=All")
+                        NavigateToUrl($"https://learn.microsoft.com/en-us/search/?terms={Uri.EscapeDataString(vTopic)}&category=All")
                 End Select
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.NavigateToTopic: error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.NavigateToTopic error: {ex.Message}")
             End Try
         End Sub
 
         ''' <summary>
-        ''' Handles theme toggle button click
+        ''' Navigates to the previous page in history, if any
         ''' </summary>
-        Private Sub OnThemeToggled(vSender As Object, vArgs As EventArgs)
+        Public Sub GoBack()
             Try
-                pUseDarkTheme = pThemeButton.Active
-                
-                ' Update button label
-                pThemeButton.Label = If(pUseDarkTheme, "☀️", "🌙")
-                
-                ' Save preference using existing SetBoolean method
-                If pSettingsManager IsNot Nothing Then
-                    pSettingsManager.SetBoolean("HelpBrowserDarkMode", pUseDarkTheme)
+                If CanGoBack Then
+                    pHistoryIndex -= 1
+                    RenderCurrentPage()
                 End If
-                
-                ' Reload current content with new theme if it's internal content
-                If pIsInternalContent AndAlso Not String.IsNullOrEmpty(pCurrentHtmlContent) Then
-                    LoadHtmlWithTheme(pCurrentHtmlContent, pCurrentBaseUri)
-                End If
-                
             Catch ex As Exception
-                Console.WriteLine($"OnThemeToggled error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.GoBack error: {ex.Message}")
             End Try
         End Sub
 
         ''' <summary>
-        ''' Enhanced LoadHtml that stores content for theme switching
+        ''' Navigates to the next page in history, if any
         ''' </summary>
-        Public Sub LoadHtml(vHtml As String, Optional vBaseUri As String = "")
-            pCurrentHtmlContent = vHtml
-            pCurrentBaseUri = vBaseUri
-            pIsInternalContent = True
-            LoadHtmlWithTheme(vHtml, vBaseUri)
-        End Sub
-        
-        ''' <summary>
-        ''' Loads HTML with theme applied
-        ''' </summary>
-        Private Sub LoadHtmlWithTheme(vHtml As String, vBaseUri As String)
+        Public Sub GoForward()
             Try
-                Dim lThemedHtml As String = ApplyThemeToHtml(vHtml)
-                pWebView.LoadHtml(lThemedHtml, vBaseUri)
+                If CanGoForward Then
+                    pHistoryIndex += 1
+                    RenderCurrentPage()
+                End If
             Catch ex As Exception
-                Console.WriteLine($"LoadHtmlWithTheme error: {ex.Message}")
-                pWebView.LoadHtml(vHtml, vBaseUri)
+                Console.WriteLine($"HelpBrowser.GoForward error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Applies dark theme to HTML content by injecting CSS
+        ''' Re-renders the current page
         ''' </summary>
-        Private Function ApplyThemeToHtml(vHtml As String) As String
-            If Not pUseDarkTheme Then
-                Return vHtml  ' Return original for light theme
-            End If
-            
-            ' Dark theme CSS to inject
-            Dim lDarkThemeCss As String = "
-<style id='dark-theme-override'>
-    /* Dark theme overrides */
-    body {
-        background: #1e1e1e !important;
-        color: #d4d4d4 !important;
-    }
-    
-    h1, h2, h3, h4, h5, h6 {
-        color: #569cd6 !important;
-    }
-    
-    h1 {
-        border-bottom-color: #569cd6 !important;
-    }
-    
-    h2 {
-        background: #2d2d30 !important;
-        border-left-color: #569cd6 !important;
-    }
-    
-    table {
-        background: #252526 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
-    }
-    
-    th {
-        background: #007acc !important;
-        color: #ffffff !important;
-    }
-    
-    td {
-        border-bottom-color: #3e3e42 !important;
-    }
-    
-    tr:hover {
-        background: #2d2d30 !important;
-    }
-    
-    .shortcut {
-        background: #569cd6 !important;
-        color: #1e1e1e !important;
-    }
-    
-    .description {
-        color: #cccccc !important;
-    }
-    
-    .note {
-        background: #2d2d30 !important;
-        border-color: #569cd6 !important;
-        color: #d4d4d4 !important;
-    }
-    
-    a {
-        color: #569cd6 !important;
-    }
-    
-    a:hover {
-        color: #9cdcfe !important;
-    }
-    
-    code {
-        background: #2d2d30 !important;
-        color: #ce9178 !important;
-        border-color: #3e3e42 !important;
-    }
-    
-    pre {
-        background: #252526 !important;
-        color: #d4d4d4 !important;
-        border-color: #3e3e42 !important;
-    }
-</style>
-"
-            
-            ' Insert the dark theme CSS before </head> tag
-            Dim lHeadEndIndex As Integer = vHtml.IndexOf("</head>", StringComparison.OrdinalIgnoreCase)
-            If lHeadEndIndex > 0 Then
-                Return vHtml.Insert(lHeadEndIndex, lDarkThemeCss)
-            Else
-                ' No head tag, try to insert after <html>
-                Dim lHtmlIndex As Integer = vHtml.IndexOf("<html", StringComparison.OrdinalIgnoreCase)
-                If lHtmlIndex >= 0 Then
-                    Dim lHtmlEndIndex As Integer = vHtml.IndexOf(">", lHtmlIndex)
-                    If lHtmlEndIndex > 0 Then
-                        Return vHtml.Insert(lHtmlEndIndex + 1, "<head>" & lDarkThemeCss & "</head>")
-                    End If
+        Public Sub Reload()
+            Try
+                RenderCurrentPage()
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.Reload error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Opens vUrl in the user's system default web browser
+        ''' </summary>
+        ''' <param name="vUrl">The URL to open</param>
+        Private Sub OpenExternalUrl(vUrl As String)
+            Try
+                Process.Start(New ProcessStartInfo With {
+                    .FileName = vUrl,
+                    .UseShellExecute = True
+                })
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.OpenExternalUrl: failed to open {vUrl}: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Rebuilds pContentBox from the page at pHistoryIndex and updates toolbar state
+        ''' </summary>
+        Private Sub RenderCurrentPage()
+            Try
+                RaiseEvent LoadingStateChanged(True)
+
+                For Each lChild As Widget In pContentBox.Children
+                    pContentBox.Remove(lChild)
+                    lChild.Destroy()
+                Next
+
+                If pHistoryIndex < 0 OrElse pHistoryIndex >= pHistory.Count Then
+                    RaiseEvent LoadingStateChanged(False)
+                    Return
                 End If
-            End If
-            
-            ' Fallback: just prepend the CSS
-            Return lDarkThemeCss & vHtml
+
+                Dim lPage As PageEntry = pHistory(pHistoryIndex)
+
+                Dim lTitleLabel As New Label()
+                lTitleLabel.Markup = $"<span size='xx-large' weight='bold'>{GLib.Markup.EscapeText(lPage.Title)}</span>"
+                lTitleLabel.Xalign = 0
+                lTitleLabel.MarginBottom = 12
+                pContentBox.PackStart(lTitleLabel, False, False, 0)
+
+                For Each lSection As HelpSection In lPage.Sections
+                    pContentBox.PackStart(BuildSectionWidget(lSection), False, False, 0)
+                Next
+
+                pContentBox.ShowAll()
+
+                pUrlBar.Text = lPage.Url
+                pStatusLabel.Text = lPage.Title
+
+                pBackButton.Sensitive = CanGoBack
+                pForwardButton.Sensitive = CanGoForward
+
+                RaiseEvent LoadingStateChanged(False)
+                RaiseEvent NavigationCompleted(lPage.Url)
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.RenderCurrentPage error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Builds the widget for one section: a framed header plus its item rows
+        ''' </summary>
+        ''' <param name="vSection">The section to render</param>
+        Private Function BuildSectionWidget(vSection As HelpSection) As Widget
+            Dim lFrame As New Frame()
+            lFrame.ShadowType = ShadowType.EtchedIn
+            lFrame.MarginBottom = 16
+
+            Dim lBox As New Box(Orientation.Vertical, 8)
+            lBox.BorderWidth = 12
+
+            Dim lHeaderLabel As New Label()
+            lHeaderLabel.Markup = $"<span size='large' weight='bold'>{GLib.Markup.EscapeText(vSection.HeaderText)}</span>"
+            lHeaderLabel.Xalign = 0
+            lHeaderLabel.MarginBottom = 6
+            lBox.PackStart(lHeaderLabel, False, False, 0)
+
+            ' Lay items out two-per-row so sections read as two columns instead of one
+            ' long list
+            Dim lGrid As New Grid()
+            lGrid.ColumnSpacing = 24
+            lGrid.RowSpacing = 4
+            lGrid.ColumnHomogeneous = True
+
+            For lIndex As Integer = 0 To vSection.Items.Count - 1
+                Dim lItemWidget As Widget = BuildItemWidget(vSection.Items(lIndex))
+                lItemWidget.Hexpand = True
+                lGrid.Attach(lItemWidget, lIndex Mod 2, lIndex \ 2, 1, 1)
+            Next
+
+            lBox.PackStart(lGrid, False, False, 0)
+
+            lFrame.Add(lBox)
+            Return lFrame
         End Function
-        
-        
+
+        ''' <summary>
+        ''' Builds the widget for one item row - a clickable link (Url set) or a plain
+        ''' key/description row (Url empty, e.g. a keyboard shortcut)
+        ''' </summary>
+        ''' <param name="vItem">The item to render</param>
+        Private Function BuildItemWidget(vItem As HelpResourceItem) As Widget
+            Dim lItemBox As New Box(Orientation.Vertical, 2)
+            lItemBox.MarginBottom = 8
+
+            If Not String.IsNullOrEmpty(vItem.Url) Then
+                Dim lLinkLabel As New Label()
+                lLinkLabel.Markup = $"<span underline='single' foreground='#3498db'>{GLib.Markup.EscapeText(vItem.Title)}</span>"
+                lLinkLabel.Xalign = 0
+                lLinkLabel.Halign = Align.Start
+
+                Dim lUrl As String = vItem.Url
+                Dim lLink As Widget = MakeClickable(lLinkLabel, Sub() OpenExternalUrl(lUrl))
+                lLink.TooltipText = vItem.Url
+
+                lItemBox.PackStart(lLink, False, False, 0)
+            ElseIf Not String.IsNullOrEmpty(vItem.Title) Then
+                Dim lTitleLabel As New Label()
+                lTitleLabel.Markup = $"<tt><b>{GLib.Markup.EscapeText(vItem.Title)}</b></tt>"
+                lTitleLabel.Xalign = 0
+                lTitleLabel.Halign = Align.Start
+                lItemBox.PackStart(lTitleLabel, False, False, 0)
+            End If
+
+            If Not String.IsNullOrEmpty(vItem.Description) Then
+                Dim lDescLabel As New Label(vItem.Description)
+                lDescLabel.Xalign = 0
+                lDescLabel.Halign = Align.Start
+                lDescLabel.LineWrap = True
+                lItemBox.PackStart(lDescLabel, False, False, 0)
+            End If
+
+            Return lItemBox
+        End Function
+
+        ''' <summary>
+        ''' Wraps vWidget in a transparent EventBox that runs vOnClick on click and shows
+        ''' a hand cursor on hover - used instead of a real Button so resource links read
+        ''' as plain hyperlinks rather than looking like clunky buttons
+        ''' </summary>
+        ''' <param name="vWidget">The widget (typically a Label) to make clickable</param>
+        ''' <param name="vOnClick">The action to run when clicked</param>
+        Private Function MakeClickable(vWidget As Widget, vOnClick As System.Action) As Widget
+            Dim lEventBox As New EventBox()
+            lEventBox.Add(vWidget)
+            lEventBox.VisibleWindow = False
+            lEventBox.Halign = Align.Start
+
+            AddHandler lEventBox.ButtonPressEvent, Sub(vSender As Object, vArgs As ButtonPressEventArgs)
+                vOnClick()
+                vArgs.RetVal = True
+            End Sub
+
+            AddHandler lEventBox.EnterNotifyEvent, Sub(vSender As Object, vArgs As EnterNotifyEventArgs)
+                Try
+                    Dim lWindow As Gdk.Window = lEventBox.Window
+                    If lWindow IsNot Nothing Then
+                        Dim lDisplay As Gdk.Display = Gdk.Display.Default
+                        lWindow.Cursor = New Gdk.Cursor(lDisplay, Gdk.CursorType.Hand2)
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"HelpBrowser.MakeClickable: cursor error: {ex.Message}")
+                End Try
+                vArgs.RetVal = False
+            End Sub
+
+            AddHandler lEventBox.LeaveNotifyEvent, Sub(vSender As Object, vArgs As LeaveNotifyEventArgs)
+                Try
+                    Dim lWindow As Gdk.Window = lEventBox.Window
+                    If lWindow IsNot Nothing Then
+                        lWindow.Cursor = Nothing
+                    End If
+                Catch ex As Exception
+                    Console.WriteLine($"HelpBrowser.MakeClickable: cursor error: {ex.Message}")
+                End Try
+            End Sub
+
+            Return lEventBox
+        End Function
+
+        ''' <summary>
+        ''' Builds the Home page's categorized resource sections
+        ''' </summary>
+        Private Function BuildHomeSections() As List(Of HelpSection)
+            Dim lSections As New List(Of HelpSection)
+
+            Dim lSyntax As New HelpSection("Syntax & Program Structure")
+            lSyntax.Items.Add(New HelpResourceItem("VB.NET Language Reference", "The complete Visual Basic language reference", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/"))
+            lSyntax.Items.Add(New HelpResourceItem("Getting Started with VB.NET", "Core language basics for newcomers to VB.NET", "https://learn.microsoft.com/en-us/dotnet/visual-basic/getting-started/"))
+            lSyntax.Items.Add(New HelpResourceItem("Statements", "Declaration, executable, and control-flow statement syntax", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/statements/"))
+            lSyntax.Items.Add(New HelpResourceItem("Declared Elements", "Rules for naming, scope, and declaring program elements", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/declared-elements/"))
+            lSections.Add(lSyntax)
+
+            Dim lKeywords As New HelpSection("Keyword & Data Type Definitions")
+            lKeywords.Items.Add(New HelpResourceItem("Keywords (A-Z)", "Full alphabetical reference of every VB.NET keyword", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/keywords/"))
+            lKeywords.Items.Add(New HelpResourceItem("Operators", "Arithmetic, comparison, logical, and bitwise operators", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/operators/"))
+            lKeywords.Items.Add(New HelpResourceItem("Data Types", "Built-in types, ranges, and conversion rules", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/data-types/"))
+            lKeywords.Items.Add(New HelpResourceItem("Modifiers", "Access, inheritance, and other declaration modifiers", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/modifiers/"))
+            lSections.Add(lKeywords)
+
+            Dim lPractices As New HelpSection("Programming Practices & Concepts")
+            lPractices.Items.Add(New HelpResourceItem("VB.NET Programming Guide", "Concepts and patterns behind everyday VB.NET code", "https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/"))
+            lPractices.Items.Add(New HelpResourceItem("Object-Oriented Programming", "Classes, inheritance, interfaces, and polymorphism", "https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/concepts/object-oriented-programming"))
+            lPractices.Items.Add(New HelpResourceItem("Error & Exception Handling", "Structured exception handling with Try/Catch/Finally", "https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/statements/try-catch-finally-statement"))
+            lPractices.Items.Add(New HelpResourceItem("LINQ in Visual Basic", "Querying objects, XML, and data with LINQ syntax", "https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/language-features/linq/"))
+            lSections.Add(lPractices)
+
+            Dim lLibraries As New HelpSection("Function & Class Libraries")
+            lLibraries.Items.Add(New HelpResourceItem(".NET 8 API Browser", "Browse every .NET class, namespace, and member", "https://learn.microsoft.com/en-us/dotnet/api/?view=net-8.0"))
+            lLibraries.Items.Add(New HelpResourceItem("Microsoft.VisualBasic Namespace", "VB-native runtime functions like Format, MsgBox, and Strings", "https://learn.microsoft.com/en-us/dotnet/api/microsoft.visualbasic?view=net-8.0"))
+            lLibraries.Items.Add(New HelpResourceItem("System Namespace", "Core base types, math, and console I/O", "https://learn.microsoft.com/en-us/dotnet/api/system?view=net-8.0"))
+            lLibraries.Items.Add(New HelpResourceItem(".NET Standard Library Tour", "A guided overview of the built-in class library", "https://learn.microsoft.com/en-us/dotnet/standard/tour"))
+            lSections.Add(lLibraries)
+
+            Dim lExamples As New HelpSection("Examples & Tutorials")
+            lExamples.Items.Add(New HelpResourceItem("VB.NET Console App Tutorial", "Build and run your first VB.NET console application", "https://learn.microsoft.com/en-us/dotnet/visual-basic/getting-started/console-application"))
+            lExamples.Items.Add(New HelpResourceItem(".NET Samples on GitHub", "Official runnable sample code for .NET, including VB.NET", "https://github.com/dotnet/samples"))
+            lExamples.Items.Add(New HelpResourceItem("Stack Overflow - VB.NET", "Community questions and answers tagged vb.net", "https://stackoverflow.com/questions/tagged/vb.net"))
+            lSections.Add(lExamples)
+
+            Dim lGtk As New HelpSection("GTK# Development")
+            lGtk.Items.Add(New HelpResourceItem("GTK# documentation", "Official GTK# documentation", "https://www.mono-project.com/docs/GUI/gtksharp/"))
+            lGtk.Items.Add(New HelpResourceItem("GTK 3 Reference", "Complete GTK+ 3 API Reference", "https://docs.gtk.org/gtk3/"))
+            lGtk.Items.Add(New HelpResourceItem("GTK Widget Gallery", "Visual index of all GTK widgets", "https://docs.gtk.org/gtk3/visual_index.html"))
+            lGtk.Items.Add(New HelpResourceItem("DevDocs GTK", "Fast, offline-capable documentation browser", "https://devdocs.io/gtk~3.20/"))
+            lSections.Add(lGtk)
+
+            Dim lDotNetCli As New HelpSection(".NET Core & CLI")
+            lDotNetCli.Items.Add(New HelpResourceItem(".NET documentation", "Main .NET documentation portal", "https://learn.microsoft.com/en-us/dotnet/"))
+            lDotNetCli.Items.Add(New HelpResourceItem(".NET CLI Reference", "Command-line interface documentation", "https://learn.microsoft.com/en-us/dotnet/core/tools/"))
+            lDotNetCli.Items.Add(New HelpResourceItem(".NET Diagnostics", "Debugging and diagnostic tools", "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/"))
+            lDotNetCli.Items.Add(New HelpResourceItem("NuGet Gallery", "Browse and search .NET packages", "https://www.nuget.org/"))
+            lSections.Add(lDotNetCli)
+
+            Dim lAdditional As New HelpSection("Additional Resources")
+            lAdditional.Items.Add(New HelpResourceItem("Stack Overflow - GTK#", "Community Q&A for GTK# development", "https://stackoverflow.com/questions/tagged/gtk%23"))
+            lAdditional.Items.Add(New HelpResourceItem("GTK# GitHub Repository", "Source code and issue tracker", "https://github.com/GtkSharp/GtkSharp"))
+            lAdditional.Items.Add(New HelpResourceItem("GTK# Widget Examples", "Code examples for common widgets", "https://www.mono-project.com/docs/GUI/gtksharp/widgets/buttons/"))
+            lAdditional.Items.Add(New HelpResourceItem(".NET Porting Guide", "Migrating from .NET Framework to .NET Core", "https://learn.microsoft.com/en-us/dotnet/core/porting/"))
+            lSections.Add(lAdditional)
+
+            Dim lLinux As New HelpSection("Linux Development")
+            lLinux.Items.Add(New HelpResourceItem(".NET on Linux", "Installing and using .NET on Linux", "https://learn.microsoft.com/en-us/dotnet/core/install/linux"))
+            lLinux.Items.Add(New HelpResourceItem("Mono documentation", "Cross-platform .NET framework", "https://www.mono-project.com/docs/"))
+            lLinux.Items.Add(New HelpResourceItem("Linux Deployment", "Deploying .NET apps on Linux", "https://learn.microsoft.com/en-us/dotnet/core/deploying/linux"))
+            lLinux.Items.Add(New HelpResourceItem("VS Code .NET Support", "Alternative editor for .NET development", "https://code.visualstudio.com/docs/languages/dotnet"))
+            lSections.Add(lLinux)
+
+            Return lSections
+        End Function
+
     End Class
-    
+
 End Namespace

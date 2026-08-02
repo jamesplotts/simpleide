@@ -47,7 +47,8 @@ Partial Public Class MainWindow
             
             ' Create new help browser widget
             lHelpBrowser = New HelpBrowser(pSettingsManager)
-            
+            lHelpBrowser.SetThemeManager(pThemeManager)
+
             ' Navigate to requested content
             If Not String.IsNullOrEmpty(vUrl) Then
                 lHelpBrowser.NavigateToUrl(vUrl)
@@ -270,8 +271,8 @@ Partial Public Class MainWindow
             ' Get the help browser to extract title
             If pHelpTabs.ContainsKey(vHelpTabId) Then
                 Dim lHelpBrowser As HelpBrowser = TryCast(pHelpTabs(vHelpTabId).EditorContainer, HelpBrowser)
-                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.WebView IsNot Nothing Then
-                    Dim lTitle As String = lHelpBrowser.WebView.Title
+                If lHelpBrowser IsNot Nothing Then
+                    Dim lTitle As String = lHelpBrowser.Title
                     If Not String.IsNullOrEmpty(lTitle) Then
                         UpdateHelpTabTitle(vHelpTabId, lTitle)
                     End If
@@ -346,8 +347,8 @@ Partial Public Class MainWindow
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.IsSpecialTab Then
                 Dim lHelpBrowser As HelpBrowser = TryCast(lCurrentTab.EditorContainer, HelpBrowser)
-                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.WebView.CanGoBack Then
-                    lHelpBrowser.WebView.GoBack()
+                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.CanGoBack Then
+                    lHelpBrowser.GoBack()
                 End If
             End If
         Catch ex As Exception
@@ -363,8 +364,8 @@ Partial Public Class MainWindow
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.IsSpecialTab Then
                 Dim lHelpBrowser As HelpBrowser = TryCast(lCurrentTab.EditorContainer, HelpBrowser)
-                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.WebView.CanGoForward Then
-                    lHelpBrowser.WebView.GoForward()
+                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.CanGoForward Then
+                    lHelpBrowser.GoForward()
                 End If
             End If
         Catch ex As Exception
@@ -397,8 +398,8 @@ Partial Public Class MainWindow
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing AndAlso lCurrentTab.IsSpecialTab Then
                 Dim lHelpBrowser As HelpBrowser = TryCast(lCurrentTab.EditorContainer, HelpBrowser)
-                If lHelpBrowser IsNot Nothing AndAlso lHelpBrowser.WebView IsNot Nothing Then
-                    lHelpBrowser.WebView.Reload()
+                If lHelpBrowser IsNot Nothing Then
+                    lHelpBrowser.Reload()
                 End If
             End If
         Catch ex As Exception

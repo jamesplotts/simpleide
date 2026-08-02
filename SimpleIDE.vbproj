@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.802.0</AssemblyVersion>
-    <FileVersion>1.1.802.0</FileVersion>
+    <AssemblyVersion>1.1.830.0</AssemblyVersion>
+    <FileVersion>1.1.830.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.802</Version>
+    <Version>1.1.830</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -179,6 +179,8 @@
     <Compile Include="Models/DocumentNode.vb" />
     <Compile Include="Models/EditorPosition.vb" />
     <Compile Include="Models/EditorTheme.vb" />
+    <Compile Include="Models/HelpResourceItem.vb" />
+    <Compile Include="Models/HelpSection.vb" />
     <Compile Include="Models/LineMetadata.vb" />
     <Compile Include="Models/ProjectManagerRequestEventArgs.vb" />
     <Compile Include="Models/ProjectNode.vb" />
