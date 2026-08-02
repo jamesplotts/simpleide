@@ -307,32 +307,5 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    ''' <summary>
-    ''' Updated method to switch to the Object Explorer tab with proper activation
-    ''' </summary>
-    Private Sub SwitchToObjectExplorerTab()
-        Try
-            If pLeftNotebook IsNot Nothing AndAlso pObjectExplorer IsNot Nothing Then
-                ' Find the Object Explorer page index
-                for i As Integer = 0 To pLeftNotebook.NPages - 1
-                    Dim lPage As Widget = pLeftNotebook.GetNthPage(i)
-                    If lPage Is pObjectExplorer Then
-                        pLeftNotebook.CurrentPage = i
-                        Console.WriteLine($"Switched To Object Explorer tab (page {i})")
-                        
-                        ' Ensure it's visible and activated
-                        lPage.ShowAll()
-                        
-                        ' Call OnPageActivated to ensure proper initialization
-                        pObjectExplorer.OnPageActivated()
-                        
-                        Exit for
-                    End If
-                Next
-            End If
-        Catch ex As Exception
-            Console.WriteLine($"SwitchToObjectExplorerTab error: {ex.Message}")
-        End Try
-    End Sub
-    
+
 End Class

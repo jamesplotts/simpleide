@@ -22,6 +22,17 @@ Namespace Managers
         Implements IDisposable
         
         ' ===== Events =====
+
+        ''' <summary>
+        ''' Raised as soon as the .vbproj file itself has been parsed and CurrentProjectInfo.SourceFiles
+        ''' is populated, well before the (much slower) per-file Roslyn parsing that LoadProject performs
+        ''' next. Consumers that only need the project's file list (e.g. the Project Explorer tree) should
+        ''' use this instead of ProjectLoaded/ProjectStructureLoaded so they can populate immediately
+        ''' instead of sitting empty for the couple of seconds a large project takes to fully parse.
+        ''' </summary>
+        ''' <param name="vProjectPath">Full path to the .vbproj file that was opened</param>
+        Public Event ProjectFileListLoaded(vProjectPath As String)
+
         Public Event ProjectLoaded(vProjectPath As String)
         Public Event ProjectClosed()
         Public Event ProjectModified()
@@ -317,9 +328,15 @@ Namespace Managers
                 pIsProjectOpen = True
                 pIsDirty = False
 
+                ' The file list (CompileItems/SourceFiles above) is complete at this point -
+                ' fire this now so listeners like the Project Explorer can populate immediately,
+                ' rather than waiting the several seconds EnsureAllFilesLoaded/BuildProjectSyntaxTree
+                ' below can take to fully Roslyn-parse every file in a large project.
+                RaiseEvent ProjectFileListLoaded(vProjectPath)
+
                 InitializeProjectReferences()
                 InitializeIndices()
-                
+
                 ' CRITICAL: Load and parse all source files
                 Console.WriteLine("LoadProject: Loading and parsing source files...")
                 Dim lFilesLoaded As Integer = EnsureAllFilesLoaded()

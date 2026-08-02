@@ -385,7 +385,32 @@ Partial Public Class MainWindow
     End Sub
 
     ' ===== Enhanced Project Loading =====
-    
+
+    ''' <summary>
+    ''' Populates the Project Explorer as soon as the .vbproj file's own file list is known,
+    ''' well before the slower per-file Roslyn parsing (which feeds the Object Explorer) completes
+    ''' </summary>
+    ''' <param name="vProjectPath">Full path to the .vbproj file that was opened</param>
+    ''' <remarks>
+    ''' Raised from ProjectManager.LoadProject on a background thread (via the Task.Run in
+    ''' LoadProjectEnhanced), so UI work is marshalled onto the GTK main loop via Application.Invoke
+    ''' </remarks>
+    Private Sub OnProjectFileListLoaded(vProjectPath As String)
+        Try
+            Application.Invoke(Sub()
+                Try
+                    SetProjectRoot(vProjectPath)
+                    pProjectExplorer?.LoadProjectFromManager()
+                Catch ex As Exception
+                    Console.WriteLine($"OnProjectFileListLoaded Application.Invoke error: {ex.Message}")
+                End Try
+            End Sub)
+
+        Catch ex As Exception
+            Console.WriteLine($"OnProjectFileListLoaded error: {ex.Message}")
+        End Try
+    End Sub
+
     ' Replace: SimpleIDE.MainWindow.LoadProjectEnhanced
     ''' <summary>
     ''' Loads a project asynchronously with immediate UI response and progress bar updates
@@ -418,11 +443,13 @@ Partial Public Class MainWindow
             ShowExplorerLoadingState()
             
             ' Hook up ProjectManager events - USE THE RIGHT HANDLER FOR PROGRESS BAR!
+            RemoveHandler pProjectManager.ProjectFileListLoaded, AddressOf OnProjectFileListLoaded
             RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
             RemoveHandler pProjectManager.FileParsed, AddressOf OnProjectFileParsed
             RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar  ' Use WithBar version!
             RemoveHandler pProjectManager.AllFilesParseCompleted, AddressOf OnAllFilesParseCompleted
-            
+
+            AddHandler pProjectManager.ProjectFileListLoaded, AddressOf OnProjectFileListLoaded
             AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
             AddHandler pProjectManager.FileParsed, AddressOf OnProjectFileParsed
             AddHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar  ' Use WithBar version!
@@ -443,12 +470,10 @@ Partial Public Class MainWindow
                     If lSuccess Then
                         ' Update UI on main thread
                         Gtk.Application.Invoke(Sub()
-                            ' Set project root for all components
-                            SetProjectRoot(vProjectPath)
-                            
-                            ' Load project structure in Project Explorer (fast)
-                            pProjectExplorer?.LoadProjectFromManager()
-                            
+                            ' Project root and Project Explorer were already populated as soon as
+                            ' OnProjectFileListLoaded fired (right after the .vbproj's own file list
+                            ' was known) - no need to redo that here now that full parsing is done.
+
                             ' Update UI state
                             UpdateProjectRelatedUIState(True)
                             pSettingsManager?.AddRecentProject(vProjectPath)
@@ -814,10 +839,13 @@ Partial Public Class MainWindow
                             
                             Console.WriteLine("Applied initial expansion state (root only)")
                         End If
-                        
-                        ' Switch to Object Explorer tab to show the results
-                        SwitchToObjectExplorerTab()
-                        
+
+                        ' NOTE: deliberately does NOT switch the left notebook to the Object
+                        ' Explorer tab here. James: on a large project, parsing can take a
+                        ' couple of seconds, and unbidden-switching away from whatever tab
+                        ' (e.g. Project Explorer) the user is already looking at is annoying.
+                        ' The tab stays wherever the user last left it.
+
                     Catch ex As Exception
                         Console.WriteLine($"error in Application.Invoke: {ex.Message}")
                     End Try
