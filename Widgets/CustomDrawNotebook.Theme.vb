@@ -201,11 +201,12 @@ Namespace Widgets
                 Dim lProvider As New CssProvider()
                 lProvider.LoadFromData(lCss)
                 
-                ' Apply to all navigation buttons
+                ' Apply to native nav buttons - pHidePanelButton is now a CustomDrawButton
+                ' (themed via its own ThemeManager property, set where it's constructed),
+                ' not a native Gtk.Button, so GTK CSS no longer has any effect on it
                 ApplyCssToWidget(pLeftScrollButton, lProvider)
                 ApplyCssToWidget(pRightScrollButton, lProvider)
                 ApplyCssToWidget(pDropdownButton, lProvider)
-                ApplyCssToWidget(pHidePanelButton, lProvider)
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyButtonStyles error: {ex.Message}")

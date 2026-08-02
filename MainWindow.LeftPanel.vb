@@ -42,7 +42,10 @@ Partial Public Class MainWindow
             ' Configure the notebook
             Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pLeftNotebook, CustomDrawNotebook)
             'lCustomNotebook.SetThemeManager(pThemeManager)
-            lCustomNotebook.ShowHidePanelButton = True ' Left panel needs hide button
+            ' The hide-panel button's own handler (OnLeftPanelHideRequested below) doesn't
+            ' actually do anything (ToggleLeftPanel() call is commented out) - James wants
+            ' it hidden for this tab group regardless
+            lCustomNotebook.ShowHidePanelButton = False
             lCustomNotebook.ShowDropdownButton = False ' Left panel needs this hidden
             lCustomNotebook.ShowScrollButtons = False
             

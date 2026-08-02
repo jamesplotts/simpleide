@@ -44,7 +44,7 @@ Namespace Widgets
         Private pRightScrollButton As Button
         Private pDropdownButton As Button
         Private pCloseAllButton As Button
-        Private pHidePanelButton As Button
+        Private pHidePanelButton As CustomDrawButton
         Private pShowHidePanelButton As Boolean = False  
         Private pShowCloseButtons As Boolean = True 
         Private pShowCloseAllButton As Boolean = True
@@ -198,11 +198,18 @@ Namespace Widgets
                 pCloseAllButton.Visible = False ' Hidden by default
                 lTopBar.PackEnd(pCloseAllButton, False, False, 0)
                 
-                ' Hide panel button (rightmost) - only visible when ShowHidePanelButton is True
-                pHidePanelButton = New Button()
-                pHidePanelButton.Label = "−"  ' Use Unicode minus as text
-                pHidePanelButton.Relief = ReliefStyle.None
+                ' Hide panel button (rightmost) - only visible when ShowHidePanelButton is True.
+                ' CustomDrawButton so it gets the same bevel/flat Style option (defaulting to
+                ' eBevel) as everything else in the CustomDraw control library, instead of
+                ' being a plain native flat Gtk.Button like the other nav buttons still are
+                ' Plain ASCII hyphen, not the Unicode minus sign (U+2212) the old native
+                ' Button label used - CustomDrawButton renders text via a raw Cairo
+                ' SelectFontFace/ShowText call with no font-fallback chain (unlike Pango,
+                ' which the native Button used), so a glyph missing from the "Sans" face
+                ' renders blank instead of falling back to a font that has it
+                pHidePanelButton = New CustomDrawButton("-")
                 pHidePanelButton.TooltipText = "Hide panel"
+                pHidePanelButton.ThemeManager = pThemeManager
                 pHidePanelButton.NoShowAll = True
                 pHidePanelButton.Visible = False ' Hidden by default, controlled by property
                 lTopBar.PackEnd(pHidePanelButton, False, False, 0)

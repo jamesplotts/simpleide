@@ -14,10 +14,10 @@ Namespace Widgets
         Inherits Box
         
         ' ===== Toolbar Fields =====
-        Private pRefreshButton As ToolButton
-        Private pCollapseAllButton As ToolButton
-        Private pExpandAllButton As ToolButton
-        Private pCloseButton As ToolButton
+        Private pRefreshButton As CustomDrawButton
+        Private pCollapseAllButton As CustomDrawButton
+        Private pExpandAllButton As CustomDrawButton
+        Private pCloseButton As CustomDrawButton
         Private pScaleLabel As Label
         Private pScaleCombo As CustomDrawComboBox
         
@@ -56,41 +56,56 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
+        ''' Creates a small icon-only bevel-styled toolbar button and wraps it in a
+        ''' ToolItem, matching AIAssistantPanel.CreateActionButton's icon-loading pattern
+        ''' </summary>
+        ''' <param name="vIconName">Icon theme name to load</param>
+        ''' <param name="vTooltip">Tooltip text shown on hover</param>
+        Private Function CreateToolbarButton(vIconName As String, vTooltip As String) As CustomDrawButton
+            Dim lIconPixbuf As Gdk.Pixbuf = Nothing
+            Try
+                lIconPixbuf = Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"CreateToolbarButton icon load error: {ex.Message}")
+            End Try
+
+            Dim lButton As New CustomDrawButton("", lIconPixbuf)
+            lButton.TooltipText = vTooltip
+            lButton.ThemeManager = pThemeManager
+
+            Dim lItem As New ToolItem()
+            lItem.Add(lButton)
+            pToolbar.Add(lItem)
+
+            Return lButton
+        End Function
+
+        ''' <summary>
         ''' Creates the refresh button
         ''' </summary>
         Private Sub CreateRefreshButton()
             Try
-                pRefreshButton = New ToolButton(Nothing, "Refresh")
-                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
-                pRefreshButton.TooltipText = "Refresh project tree"
+                pRefreshButton = CreateToolbarButton("view-refresh", "Refresh project tree")
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefreshButtonClicked
-                pToolbar.Add(pRefreshButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateRefreshButton error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Creates expand and collapse all buttons
         ''' </summary>
         Private Sub CreateExpandCollapseButtons()
             Try
                 ' Collapse all button
-                pCollapseAllButton = New ToolButton(Nothing, "Collapse All")
-                pCollapseAllButton.IconName = "list-remove"
-                pCollapseAllButton.TooltipText = "Collapse all nodes"
+                pCollapseAllButton = CreateToolbarButton("list-remove", "Collapse all nodes")
                 AddHandler pCollapseAllButton.Clicked, AddressOf OnCollapseAllButtonClicked
-                pToolbar.Add(pCollapseAllButton)
-                
-                ' Expand all button  
-                pExpandAllButton = New ToolButton(Nothing, "Expand All")
-                pExpandAllButton.IconWidget = Image.NewFromIconName("list-add", IconSize.SmallToolbar)
-                pExpandAllButton.IconName = "list-add"
-                pExpandAllButton.TooltipText = "Expand all nodes"
+
+                ' Expand all button
+                pExpandAllButton = CreateToolbarButton("list-add", "Expand all nodes")
                 AddHandler pExpandAllButton.Clicked, AddressOf OnExpandAllButtonClicked
-                pToolbar.Add(pExpandAllButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateExpandCollapseButtons error: {ex.Message}")
             End Try
@@ -146,12 +161,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub CreateCloseButton()
             Try
-                pCloseButton = New ToolButton(Nothing, "Close Project Explorer")
-                pCloseButton.Add(Image.NewFromIconName("window-close", IconSize.Menu))
-                pCloseButton.TooltipText = "Close Project Explorer"
+                pCloseButton = CreateToolbarButton("window-close", "Close Project Explorer")
                 AddHandler pCloseButton.Clicked, AddressOf OnCloseButtonClicked
-                pToolbar.Add(pCloseButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateCloseButton error: {ex.Message}")
             End Try

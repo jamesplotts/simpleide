@@ -18,9 +18,9 @@ Namespace Widgets
         
         ' ===== Toolbar Controls =====
         Private pToolbar As Toolbar
-        Private pExpandButton As ToolButton
-        Private pCollapseButton As ToolButton
-        Private pRefreshButton As ToolButton
+        Private pExpandButton As CustomDrawButton
+        Private pCollapseButton As CustomDrawButton
+        Private pRefreshButton As CustomDrawButton
         Private pSearchEntry As CustomDrawTextBox
         Private pSearchItem As ToolItem
         Private pScaleCombo As CustomDrawComboBox
@@ -80,46 +80,62 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
+        ''' Creates a small icon-only bevel-styled toolbar button and wraps it in a
+        ''' ToolItem, matching AIAssistantPanel.CreateActionButton's icon-loading pattern
+        ''' </summary>
+        ''' <param name="vIconName">Icon theme name to load</param>
+        ''' <param name="vTooltip">Tooltip text shown on hover</param>
+        Private Function CreateToolbarButton(vIconName As String, vTooltip As String) As CustomDrawButton
+            Dim lIconPixbuf As Gdk.Pixbuf = Nothing
+            Try
+                lIconPixbuf = Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"CreateToolbarButton icon load error: {ex.Message}")
+            End Try
+
+            Dim lButton As New CustomDrawButton("", lIconPixbuf)
+            lButton.TooltipText = vTooltip
+            lButton.ThemeManager = pThemeManager
+
+            Dim lItem As New ToolItem()
+            lItem.Add(lButton)
+            pToolbar.Add(lItem)
+
+            Return lButton
+        End Function
+
+        ''' <summary>
         ''' Creates the expand all button
         ''' </summary>
         Private Sub CreateExpandButton()
             Try
-                pExpandButton = New ToolButton(Nothing, "Expand All")
-                pExpandButton.IconWidget = Image.NewFromIconName("list-add", IconSize.SmallToolbar)
-                pExpandButton.TooltipText = "Expand All"
+                pExpandButton = CreateToolbarButton("list-add", "Expand All")
                 AddHandler pExpandButton.Clicked, AddressOf OnExpandAllClicked
-                pToolbar.Add(pExpandButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateExpandButton error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Creates the collapse all button
         ''' </summary>
         Private Sub CreateCollapseButton()
             Try
-                pCollapseButton = New ToolButton(Nothing, "Collapse All")
-                pCollapseButton.IconWidget = Image.NewFromIconName("list-remove", IconSize.SmallToolbar)
-                pCollapseButton.TooltipText = "Collapse All"
+                pCollapseButton = CreateToolbarButton("list-remove", "Collapse All")
                 AddHandler pCollapseButton.Clicked, AddressOf OnCollapseAllClicked
-                pToolbar.Add(pCollapseButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateCollapseButton error: {ex.Message}")
             End Try
         End Sub
-        
+
 
         Private Sub CreateRefreshButton()
             Try
-                pRefreshButton = New ToolButton(Nothing, "Refresh")
-                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
-                pRefreshButton.TooltipText = "Refresh project tree"
+                pRefreshButton = CreateToolbarButton("view-refresh", "Refresh project tree")
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
-                pToolbar.Add(pRefreshButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateRefreshButton error: {ex.Message}")
             End Try
