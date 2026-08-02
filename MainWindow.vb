@@ -45,6 +45,10 @@ Partial Public Class MainWindow
     
     ' Bottom panel manager
     Private pBottomPanelManager As BottomPanelManager
+
+    ' Set when ShowBottomPanel wants the paned divider reset to the default bottom-panel
+    ' height on the next real size-allocate pass - see OnCenterVPanedSizeAllocated
+    Private pApplyDefaultBottomPanelPositionOnNextAllocate As Boolean = False
     
     ' State
     Private pCurrentProject As String = ""
@@ -368,7 +372,18 @@ Partial Public Class MainWindow
             AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabClosed, AddressOf OnCustomNotebookTabClosed
             AddHandler DirectCast(pNotebook, CustomDrawNotebook).TabModifiedChanged, AddressOf OnCustomNotebookTabModifiedChanged
 
-            pCenterVPaned.Pack1(pNotebook, True, False)
+            ' shrink:=True here for the same reason it's needed on Pack2 (see the bottom
+            ' panel's Pack2 call below): GTK's Paned clamps any explicitly-set Position to
+            ' never give a shrink:=False child less than its own reported natural/preferred
+            ' size. The Welcome tab (a Fixed container whose default preferred-size
+            ' computation is driven by its children's absolute positions - the Quick Start
+            ' buttons and drawing area) can end up reporting a large natural height that has
+            ' nothing to do with what space is actually available, which silently overrode
+            ' every attempt to give the bottom panel more room, no matter what Position was
+            ' set to. shrink:=True removes that floor - the editor/Welcome pane can be given
+            ' less than its natural size and clip/scroll internally (both CustomDrawingEditor
+            ' and WelcomeTabWidget already handle that), so Position is fully respected.
+            pCenterVPaned.Pack1(pNotebook, True, True)
             
             ' Create bottom panel manager
             pBottomPanelManager = New BottomPanelManager(pSettingsManager, pThemeManager)

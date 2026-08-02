@@ -29,18 +29,20 @@ Partial Public Class MainWindow
             pBottomPanelManager.Show()
             pBottomPanelManager.ShowTab(vTabIndex)
             pBottomPanelVisible = True
-            
-            ' Adjust paned position if needed
-            If pCenterVPaned IsNot Nothing Then
-                If pCenterVPaned.AllocatedHeight > 0 Then
-                    ' Always use default height of 200 pixels
-                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
-                    Dim lMaxPosition As Integer = pCenterVPaned.AllocatedHeight - 50
-                    Dim lTargetPosition As Integer = pCenterVPaned.AllocatedHeight - lDefaultHeight
-                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
-                End If
-            End If
-            
+
+            ' Don't compute/set the paned position synchronously here - right after
+            ' Show()/ShowTab() make the bottom panel visible for the first time,
+            ' pCenterVPaned.AllocatedHeight does not yet reflect the paned's real,
+            ' fully-renegotiated size (GTK hasn't finished laying out the newly-visible
+            ' second child yet), and neither does a single deferred idle callback reliably -
+            ' GTK itself also applies its own internal default position the first time a
+            ' Paned's second child actually participates in a real size-allocate, which can
+            ' overwrite a value set too early regardless. Instead, flag that a reset is
+            ' wanted and let OnCenterVPanedSizeAllocated (already fired on every real
+            ' allocation) apply it once against a genuinely current AllocatedHeight.
+            pApplyDefaultBottomPanelPositionOnNextAllocate = True
+            If pCenterVPaned IsNot Nothing Then pCenterVPaned.QueueResize()
+
         Catch ex As Exception
             Console.WriteLine($"ShowBottomPanel error: {ex.Message}")
         End Try
@@ -57,7 +59,8 @@ Partial Public Class MainWindow
             pBottomPanelManager.HidePanel()
             pBottomPanelManager.Hide()
             pBottomPanelVisible = False
-            
+            pApplyDefaultBottomPanelPositionOnNextAllocate = False
+
             ' Return focus to editor if available
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
@@ -604,11 +607,25 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Handle size allocation changes to update constraints
+    ''' Handle size allocation changes to update constraints, and apply a pending
+    ''' default-position reset (see ShowBottomPanel) once a genuinely current allocation
+    ''' is available
     ''' </summary>
     Private Sub OnCenterVPanedSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
         Try
             UpdatePanedConstraints()
+
+            If pApplyDefaultBottomPanelPositionOnNextAllocate AndAlso pCenterVPaned IsNot Nothing Then
+                Dim lTotalHeight As Integer = vArgs.Allocation.Height
+                If lTotalHeight > 0 Then
+                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
+                    Dim lMaxPosition As Integer = lTotalHeight - 50
+                    Dim lTargetPosition As Integer = lTotalHeight - lDefaultHeight
+                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
+                    pApplyDefaultBottomPanelPositionOnNextAllocate = False
+                End If
+            End If
+
         Catch ex As Exception
             Console.WriteLine($"OnCenterVPanedSizeAllocated error: {ex.Message}")
         End Try

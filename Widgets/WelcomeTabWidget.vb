@@ -939,11 +939,24 @@ Namespace Widgets
         ''' sized and positioned to exactly fill this Fixed's own allocation, since Fixed
         ''' does not do that automatically for its children
         ''' </summary>
+        ''' <remarks>
+        ''' Deliberately uses SizeAllocate (an explicit, direct allocation) rather than
+        ''' SetSizeRequest here. SetSizeRequest sets a widget's minimum/natural SIZE REQUEST,
+        ''' which a Fixed container's own preferred-size computation folds into ITS reported
+        ''' natural size - so setting it to "whatever pDrawingArea was just allocated" created
+        ''' a self-reinforcing ratchet: once this widget was ever allocated a large height
+        ''' (e.g. the full editor area before the bottom panel had ever been shown),
+        ''' pDrawingArea's minimum size request locked in at that height, which then made
+        ''' THIS widget (and everything above it - the editor notebook, the center Paned)
+        ''' permanently report that same large height as ITS OWN minimum, silently
+        ''' overriding any later attempt to give the paned's other child (the bottom panel)
+        ''' more space, no matter what its Position was explicitly set to. SizeAllocate
+        ''' assigns the child's on-screen rectangle directly without feeding back into
+        ''' anyone's preferred-size negotiation, so it can't ratchet like this.
+        ''' </remarks>
         Private Sub OnSizeAllocated(vSender As Object, vArgs As SizeAllocatedArgs)
-            If pDrawingArea IsNot Nothing AndAlso
-               (pDrawingArea.WidthRequest <> vArgs.Allocation.Width OrElse pDrawingArea.HeightRequest <> vArgs.Allocation.Height) Then
-                pDrawingArea.SetSizeRequest(vArgs.Allocation.Width, vArgs.Allocation.Height)
-                Move(pDrawingArea, 0, 0)
+            If pDrawingArea IsNot Nothing Then
+                pDrawingArea.SizeAllocate(New Gdk.Rectangle(0, 0, vArgs.Allocation.Width, vArgs.Allocation.Height))
             End If
 
             ' Recalculate content height and scrollbar visibility
