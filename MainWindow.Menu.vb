@@ -326,7 +326,7 @@ Partial Public Class MainWindow
             
             ' TODO List
             Dim lTodoList As New CheckMenuItem("_TODO List")
-            ' TODO: AddHandler lTodoList.Toggled, AddressOf ToggleTodoList
+            AddHandler lTodoList.Toggled, AddressOf OnToggleTodoList
             lViewMenu.Append(lTodoList)
             
             ' AI Assistant

@@ -531,6 +531,44 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Toggles the bottom panel's TODO List tab, for the View menu's "TODO List" item
+    ''' </summary>
+    Private Sub ToggleBottomPanelTodoListTab()
+        Try
+            If pBottomPanelManager Is Nothing Then Return
+
+            Dim lTodoListIndex As Integer = CInt(BottomPanelManager.BottomPanelTab.eTodoList)
+
+            If pBottomPanelVisible Then
+                If pBottomPanelManager.GetCurrentPageIndex() = lTodoListIndex Then
+                    HideBottomPanel()
+                Else
+                    ' Already visible on a different tab - just switch tabs, don't reset the
+                    ' paned position the user may have dragged (matches
+                    ' ToggleBottomPanelBuildOutputTab's convention for this same case)
+                    pBottomPanelManager.ShowTab(lTodoListIndex)
+                End If
+            Else
+                ' Hidden - go through ShowBottomPanel (not BottomPanelManager.ShowTab
+                ' directly) so the paned divider gets reset to a sensible default position
+                ' and pBottomPanelVisible stays in sync
+                ShowBottomPanel(lTodoListIndex)
+            End If
+
+        Catch ex As Exception
+            Console.WriteLine($"ToggleBottomPanelTodoListTab error: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub OnToggleTodoList(vSender As Object, vArgs As EventArgs)
+        Try
+            ToggleBottomPanelTodoListTab()
+        Catch ex As Exception
+            Console.WriteLine($"OnToggleTodoList error: {ex.Message}")
+        End Try
+    End Sub
+
     Private Sub OnToggleOutput(vSender As Object, vArgs As EventArgs)
         Try
             ToggleBottomPanelBuildOutputTab()
