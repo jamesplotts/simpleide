@@ -501,15 +501,7 @@ Partial Public Class MainWindow
                 
                 ' Only adjust position if showing the panel
                 If pBottomPanelVisible AndAlso pCenterVPaned IsNot Nothing Then
-                    ' Use fixed default height instead of saved value
-                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
-                    
-                    ' Ensure we don't exceed allocated height
-                    If pCenterVPaned.AllocatedHeight > 0 Then
-                        Dim lMaxPosition As Integer = pCenterVPaned.AllocatedHeight - 50
-                        Dim lTargetPosition As Integer = pCenterVPaned.AllocatedHeight - lDefaultHeight
-                        pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
-                    End If
+                    ApplyDefaultBottomPanelPosition(pCenterVPaned.AllocatedHeight)
                 End If
             End If            
 

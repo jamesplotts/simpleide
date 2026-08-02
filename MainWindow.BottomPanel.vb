@@ -26,25 +26,53 @@ Partial Public Class MainWindow
     Public Sub ShowBottomPanel(Optional vTabIndex As Integer = -1)
         Try
             UpdatePanedConstraints()
+
+            ' Set the target position BEFORE the bottom panel's second child becomes
+            ' visible, while pCenterVPaned.AllocatedHeight still reflects a valid,
+            ' already-settled layout - the editor pane was simply using the paned's whole
+            ' height while the bottom panel was hidden, so that height IS the correct
+            ' "total" post-split height too. Without this, GTK allocates the newly-shown
+            ' second child its full natural size for the first frame it participates in a
+            ' real size-allocate, and only the NEXT allocate (the fallback below) snaps it
+            ' down - visible as an "opens large, then shrinks" flash. Pre-setting the
+            ' position here avoids that natural-size allocation happening at all in the
+            ' common case (the main window has already been laid out at least once).
+            If pCenterVPaned IsNot Nothing AndAlso pCenterVPaned.AllocatedHeight > 0 Then
+                ApplyDefaultBottomPanelPosition(pCenterVPaned.AllocatedHeight)
+            End If
+
             pBottomPanelManager.Show()
             pBottomPanelManager.ShowTab(vTabIndex)
             pBottomPanelVisible = True
 
-            ' Don't compute/set the paned position synchronously here - right after
-            ' Show()/ShowTab() make the bottom panel visible for the first time,
-            ' pCenterVPaned.AllocatedHeight does not yet reflect the paned's real,
-            ' fully-renegotiated size (GTK hasn't finished laying out the newly-visible
-            ' second child yet), and neither does a single deferred idle callback reliably -
-            ' GTK itself also applies its own internal default position the first time a
-            ' Paned's second child actually participates in a real size-allocate, which can
-            ' overwrite a value set too early regardless. Instead, flag that a reset is
-            ' wanted and let OnCenterVPanedSizeAllocated (already fired on every real
-            ' allocation) apply it once against a genuinely current AllocatedHeight.
+            ' Fallback for when the pre-set above couldn't run (AllocatedHeight not valid
+            ' yet, e.g. showing the bottom panel during startup before the main window's
+            ' first layout pass) - flag that a reset is wanted and let
+            ' OnCenterVPanedSizeAllocated (already fired on every real allocation) apply it
+            ' once against a genuinely current AllocatedHeight.
             pApplyDefaultBottomPanelPositionOnNextAllocate = True
             If pCenterVPaned IsNot Nothing Then pCenterVPaned.QueueResize()
 
         Catch ex As Exception
             Console.WriteLine($"ShowBottomPanel error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Computes and applies the default bottom-panel paned position for a given total
+    ''' paned height - shared by ShowBottomPanel (set eagerly, before the panel becomes
+    ''' visible), OnCenterVPanedSizeAllocated (a fallback for when ShowBottomPanel ran
+    ''' before a valid AllocatedHeight existed yet), and UpdatePanelVisibility
+    ''' </summary>
+    ''' <param name="vTotalHeight">Current total allocated height of pCenterVPaned</param>
+    Private Sub ApplyDefaultBottomPanelPosition(vTotalHeight As Integer)
+        Try
+            If pCenterVPaned Is Nothing OrElse vTotalHeight <= 0 Then Return
+            Dim lMaxPosition As Integer = vTotalHeight - 50
+            Dim lTargetPosition As Integer = vTotalHeight - BOTTOM_PANEL_HEIGHT
+            pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
+        Catch ex As Exception
+            Console.WriteLine($"ApplyDefaultBottomPanelPosition error: {ex.Message}")
         End Try
     End Sub
     
@@ -615,15 +643,9 @@ Partial Public Class MainWindow
         Try
             UpdatePanedConstraints()
 
-            If pApplyDefaultBottomPanelPositionOnNextAllocate AndAlso pCenterVPaned IsNot Nothing Then
-                Dim lTotalHeight As Integer = vArgs.Allocation.Height
-                If lTotalHeight > 0 Then
-                    Dim lDefaultHeight As Integer = BOTTOM_PANEL_HEIGHT  ' 200
-                    Dim lMaxPosition As Integer = lTotalHeight - 50
-                    Dim lTargetPosition As Integer = lTotalHeight - lDefaultHeight
-                    pCenterVPaned.Position = Math.Max(50, Math.Min(lMaxPosition, lTargetPosition))
-                    pApplyDefaultBottomPanelPositionOnNextAllocate = False
-                End If
+            If pApplyDefaultBottomPanelPositionOnNextAllocate AndAlso pCenterVPaned IsNot Nothing AndAlso vArgs.Allocation.Height > 0 Then
+                ApplyDefaultBottomPanelPosition(vArgs.Allocation.Height)
+                pApplyDefaultBottomPanelPositionOnNextAllocate = False
             End If
 
         Catch ex As Exception
