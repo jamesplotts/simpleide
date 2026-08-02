@@ -98,7 +98,20 @@ Namespace Widgets
                     DarkenColor(lBackgroundRgba, 0.10))
 
                 pThemeColors.Accent = ParseColor(lTheme.SelectionColor)
-                
+
+                ' Bevel edges for the eBevel tab style - unlike EditorBackgroundColor/
+                ' TabInactiveColor/etc. above, every built-in theme genuinely sets its own
+                ' BevelLightColor/BevelDarkColor explicitly (CustomDrawButton relies on the
+                ' same two fields), so trusting them directly here is safe; only a custom
+                ' theme file that omits them falls back to deriving from the background
+                pThemeColors.BevelLight = If(String.IsNullOrEmpty(lTheme.BevelLightColor),
+                    LightenColor(lBackgroundRgba, 0.30),
+                    ParseColor(lTheme.BevelLightColor))
+
+                pThemeColors.BevelDark = If(String.IsNullOrEmpty(lTheme.BevelDarkColor),
+                    DarkenColor(lBackgroundRgba, 0.30),
+                    ParseColor(lTheme.BevelDarkColor))
+
                 ' Text colors
                 pThemeColors.Text = ParseColor(lTheme.ForegroundColor)
                 ' Make inactive text 50% towards background color
@@ -151,7 +164,9 @@ Namespace Widgets
                     .EditorBackground = New Gdk.RGBA() with {.Red = 1, .Green = 1, .Blue = 1, .Alpha = 1},
                     .TabInactive = New Gdk.RGBA() with {.Red = 0.9, .Green = 0.9, .Blue = 0.9, .Alpha = 1},
                     .TabHover = New Gdk.RGBA() with {.Red = 0.97, .Green = 0.97, .Blue = 0.97, .Alpha = 1},
-                    .Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1}
+                    .Accent = New Gdk.RGBA() with {.Red = 0.2, .Green = 0.5, .Blue = 0.8, .Alpha = 1},
+                    .BevelLight = New Gdk.RGBA() with {.Red = 1, .Green = 1, .Blue = 1, .Alpha = 1},
+                    .BevelDark = New Gdk.RGBA() with {.Red = 0.55, .Green = 0.55, .Blue = 0.55, .Alpha = 1}
                 }
                 
                 pTabBar.QueueDraw()

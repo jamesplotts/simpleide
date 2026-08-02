@@ -50,6 +50,7 @@ Namespace Widgets
         Private pShowCloseAllButton As Boolean = True
         Private pShowDropdownButton As Boolean = True
         Private pScrollButtonMode As ScrollButtonDisplayMode = ScrollButtonDisplayMode.eAuto
+        Private pTabStyle As eTabStyle = eTabStyle.eBevel
 
                 
         ' Drag and drop
@@ -284,6 +285,20 @@ Namespace Widgets
             Set(value As ThemeColors)
                 pThemeColors = value
                 QueueDraw()
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Gets or sets the visual style used to draw tabs - retro 3D bevel (default) or
+        ''' the original flat curved Manila-folder outline
+        ''' </summary>
+        Public Property TabStyle As eTabStyle
+            Get
+                Return pTabStyle
+            End Get
+            Set(value As eTabStyle)
+                pTabStyle = value
+                pTabBar?.QueueDraw()
             End Set
         End Property
 
@@ -1504,6 +1519,8 @@ Namespace Widgets
         Public Property Accent As Gdk.RGBA
         Public Property TabInactive As Gdk.RGBA
         Public Property TextInactive As Gdk.RGBA
+        Public Property BevelLight As Gdk.RGBA
+        Public Property BevelDark As Gdk.RGBA
     End Class
 
     ''' <summary>
@@ -1521,5 +1538,20 @@ Namespace Widgets
         ''' <summary>Sentinel value for enum bounds checking</summary>
         eLastValue
     End Enum
-    
+
+    ''' <summary>
+    ''' Visual style for drawing notebook tabs
+    ''' </summary>
+    Public Enum eTabStyle
+        ''' <summary>Unspecified style</summary>
+        eUnspecified
+        ''' <summary>Retro AmigaOS Workbench-style 3D bevel tabs - rectangular with raised/
+        ''' recessed edges instead of a curved Manila-folder outline (default)</summary>
+        eBevel
+        ''' <summary>The original curved Manila-folder-style tab outline with no 3D bevel</summary>
+        eFlat
+        ''' <summary>Sentinel value for enum bounds checking</summary>
+        eLastValue
+    End Enum
+
 End Namespace

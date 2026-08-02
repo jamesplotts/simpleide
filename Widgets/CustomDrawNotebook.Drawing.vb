@@ -247,11 +247,22 @@ Namespace Widgets
         End Sub
 
         
-        ' Replace: SimpleIDE.Widgets.CustomDrawNotebook.DrawTabBackground
         ''' <summary>
-        ''' Draws the tab background with Manila folder-style curved edges
+        ''' Draws the tab background, dispatching to the current TabStyle's renderer
         ''' </summary>
         Private Sub DrawTabBackground(vContext As Context, vBounds As Cairo.Rectangle, vIsActive As Boolean, vIsHovered As Boolean, vIsDragging As Boolean)
+            If pTabStyle = eTabStyle.eFlat Then
+                DrawTabBackgroundFlat(vContext, vBounds, vIsActive, vIsHovered, vIsDragging)
+            Else
+                DrawTabBackgroundBevel(vContext, vBounds, vIsActive, vIsHovered, vIsDragging)
+            End If
+        End Sub
+
+        ' Replace: SimpleIDE.Widgets.CustomDrawNotebook.DrawTabBackgroundFlat
+        ''' <summary>
+        ''' Draws the tab background with Manila folder-style curved edges (eFlat style)
+        ''' </summary>
+        Private Sub DrawTabBackgroundFlat(vContext As Context, vBounds As Cairo.Rectangle, vIsActive As Boolean, vIsHovered As Boolean, vIsDragging As Boolean)
             Try
                 ' CRITICAL FIX: Don't subtract pScrollOffset here - it's already been applied in DrawTab
                 Dim lX As Double = vBounds.X
@@ -362,12 +373,78 @@ Namespace Widgets
                 
                 ' Restore context state
                 vContext.Restore()
-                
+
             Catch ex As Exception
-                Console.WriteLine($"DrawTabBackground error: {ex.Message}")
+                Console.WriteLine($"DrawTabBackgroundFlat error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Draws the tab background as a retro AmigaOS Workbench-style rectangular 3D
+        ''' bevel (eBevel style, the default) - the active tab renders raised so it pops
+        ''' forward and visually joins the content area below, matching the same raised/
+        ''' recessed bevel technique CustomDrawButton uses; other tabs render with a
+        ''' shallower recessed bevel so they read as sitting behind the active one
+        ''' </summary>
+        Private Sub DrawTabBackgroundBevel(vContext As Context, vBounds As Cairo.Rectangle, vIsActive As Boolean, vIsHovered As Boolean, vIsDragging As Boolean)
+            Try
+                Const BEVEL_WIDTH As Double = 2.0
+
+                Dim lX As Double = vBounds.X
+                Dim lY As Double = vBounds.Y
+                Dim lWidth As Double = vBounds.Width
+                Dim lHeight As Double = vBounds.Height
+
+                ' No internal clip here - DrawTab (the caller) already clips to the visible
+                ' tab-bar area before calling this, matching DrawTabBackgroundFlat's own
+                ' structure (it doesn't clip internally either)
+                vContext.Save()
+
+                ' Face fill
+                Dim lFaceColor As Gdk.RGBA
+                If vIsActive Then
+                    lFaceColor = pThemeColors.EditorBackground
+                ElseIf vIsDragging Then
+                    lFaceColor = pThemeColors.Accent
+                    lFaceColor.Alpha = 0.7
+                ElseIf vIsHovered Then
+                    lFaceColor = pThemeColors.TabHover
+                Else
+                    lFaceColor = pThemeColors.TabInactive
+                End If
+
+                SetSourceColor(vContext, lFaceColor)
+                vContext.Rectangle(lX, lY, lWidth, lHeight)
+                vContext.Fill()
+
+                ' Bevel edges, full raised bevel on all four sides for the active tab (and
+                ' hovered-but-inactive, for mouse feedback) so it reads unmistakably as a
+                ' popped-forward button - not merged/flush with the content area below,
+                ' unlike a plain inactive tab, which renders fully recessed (swapped colors)
+                ' so it clearly reads as sitting behind the active one
+                Dim lRaised As Boolean = vIsActive OrElse vIsHovered
+                Dim lTopLeftColor As Gdk.RGBA = If(lRaised, pThemeColors.BevelLight, pThemeColors.BevelDark)
+                Dim lBottomRightColor As Gdk.RGBA = If(lRaised, pThemeColors.BevelDark, pThemeColors.BevelLight)
+
+                SetSourceColor(vContext, lTopLeftColor)
+                vContext.Rectangle(lX, lY, lWidth, BEVEL_WIDTH)                          ' top
+                vContext.Fill()
+                vContext.Rectangle(lX, lY, BEVEL_WIDTH, lHeight)                         ' left
+                vContext.Fill()
+
+                SetSourceColor(vContext, lBottomRightColor)
+                vContext.Rectangle(lX + lWidth - BEVEL_WIDTH, lY, BEVEL_WIDTH, lHeight)  ' right
+                vContext.Fill()
+                vContext.Rectangle(lX, lY + lHeight - BEVEL_WIDTH, lWidth, BEVEL_WIDTH)  ' bottom
+                vContext.Fill()
+
+                vContext.Restore()
+
+            Catch ex As Exception
+                Console.WriteLine($"DrawTabBackgroundBevel error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Draws a tab icon
         ''' </summary>
