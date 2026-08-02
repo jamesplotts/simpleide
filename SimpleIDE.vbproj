@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.792.0</AssemblyVersion>
-    <FileVersion>1.1.792.0</FileVersion>
+    <AssemblyVersion>1.1.800.0</AssemblyVersion>
+    <FileVersion>1.1.800.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.792</Version>
+    <Version>1.1.800</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -354,6 +354,7 @@
     <EmbeddedResource Include="Resources/undo.png" />
     <EmbeddedResource Include="Resources/undodark.png" />
     <EmbeddedResource Include="Resources/new.png" />
+    <EmbeddedResource Include="Resources/open.png" />
     <EmbeddedResource Include="Resources/redo.png" />
     <EmbeddedResource Include="Resources/redodark.png" />
     <EmbeddedResource Include="Resources/cut.png" />

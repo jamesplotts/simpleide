@@ -66,7 +66,7 @@ Partial Public Class MainWindow
                 lImg.Show()
                 pNewButton.IconWidget = lImg
             Catch ex As Exception
-                pNewButton.IconWidget = Image.NewFromIconName("document-New", lIconSize)
+                pNewButton.IconWidget = Image.NewFromIconName("document-new", lIconSize)
             End Try
             pNewButton.Label = "New"
             pNewButton.TooltipText = "New File (Ctrl+N)"
@@ -586,11 +586,11 @@ Partial Public Class MainWindow
             ' Update each button's icon with the new size
             If pNewButton IsNot Nothing AndAlso pNewButton.IconWidget IsNot Nothing Then
                 Try
-                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.New.png", vIconSize)
+                    Dim lImg As Gtk.Image = GetEmbeddedIcon( "SimpleIDE.new.png", vIconSize)
                     lImg.Show()
                     pNewButton.IconWidget = lImg
                 Catch ex As Exception
-                    pNewButton.IconWidget = Image.NewFromIconName("document-New", vIconSize)
+                    pNewButton.IconWidget = Image.NewFromIconName("document-new", vIconSize)
                 End Try
             End If
             
@@ -786,7 +786,7 @@ Partial Public Class MainWindow
             End If
             
             If pAIButton IsNot Nothing AndAlso pAIButton.IconWidget IsNot Nothing Then
-                DirectCast(pAIButton.IconWidget, Image).SetFromIconName("starred-symbolic", vIconSize)
+                DirectCast(pAIButton.IconWidget, Image).SetFromIconName("chat", vIconSize)
             End If
             
             If pHelpButton IsNot Nothing AndAlso pHelpButton.IconWidget IsNot Nothing Then

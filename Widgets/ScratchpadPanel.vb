@@ -187,30 +187,30 @@ Namespace Widgets
                 lBox.PackStart(New Separator(Orientation.Vertical), False, False, 5)
                 
                 ' New button
-                pNewButton = CreateToolButton("document-New", "New Scratchpad")
+                pNewButton = CreateToolButton("document-new", "New Scratchpad")
                 lBox.PackStart(pNewButton, False, False, 0)
-                
+
                 ' Delete button
-                pDeleteButton = CreateToolButton("edit-Delete", "Delete Scratchpad")
+                pDeleteButton = CreateToolButton("edit-delete", "Delete Scratchpad")
                 lBox.PackStart(pDeleteButton, False, False, 0)
-                
+
                 ' Separator
                 lBox.PackStart(New Separator(Orientation.Vertical), False, False, 5)
-                
+
                 ' Copy button
-                pCopyButton = CreateToolButton("edit-Copy", "Copy")
+                pCopyButton = CreateToolButton("edit-copy", "Copy")
                 lBox.PackStart(pCopyButton, False, False, 0)
-                
+
                 ' Cut button
-                pCutButton = CreateToolButton("edit-Cut", "Cut")
+                pCutButton = CreateToolButton("edit-cut", "Cut")
                 lBox.PackStart(pCutButton, False, False, 0)
-                
+
                 ' Paste button
-                pPasteButton = CreateToolButton("edit-Paste", "Paste")
+                pPasteButton = CreateToolButton("edit-paste", "Paste")
                 lBox.PackStart(pPasteButton, False, False, 0)
-                
+
                 ' Clear button
-                pClearButton = CreateToolButton("edit-Clear", "Clear All")
+                pClearButton = CreateToolButton("edit-clear", "Clear All")
                 lBox.PackStart(pClearButton, False, False, 0)
                 
                 ' Separator
@@ -225,7 +225,7 @@ Namespace Widgets
                 lBox.PackStart(pInsertTodoButton, False, False, 0)
                 
                 ' Search button
-                pSearchButton = CreateToolButton("edit-Find", "Search")
+                pSearchButton = CreateToolButton("edit-find", "Search")
                 lBox.PackStart(pSearchButton, False, False, 0)
                 
                 Return lBox
