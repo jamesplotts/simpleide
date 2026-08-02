@@ -271,7 +271,7 @@ Namespace Managers
                 ' Add to notebook using CustomDrawNotebook's AppendPage with icon
                 If TypeOf pNotebook Is CustomDrawNotebook Then
                     Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
-                    Dim lIndex As Integer = lCustomNotebook.AppendPage(pBuildOutputPanel, "Build Output", "build")
+                    Dim lIndex As Integer = lCustomNotebook.AppendPage(pBuildOutputPanel, "Build Output", "system-run")
                     Console.WriteLine($"  Build Output tab added at index {lIndex}")
                     
                     ' Ensure the panel is visible
@@ -509,7 +509,7 @@ Namespace Managers
                     End Sub
 
                 ' Add to notebook with icon
-                pNotebook.AppendPage(pTodoPanel, "TODO List", "list-checks")
+                pNotebook.AppendPage(pTodoPanel, "TODO List", "view-task")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateTodoListTab error: {ex.Message}")
@@ -527,7 +527,7 @@ Namespace Managers
                 pAIAssistantPanel = New AIAssistantPanel(lApiKey)
 
                 ' Add to notebook with icon
-                pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "bot")
+                pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "chat")
 
                 ' This tab is created lazily, so if the theme was already set before this ran,
                 ' the new panel needs to be brought up to date immediately
@@ -579,7 +579,7 @@ Namespace Managers
                     End Sub
                 
                 ' Add to notebook with icon
-                pNotebook.AppendPage(pHelpViewerPanel, "Help", "help-circle")
+                pNotebook.AppendPage(pHelpViewerPanel, "Help", "help-browser")
 
                 ' This tab is created lazily, so if the theme was already set before this ran,
                 ' the new panel needs to be brought up to date immediately
@@ -616,7 +616,7 @@ Namespace Managers
                 pGitPanel = New GitPanel()
                 
                 ' Add to notebook with icon
-                pNotebook.AppendPage(pGitPanel, "Git", "git-branch")
+                pNotebook.AppendPage(pGitPanel, "Git", "vcs-branch")
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateGitTab error: {ex.Message}")
