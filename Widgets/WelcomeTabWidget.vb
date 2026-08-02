@@ -122,8 +122,14 @@ Namespace Widgets
         ''' Initializes a new instance of the WelcomeTabWidget class
         ''' </summary>
         Public Sub New()
-            ' Set minimum size
-            SetSizeRequest(800, 600)
+            ' Deliberately no SetSizeRequest here - this widget already handles being given
+            ' less than its natural content size via OnSizeAllocated's scrolling logic
+            ' (pViewportHeight/pContentHeight/pScrollbarVisible below). A hard minimum here
+            ' previously propagated up through the editor notebook (packed into the center
+            ' Paned with shrink:=False, so it always gets at least its minimum) and, once the
+            ' bottom panel was made shrinkable to fix it forcing the whole window to grow,
+            ' left the bottom panel with nothing - it was being squeezed to fit around this
+            ' widget's forced 800x600 floor whenever the Welcome tab was the only open tab.
 
             ' Initialize theme colors
             InitializeThemeColors()
