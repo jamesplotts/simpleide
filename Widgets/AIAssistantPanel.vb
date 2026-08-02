@@ -211,7 +211,10 @@ Namespace Widgets
             pAddFileButton = CreateActionButton("Add File", "document-new")
             pModifyCodeButton = CreateActionButton("Modify code", "document-edit")
             pExplainCodeButton = CreateActionButton("Explain", "help-about")
-            pFixErrorsButton = CreateActionButton("Fix Errors", "dialog-error")
+            ' "dialog-error" is a status icon (bold/high-contrast by design) rather than an
+            ' action icon like the others here, so it visually reads much larger than its
+            ' siblings at the same pixel size - load it at half size to match
+            pFixErrorsButton = CreateActionButton("Fix Errors", "dialog-error", 12)
             pRefactorButton = CreateActionButton("Refactor", "view-refresh")
             pGenerateTestsButton = CreateActionButton("Gen Tests", "emblem-default")
             
@@ -283,10 +286,10 @@ Namespace Widgets
             ' TODO: Implement
         End Sub
         
-        Private Function CreateActionButton(vLabel As String, vIcon As String) As CustomDrawButton
+        Private Function CreateActionButton(vLabel As String, vIcon As String, Optional vIconSize As Integer = 24) As CustomDrawButton
             Dim lIconPixbuf As Gdk.Pixbuf = Nothing
             Try
-                lIconPixbuf = Gtk.IconTheme.Default.LoadIcon(vIcon, 24, IconLookupFlags.UseBuiltin)
+                lIconPixbuf = Gtk.IconTheme.Default.LoadIcon(vIcon, vIconSize, IconLookupFlags.UseBuiltin)
             Catch ex As Exception
                 Console.WriteLine($"CreateActionButton icon load error: {ex.Message}")
             End Try

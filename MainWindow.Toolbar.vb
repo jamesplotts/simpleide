@@ -320,7 +320,7 @@ Partial Public Class MainWindow
             ' AI Assistant
             pAIButton = New ToolButton(Nothing, Nothing)
             Dim lAIIcon As New Image()
-            lAIIcon.SetFromIconName("starred-symbolic", lIconSize)
+            lAIIcon.SetFromIconName("chat", lIconSize)
             lAIIcon.Show()
             pAIButton.IconWidget = lAIIcon
             pAIButton.Label = "AI"
