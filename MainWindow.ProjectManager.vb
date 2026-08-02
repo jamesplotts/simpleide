@@ -458,6 +458,7 @@ Partial Public Class MainWindow
             ' Initialize progress tracking
             pTotalFilesToParse = 0
             pCurrentFileParsed = 0
+            pProjectFilesParsingComplete = False
             
             ' Start async loading - DON'T BLOCK THE UI
             Task.Run(Async Function() As Task
@@ -478,14 +479,21 @@ Partial Public Class MainWindow
                             UpdateProjectRelatedUIState(True)
                             pSettingsManager?.AddRecentProject(vProjectPath)
                             
-                            ' Update status
-                            Dim lFileCount As Integer = pProjectManager.GetSourceFileCount()
-                            If lFileCount > 0 Then
-                                UpdateStatusBar($"Parsing {lFileCount} files...")
-                                UpdateProgressBar(5) ' Show we've started
-                            Else
-                                UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
-                                UpdateProgressBar(100)
+                            ' Update status - but only if the background file parse (racing
+                            ' independently against this very callback) hasn't already finished
+                            ' and posted its own "Project loaded" completion message. Without this
+                            ' guard, a fast parse can complete and set the real status first, only
+                            ' for this callback to run afterward and stomp it with a "Parsing..."
+                            ' message that then never gets replaced.
+                            If Not pProjectFilesParsingComplete Then
+                                Dim lFileCount As Integer = pProjectManager.GetSourceFileCount()
+                                If lFileCount > 0 Then
+                                    UpdateStatusBar($"Parsing {lFileCount} files...")
+                                    UpdateProgressBar(5) ' Show we've started
+                                Else
+                                    UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
+                                    UpdateProgressBar(100)
+                                End If
                             End If
                         End Sub)
                         
@@ -520,13 +528,13 @@ Partial Public Class MainWindow
             pCurrentProject = ""
             UpdateStatusBar("Project load error")
             ShowError("Project Load error", ex.Message)
-        Finally
-            ' Clean up event handlers after a delay
-            GLib.Timeout.Add(5000, Function()
-                RemoveHandler pProjectManager.ParsingProgress, AddressOf OnProjectParsingProgressWithBar
-                Return False
-            End Function)
         End Try
+        ' NOTE: ParsingProgress is intentionally left wired rather than being blind-unhooked
+        ' after a fixed delay - it used to be removed 5 seconds after load started regardless
+        ' of whether parsing had actually finished, which silently cut off progress bar/status
+        ' updates partway through on any project whose parse takes longer than that. The
+        ' RemoveHandler/AddHandler pair at the top of this method already prevents duplicate
+        ' subscriptions across repeated project loads, so no separate cleanup is needed here.
     End Sub
     ''' <summary>
     ''' Shows loading state in explorers
@@ -572,9 +580,15 @@ Partial Public Class MainWindow
             
             ' Update UI on main thread
             Gtk.Application.Invoke(Sub()
+                ' Mark parsing complete FIRST, so LoadProjectEnhanced's own success callback
+                ' (racing independently on another background task) knows not to stomp the
+                ' completion message below with a stale "Parsing N files..." if it happens
+                ' to run after this point
+                pProjectFilesParsingComplete = True
+
                 ' Complete the progress bar
                 UpdateProgressBar(100)
-                
+
                 ' Update status
                 Dim lSeconds As Double = vTotalMilliseconds / 1000.0
                 UpdateStatusBar($"Project loaded: {vFileCount} files parsed in {lSeconds:F1}s")

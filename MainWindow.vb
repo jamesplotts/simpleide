@@ -61,6 +61,14 @@ Partial Public Class MainWindow
     Private pPendingProjectFile As String = Nothing
     Private pTotalFilesToParse As Integer = 0
     Private pCurrentFileParsed As Integer = 0
+
+    ''' <summary>
+    ''' Set once OnAllFilesParseCompleted fires for the current project load, so the "Parsing N
+    ''' files..." status text (written slightly later by LoadProjectEnhanced's own success
+    ''' callback, since the two run as a race between independent background tasks) never
+    ''' overwrites the real completion message once parsing has actually finished
+    ''' </summary>
+    Private pProjectFilesParsingComplete As Boolean = False
     Private pPanedSaveTimer As System.Threading.Timer
     
     ' ===== Constructor =====
