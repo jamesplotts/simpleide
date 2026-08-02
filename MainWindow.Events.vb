@@ -7,6 +7,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Managers
 
 Partial Public Class MainWindow
 
@@ -495,21 +496,52 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Toggles the bottom panel's Build Output tab (shared by the View menu's "Output" and
+    ''' "Error List" items - both show the same tab, which hosts the build output text and
+    ''' the errors/warnings grids together)
+    ''' </summary>
+    Private Sub ToggleBottomPanelBuildOutputTab()
+        Try
+            If pBottomPanelManager Is Nothing Then Return
+
+            Dim lBuildOutputIndex As Integer = CInt(BottomPanelManager.BottomPanelTab.eBuildOutput)
+
+            If pBottomPanelVisible Then
+                If pBottomPanelManager.GetCurrentPageIndex() = lBuildOutputIndex Then
+                    HideBottomPanel()
+                Else
+                    ' Already visible on a different tab - just switch tabs, don't reset the
+                    ' paned position the user may have dragged (matches the convention
+                    ' ShowFindPanel already uses for this same already-visible case)
+                    pBottomPanelManager.ShowTab(lBuildOutputIndex)
+                End If
+            Else
+                ' Hidden - go through ShowBottomPanel (not BottomPanelManager.ShowTab
+                ' directly) so the paned divider gets reset to a sensible default position
+                ' and pBottomPanelVisible stays in sync. Skipping this left the paned
+                ' position wherever it last was - often too little room for the panel's
+                ' minimum content height - which forced GTK to grow the whole toplevel
+                ' window to satisfy it instead of just resizing within the paned.
+                ShowBottomPanel(lBuildOutputIndex)
+            End If
+
+        Catch ex As Exception
+            Console.WriteLine($"ToggleBottomPanelBuildOutputTab error: {ex.Message}")
+        End Try
+    End Sub
+
     Private Sub OnToggleOutput(vSender As Object, vArgs As EventArgs)
         Try
-            If pBottomPanelManager IsNot Nothing Then
-                pBottomPanelManager.ToggleOutputPanel()
-            End If
+            ToggleBottomPanelBuildOutputTab()
         Catch ex As Exception
             Console.WriteLine($"OnToggleOutput error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnToggleErrorList(vSender As Object, vArgs As EventArgs)
         Try
-            If pBottomPanelManager IsNot Nothing Then
-                pBottomPanelManager.ToggleErrorListPanel()
-            End If
+            ToggleBottomPanelBuildOutputTab()
         Catch ex As Exception
             Console.WriteLine($"OnToggleErrorList error: {ex.Message}")
         End Try
