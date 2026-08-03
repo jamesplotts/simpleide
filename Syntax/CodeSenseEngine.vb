@@ -928,6 +928,37 @@ Namespace Syntax
         ''' own resolved type (e.g. IEditor's members, for "lCurrentTab.Editor" where Editor is
         ''' declared "As IEditor")
         ''' </summary>
+        ''' <summary>
+        ''' Resolves a dotted chain that turned out not to be an object member-access chain
+        ''' at all (see GetChainedMemberSuggestions's remarks) by treating the whole dotted
+        ''' string as a namespace/type name instead - e.g. "System.Collections" -&gt; the types
+        ''' and child namespaces directly under System.Collections
+        ''' </summary>
+        Private Function GetNamespacePathSuggestions(vTarget As String) As List(Of CodeSenseSuggestion)
+            Dim lSuggestions As New List(Of CodeSenseSuggestion)()
+            AddTypeMemberSuggestions(vTarget, lSuggestions)
+            Return lSuggestions
+        End Function
+
+        ''' <summary>
+        ''' Resolves a dotted member-access chain (e.g. "lCurrentTab.Editor") by resolving the
+        ''' first segment's declared type, then walking each remaining segment as a member
+        ''' lookup on the type resolved so far, and returns the members of the LAST segment's
+        ''' own resolved type (e.g. IEditor's members, for "lCurrentTab.Editor" where Editor is
+        ''' declared "As IEditor")
+        ''' </summary>
+        ''' <remarks>
+        ''' A dotted target isn't always an object member chain - it may be a multi-segment
+        ''' namespace path instead (e.g. "System.Collections."), which looks identical from
+        ''' GetMemberSuggestions's point of view (both just contain a "."). Every point where
+        ''' the member-chain interpretation fails to resolve now falls back to
+        ''' GetNamespacePathSuggestions, which treats the whole string as a namespace/type
+        ''' name via the same reflection-based lookup AddTypeMemberSuggestions already uses
+        ''' successfully for a single-segment target like "System" - without this,
+        ''' "System.Collections." (and any other 2+-segment BCL namespace) always returned no
+        ''' suggestions, since neither "System" resolves as a variable's declared type nor
+        ''' "Collections" as a member on it.
+        ''' </remarks>
         Private Function GetChainedMemberSuggestions(vTarget As String, vContext As CodeSenseContext) As List(Of CodeSenseSuggestion)
             Dim lSuggestions As New List(Of CodeSenseSuggestion)()
             Try
@@ -946,14 +977,14 @@ Namespace Syntax
                 ' so far
                 for i As Integer = 1 To lSegments.Length - 2
                     Dim lNextType As String = ResolveMemberTypeOnType(lCurrentType, lSegments(i))
-                    If String.IsNullOrEmpty(lNextType) Then Return lSuggestions
+                    If String.IsNullOrEmpty(lNextType) Then Return GetNamespacePathSuggestions(vTarget)
                     lCurrentType = lNextType
                 Next
 
                 ' The final segment is itself a member - its OWN declared type is what we want
                 ' the member list for
                 Dim lFinalType As String = ResolveMemberTypeOnType(lCurrentType, lSegments(lSegments.Length - 1))
-                If String.IsNullOrEmpty(lFinalType) Then Return lSuggestions
+                If String.IsNullOrEmpty(lFinalType) Then Return GetNamespacePathSuggestions(vTarget)
 
                 Dim lTypeNode As SyntaxNode = FindTypeNodeByName(lFinalType)
                 If lTypeNode IsNot Nothing Then
