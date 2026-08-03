@@ -102,6 +102,15 @@ Namespace Models
         ''' Timer handle for retrying ProjectManager acquisition
         ''' </summary>
         Private pRetryProjectManagerTimer As UInteger = 0
+
+        ''' <summary>
+        ''' Retry count for RetryGetProjectManager - an instance field rather than a
+        ''' Static local inside that method, since a Static local in an instance method is
+        ''' shared across every instance of the type in VB.NET, not scoped per-object. With
+        ''' many SourceFileInfo instances retrying concurrently during project load, that
+        ''' let one file's retries count toward another file's "give up after 10" limit.
+        ''' </summary>
+        Private pRetryProjectManagerCount As Integer = 0
         
         ' ===== Events =====
         

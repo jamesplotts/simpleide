@@ -24,30 +24,23 @@ Public Sub RequestAsyncParse()
         ' Try to get ProjectManager reference
         If pProjectManager Is Nothing Then
             Dim lArgs As New ProjectManagerRequestEventArgs()
-            Console.WriteLine($"RequestAsyncParse: Requesting ProjectManager for {FileName}")
             RaiseEvent ProjectManagerRequested(Me, lArgs)
-            
+
             If lArgs.HasProjectManager Then
                 pProjectManager = lArgs.ProjectManager
                 ' Also set the public property
                 ProjectManager = lArgs.ProjectManager
-                Console.WriteLine($"RequestAsyncParse: Got ProjectManager for {FileName}")
             End If
         End If
-        
+
         If pProjectManager IsNot Nothing Then
-            ' Request async parse through ProjectManager
-            Console.WriteLine($"RequestAsyncParse: Requesting parse for {FileName}")
-            
             ' Queue the parse request using async parse
             Task.Run(Function() pProjectManager.ParseFileAsync(Me))
-            
+
             ' Raise rendering changed to trigger immediate redraw
             RaiseEvent RenderingChanged(Me, EventArgs.Empty)
-            
+
         Else
-            Console.WriteLine($"RequestAsyncParse: No ProjectManager available for {FileName}")
-            
             ' For emergency/temporary SourceFileInfo, still notify rendering change
             ' This allows basic text editing even without parsing
             RaiseEvent RenderingChanged(Me, EventArgs.Empty)
@@ -68,58 +61,54 @@ End Sub
 ''' </summary>
 ''' <returns>False to stop timer, True to continue</returns>
 Private Function RetryGetProjectManager() As Boolean
-    Static sRetryCount As Integer = 0
-    
     Try
         If pProjectManager IsNot Nothing Then
             ' We got it, stop retrying
             pRetryProjectManagerTimer = 0
-            sRetryCount = 0
-            Console.WriteLine($"RetryGetProjectManager: ProjectManager now available for {FileName}")
-            
+            pRetryProjectManagerCount = 0
+
             ' Request parse now that we have ProjectManager
             If pNeedsParsing Then
                 RequestAsyncParse()
             End If
-            
+
             Return False ' Stop timer
         End If
-        
+
         ' Try to get it again
         Dim lArgs As New ProjectManagerRequestEventArgs()
         RaiseEvent ProjectManagerRequested(Me, lArgs)
-        
+
         If lArgs.HasProjectManager Then
             pProjectManager = lArgs.ProjectManager
             ProjectManager = lArgs.ProjectManager ' Set both private and public
-            Console.WriteLine($"RetryGetProjectManager: Got ProjectManager for {FileName}")
-            
+
             ' Request parse now that we have ProjectManager
             If pNeedsParsing Then
                 RequestAsyncParse()
             End If
-            
+
             pRetryProjectManagerTimer = 0
-            sRetryCount = 0
+            pRetryProjectManagerCount = 0
             Return False ' Stop timer
         End If
-        
+
         ' Still no ProjectManager, keep trying (up to a limit)
-        sRetryCount += 1
-        
-        If sRetryCount > 10 Then
+        pRetryProjectManagerCount += 1
+
+        If pRetryProjectManagerCount > 10 Then
             Console.WriteLine($"RetryGetProjectManager: Giving up after 10 attempts for {FileName}")
             pRetryProjectManagerTimer = 0
-            sRetryCount = 0
+            pRetryProjectManagerCount = 0
             Return False ' Stop timer
         End If
-        
+
         Return True ' Continue retrying
-        
+
     Catch ex As Exception
         Console.WriteLine($"RetryGetProjectManager error: {ex.Message}")
         pRetryProjectManagerTimer = 0
-        sRetryCount = 0
+        pRetryProjectManagerCount = 0
         Return False
     End Try
 End Function

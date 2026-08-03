@@ -509,16 +509,18 @@ Namespace Managers
                         ' Load the file
                         Console.WriteLine($"  Loading: {lRelativePath}")
                         Dim lNewSourceFile As New SourceFileInfo(lFullPath, "")
-                        
+
+                        ' Set project context and wire events BEFORE loading - LoadContent
+                        ' calls RequestAsyncParse internally, which needs ProjectManager
+                        ' already available to avoid a wasted "No ProjectManager available"
+                        ' async request (and its needless 500ms GLib retry timer) that the
+                        ' explicit ParseFile call below immediately makes redundant anyway
+                        lNewSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                        lNewSourceFile.ProjectManager = Me
+                        WireSourceFileInfoEvents(lNewSourceFile)
+
                         ' Actually load the content from disk
                         If lNewSourceFile.LoadContent() Then
-                            ' Set project context
-                            lNewSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                            lNewSourceFile.ProjectManager = Me
-                            
-                            ' Wire up events
-                            WireSourceFileInfoEvents(lNewSourceFile)
-                            
                             ' Parse the file to build its syntax tree
                             Console.WriteLine($"  Parsing: {lRelativePath}")
                             ParseFile(lNewSourceFile)

@@ -514,19 +514,20 @@ End Sub
                         
                         ' Create new SourceFileInfo
                         Dim lSourceInfo As New SourceFileInfo(vFilePath, "")
-                        
+
+                        ' Set project context and wire events BEFORE loading - LoadContent
+                        ' calls RequestAsyncParse internally, which needs ProjectManager
+                        ' already available to avoid a wasted "No ProjectManager available"
+                        ' async request (and its needless 500ms GLib retry timer)
+                        lSourceInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
+                        lSourceInfo.ProjectManager = Me
+                        WireSourceFileInfoEvents(lSourceInfo)
+
                         ' Load content if file exists
                         If File.Exists(vFilePath) Then
                             lSourceInfo.LoadContent()
                         End If
-                        
-                        ' Set project context
-                        lSourceInfo.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                        lSourceInfo.ProjectManager = Me
-                        
-                        ' Wire up events
-                        WireSourceFileInfoEvents(lSourceInfo)
-                        
+
                         ' Add to collection
                         pSourceFiles(vFilePath) = lSourceInfo
                         
