@@ -589,7 +589,7 @@ Partial Public Class MainWindow
             
             ' Changes
             Dim lChanges As New MenuItem("View _Changes")
-            ' TODO: AddHandler lChanges.Activated, AddressOf OnGitChanges
+            AddHandler lChanges.Activated, AddressOf ShowGitStatus
             lGitMenu.Append(lChanges)
             
             ' Commit
