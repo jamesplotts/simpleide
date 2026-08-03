@@ -12,17 +12,17 @@ Partial Public Class MainWindow
     ' ===== Project Operations =====
     Public Sub OnNewProject(vSender As Object, vArgs As EventArgs)
         Try
-            ' Check for unsaved changes
-            If Not CheckUnsavedChanges() Then Return
-            
+            ' Close all open editors from the current project (prompts to save/discard, may cancel)
+            If Not CloseAllTabs() Then Return
+
             ' Show new project dialog
             Dim lDialog As New NewProjectDialog(Me, pThemeManager)
-            
+
             If lDialog.Run() = CInt(ResponseType.Ok) Then
                 Dim lProjectPath As String = lDialog.ProjectPath
                 Dim lProjectName As String = lDialog.ProjectName
                 Dim lProjectType As String = lDialog.ProjectType
-                
+
                 ' Create project
                 If CreateNewProject(lProjectPath, lProjectName, lProjectType) Then
                     ' Load the new project
@@ -44,9 +44,9 @@ Partial Public Class MainWindow
     
     Public Sub OnOpenProject(vSender As Object, vArgs As EventArgs)
         Try
-            ' Check for unsaved changes
-            If Not CheckUnsavedChanges() Then Return
-            
+            ' Close all open editors from the current project (prompts to save/discard, may cancel)
+            If Not CloseAllTabs() Then Return
+
             Dim lDialog As FileChooserDialog = FileOperations.CreateOpenProjectDialog(Me)
             
             If lDialog.Run() = CInt(ResponseType.Accept) Then
@@ -85,10 +85,17 @@ Partial Public Class MainWindow
                     lPackageReferences = StringResources.Instance.GetString("GtkPackageReference")
             End Select
             
+            ' Explicit Compile items - EnableDefaultCompileItems is False in the template,
+            ' so every source file we generate below must be listed here or it will be
+            ' invisible to both SimpleIDE's ProjectFileParser and a real dotnet build
+            Dim lCompileItems As String = "<Compile Include=""My project/AssemblyInfo.vb"" />" & Environment.NewLine &
+                "    <Compile Include=""Program.vb"" />"
+
             Dim lProjectParams As New Dictionary(Of String, String) From {
                 {"OutputType", lOutputType},
                 {"RootNamespace", vProjectName},
-                {"PackageReferences", lPackageReferences}
+                {"PackageReferences", lPackageReferences},
+                {"CompileItems", lCompileItems}
             }
             
             Dim lProjectContent As String = StringResources.Instance.GetTemplate(StringResources.KEY_VBPROJ_TEMPLATE, lProjectParams)  

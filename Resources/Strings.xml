@@ -101,7 +101,12 @@ Imports System.Runtime.InteropServices
     <OptionExplicit>On</OptionExplicit>
     <OptionInfer>On</OptionInfer>
     <OptionCompare>Binary</OptionCompare>
+    <EnableDefaultCompileItems>False</EnableDefaultCompileItems>
   </PropertyGroup>
+
+  <ItemGroup>
+    {CompileItems}
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Package References -->
