@@ -128,7 +128,7 @@ Namespace Managers
                 ' Launch a parse task for each file
                 for each lKvp As KeyValuePair(Of String, SourceFileInfo) in pSourceFiles
                     Dim lSourceFile As SourceFileInfo = lKvp.Value
-                    
+
                     ' Skip if already parsed and up to date
                     If lSourceFile.IsParsed AndAlso Not lSourceFile.NeedsParsing Then
                         'Console.WriteLine($"  Skipping {lSourceFile.FileName} - already parsed")
@@ -144,7 +144,7 @@ Namespace Managers
                     Dim lTask As Task = Task.Run(Sub()
                         Try
                             Dim lFileStartTime As DateTime = DateTime.Now
-                            
+
                             ' Parse the file (tokens only, no colors)
                             Dim lParseResult As ParseResult = ParseFileContent(lSourceFile)
                             
@@ -163,8 +163,18 @@ Namespace Managers
                                 
                                 Dim lFileElapsed As TimeSpan = DateTime.Now - lFileStartTime
                                 'Console.WriteLine($"  Parsed {lSourceFile.FileName} in {lFileElapsed.TotalMilliseconds:F2}ms")
+
+                                ' Notify (UI thread) so a file already open in an editor at this point
+                                ' - opened while this initial project-wide parse was still running -
+                                ' gets its syntax colors refreshed instead of being stuck showing
+                                ' whatever it was drawn with before its LineMetadata was ready.
+                                ' FileParsed has no other subscribers, so this is cheap even for a
+                                ' project with hundreds of files - unlike ParseCompleted, which also
+                                ' drives full project-tree rebuilds in CodeSenseEngine/ObjectExplorer
+                                ' and would be far too costly to raise once per file here.
+                                Gtk.Application.Invoke(Sub() RaiseEvent FileParsed(lSourceFile))
                             End If
-                            
+
                             ' Update progress (thread-safe)
                             Dim lCurrentCount As Integer = 0
                             Dim lCurrentFileName As String = lSourceFile.FileName
@@ -310,7 +320,7 @@ Namespace Managers
                 If pParseErrors IsNot Nothing AndAlso pParseErrors.Count > 0 Then
                     Console.WriteLine($"ProjectManager: {pParseErrors.Count} parse errors encountered")
                 End If
-                
+
                 Return True
                 
             Catch ex As Exception
@@ -506,7 +516,7 @@ Private Function LoadAllSourceFiles() As Boolean
             Try
                 ' Check if already loaded
                 Dim lSourceFile As SourceFileInfo = Nothing
-                
+
                 If pSourceFiles.ContainsKey(lFilePath) Then
                     lSourceFile = pSourceFiles(lFilePath)
                     If lSourceFile.IsLoaded Then

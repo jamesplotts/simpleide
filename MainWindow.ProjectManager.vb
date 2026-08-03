@@ -145,16 +145,19 @@ Partial Public Class MainWindow
             ' Check if this file is currently open in an editor
             for each lTab in pOpenTabs
                 If lTab.Value.FilePath = vFileInfo.FilePath Then
-                    ' Update the editor's syntax tree
-                    If TypeOf lTab.Value.Editor Is CustomDrawingEditor Then
-                        ' The editor should use the parsed structure
-                        ' This maintains consistency between project view and editor view
-                        Console.WriteLine($"File parsed: {vFileInfo.FileName} (open in Editor)")
+                    ' Refresh the editor now that its SourceFileInfo has fresh LineMetadata/
+                    ' CharacterColors - without this, a file opened while the initial
+                    ' project-wide background parse is still running gets drawn once with
+                    ' incomplete syntax colors and never repainted until something else
+                    ' (e.g. a selection change) happens to trigger a redraw
+                    Dim lEditor As CustomDrawingEditor = TryCast(lTab.Value.Editor, CustomDrawingEditor)
+                    If lEditor IsNot Nothing Then
+                        lEditor.RefreshFromParsedSourceFile()
                     End If
                     Exit for
                 End If
             Next
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnProjectFileParsed error: {ex.Message}")
         End Try

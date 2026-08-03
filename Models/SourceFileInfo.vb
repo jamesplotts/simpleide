@@ -25,6 +25,7 @@ Namespace Models
         Private pTextLines As List(Of String)
         Private pLineMetadata() As LineMetadata
         Private pCharacterTokens()() As Byte
+        Private pCharacterColors()() As Byte
         Private pIsModified As Boolean = False
         Private pNeedsParsing As Boolean = False
         Private pIsLoaded As Boolean = False
@@ -87,10 +88,10 @@ Namespace Models
         ''' <value>Jagged array where each element is a byte array for a line</value>
         Public Property CharacterColors As Byte()()
             Get
-                Return pCharacterTokens
+                Return pCharacterColors
             End Get
             Set(value As Byte()())
-                pCharacterTokens = value
+                pCharacterColors = value
             End Set
         End Property
 

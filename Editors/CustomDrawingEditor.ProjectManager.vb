@@ -10,7 +10,24 @@ Namespace Editors
     Partial Public Class CustomDrawingEditor
         
         ' ===== Helper Methods =====
-        
+
+        ''' <summary>
+        ''' Refreshes syntax highlighting and visual state from the editor's own SourceFileInfo
+        ''' </summary>
+        ''' <remarks>
+        ''' Used when this file's SyntaxTree/LineMetadata were updated outside of the normal
+        ''' ProjectManager.ParseCompleted notification path - e.g. the initial project-wide
+        ''' background parse (ProjectManager.ParseAllFilesAsync), which updates SourceFileInfo
+        ''' directly without raising ParseCompleted for every file (that event also drives
+        ''' expensive full-tree rebuilds in CodeSenseEngine/ObjectExplorer, which would be far
+        ''' too costly to run once per file during a whole-project parse). Reuses
+        ''' OnProjectManagerParseCompleted so there is a single source of truth for what
+        ''' "the editor's data just got (re)parsed" means
+        ''' </remarks>
+        Public Sub RefreshFromParsedSourceFile()
+            OnProjectManagerParseCompleted(pSourceFileInfo, pSourceFileInfo?.SyntaxTree)
+        End Sub
+
         ''' <summary>
         ''' Handles parse completion notification from ProjectManager
         ''' </summary>
