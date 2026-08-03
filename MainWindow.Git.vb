@@ -112,8 +112,9 @@ Partial Public Class MainWindow
             If Not EnsureGitRepository() Then Return
             
             ' Show Git panel in bottom panel
-            ShowBottomPanel(3) ' Assuming git panel is at index 3
-            
+            ShowBottomPanel(CInt(BottomPanelManager.BottomPanelTab.eGit))
+            pBottomPanelManager.GitPanel?.ShowChangesTab()
+
             ' Refresh status
             RefreshGitStatus()
             
@@ -351,12 +352,11 @@ Partial Public Class MainWindow
     Public Sub ShowGitHistory()
         Try
             If Not EnsureGitRepository() Then Return
-            
+
             ' Show Git panel and switch to history tab
-            ShowBottomPanel(3)
-            
-            ' TODO: Switch to history tab in Git panel
-            
+            ShowBottomPanel(CInt(BottomPanelManager.BottomPanelTab.eGit))
+            pBottomPanelManager.GitPanel?.ShowHistoryTab()
+
         Catch ex As Exception
             Console.WriteLine($"ShowGitHistory error: {ex.Message}")
             ShowError("git error", ex.Message)

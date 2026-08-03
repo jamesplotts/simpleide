@@ -249,7 +249,7 @@ Namespace Widgets
                         Dim lCellValue As Object = lRow.Cells(pSortColumn).Value
                         
                         ' Convert to comparable value based on column type
-                        Select Case pColumns(pSortColumn).ColumnType
+                        Select Case pColumns(pSortColumn).DataType
                             Case DataGridColumnType.eNumber
                                 If lCellValue IsNot Nothing Then
                                     Try

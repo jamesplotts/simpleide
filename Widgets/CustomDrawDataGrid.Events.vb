@@ -374,21 +374,18 @@ Namespace Widgets
         Public Sub SelectRow(vRowIndex As Integer)
             Try
                 If vRowIndex < 0 OrElse vRowIndex >= pRows.Count Then Return
-                
+
                 pSelectedRowIndex = vRowIndex
                 pSelectedRows.Clear()
 
-                Dim lRow As DataGridRow = Nothing
-                If pSelectedColumnIndex >= 0 AndAlso pSelectedColumnIndex < pRows.Count Then
-                    lRow = pRows(pSelectedRowIndex)
-                End If
+                Dim lRow As DataGridRow = pRows(vRowIndex)
 
                 ' Ensure row is visible
                 EnsureRowVisible(vRowIndex)
-                
+
                 QueueDraw()
                 RaiseEvent SelectionChanged(vRowIndex, pSelectedColumnIndex, lRow)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawDataGrid.SelectRow error: {ex.Message}")
             End Try

@@ -37,6 +37,14 @@ Namespace Widgets
             eError
             ''' <summary>Rendered in the theme's warning color</summary>
             eWarning
+            ''' <summary>Diff-added line (leading "+"), rendered in a fixed green</summary>
+            eDiffAdded
+            ''' <summary>Diff-removed line (leading "-"), rendered in a fixed red</summary>
+            eDiffRemoved
+            ''' <summary>Diff file/commit header line, rendered in a fixed bold blue</summary>
+            eDiffHeader
+            ''' <summary>Diff hunk line-number line ("@@ ... @@"), rendered in a fixed gray</summary>
+            eDiffLineNumber
             ''' <summary>Sentinel value for enum bounds checking</summary>
             eLastValue
         End Enum
@@ -79,6 +87,7 @@ Namespace Widgets
 
         Private pThemeManager As ThemeManager
         Private pFontDescription As Pango.FontDescription
+        Private pBoldFontDescription As Pango.FontDescription
         Private pFontMetrics As Utilities.FontMetrics
         Private pCharWidth As Integer = 8
         Private pLineHeight As Integer = 16
@@ -89,6 +98,7 @@ Namespace Widgets
             MyBase.New(Orientation.Horizontal, 0)
             Try
                 pFontDescription = Pango.FontDescription.FromString("Monospace 10")
+                pBoldFontDescription = Pango.FontDescription.FromString("Monospace Bold 10")
 
                 ' Wrap the drawing area with reserved interior padding (BorderWidth) so a
                 ' sunken bevel border can be painted around just the text - not the
@@ -323,6 +333,13 @@ Namespace Widgets
             Dim lErrorColor As Cairo.Color = ParseColor(If(lTheme?.ErrorColor, "#F48771"))
             Dim lWarningColor As Cairo.Color = ParseColor(If(lTheme?.WarningColor, "#CCA700"))
 
+            ' Diff colors are fixed regardless of theme - this is diff-content styling
+            ' (matching GitPanel's prior TextTag colors), not editor chrome
+            Dim lDiffAddedColor As Cairo.Color = ParseColor("#22863A")
+            Dim lDiffRemovedColor As Cairo.Color = ParseColor("#CB2431")
+            Dim lDiffHeaderColor As Cairo.Color = ParseColor("#032F62")
+            Dim lDiffLineNumberColor As Cairo.Color = ParseColor("#6A737D")
+
             Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
             lLayout.FontDescription = pFontDescription
 
@@ -335,11 +352,21 @@ Namespace Widgets
                 Dim lLogical As OutputLine = pLines(lVisual.LogicalIndex)
 
                 Dim lColor As Cairo.Color = lNormalColor
+                lLayout.FontDescription = pFontDescription
                 Select Case lLogical.Style
                     Case eOutputLineStyle.eError
                         lColor = lErrorColor
                     Case eOutputLineStyle.eWarning
                         lColor = lWarningColor
+                    Case eOutputLineStyle.eDiffAdded
+                        lColor = lDiffAddedColor
+                    Case eOutputLineStyle.eDiffRemoved
+                        lColor = lDiffRemovedColor
+                    Case eOutputLineStyle.eDiffHeader
+                        lColor = lDiffHeaderColor
+                        lLayout.FontDescription = pBoldFontDescription
+                    Case eOutputLineStyle.eDiffLineNumber
+                        lColor = lDiffLineNumberColor
                 End Select
 
                 Dim lY As Integer = (i - lStartIndex) * pLineHeight + TOP_PADDING

@@ -660,7 +660,7 @@ Namespace Widgets
                 
                 ' Update vertical scrollbar
                 pVScrollbar.Adjustment.Lower = 0
-                pVScrollbar.Adjustment.Upper = pMaxVerticalScroll
+                pVScrollbar.Adjustment.Upper = pTotalHeight
                 pVScrollbar.Adjustment.PageSize = pViewportHeight
                 pVScrollbar.Adjustment.StepIncrement = pRowHeight
                 pVScrollbar.Adjustment.PageIncrement = pViewportHeight

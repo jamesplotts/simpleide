@@ -95,7 +95,7 @@ Namespace Managers
         ' Get current branch name
         Public Async Function GetCurrentBranch() As Task(Of String)
             Try
-                Dim lResult As String = Await ExecuteGitCommandAsync("branch --Show-current")
+                Dim lResult As String = Await ExecuteGitCommandAsync("branch --show-current")
                 Return lResult.Trim()
                 
             Catch ex As Exception
@@ -110,7 +110,7 @@ Namespace Managers
                 Dim lFiles As New List(Of GitFileInfo)
                 
                 ' Get status output
-                Dim lResult As String = Await ExecuteGitCommandAsync("Status --porcelain")
+                Dim lResult As String = Await ExecuteGitCommandAsync("status --porcelain")
                 
                 If String.IsNullOrEmpty(lResult) Then Return lFiles
                 
@@ -195,9 +195,24 @@ Namespace Managers
             Try
                 Await ExecuteGitCommandAsync("add -A")
                 Return True
-                
+
             Catch ex As Exception
                 Console.WriteLine($"StageAll error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Unstages every currently-staged file, resetting the index back to HEAD
+        ''' </summary>
+        ''' <returns>True if the command ran without throwing, False otherwise</returns>
+        Public Async Function UnstageAll() As Task(Of Boolean)
+            Try
+                Await ExecuteGitCommandAsync("reset HEAD")
+                Return True
+
+            Catch ex As Exception
+                Console.WriteLine($"UnstageAll error: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -205,7 +220,7 @@ Namespace Managers
         ' Commit changes
         Public Async Function Commit(vMessage As String, Optional vAmend As Boolean = False) As Task(Of Boolean)
             Try
-                Dim lCommand As String = "Commit -m """ & vMessage.Replace("""", "\""") & """"
+                Dim lCommand As String = "commit -m """ & vMessage.Replace("""", "\""") & """"
                 If vAmend Then lCommand &= " --amend"
                 
                 Dim lResult As String = Await ExecuteGitCommandAsync(lCommand)
@@ -344,7 +359,7 @@ Namespace Managers
         ' Push to remote
         Public Async Function Push(Optional vRemote As String = "origin", Optional vBranch As String = "") As Task(Of Boolean)
             Try
-                Dim lCommand As String = $"Push {vRemote}"
+                Dim lCommand As String = $"push {vRemote}"
                 If Not String.IsNullOrEmpty(vBranch) Then
                     lCommand &= $" {vBranch}"
                 End If
@@ -361,7 +376,7 @@ Namespace Managers
         ' Pull from remote
         Public Async Function Pull(Optional vRemote As String = "origin", Optional vBranch As String = "") As Task(Of Boolean)
             Try
-                Dim lCommand As String = $"Pull {vRemote}"
+                Dim lCommand As String = $"pull {vRemote}"
                 If Not String.IsNullOrEmpty(vBranch) Then
                     lCommand &= $" {vBranch}"
                 End If
@@ -380,9 +395,40 @@ Namespace Managers
             Try
                 Dim lCommand As String = If(vStaged, $"diff --cached ""{vFilePath}""", $"diff ""{vFilePath}""")
                 Return Await ExecuteGitCommandAsync(lCommand)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"GetFileDiff error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Gets a file's combined staged+unstaged diff against HEAD - unlike GetFileDiff,
+        ''' this shows the full change regardless of whether the file is currently staged
+        ''' </summary>
+        ''' <param name="vFilePath">Path (relative to the repository root) of the file to diff</param>
+        ''' <returns>Unified diff text, or empty string if there is no difference</returns>
+        Public Async Function GetFileDiffFromHead(vFilePath As String) As Task(Of String)
+            Try
+                Return Await ExecuteGitCommandAsync($"diff HEAD -- ""{vFilePath}""")
+
+            Catch ex As Exception
+                Console.WriteLine($"GetFileDiffFromHead error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Gets the full diff introduced by a single commit
+        ''' </summary>
+        ''' <param name="vCommitHash">Hash (full or abbreviated) of the commit to show</param>
+        ''' <returns>Unified diff text for the commit, including its header</returns>
+        Public Async Function GetCommitDiff(vCommitHash As String) As Task(Of String)
+            Try
+                Return Await ExecuteGitCommandAsync($"show {vCommitHash}")
+
+            Catch ex As Exception
+                Console.WriteLine($"GetCommitDiff error: {ex.Message}")
                 Return ""
             End Try
         End Function
