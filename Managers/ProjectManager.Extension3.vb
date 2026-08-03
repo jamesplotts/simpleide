@@ -939,9 +939,7 @@ Namespace Managers
         Public Function ParseFile(vFile As SourceFileInfo) As Boolean
             Try
                 If vFile Is Nothing Then Return False
-                
-                Console.WriteLine($"ProjectManager.ParseFile: {vFile.FileName}")
-                
+
                 ' Parse the file content - ParseContent only takes 2 parameters: content and filepath
                 Dim lParseResult As SyntaxNode = Parser.ParseContent(vFile.TextContent, vFile.FilePath)
                 

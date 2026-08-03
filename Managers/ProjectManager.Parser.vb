@@ -1050,12 +1050,7 @@ Private Sub OnSourceFileInfoRequestProjectManager(sender As Object, e As SourceF
     Try
         ' Provide ourselves as the ProjectManager
         e.ProjectManager = Me
-        
-        Dim lSourceFile As SourceFileInfo = TryCast(sender, SourceFileInfo)
-        If lSourceFile IsNot Nothing Then
-            Console.WriteLine($"ProjectManager: Provided self-reference to SourceFileInfo for {lSourceFile.FileName}")
-        End If
-        
+
     Catch ex As Exception
         Console.WriteLine($"OnSourceFileInfoRequestProjectManager error: {ex.Message}")
     End Try

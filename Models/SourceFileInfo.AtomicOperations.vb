@@ -396,7 +396,6 @@ Namespace Models
 								Public Sub SetLineMetadataAndCharacterTokens(vLineIndex As Integer)
 								    Try
 								        SyncLock pSyncRoot
-								        Console.WriteLine("SourceFileInfo.SetLineMetadataAndCharacterTokens called")
                 ' Validate line index
 								        If vLineIndex < 0 OrElse vLineIndex >= pTextLines.Count Then Return
 								        
@@ -470,18 +469,15 @@ Namespace Models
 								            If lTokens IsNot Nothing AndAlso lTokens.Count > 0 Then
 								                lMetadata.SyntaxTokens = lTokens
 								                lMetadata.ParseState = LineParseState.eParsed
-								                Console.WriteLine($"SetLineMetadataAndCharacterTokens: Parsed {lTokens.Count} tokens for line {vLineIndex}")
 								            Else
 								                ' Parsing failed or returned no tokens - apply defaults
 								                lMetadata.SyntaxTokens = New List(Of SyntaxToken)()
 								                lMetadata.ParseState = LineParseState.eUnparsed
-								                Console.WriteLine($"SetLineMetadataAndCharacterTokens: Applied default tokens for line {vLineIndex}")
 								            End If
 								        Else
 								            ' Preserve existing tokens but adjust for length changes if needed
 								            ' The tokens themselves don't need to change for simple character insertions/deletions
 								            ' within existing tokens
-								            Console.WriteLine($"SetLineMetadataAndCharacterTokens: Preserving existing {lMetadata.SyntaxTokens.Count} tokens for line {vLineIndex}")
 								        End If
 								        
 								        ' Always update the CharacterTokens array using GetEncodedTokens
