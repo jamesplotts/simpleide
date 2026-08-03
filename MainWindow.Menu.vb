@@ -946,7 +946,7 @@ Partial Public Class MainWindow
             vFileMenu.Append(New SeparatorMenuItem())
             
             ' Create Revert to Saved menu item
-            Dim lRevertToSaved As MenuItem = CreateMenuItemWithIcon("_Revert To Saved", "document-revert")
+            Dim lRevertToSaved As MenuItem = CreateMenuItemWithIcon("_Revert To Saved", "edit-undo")
             AddHandler lRevertToSaved.Activated, AddressOf OnRevertToSaved
             vFileMenu.Append(lRevertToSaved)
             
