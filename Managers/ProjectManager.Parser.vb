@@ -327,88 +327,35 @@ Namespace Managers
         ''' Loads the project structure by parsing all source files with progress reporting
         ''' </summary>
         ''' <returns>True if successful, False otherwise</returns>
+        ''' <summary>
+        ''' Ensures every project source file is loaded, then parses the full project
+        ''' structure
+        ''' </summary>
+        ''' <remarks>
+        ''' Previously duplicated LoadAllSourceFiles's entire file-loading loop inline
+        ''' (same dictionary lookups, same WireSourceFileInfoEvents/LoadContent calls, same
+        ''' summary logging) immediately after already calling LoadAllSourceFiles() - 100%
+        ''' redundant work discarded moments later anyway once ParseProjectStructure()
+        ''' rebuilds the tree from scratch via Roslyn. This was the second, fully wasted
+        ''' pass of "load every file in the project" on every single project open.
+        ''' </remarks>
         Public Function LoadProjectStructure() As Boolean
             Try
-                Console.WriteLine("ProjectManager: Starting project structure parse...")
-                
                 ' Ensure we have a project loaded
                 If Not pIsProjectOpen OrElse pCurrentProjectInfo Is Nothing Then
                     Console.WriteLine("ProjectManager: No project is currently loaded")
                     Return False
                 End If
-                
+
                 ' Ensure all source files are loaded first
                 If Not LoadAllSourceFiles() Then
                     Console.WriteLine("ProjectManager: Failed to load source files")
                     Return False
                 End If
-                
-                ' Get list of source files
-                Dim lSourceFilePaths As List(Of String) = pCurrentProjectInfo.SourceFiles
-                
-                If lSourceFilePaths Is Nothing OrElse lSourceFilePaths.Count = 0 Then
-                    Console.WriteLine("ProjectManager: No source files in project")
-                    Return False
-                End If
-                
-                ' Ensure pSourceFiles dictionary is initialized
-                If pSourceFiles Is Nothing Then
-                    pSourceFiles = New Dictionary(Of String, SourceFileInfo)()
-                End If
-                
-                Dim lSuccessCount As Integer = 0
-                Dim lFailedFiles As New List(Of String)()
-                
-                ' Load each file
-                for each lFilePath in lSourceFilePaths
-                    Try
-                        ' Check if already loaded
-                        Dim lSourceFile As SourceFileInfo = Nothing
-                        
-                        If pSourceFiles.ContainsKey(lFilePath) Then
-                            lSourceFile = pSourceFiles(lFilePath)
-                            If lSourceFile.IsLoaded Then
-                                lSuccessCount += 1
-                                Continue for
-                            End If
-                        Else
-                            ' Create new SourceFileInfo
-                            lSourceFile = New SourceFileInfo(lFilePath, "")
-                            lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                            
-                            ' IMPORTANT: Wire up events and set ProjectManager reference
-                            WireSourceFileInfoEvents(lSourceFile)
-                            
-                            pSourceFiles(lFilePath) = lSourceFile
-                        End If
-                        
-                        ' Load the file
-                        If lSourceFile.LoadContent() Then
-                            lSuccessCount += 1
-                            Console.WriteLine($"  Loaded: {Path.GetFileName(lFilePath)} ({lSourceFile.Content.Length} chars)")
-                        Else
-                            lFailedFiles.Add(lFilePath)
-                            Console.WriteLine($"  Failed: {Path.GetFileName(lFilePath)}")
-                        End If
-                        
-                    Catch ex As Exception
-                        Console.WriteLine($"  Error loading {Path.GetFileName(lFilePath)}: {ex.Message}")
-                        lFailedFiles.Add(lFilePath)
-                    End Try
-                Next
-                
-                Console.WriteLine($"ProjectManager: Loaded {lSuccessCount} of {lSourceFilePaths.Count} source files")
-                
-                If lFailedFiles.Count > 0 Then
-                    Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
-                    for each lFile in lFailedFiles
-                        Console.WriteLine($"  - {Path.GetFileName(lFile)}")
-                    Next
-                End If
-                
+
                 ' Parse the project structure
                 Return ParseProjectStructure()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.LoadProjectStructure error: {ex.Message}")
                 Return False
