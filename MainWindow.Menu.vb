@@ -52,14 +52,25 @@ Partial Public Class MainWindow
     Private Function CreateMenuItemWithIcon(vLabel As String, vIconName As String) As MenuItem
         Try
             Dim lMenuItem As New MenuItem()
-            
+
             ' Create box to hold icon and label
             Dim lBox As New Box(Orientation.Horizontal, 6)
-            
-            ' Create icon
+
+            ' Create icon - request the symbolic variant so every menu icon renders as a
+            ' consistent, theme-colored monochrome glyph. Without this, several names
+            ' (application-exit, system-run, media-playback-start, process-stop,
+            ' help-browser, help-about) resolve to their full-color regular icon at
+            ' IconSize.Menu instead, which visually clashes against the rest of the
+            ' (correctly monochrome) menu - that inconsistency is what actually looked
+            ' "broken". Falls back to the plain name if a theme lacks the symbolic variant.
             Dim lIcon As New Image()
-            lIcon.SetFromIconName(vIconName, IconSize.Menu)
-            
+            Dim lSymbolicName As String = vIconName & "-symbolic"
+            If IconTheme.Default.HasIcon(lSymbolicName) Then
+                lIcon.SetFromIconName(lSymbolicName, IconSize.Menu)
+            Else
+                lIcon.SetFromIconName(vIconName, IconSize.Menu)
+            End If
+
             ' Create label with mnemonic support
             Dim lLabel As New Label(vLabel)
             lLabel.UseUnderline = True
