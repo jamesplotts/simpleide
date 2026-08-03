@@ -77,7 +77,7 @@ Partial Public Class MainWindow
                                 ExecuteGitCommand("add .", lProjectDir, Sub(addOutput, addExitCode)
                                     If addExitCode = 0 Then
                                         ' Commit
-                                        ExecuteGitCommand("Commit -m ""Initial Commit""", lProjectDir, Sub(commitOutput, commitExitCode)
+                                        ExecuteGitCommand("commit -m ""Initial Commit""", lProjectDir, Sub(commitOutput, commitExitCode)
                                             Application.Invoke(Sub()
                                                 If commitExitCode = 0 Then
                                                     ShowInfo("git", "Repository initialized with initial Commit.")
@@ -152,11 +152,12 @@ Partial Public Class MainWindow
     Public Sub ShowGitCommitDialog()
         Try
             If Not EnsureGitRepository() Then Return
-            
+
+            InitializeGitManager() ' GitCommitDialog takes a GitManager - never populated otherwise, since nothing else called this
             Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
             
             ' Check if there are changes to commit
-            ExecuteGitCommand("Status --porcelain", lProjectDir, Sub(output, ExitCode)
+            ExecuteGitCommand("status --porcelain", lProjectDir, Sub(output, ExitCode)
                 Application.Invoke(Sub()
                     If ExitCode = 0 AndAlso String.IsNullOrWhiteSpace(output) Then
                         ShowInfo("git", "No Changes to Commit.")
@@ -171,7 +172,7 @@ Partial Public Class MainWindow
                         
                         If Not String.IsNullOrWhiteSpace(lMessage) Then
                             ' Perform commit
-                            Dim lCommand As String = $"Commit -m ""{lMessage.Replace("""", """""")}"
+                            Dim lCommand As String = $"commit -m ""{lMessage.Replace("""", """""")}"""
                             
                             ExecuteGitCommand(lCommand, lProjectDir, Sub(commitOutput, commitExitCode)
                                 Application.Invoke(Sub()
@@ -212,14 +213,14 @@ Partial Public Class MainWindow
                     End If
                     
                     ' Get current branch
-                    ExecuteGitCommand("branch --Show-current", lProjectDir, Sub(branchOutput, branchExitCode)
+                    ExecuteGitCommand("branch --show-current", lProjectDir, Sub(branchOutput, branchExitCode)
                         If branchExitCode = 0 Then
                             Dim lBranch As String = branchOutput.Trim()
-                            
+
                             UpdateStatusBar("Pushing to remote...")
-                            
+
                             ' Push to remote
-                            ExecuteGitCommand($"Push origin {lBranch}", lProjectDir, Sub(pushOutput, pushExitCode)
+                            ExecuteGitCommand($"push origin {lBranch}", lProjectDir, Sub(pushOutput, pushExitCode)
                                 Application.Invoke(Sub()
                                     If pushExitCode = 0 Then
                                         ShowInfo("git", "Successfully pushed to remote.")
@@ -366,10 +367,10 @@ Partial Public Class MainWindow
     ' Show Git settings
     Public Sub ShowGitSettings()
         Try
-            ' Show preferences dialog on Git tab
-            'OnSettings(Nothing, Nothing)
-            ' TODO: Switch to Git tab
-            
+            ' Open (or switch to) the Preferences tab, then land on its Git sub-tab
+            OnEditPreferences(Nothing, Nothing)
+            pPreferencesTab?.SelectGitTab()
+
         Catch ex As Exception
             Console.WriteLine($"ShowGitSettings error: {ex.Message}")
             ShowError("git error", ex.Message)
@@ -623,17 +624,15 @@ Partial Public Class MainWindow
     
     Private Sub OnGitPush(vSender As Object, vArgs As EventArgs)
         Try
-            ' TODO: Implement Git push
-            ShowInfo("Git Push", "Git push Not yet implemented.")
+            GitPush()
         Catch ex As Exception
             Console.WriteLine($"OnGitPush error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub OnGitPull(vSender As Object, vArgs As EventArgs)
         Try
-            ' TODO: Implement Git pull
-            ShowInfo("Git Pull", "Git pull Not yet implemented.")
+            GitPull()
         Catch ex As Exception
             Console.WriteLine($"OnGitPull error: {ex.Message}")
         End Try

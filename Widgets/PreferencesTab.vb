@@ -203,8 +203,21 @@ Namespace Widgets
             End Set
         End Property
         
+        ''' <summary>
+        ''' Switches the category notebook to the Git tab - used by MainWindow.ShowGitSettings
+        ''' (the Git > Settings... menu command) so it lands directly on Git settings instead
+        ''' of just opening Preferences to whatever tab was last active
+        ''' </summary>
+        Public Sub SelectGitTab()
+            Try
+                pNotebook.CurrentPage = 3 ' Git tab - see InitializeUI's AppendPage order
+            Catch ex As Exception
+                Console.WriteLine($"PreferencesTab.SelectGitTab error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== UI Initialization =====
-        
+
         ''' <summary>
         ''' Initializes the preferences UI
         ''' </summary>
