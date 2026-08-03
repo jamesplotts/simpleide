@@ -25,9 +25,6 @@ Partial Public Class MainWindow
     Private pDebugProcess As Process = Nothing
     Private pBuildManager As BuildManager = Nothing
 
-    ' ===== Auto-Hide Timer Fields =====
-    Private pAutoHideTimerId As UInteger = 0
-
     Private pVersionIncrementedThisSession As Boolean = False
 
     
@@ -516,9 +513,6 @@ Partial Public Class MainWindow
                             UpdateStatusBar("Build succeeded")
                             ' Only append the summary line, not the full output
                             pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build succeeded =========={Environment.NewLine}")
-                            
-                            ' Start timer to auto-hide bottom panel after 5 seconds
-                            StartAutoHideBottomPanelTimer()
                         Else
                             Dim lErrorText As String = If(vArgs.Result.Errors.Count = 1, "error", "errors")
                             Dim lWarningText As String = If(vArgs.Result.Warnings.Count = 1, "warning", "warnings")
@@ -535,9 +529,6 @@ Partial Public Class MainWindow
                                 ' Switch to the Warnings tab (index 2) if only warnings
                                 pBuildOutputPanel.Notebook.CurrentPage = 2
                             End If
-                            
-                            ' Cancel any pending auto-hide timer since build failed
-                            CancelAutoHideBottomPanelTimer()
                         End If
                     End If
                     
@@ -663,65 +654,39 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnBuildOutput error: {ex.Message}")
         End Try
     End Sub
-    
-    
-    ''' <summary>
-    ''' Starts a timer to auto-hide the bottom panel after 5 seconds
-    ''' </summary>
-    Private Sub StartAutoHideBottomPanelTimer()
+
+    ' ===== BuildOutputPanel's own Build/Run/Stop button row =====
+
+    Private Sub OnBuildOutputPanelBuildRequested()
         Try
-            ' Cancel any existing timer
-            CancelAutoHideBottomPanelTimer()
-            
-            ' Start new timer for 5 seconds (5000 milliseconds)
-            pAutoHideTimerId = GLib.Timeout.Add(5000, AddressOf OnAutoHideBottomPanelTimeout)
-            Console.WriteLine("Started auto-hide timer for bottom panel (5 seconds)")
-            
+            OnBuildProject(Nothing, EventArgs.Empty)
         Catch ex As Exception
-            Console.WriteLine($"StartAutoHideBottomPanelTimer error: {ex.Message}")
+            Console.WriteLine($"OnBuildOutputPanelBuildRequested error: {ex.Message}")
         End Try
     End Sub
-    
-    ''' <summary>
-    ''' Cancels the auto-hide timer if it's running
-    ''' </summary>
-    Private Sub CancelAutoHideBottomPanelTimer()
+
+    Private Sub OnBuildOutputPanelRunRequested()
         Try
-            If pAutoHideTimerId > 0 Then
-                GLib.Source.Remove(pAutoHideTimerId)
-                pAutoHideTimerId = 0
-                Console.WriteLine("Cancelled auto-hide timer for bottom panel")
-            End If
+            ' OnRunProject gates on the sender being a CustomDrawButton/MenuItem to
+            ' distinguish a genuine button/menu click from other trigger paths (e.g. F5,
+            ' which calls BuildAndRun directly instead). Passing the real toolbar Run
+            ' button as a stand-in sender is honest here - this genuinely is an equivalent
+            ' user-initiated run request, just from BuildOutputPanel's own copy of the button.
+            OnRunProject(pRunButton, EventArgs.Empty)
         Catch ex As Exception
-            Console.WriteLine($"CancelAutoHideBottomPanelTimer error: {ex.Message}")
+            Console.WriteLine($"OnBuildOutputPanelRunRequested error: {ex.Message}")
         End Try
     End Sub
-    
-    ''' <summary>
-    ''' Timer callback to hide the bottom panel and return focus to editor
-    ''' </summary>
-    ''' <returns>False to stop the timer</returns>
-    ''' <remarks>
-    ''' Hides the bottom panel after timeout and returns focus to the current editor
-    ''' </remarks>
-    Private Function OnAutoHideBottomPanelTimeout() As Boolean
+
+    Private Sub OnBuildOutputPanelStopRequested()
         Try
-            ' Hide the bottom panel (this will also return focus to editor)
-            HideBottomPanel()
-            UpdateStatusBar("Build output hidden (build succeeded)")
-            
-            ' Clear the timer ID
-            pAutoHideTimerId = 0
-            
-            ' Return False to stop the timer (one-shot timer)
-            Return False
-            
+            OnStopDebugging(Nothing, EventArgs.Empty)
         Catch ex As Exception
-            Console.WriteLine($"OnAutoHideBottomPanelTimeout error: {ex.Message}")
-            pAutoHideTimerId = 0
-            Return False
+            Console.WriteLine($"OnBuildOutputPanelStopRequested error: {ex.Message}")
         End Try
-    End Function
+    End Sub
+
+
 
     ''' <summary>
     ''' Checks if any open files have been modified since last save

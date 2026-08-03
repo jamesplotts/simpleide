@@ -23,11 +23,23 @@ Namespace Widgets
         Public Event ErrorsCopied()
         Public Event SendErrorsToAI(vErrorsText As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
-        
+        ''' <summary>Raised when the panel's own Build button is clicked</summary>
+        Public Event BuildRequested()
+        ''' <summary>Raised when the panel's own Run button is clicked</summary>
+        Public Event RunRequested()
+        ''' <summary>Raised when the panel's own Stop button is clicked</summary>
+        Public Event StopRequested()
+
         ' ===== Private Fields =====
         Private pNotebook As CustomDrawNotebook
         Private pCopyButton As CustomDrawButton
         Private pSendToAIButton As CustomDrawButton
+        ''' <summary>Panel-local copies of the toolbar's Build/Run/Stop buttons, shown as
+        ''' their own row above pNotebook so build actions are reachable without switching
+        ''' back to the main toolbar</summary>
+        Private pBuildButton As CustomDrawButton
+        Private pRunButton As CustomDrawButton
+        Private pStopButton As CustomDrawButton
         Private pThemeManager As ThemeManager
 
         ''' <summary>
@@ -140,7 +152,9 @@ Namespace Widgets
                 lHeaderBox.PackStart(pSendToAIButton, False, False, 0)
                 
                 Me.PackStart(lHeaderBox, False, False, 0)
-                
+
+                CreateBuildActionsToolbar()
+
                 ' Create notebook
                 pNotebook = New CustomDrawNotebook(pThemeManager)
                 pNotebook.ShowHidePanelButton = False ' Bottom panel needs hide button
@@ -158,7 +172,141 @@ Namespace Widgets
                 Console.WriteLine($"BuildOutputPanel.CreateUI error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Creates a row of Build/Run/Stop buttons - panel-local copies of the main
+        ''' toolbar's build action buttons, positioned above pNotebook so build actions
+        ''' stay reachable without switching back to the main window's toolbar
+        ''' </summary>
+        Private Sub CreateBuildActionsToolbar()
+            Try
+                Dim lActionsBox As New Box(Orientation.Horizontal, 6)
+                lActionsBox.MarginStart = 6
+                lActionsBox.MarginEnd = 6
+                lActionsBox.MarginBottom = 4
+
+                pBuildButton = New CustomDrawButton("Build", LoadPanelIconPixbuf("build_start", True))
+                pBuildButton.TooltipText = "Build project (F6)"
+                pBuildButton.ThemeManager = pThemeManager
+                AddHandler pBuildButton.Clicked, AddressOf OnBuildButtonClicked
+                lActionsBox.PackStart(pBuildButton, False, False, 0)
+
+                pRunButton = New CustomDrawButton("Run", LoadPanelIconPixbuf("run", True))
+                pRunButton.TooltipText = "Run project (builds if needed) (Shift+F5)"
+                pRunButton.ThemeManager = pThemeManager
+                AddHandler pRunButton.Clicked, AddressOf OnRunButtonClicked
+                lActionsBox.PackStart(pRunButton, False, False, 0)
+
+                pStopButton = New CustomDrawButton("Stop", LoadPanelIconPixbuf("build_stop", True))
+                pStopButton.TooltipText = "Stop Debugging"
+                pStopButton.ThemeManager = pThemeManager
+                AddHandler pStopButton.Clicked, AddressOf OnStopButtonClicked
+                lActionsBox.PackStart(pStopButton, False, False, 0)
+
+                SetProjectLoaded(False, False)
+
+                Me.PackStart(lActionsBox, False, False, 0)
+
+            Catch ex As Exception
+                Console.WriteLine($"BuildOutputPanel.CreateBuildActionsToolbar error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Loads a 16px icon for the build-actions row, matching the main toolbar's icon
+        ''' set - tries the embedded "SimpleIDE.{name}[dark].png" resource first (the same
+        ''' assets MainWindow.Toolbar.vb's LoadToolbarIconPixbuf uses), falling back to a
+        ''' themed icon-theme lookup if the resource can't be loaded
+        ''' </summary>
+        Private Function LoadPanelIconPixbuf(vResourceBaseName As String, vUsesDarkVariant As Boolean) As Gdk.Pixbuf
+            Const PIXEL_SIZE As Integer = 16
+            Try
+                Dim lDarkSuffix As String = ""
+                If vUsesDarkVariant AndAlso pThemeManager IsNot Nothing AndAlso pThemeManager.GetCurrentThemeObject.IsDarkTheme Then
+                    lDarkSuffix = "dark"
+                End If
+                Dim lResourceName As String = $"SimpleIDE.{vResourceBaseName}{lDarkSuffix}.png"
+
+                Using lStream As System.IO.Stream = GetType(BuildOutputPanel).Assembly.GetManifestResourceStream(lResourceName)
+                    If lStream IsNot Nothing Then
+                        Dim lPixbuf As New Gdk.Pixbuf(lStream)
+                        If lPixbuf.Width <> PIXEL_SIZE OrElse lPixbuf.Height <> PIXEL_SIZE Then
+                            lPixbuf = lPixbuf.ScaleSimple(PIXEL_SIZE, PIXEL_SIZE, Gdk.InterpType.Bilinear)
+                        End If
+                        Return lPixbuf
+                    End If
+                End Using
+            Catch ex As Exception
+                Console.WriteLine($"LoadPanelIconPixbuf embedded resource error ({vResourceBaseName}): {ex.Message}")
+            End Try
+
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon("system-run", PIXEL_SIZE, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"LoadPanelIconPixbuf fallback icon load error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Sets the Sensitive state of the panel's Build/Run/Stop buttons, mirroring the
+        ''' main toolbar's own MainWindow.UpdateToolbarButtons logic
+        ''' </summary>
+        ''' <param name="vHasProject">Whether a project is currently open</param>
+        ''' <param name="vIsDebugging">Whether a run/debug session is currently active</param>
+        Public Sub SetProjectLoaded(vHasProject As Boolean, vIsDebugging As Boolean)
+            Try
+                If pBuildButton IsNot Nothing Then pBuildButton.Sensitive = vHasProject
+                If pRunButton IsNot Nothing Then pRunButton.Sensitive = vHasProject
+                If pStopButton IsNot Nothing Then pStopButton.Sensitive = vIsDebugging
+            Catch ex As Exception
+                Console.WriteLine($"BuildOutputPanel.SetProjectLoaded error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub OnBuildButtonClicked(vSender As Object, vArgs As EventArgs)
+            Try
+                RaiseEvent BuildRequested()
+            Catch ex As Exception
+                Console.WriteLine($"OnBuildButtonClicked error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub OnRunButtonClicked(vSender As Object, vArgs As EventArgs)
+            Try
+                RaiseEvent RunRequested()
+            Catch ex As Exception
+                Console.WriteLine($"OnRunButtonClicked error: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub OnStopButtonClicked(vSender As Object, vArgs As EventArgs)
+            Try
+                RaiseEvent StopRequested()
+            Catch ex As Exception
+                Console.WriteLine($"OnStopButtonClicked error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Reloads the Build/Run/Stop buttons' dark/light icon variants after a theme
+        ''' change - CustomDrawButton's own icon contrast-inversion keeps itself in sync
+        ''' automatically, but the hand-authored dark/light PNG asset swap needs this
+        ''' </summary>
+        Private Sub OnBuildActionsThemeChanged(vTheme As EditorTheme)
+            RefreshBuildActionIcons()
+        End Sub
+
+        Private Sub RefreshBuildActionIcons()
+            Try
+                If pBuildButton IsNot Nothing Then pBuildButton.IconPixbuf = LoadPanelIconPixbuf("build_start", True)
+                If pRunButton IsNot Nothing Then pRunButton.IconPixbuf = LoadPanelIconPixbuf("run", True)
+                If pStopButton IsNot Nothing Then pStopButton.IconPixbuf = LoadPanelIconPixbuf("build_stop", True)
+            Catch ex As Exception
+                Console.WriteLine($"BuildOutputPanel.RefreshBuildActionIcons error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Creates the output tab with a CustomDrawTextOutput console
         ''' </summary>
@@ -910,11 +1058,21 @@ Namespace Widgets
         ''' <param name="vThemeManager">The ThemeManager instance</param>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnBuildActionsThemeChanged
+                End If
                 pThemeManager = vThemeManager
-               
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnBuildActionsThemeChanged
+                End If
+
                 pNotebook.SetThemeManager(vThemeManager)
                 If pCopyButton IsNot Nothing Then pCopyButton.ThemeManager = vThemeManager
                 If pSendToAIButton IsNot Nothing Then pSendToAIButton.ThemeManager = vThemeManager
+                If pBuildButton IsNot Nothing Then pBuildButton.ThemeManager = vThemeManager
+                If pRunButton IsNot Nothing Then pRunButton.ThemeManager = vThemeManager
+                If pStopButton IsNot Nothing Then pStopButton.ThemeManager = vThemeManager
+                RefreshBuildActionIcons()
 
                 ' Pass theme manager to data grids if they support it
                 If pErrorsDataGrid IsNot Nothing Then

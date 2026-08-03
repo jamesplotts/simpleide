@@ -38,6 +38,12 @@ Namespace Managers
         Public Event SendErrorsToAI(vErrorsText As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         Public Event HelpTitleChanged(vTitle As String)
+        ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
+        Public Event BuildRequested()
+        ''' <summary>Relayed from BuildOutputPanel.RunRequested (its own panel-local Run button)</summary>
+        Public Event RunRequested()
+        ''' <summary>Relayed from BuildOutputPanel.StopRequested (its own panel-local Stop button)</summary>
+        Public Event StopRequested()
 
 
         
@@ -262,6 +268,9 @@ Namespace Managers
                 AddHandler pBuildOutputPanel.ErrorSelected, AddressOf OnErrorWarningSelected
                 AddHandler pBuildOutputPanel.WarningSelected, AddressOf OnErrorWarningSelected
                 AddHandler pBuildOutputPanel.SendErrorsToAI, AddressOf OnSendErrorsToAI
+                AddHandler pBuildOutputPanel.BuildRequested, AddressOf OnBuildOutputPanelBuildRequested
+                AddHandler pBuildOutputPanel.RunRequested, AddressOf OnBuildOutputPanelRunRequested
+                AddHandler pBuildOutputPanel.StopRequested, AddressOf OnBuildOutputPanelStopRequested
                 
                 ' Set theme if available
                 If pThemeManager IsNot Nothing Then
@@ -294,7 +303,19 @@ Namespace Managers
         Private Sub OnSendErrorsToAI(vErrorsText As String)
             RaiseEvent SendErrorsToAI(vErrorsText)
         End Sub
-        
+
+        Private Sub OnBuildOutputPanelBuildRequested()
+            RaiseEvent BuildRequested()
+        End Sub
+
+        Private Sub OnBuildOutputPanelRunRequested()
+            RaiseEvent RunRequested()
+        End Sub
+
+        Private Sub OnBuildOutputPanelStopRequested()
+            RaiseEvent StopRequested()
+        End Sub
+
         Private Function CreateTabLabel(vLabelText As String, vModified As Boolean) As Widget
             Try
                 Dim lBox As New Box(Orientation.Horizontal, 5)

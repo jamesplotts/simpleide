@@ -391,6 +391,7 @@ Partial Public Class MainWindow
             pBuildButton.Sensitive = lHasProject
             pRunButton.Sensitive = lHasProject
             pStopButton.Sensitive = pIsDebugging
+            pBuildOutputPanel?.SetProjectLoaded(lHasProject, pIsDebugging)
 
             ' Git, AI, Help - always enabled
             pGitButton.Sensitive = True

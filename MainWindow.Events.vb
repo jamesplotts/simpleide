@@ -276,8 +276,11 @@ Partial Public Class MainWindow
             End If
             
             ' Check if this is from the Run button (not F5)
-            ' F5 calls OnBuildAndRun directly, so OnRunProject should only handle button clicks
-            Dim lIsFromButton As Boolean = TypeOf vSender Is ToolButton OrElse _
+            ' F5 calls OnBuildAndRun directly, so OnRunProject should only handle button clicks.
+            ' The toolbar's Run button (and BuildOutputPanel's copy of it) are CustomDrawButton,
+            ' not the native ToolButton this check originally targeted - it silently stopped
+            ' matching when the toolbar was converted to CustomDrawButton earlier this session.
+            Dim lIsFromButton As Boolean = TypeOf vSender Is CustomDrawButton OrElse _
                                            TypeOf vSender Is MenuItem
             
             If Not lIsFromButton Then
