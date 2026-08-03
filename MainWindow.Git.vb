@@ -339,10 +339,17 @@ Partial Public Class MainWindow
     Public Sub ShowGitBranchDialog()
         Try
             If Not EnsureGitRepository() Then Return
-            
-            ' TODO: Implement branch management dialog
-            ShowInfo("git", "Branch management coming soon!")
-            
+
+            InitializeGitManager()
+            pGitManager.RepositoryPath = System.IO.Path.GetDirectoryName(pCurrentProject)
+
+            Using lDialog As New GitBranchDialog(Me, pGitManager, pThemeManager)
+                If lDialog.Run() = CInt(ResponseType.Ok) AndAlso Not String.IsNullOrEmpty(lDialog.SelectedBranch) Then
+                    GitCheckout(lDialog.SelectedBranch)
+                End If
+                lDialog.Destroy()
+            End Using
+
         Catch ex As Exception
             Console.WriteLine($"ShowGitBranchDialog error: {ex.Message}")
             ShowError("git error", ex.Message)

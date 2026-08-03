@@ -355,7 +355,25 @@ Namespace Managers
                 Return False
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Deletes a local branch
+        ''' </summary>
+        ''' <param name="vBranchName">Name of the local branch to delete</param>
+        ''' <param name="vForce">True to force-delete even if not fully merged (git branch -D), False to require a merged branch (git branch -d)</param>
+        ''' <returns>True if the command ran without throwing, False otherwise</returns>
+        Public Async Function DeleteBranch(vBranchName As String, Optional vForce As Boolean = False) As Task(Of Boolean)
+            Try
+                Dim lFlag As String = If(vForce, "-D", "-d")
+                Await ExecuteGitCommandAsync($"branch {lFlag} {vBranchName}")
+                Return True
+
+            Catch ex As Exception
+                Console.WriteLine($"DeleteBranch error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
         ' Push to remote
         Public Async Function Push(Optional vRemote As String = "origin", Optional vBranch As String = "") As Task(Of Boolean)
             Try

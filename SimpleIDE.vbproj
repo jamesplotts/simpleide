@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.986.0</AssemblyVersion>
-    <FileVersion>1.1.986.0</FileVersion>
+    <AssemblyVersion>1.1.989.0</AssemblyVersion>
+    <FileVersion>1.1.989.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.986</Version>
+    <Version>1.1.989</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -313,6 +313,7 @@
     <Compile Include="Dialogs/NewProjectDialog.vb" />
     <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
     <Compile Include="Dialogs/GitCommitDialog.vb" />
+    <Compile Include="Dialogs/GitBranchDialog.vb" />
     <Compile Include="Dialogs/AISettingsDialog.vb" />
     <!-- Syntax and Language Support -->
     <Compile Include="Syntax/CodeSenseEngine.vb" />
