@@ -231,37 +231,26 @@ Namespace Widgets
                 
                 Dim lMenu As New Menu()
                 Dim lNode As SyntaxNode = pSelectedNode.Node
-                
+                Dim lVisualNode As VisualNode = pSelectedNode
+
                 ' Navigate to Definition - NOT for namespaces
                 If lNode.NodeType <> CodeNodeType.eNamespace Then
                     Dim lNavigateItem As New MenuItem("Navigate to Definition")
                     AddHandler lNavigateItem.Activated, Sub(s, e)
                         Try
-                            ' Get FilePath from node attributes or FilePath property
-                            Dim lFilePath As String = ""
-                            
-                            ' Try FilePath property first
-                            If Not String.IsNullOrEmpty(lNode.FilePath) Then
-                                lFilePath = lNode.FilePath
-                            ElseIf lNode.Attributes IsNot Nothing AndAlso lNode.Attributes.ContainsKey("FilePath") Then
-                                ' Try Attributes dictionary
-                                lFilePath = lNode.Attributes("FilePath")
-                            End If
-                            
-                            If Not String.IsNullOrEmpty(lFilePath) Then
-                                Console.WriteLine($"NavigateToDefinition: {lNode.Name} at {lFilePath}:{lNode.StartLine}")
-                                RaiseEvent NodeActivated(lNode)
-                            Else
-                                Console.WriteLine($"NavigateToDefinition: No FilePath for {lNode.Name}")
-                                ' Still raise the event with the line number, MainWindow might have the file open
-                                RaiseEvent NodeActivated(lNode)
-                            End If
+                            ' Route through the same path double-click uses (HandleNodeActivation
+                            ' raises NavigateToFile, which MainWindow actually listens to) instead
+                            ' of raising NodeActivated - that event has never had a subscriber
+                            ' anywhere in the app, so this menu item was a complete no-op before.
+                            ' HandleNodeActivation also correctly skips partial types, which this
+                            ' handler didn't.
+                            HandleNodeActivation(lVisualNode)
                         Catch ex As Exception
                             Console.WriteLine($"Navigate error: {ex.Message}")
                         End Try
                     End Sub
                     lMenu.Append(lNavigateItem)
-                    
+
                     ' Add separator after navigate
                     lMenu.Append(New SeparatorMenuItem())
                 End If
