@@ -133,9 +133,12 @@ Partial Public Class MainWindow
             Dim lSaveAll As New MenuItem("Save A_ll")
             AddHandler lSaveAll.Activated, AddressOf OnSaveAll
             lFileMenu.Append(lSaveAll)
-            
+
+            ' Revert to Saved
+            AddRevertToSavedMenuItem(lFileMenu)
+
             lFileMenu.Append(New SeparatorMenuItem())
-            
+
             ' Close File
             Dim lClose As New MenuItem("_Close")
             AddHandler lClose.Activated, AddressOf OnCloseFile
