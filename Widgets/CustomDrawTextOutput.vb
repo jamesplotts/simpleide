@@ -187,6 +187,7 @@ Namespace Widgets
                 If pThemeManager IsNot Nothing Then
                     AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
                 End If
+                If pVScrollbar IsNot Nothing Then pVScrollbar.ThemeManager = vThemeManager
                 pDrawingArea?.QueueDraw()
                 pClientAreaBox?.QueueDraw()
 
