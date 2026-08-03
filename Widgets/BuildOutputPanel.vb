@@ -133,27 +133,35 @@ Namespace Widgets
                 ' Create title label
                 Dim lTitle As New Label("Build output")
                 lTitle.Halign = Align.Start
-                lHeaderBox.PackStart(lTitle, True, True, 0)
-                
+                lHeaderBox.PackStart(lTitle, False, False, 0)
+
+                ' Build/Run/Stop sit as the header's CenterWidget - GTK keeps this
+                ' horizontally centered across the header's full width regardless of how
+                ' wide the title or the Copy Errors/Send to AI buttons are, the same
+                ' mechanism GtkHeaderBar uses for a centered title
+                lHeaderBox.CenterWidget = CreateBuildActionsToolbar()
+
                 ' Create copy button
                 pCopyButton = New CustomDrawButton()
                 pCopyButton.Label = "Copy Errors"
                 pCopyButton.TooltipText = "Copy all Errors and Warnings to clipboard"
                 pCopyButton.Sensitive = False
                 AddHandler pCopyButton.Clicked, AddressOf OnCopyButtonClicked
-                lHeaderBox.PackStart(pCopyButton, False, False, 0)
-                
+
                 ' Create send to AI button
                 pSendToAIButton = New CustomDrawButton()
                 pSendToAIButton.Label = "Send to AI"
                 pSendToAIButton.TooltipText = "Send Errors to AI assistant for help"
                 pSendToAIButton.Sensitive = False
                 AddHandler pSendToAIButton.Clicked, AddressOf OnSendToAIButtonClicked
-                lHeaderBox.PackStart(pSendToAIButton, False, False, 0)
-                
-                Me.PackStart(lHeaderBox, False, False, 0)
 
-                CreateBuildActionsToolbar()
+                ' PackEnd stacks inward from the box's end edge, so the FIRST widget packed
+                ' ends up rightmost - pack in reverse (Send to AI, then Copy Errors) so the
+                ' visual left-to-right order reads "Copy Errors, Send to AI" as before
+                lHeaderBox.PackEnd(pSendToAIButton, False, False, 0)
+                lHeaderBox.PackEnd(pCopyButton, False, False, 0)
+
+                Me.PackStart(lHeaderBox, False, False, 0)
 
                 ' Create notebook
                 pNotebook = New CustomDrawNotebook(pThemeManager)
@@ -178,13 +186,13 @@ Namespace Widgets
         ''' toolbar's build action buttons, positioned above pNotebook so build actions
         ''' stay reachable without switching back to the main window's toolbar
         ''' </summary>
-        Private Sub CreateBuildActionsToolbar()
+        ''' <summary>
+        ''' Builds the Build/Run/Stop row - returned rather than packed here so the caller
+        ''' can set it as the header box's CenterWidget
+        ''' </summary>
+        Private Function CreateBuildActionsToolbar() As Box
+            Dim lActionsBox As New Box(Orientation.Horizontal, 6)
             Try
-                Dim lActionsBox As New Box(Orientation.Horizontal, 6)
-                lActionsBox.MarginStart = 6
-                lActionsBox.MarginEnd = 6
-                lActionsBox.MarginBottom = 4
-
                 pBuildButton = New CustomDrawButton("Build", LoadPanelIconPixbuf("build_start", True))
                 pBuildButton.TooltipText = "Build project (F6)"
                 pBuildButton.ThemeManager = pThemeManager
@@ -205,12 +213,11 @@ Namespace Widgets
 
                 SetProjectLoaded(False, False)
 
-                Me.PackStart(lActionsBox, False, False, 0)
-
             Catch ex As Exception
                 Console.WriteLine($"BuildOutputPanel.CreateBuildActionsToolbar error: {ex.Message}")
             End Try
-        End Sub
+            Return lActionsBox
+        End Function
 
         ''' <summary>
         ''' Loads a 16px icon for the build-actions row, matching the main toolbar's icon
