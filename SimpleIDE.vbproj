@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.989.0</AssemblyVersion>
-    <FileVersion>1.1.989.0</FileVersion>
+    <AssemblyVersion>1.1.992.0</AssemblyVersion>
+    <FileVersion>1.1.992.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.989</Version>
+    <Version>1.1.992</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -265,7 +265,6 @@
     <Compile Include="Widgets/CustomDrawDataGrid.Methods.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.ContextMenu.vb" />
-    <Compile Include="Widgets/CustomDrawObjectExplorer.Debug.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Drawing.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Events.vb" />
     <Compile Include="Widgets/CustomDrawObjectExplorer.Navigation.vb" />

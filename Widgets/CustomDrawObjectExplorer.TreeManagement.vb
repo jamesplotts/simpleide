@@ -1002,12 +1002,56 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 End If
                 
                 Console.WriteLine($"ExpandAllNamespaces: Complete. {pVisibleNodes.Count} nodes now visible")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ExpandAllNamespaces error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Helper to recursively add namespace nodes to expanded set
+        ''' </summary>
+        ''' <param name="vNode">Current node to process</param>
+        ''' <param name="vParentPath">Path of parent node</param>
+        Private Sub AddNamespaceNodesToExpanded(vNode As SyntaxNode, vParentPath As String)
+            Try
+                If vNode Is Nothing Then Return
+
+                ' Special handling for document root
+                If vNode.NodeType = CodeNodeType.eDocument Then
+                    For Each lChild In vNode.Children
+                        AddNamespaceNodesToExpanded(lChild, "")
+                    Next
+                    Return
+                End If
+
+                ' Build current path
+                Dim lCurrentPath As String = If(String.IsNullOrEmpty(vParentPath),
+                                                vNode.Name,
+                                                vParentPath & "." & vNode.Name)
+
+                ' Add namespace nodes and classes with members
+                If vNode.NodeType = CodeNodeType.eNamespace OrElse
+                   vNode.NodeType = CodeNodeType.eClass OrElse
+                   vNode.NodeType = CodeNodeType.eModule OrElse
+                   vNode.NodeType = CodeNodeType.eStructure OrElse
+                   vNode.NodeType = CodeNodeType.eInterface Then
+
+                    If vNode.Children.Count > 0 Then
+                        pExpandedNodes.Add(lCurrentPath)
+
+                        ' Recursively process children
+                        For Each lChild In vNode.Children
+                            AddNamespaceNodesToExpanded(lChild, lCurrentPath)
+                        Next
+                    End If
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"AddNamespaceNodesToExpanded error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Collapses all namespace nodes in the tree
         ''' </summary>

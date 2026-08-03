@@ -38,12 +38,6 @@ Partial Public Class MainWindow
             
             ' AI menu
             CreateAIMenu()
-            
-        #If DEBUG Then
-            ' Debug menu (NEW - for diagnostic options)
-            CreateDebugMenu()
-            AddObjectExplorerDebugMenuItem
-        #End If
 
             ' Help menu
             CreateHelpMenu()
@@ -52,50 +46,8 @@ Partial Public Class MainWindow
             Console.WriteLine($"CreateMenuBar error: {ex.Message}")
         End Try
     End Sub
-    
-#If DEBUG Then    
-    ''' <summary>
-    ''' Creates the Debug menu with diagnostic options
-    ''' </summary>
-    Private Sub CreateDebugMenu()
-        Try
-            Dim lDebugMenu As New Menu()
-            Dim lDebugMenuItem As New MenuItem("_Debug")
-            lDebugMenuItem.Submenu = lDebugMenu
-            
-            ' Diagnose Left Panel
-            Dim lDiagnoseLeftPanel As New MenuItem("Diagnose Left Panel")
-            AddHandler lDiagnoseLeftPanel.Activated, Sub() DiagnoseLeftPanelVisibility()
-            lDebugMenu.Append(lDiagnoseLeftPanel)
-            
-            ' Force Show Left Panel
-            Dim lForceShowLeft As New MenuItem("Force Show Left Panel")
-            AddHandler lForceShowLeft.Activated, Sub() ForceShowLeftPanel()
-            lDebugMenu.Append(lForceShowLeft)
-            
-            ' Separator
-            lDebugMenu.Append(New SeparatorMenuItem())
 
-            ' Ensure Notebooks Ready
-            Dim lEnsureNotebooks As New MenuItem("Ensure Notebooks Ready")
-            AddHandler lEnsureNotebooks.Activated, Sub() EnsureNotebooksReady()
-            lDebugMenu.Append(lEnsureNotebooks)
-            
-            Dim lDiagnosticItem As New MenuItem("Export Syntax Tree Diagnostic")
-            AddHandler lDiagnosticItem.Activated, AddressOf OnExportSyntaxTreeDiagnostic            
-            lDebugMenu.Append(lDiagnosticItem)
-            
-             ' Add to menu bar (before Help menu)
-            pMenuBar.Append(lDebugMenuItem)
-            
-            Console.WriteLine("Debug menu created with diagnostic options")
-            
-        Catch ex As Exception
-            Console.WriteLine($"CreateDebugMenu error: {ex.Message}")
-        End Try
-    End Sub  
-#End If      
-    
+
     ' Helper method to create a menu item with icon
     Private Function CreateMenuItemWithIcon(vLabel As String, vIconName As String) As MenuItem
         Try
@@ -900,129 +852,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-#If DEBUG Then
-    ' Add: SimpleIDE.MainWindow.AddObjectExplorerDebugMenuItem
-    ' To: MainWindow.MenuBar.vb
-    ''' <summary>
-    ''' Adds a debug menu item for Object Explorer diagnostics
-    ''' </summary>
-    Private Sub AddObjectExplorerDebugMenuItem()
-        Try
-            ' Find or create Debug menu
-            Dim lDebugMenu As Menu = Nothing
-            Dim lMenuBar As MenuBar = pMenuBar
-            
-            ' Look for existing Debug menu
-            for each lItem in lMenuBar.Children
-                If TypeOf lItem Is MenuItem Then
-                    Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
-                    If lMenuItem.Label = "_Debug" Then
-                        lDebugMenu = DirectCast(lMenuItem.Submenu, Menu)
-                        Exit for
-                    End If
-                End If
-            Next
-            
-            ' Create Debug menu if it doesn't exist
-            If lDebugMenu Is Nothing Then
-                Dim lDebugMenuItem As New MenuItem("_Debug")
-                lDebugMenu = New Menu()
-                lDebugMenuItem.Submenu = lDebugMenu
-                lMenuBar.Add(lDebugMenuItem)
-            End If
-            
-            ' Add separator if menu has items
-            If lDebugMenu.Children.Length > 0 Then
-                lDebugMenu.Add(New SeparatorMenuItem())
-            End If
-            
-            ' Add Object Explorer debug items
-            Dim lOEDebugItem As New MenuItem("Object Explorer - Debug Parser Output")
-            AddHandler lOEDebugItem.Activated, Sub()
-                Try
-                    If pObjectExplorer IsNot Nothing Then
-                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                            lExplorer.DebugProjectParserOutput()
-                        End If
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"Debug Parser Output error: {ex.Message}")
-                End Try
-            End Sub
-            lDebugMenu.Add(lOEDebugItem)
-            
-            Dim lOETreeDebugItem As New MenuItem("Object Explorer - Debug Visual Tree")
-            AddHandler lOETreeDebugItem.Activated, Sub()
-                Try
-                    If pObjectExplorer IsNot Nothing Then
-                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                            lExplorer.DiagnoseTreeViewStatus()
-                        End If
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"Debug Visual Tree error: {ex.Message}")
-                End Try
-            End Sub
-            lDebugMenu.Add(lOETreeDebugItem)
-            
-            Dim lOERebuildItem As New MenuItem("Object Explorer - Force Rebuild")
-            AddHandler lOERebuildItem.Activated, Sub()
-                Try
-                    If pObjectExplorer IsNot Nothing Then
-                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                            lExplorer.RebuildVisualTree()
-                            lExplorer.ForceCompleteRefresh()
-                        End If
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"Force Rebuild error: {ex.Message}")
-                End Try
-            End Sub
-            lDebugMenu.Add(lOERebuildItem)
-            
-            Dim lOEExpandNamespacesItem As New MenuItem("Object Explorer - Force Expand Namespaces")
-            AddHandler lOEExpandNamespacesItem.Activated, Sub()
-                Try
-                    If pObjectExplorer IsNot Nothing Then
-                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                            lExplorer.ForceExpandNamespaces()
-                        End If
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"Force Expand Namespaces error: {ex.Message}")
-                End Try
-            End Sub
-            lDebugMenu.Add(lOEExpandNamespacesItem)
-
-            Dim lOEDebugBuildItem As New MenuItem("Object Explorer - Debug Build Process")
-            AddHandler lOEDebugBuildItem.Activated, Sub()
-                Try
-                    If pObjectExplorer IsNot Nothing Then
-                        If TypeOf pObjectExplorer Is CustomDrawObjectExplorer Then
-                            Dim lExplorer As CustomDrawObjectExplorer = DirectCast(pObjectExplorer, CustomDrawObjectExplorer)
-                            lExplorer.DebugBuildVisualNodes()
-                        End If
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"Debug Build Process error: {ex.Message}")
-                End Try
-            End Sub
-            lDebugMenu.Add(lOEDebugBuildItem)
-
-            ' Show all menu items
-            lMenuBar.ShowAll()
-            
-            Console.WriteLine("Object Explorer debug menu items added")
-            
-        Catch ex As Exception
-            Console.WriteLine($"AddObjectExplorerDebugMenuItem error: {ex.Message}")
-        End Try
-    End Sub
-
     ''' <summary>
     ''' Handles the Revert to Saved menu action
     ''' </summary>
@@ -1123,7 +952,5 @@ Partial Public Class MainWindow
             Console.WriteLine($"AddRevertToSavedMenuItem error: {ex.Message}")
         End Try
     End Sub
-#End If
 
-    
 End Class
