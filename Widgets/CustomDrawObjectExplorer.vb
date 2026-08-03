@@ -707,8 +707,10 @@ Namespace Widgets
                 ' Preserve expanded state for nodes that still exist
                 pExpandedNodes = lPreviousExpandedPaths
                 
-                ' Always expand root namespace if single namespace pattern
-                If vProjectSyntaxTree.NodeType = CodeNodeType.eDocument AndAlso 
+                ' Always expand root namespace if single namespace pattern - root may be
+                ' eDocument (old custom parser) or eProject (Roslyn-based ProjectParser)
+                If (vProjectSyntaxTree.NodeType = CodeNodeType.eDocument OrElse
+                    vProjectSyntaxTree.NodeType = CodeNodeType.eProject) AndAlso
                    vProjectSyntaxTree.Children.Count = 1 Then
                     Dim lFirstChild As SyntaxNode = vProjectSyntaxTree.Children(0)
                     If lFirstChild.NodeType = CodeNodeType.eNamespace Then

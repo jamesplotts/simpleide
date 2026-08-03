@@ -92,6 +92,19 @@ Namespace Managers
                 Return pCompilation
             End Get
         End Property
+
+        ''' <summary>
+        ''' Gets the root node of the tree built by the last successful ParseProject() call
+        ''' </summary>
+        ''' <remarks>
+        ''' pProjectTree itself has no public accessor, so callers had no way to retrieve
+        ''' ParseProject()'s actual result tree - only its Boolean success/fail return value.
+        ''' </remarks>
+        Public ReadOnly Property ProjectTree As SimpleSyntaxNode
+            Get
+                Return pProjectTree?.RootNode
+            End Get
+        End Property
         
         ''' <summary>
         ''' Gets parse errors from the last operation
@@ -897,22 +910,57 @@ Namespace Managers
         Private Sub MergeFileIntoNamespace(vFileNode As SimpleSyntaxNode, vNamespaceNode As SimpleSyntaxNode)
             Try
                 If vFileNode Is Nothing OrElse vNamespaceNode Is Nothing Then Return
-                
+
                 ' Add all top-level types from the file to the namespace
                 for each lChild in vFileNode.Children
                     Select Case lChild.NodeType
                         Case CodeNodeType.eClass, CodeNodeType.eModule, CodeNodeType.eInterface,
                              CodeNodeType.eStructure, CodeNodeType.eEnum, CodeNodeType.eDelegate
-                            vNamespaceNode.AddChild(lChild)
-                            
+                            MergeTypeIntoNamespace(lChild, vNamespaceNode)
+
                         Case CodeNodeType.eNamespace
                             ' Merge namespace contents
                             MergeNamespaceContents(lChild, vNamespaceNode)
                     End Select
                 Next
-                
+
             Catch ex As Exception
                 Console.WriteLine($"MergeFileIntoNamespace error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Merges a class/module/interface/structure/enum/delegate node into a namespace,
+        ''' combining it with an existing same-named/same-typed node instead of adding a
+        ''' duplicate sibling
+        ''' </summary>
+        ''' <remarks>
+        ''' Required for VB partial classes, which are declared separately per file (e.g.
+        ''' MainWindow.vb, MainWindow.AI.vb, MainWindow.Build.vb, ...) but represent one
+        ''' single type. Without this, every file contributing to a partial class produced
+        ''' its own separate top-level node (MainWindow appearing 30+ times in the Object
+        ''' Explorer, once per file) instead of one merged class containing every file's
+        ''' members. A same-name/same-type collision within one namespace can only happen
+        ''' for a legitimately partial type - VB.NET itself rejects non-partial duplicates
+        ''' at compile time - so merging on that match alone is safe.
+        ''' </remarks>
+        Private Sub MergeTypeIntoNamespace(vTypeNode As SimpleSyntaxNode, vNamespaceNode As SimpleSyntaxNode)
+            Try
+                Dim lExisting As SimpleSyntaxNode = vNamespaceNode.Children.FirstOrDefault(Function(c) _
+                    c.NodeType = vTypeNode.NodeType AndAlso
+                    String.Equals(c.Name, vTypeNode.Name, StringComparison.OrdinalIgnoreCase))
+
+                If lExisting IsNot Nothing Then
+                    lExisting.IsPartial = True
+                    For Each lMember In vTypeNode.Children.ToList()
+                        lExisting.AddChild(lMember)
+                    Next
+                Else
+                    vNamespaceNode.AddChild(vTypeNode)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"MergeTypeIntoNamespace error: {ex.Message}")
             End Try
         End Sub
         

@@ -461,9 +461,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     Case CodeNodeType.eNamespace
                         Return True
                         
-                    ' FIXED: Also show document nodes if they're the root
-                    ' The root namespace is sometimes marked as eDocument type
-                    Case CodeNodeType.eDocument
+                    ' FIXED: Also show document/project nodes if they're the root - root may
+                    ' be eDocument (old custom parser) or eProject (Roslyn-based ProjectParser)
+                    Case CodeNodeType.eDocument, CodeNodeType.eProject
                         ' Show if it's the root node or has children
                         Return vNode Is pRootNode OrElse vNode.Children.Count > 0
                         
@@ -697,8 +697,10 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             Try
                 If vNode Is Nothing Then Return
                 
-                ' Special handling for root document nodes
-                If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
+                ' Special handling for root document/project nodes - root may be eDocument
+                ' (old custom parser) or eProject (Roslyn-based ProjectParser)
+                If vNode Is pRootNode AndAlso
+                   (vNode.NodeType = CodeNodeType.eDocument OrElse vNode.NodeType = CodeNodeType.eProject) Then
                     'Console.WriteLine($"BuildVisualNodes: Root is eDocument with {vNode.Children.Count} children")
                     
                     ' Sort children alphabetically before processing
@@ -806,8 +808,8 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                         ' This allows users to expand them to see if there's anything inside
                         Return vNode.Children.Count > 0
                         
-                    Case CodeNodeType.eDocument
-                        ' Document nodes should show children if they have any
+                    Case CodeNodeType.eDocument, CodeNodeType.eProject
+                        ' Document/project nodes should show children if they have any
                         Return vNode.Children.Count > 0
                         
                     Case Else
@@ -1017,8 +1019,8 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             Try
                 If vNode Is Nothing Then Return
 
-                ' Special handling for document root
-                If vNode.NodeType = CodeNodeType.eDocument Then
+                ' Special handling for document/project root
+                If vNode.NodeType = CodeNodeType.eDocument OrElse vNode.NodeType = CodeNodeType.eProject Then
                     For Each lChild In vNode.Children
                         AddNamespaceNodesToExpanded(lChild, "")
                     Next
@@ -1109,8 +1111,8 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ' Now determine what to expand
                 Dim lPathsToExpand As New List(Of String)()
                 
-                If pRootNode.NodeType = CodeNodeType.eDocument Then
-                    ' Root is a document - expand its namespace children
+                If pRootNode.NodeType = CodeNodeType.eDocument OrElse pRootNode.NodeType = CodeNodeType.eProject Then
+                    ' Root is a document/project - expand its namespace children
                     for each lChild in pRootNode.Children
                         If lChild.NodeType = CodeNodeType.eNamespace Then
                             lPathsToExpand.Add(lChild.Name)
@@ -1157,9 +1159,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
             Try
                 pVisibleNodes.Clear()
                 
-                ' Start from root's children if root is a document node
+                ' Start from root's children if root is a document/project node
                 If pRootNode IsNot Nothing Then
-                    If pRootNode.NodeType = CodeNodeType.eDocument Then
+                    If pRootNode.NodeType = CodeNodeType.eDocument OrElse pRootNode.NodeType = CodeNodeType.eProject Then
                         ' Add all root children
                         for each lChild in pRootNode.Children
                             Dim lPath As String = lChild.Name

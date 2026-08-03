@@ -263,12 +263,22 @@ Namespace Managers
                 
                 ' Parse the project - ParseProject() now uses the ProjectManager's current project
                 Dim lParseResult As Boolean = pProjectParser.ParseProject()
-                
+
                 If pProjectParser IsNot Nothing Then
                     pParseErrors = pProjectParser.ParseErrors
+
+                    ' ParseProject() only returns a Boolean - the actual result tree has to
+                    ' be pulled from the parser separately. This was missing entirely, so
+                    ' pProjectSyntaxTree never reflected the Roslyn-based parse at all; it
+                    ' still held whatever BuildProjectSyntaxTree() (the old custom parser)
+                    ' had last set it to, meaning the real Roslyn parse result - all the
+                    ' work ParseProject() just did - was silently discarded every time.
+                    If lParseResult Then
+                        pProjectSyntaxTree = pProjectParser.ProjectTree
+                    End If
                 End If
-                
-                pLastParseTime = DateTime.Now     
+
+                pLastParseTime = DateTime.Now
            
                 ' Check if we actually got a valid tree
                 If pProjectSyntaxTree IsNot Nothing Then

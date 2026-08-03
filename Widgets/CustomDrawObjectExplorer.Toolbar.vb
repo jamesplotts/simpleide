@@ -1255,8 +1255,9 @@ Namespace Widgets
             Try
                 If vNode Is Nothing Then Return
                 
-                ' Handle root document nodes (same as BuildVisualNodes)
-                If vNode Is pRootNode AndAlso vNode.NodeType = CodeNodeType.eDocument Then
+                ' Handle root document/project nodes (same as BuildVisualNodes)
+                If vNode Is pRootNode AndAlso
+                   (vNode.NodeType = CodeNodeType.eDocument OrElse vNode.NodeType = CodeNodeType.eProject) Then
                     For Each lChild In vNode.Children
                         BuildCompleteVisualTree(lChild, vParent, vLevel, vParentPath, vNodeList)
                     Next
@@ -1339,8 +1340,8 @@ Namespace Widgets
                                 lParts.Insert(0, lNode.Name)
                             End If
                             
-                        Case CodeNodeType.eDocument, CodeNodeType.eRegion
-                            ' Skip document and region nodes
+                        Case CodeNodeType.eDocument, CodeNodeType.eProject, CodeNodeType.eRegion
+                            ' Skip document/project and region nodes
                             
                         Case Else
                             ' For other types, include if it's the target

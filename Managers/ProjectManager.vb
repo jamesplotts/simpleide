@@ -337,17 +337,27 @@ Namespace Managers
                 InitializeProjectReferences()
                 InitializeIndices()
 
-                ' CRITICAL: Load and parse all source files
-                Console.WriteLine("LoadProject: Loading and parsing source files...")
+                ' Load (and, via ParseFile, individually parse) every source file's own
+                ' content/SyntaxTree - still needed here since callers of bare LoadProject()
+                ' (not LoadProjectWithParsing) rely on pSourceFiles being populated
                 Dim lFilesLoaded As Integer = EnsureAllFilesLoaded()
                 Console.WriteLine($"LoadProject: Loaded {lFilesLoaded} source files")
-                
-                ' Build the project syntax tree after loading files
-                If pSourceFiles.Count > 0 Then
-                    Console.WriteLine("LoadProject: Building project syntax tree...")
-                    BuildProjectSyntaxTree()
-                End If
-                
+
+                ' NOTE: deliberately NOT calling BuildProjectSyntaxTree() here anymore. It
+                ' merged every file's already-parsed SyntaxTree into pProjectSyntaxTree and
+                ' raised ProjectStructureLoaded - but LoadProjectWithParsing (the caller for
+                ' every real "open project" action) always follows LoadProject() with
+                ' LoadProjectStructure(), which rebuilds pProjectSyntaxTree from scratch via
+                ' the Roslyn-based ProjectParser and raises the exact same event again. That
+                ' made this call 100% wasted work on every project load: an expensive
+                ' whole-tree merge (SortNodeChildrenRecursively + per-node merging across all
+                ' 254 files) whose result gets immediately discarded, plus a duplicate
+                ' ProjectStructureLoaded firing that made Object Explorer/CodeSense rebuild
+                ' their UI from the tree twice. GetProjectSyntaxTree() still lazily calls
+                ' BuildProjectSyntaxTree() on first access if nothing has built a tree yet,
+                ' so callers of bare LoadProject() (e.g. CustomDrawProjectExplorer's
+                ' CreateNewFolder) still get a tree when they actually ask for one.
+
                 ' Raise event
                 RaiseEvent ProjectLoaded(vProjectPath)
                 
