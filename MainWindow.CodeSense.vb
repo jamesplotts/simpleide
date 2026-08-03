@@ -66,19 +66,39 @@ Partial Public Class MainWindow
                 If pProjectManager.CurrentProjectInfo IsNot Nothing Then
                     Dim lProjectInfo = pProjectManager.CurrentProjectInfo
 
-                    ' Add assembly references
+                    ' Add assembly references - HintPath (from <Reference><HintPath>) is
+                    ' the real resolvable path; .Name alone is just the reference's short
+                    ' name and isn't a loadable path. Fall back to searching the build
+                    ' output directory if HintPath is missing or stale.
                     for each lRef in lProjectInfo.References
                         Try
-                            pCodeSenseEngine.AddReference(lRef.Name)
+                            Dim lPath As String = lRef.HintPath
+                            If String.IsNullOrEmpty(lPath) OrElse Not System.IO.File.Exists(lPath) Then
+                                lPath = ResolveReferenceAssemblyPath(lProjectInfo.ProjectDirectory, lRef.Name)
+                            End If
+                            If Not String.IsNullOrEmpty(lPath) Then
+                                pCodeSenseEngine.AddReference(lPath)
+                            End If
                         Catch ex As Exception
                             Console.WriteLine($"Failed to add Reference {lRef.Name}: {ex.Message}")
                         End Try
                     Next
 
-                    ' Add package references
+                    ' Add package references - a <PackageReference> only carries a NuGet
+                    ' package Name/Version, never a file path (resolving that requires
+                    ' reading NuGet's restore output, not just the raw .vbproj XML) - so
+                    ' passing lRef.Name straight to AddReference (which calls
+                    ' Assembly.LoadFrom) was trying to load "<ProjectDir>/<PackageName>"
+                    ' as a file path on every project load, which never exists. Resolve
+                    ' against the project's own build output directory instead, which
+                    ' already has every package's DLL copied alongside the project's own
+                    ' compiled output after a successful build.
                     for each lRef in lProjectInfo.PackageReferences
                         Try
-                            pCodeSenseEngine.AddReference(lRef.Name)
+                            Dim lPath As String = ResolveReferenceAssemblyPath(lProjectInfo.ProjectDirectory, lRef.Name)
+                            If Not String.IsNullOrEmpty(lPath) Then
+                                pCodeSenseEngine.AddReference(lPath)
+                            End If
                         Catch ex As Exception
                             Console.WriteLine($"Failed to add PackageReference {lRef.Name}: {ex.Message}")
                         End Try
@@ -99,6 +119,38 @@ Partial Public Class MainWindow
             Console.WriteLine($"UpdateCodeSenseReferences error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Resolves a bare reference/package name to an actual DLL path by searching the
+    ''' project's own build output directory - after a successful build this already
+    ''' contains every referenced assembly (project references AND NuGet package
+    ''' references) copied alongside the project's own compiled output, so this avoids
+    ''' needing to parse NuGet's global package cache or restore metadata
+    ''' </summary>
+    ''' <param name="vProjectDir">Project's root directory</param>
+    ''' <param name="vAssemblyName">Bare assembly/package name - no path, no extension</param>
+    ''' <returns>Full path to the resolved DLL, or Nothing if it can't be found (e.g. the project hasn't been built yet)</returns>
+    Private Function ResolveReferenceAssemblyPath(vProjectDir As String, vAssemblyName As String) As String
+        Try
+            If String.IsNullOrEmpty(vProjectDir) OrElse String.IsNullOrEmpty(vAssemblyName) Then Return Nothing
+
+            Dim lConfigurations As String() = {"Debug", "Release"}
+            Dim lFrameworks As String() = {"net9.0", "net8.0", "net7.0", "net6.0"}
+
+            for each lConfig in lConfigurations
+                for each lFramework in lFrameworks
+                    Dim lCandidate As String = System.IO.Path.Combine(vProjectDir, "bin", lConfig, lFramework, $"{vAssemblyName}.dll")
+                    If System.IO.File.Exists(lCandidate) Then Return lCandidate
+                Next
+            Next
+
+            Return Nothing
+
+        Catch ex As Exception
+            Console.WriteLine($"ResolveReferenceAssemblyPath error: {ex.Message}")
+            Return Nothing
+        End Try
+    End Function
 
     ''' <summary>
     ''' Handle CodeSense request from editor using ProjectParser data
