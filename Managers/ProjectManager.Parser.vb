@@ -332,28 +332,17 @@ Namespace Managers
         ''' structure
         ''' </summary>
         ''' <remarks>
-        ''' Previously duplicated LoadAllSourceFiles's entire file-loading loop inline
-        ''' (same dictionary lookups, same WireSourceFileInfoEvents/LoadContent calls, same
-        ''' summary logging) immediately after already calling LoadAllSourceFiles() - 100%
-        ''' redundant work discarded moments later anyway once ParseProjectStructure()
-        ''' rebuilds the tree from scratch via Roslyn. This was the second, fully wasted
-        ''' pass of "load every file in the project" on every single project open.
+        ''' Just delegates to ParseProjectStructure(), which already does its own
+        ''' "ensure files are loaded" check via LoadAllSourceFiles() internally (see its
+        ''' own body) - this method used to duplicate that same LoadAllSourceFiles() call
+        ''' itself first, running the full "iterate every project file" pass twice back to
+        ''' back on every project load for no reason (and before that, a third redundant
+        ''' inline copy of the same loop on top of that - see git history). This name is
+        ''' kept as a distinct public entry point since existing callers
+        ''' (LoadProjectWithParsing, RefreshProjectStructure) already call it by name.
         ''' </remarks>
         Public Function LoadProjectStructure() As Boolean
             Try
-                ' Ensure we have a project loaded
-                If Not pIsProjectOpen OrElse pCurrentProjectInfo Is Nothing Then
-                    Console.WriteLine("ProjectManager: No project is currently loaded")
-                    Return False
-                End If
-
-                ' Ensure all source files are loaded first
-                If Not LoadAllSourceFiles() Then
-                    Console.WriteLine("ProjectManager: Failed to load source files")
-                    Return False
-                End If
-
-                ' Parse the project structure
                 Return ParseProjectStructure()
 
             Catch ex As Exception
