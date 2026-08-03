@@ -23,9 +23,9 @@ Namespace Widgets
         Private pDiffView As CustomDrawTextOutput
         Private pCommitMessageEntry As TextView
         Private pCommitButton As CustomDrawButton
-        Private pPushButton As ToolButton
-        Private pPullButton As ToolButton
-        Private pRefreshButton As ToolButton
+        Private pPushButton As CustomDrawButton
+        Private pPullButton As CustomDrawButton
+        Private pRefreshButton As CustomDrawButton
         Private pBranchLabel As Label
         Private pStageAllButton As CustomDrawButton
         Private pUnstageAllButton As CustomDrawButton
@@ -99,44 +99,59 @@ Namespace Widgets
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Creates the panel's top action row - CustomDrawButtons (bevel style, matching
+        ''' every other button in this panel) instead of a native Gtk.Toolbar, which rendered
+        ''' flat and, under ToolbarStyle.Icons, showed no label text at all if the system
+        ''' icon theme happened to lack "view-refresh"/"go-down"/"go-up" - leaving the
+        ''' buttons entirely blank
+        ''' </summary>
         Private Function CreateToolbar() As Widget
-            Dim lToolbar As New Toolbar()
-            lToolbar.ToolbarStyle = ToolbarStyle.Icons
-            lToolbar.IconSize = IconSize.SmallToolbar
+            Dim lToolbarBox As New Box(Orientation.Horizontal, 6)
+            lToolbarBox.MarginTop = 4
+            lToolbarBox.MarginBottom = 4
+            lToolbarBox.MarginStart = 6
+            lToolbarBox.MarginEnd = 6
 
             ' Refresh button
-            pRefreshButton = New ToolButton(Nothing, "Refresh")
-            pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
+            pRefreshButton = New CustomDrawButton("Refresh", LoadGitIconPixbuf("view-refresh"))
             pRefreshButton.TooltipText = "Refresh git Status"
-            lToolbar.Insert(pRefreshButton, -1)
-
-            lToolbar.Insert(New SeparatorToolItem(), -1)
+            lToolbarBox.PackStart(pRefreshButton, False, False, 0)
 
             ' Pull button
-            pPullButton = New ToolButton(Nothing, "Pull")
-            pPullButton.IconWidget = Image.NewFromIconName("go-down", IconSize.SmallToolbar)
+            pPullButton = New CustomDrawButton("Pull", LoadGitIconPixbuf("go-down"))
             pPullButton.TooltipText = "Pull from remote"
-            lToolbar.Insert(pPullButton, -1)
+            lToolbarBox.PackStart(pPullButton, False, False, 0)
 
             ' Push button
-            pPushButton = New ToolButton(Nothing, "Push")
-            pPushButton.IconWidget = Image.NewFromIconName("go-up", IconSize.SmallToolbar)
+            pPushButton = New CustomDrawButton("Push", LoadGitIconPixbuf("go-up"))
             pPushButton.TooltipText = "Push to remote"
-            lToolbar.Insert(pPushButton, -1)
-
-            lToolbar.Insert(New SeparatorToolItem(), -1)
+            lToolbarBox.PackStart(pPushButton, False, False, 0)
 
             ' Branch label
-            Dim lBranchItem As New ToolItem()
             Dim lBranchBox As New Box(Orientation.Horizontal, 6)
             lBranchBox.PackStart(New Label("Branch:"), False, False, 0)
             pBranchLabel = New Label("master")
             pBranchLabel.Markup = "<b>master</b>"
             lBranchBox.PackStart(pBranchLabel, False, False, 0)
-            lBranchItem.Add(lBranchBox)
-            lToolbar.Insert(lBranchItem, -1)
+            lToolbarBox.PackEnd(lBranchBox, False, False, 0)
 
-            Return lToolbar
+            Return lToolbarBox
+        End Function
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a panel button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast, so no separate
+        ''' dark-variant asset is needed the way BuildOutputPanel's hand-authored PNGs are
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadGitIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.LoadGitIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
         End Function
 
         ''' <summary>
@@ -157,6 +172,9 @@ Namespace Widgets
                 End If
 
                 pNotebook.SetThemeManager(vThemeManager)
+                If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
+                If pPullButton IsNot Nothing Then pPullButton.ThemeManager = vThemeManager
+                If pPushButton IsNot Nothing Then pPushButton.ThemeManager = vThemeManager
                 If pStageAllButton IsNot Nothing Then pStageAllButton.ThemeManager = vThemeManager
                 If pUnstageAllButton IsNot Nothing Then pUnstageAllButton.ThemeManager = vThemeManager
                 If pCommitButton IsNot Nothing Then pCommitButton.ThemeManager = vThemeManager
@@ -355,10 +373,10 @@ Namespace Widgets
             lButtonBox.MarginStart = 6
             lButtonBox.MarginEnd = 6
 
-            pStageAllButton = New CustomDrawButton("Stage All")
+            pStageAllButton = New CustomDrawButton("Stage All", LoadGitIconPixbuf("list-add"))
             lButtonBox.PackStart(pStageAllButton, False, False, 0)
 
-            pUnstageAllButton = New CustomDrawButton("Unstage All")
+            pUnstageAllButton = New CustomDrawButton("Unstage All", LoadGitIconPixbuf("list-remove"))
             lButtonBox.PackStart(pUnstageAllButton, False, False, 0)
 
             lTopBox.PackStart(lButtonBox, False, False, 0)
@@ -394,7 +412,7 @@ Namespace Widgets
 
             ' Commit button
             Dim lCommitButtonBox As New Box(Orientation.Horizontal, 6)
-            pCommitButton = New CustomDrawButton("Commit")
+            pCommitButton = New CustomDrawButton("Commit", LoadGitIconPixbuf("document-save"))
             pCommitButton.Sensitive = False
             lCommitButtonBox.PackEnd(pCommitButton, False, False, 0)
             lCommitBox.PackStart(lCommitButtonBox, False, False, 0)
