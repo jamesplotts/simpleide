@@ -582,7 +582,7 @@ Partial Public Class MainWindow
             
             ' Initialize Repository
             Dim lInitRepo As New MenuItem("_Initialize Repository")
-            ' TODO: AddHandler lInitRepo.Activated, AddressOf OnGitInitialize
+            AddHandler lInitRepo.Activated, AddressOf GitInitRepository
             lGitMenu.Append(lInitRepo)
             
             lGitMenu.Append(New SeparatorMenuItem())
