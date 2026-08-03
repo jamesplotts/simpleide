@@ -170,9 +170,11 @@ Namespace Managers
                 )
                 
                 ' Create empty compilation with assembly name from CurrentProjectInfo
-                Dim lAssemblyName As String = If(pProjectManager.CurrentProjectInfo?.AssemblyName, 
-                                                  pProjectManager.CurrentProjectName,
-                                                  "SimpleIDE")
+                ' NOTE: not a 3-argument If() - see the matching note in ParseProject
+                Dim lAssemblyNameCandidate As String = pProjectManager.CurrentProjectInfo?.AssemblyName
+                Dim lAssemblyName As String =
+                    If(Not String.IsNullOrEmpty(lAssemblyNameCandidate), lAssemblyNameCandidate,
+                       If(Not String.IsNullOrEmpty(pProjectManager.CurrentProjectName), pProjectManager.CurrentProjectName, "SimpleIDE"))
                 
                 pCompilation = VisualBasicCompilation.Create(
                     lAssemblyName,
@@ -184,12 +186,11 @@ Namespace Managers
                 ' Create converter
                 pConverter = New RoslynConverter()
                 
-                ' Create project tree with assembly name from CurrentProjectInfo
+                ' Create project tree with assembly name from CurrentProjectInfo (same value
+                ' already resolved above for the compilation's assembly name)
                 pProjectTree = New ProjectSyntaxTree() with {
                     .RootNamespace = pProjectManager.RootNamespace,
-                    .AssemblyName = If(pProjectManager.CurrentProjectInfo?.AssemblyName, 
-                                       pProjectManager.CurrentProjectName,
-                                       "SimpleIDE")
+                    .AssemblyName = lAssemblyName
                 }
                 
                 pIsInitialized = True
@@ -262,10 +263,17 @@ Namespace Managers
                 End If
 
                 ' Parse all files
-                Dim lProjectTree As New SimpleSyntaxNode(CodeNodeType.eProject,
-                    If(pProjectManager.CurrentProjectInfo?.AssemblyName,
-                       pProjectManager.CurrentProjectName,
-                       "SimpleIDE"))
+                ' NOTE: this must NOT be written as a 3-argument If() - that resolves to
+                ' VB's ternary conditional If(Boolean, TruePart, FalsePart), not a
+                ' null-coalescing chain, so the first argument (a String) gets implicitly
+                ' converted to Boolean as the "condition" and throws InvalidCastException
+                ' for any AssemblyName value that isn't Nothing (including "", its default -
+                ' see ProjectInfo.AssemblyName) - which is essentially every real project.
+                Dim lAssemblyName As String = pProjectManager.CurrentProjectInfo?.AssemblyName
+                Dim lProjectDisplayName As String =
+                    If(Not String.IsNullOrEmpty(lAssemblyName), lAssemblyName,
+                       If(Not String.IsNullOrEmpty(pProjectManager.CurrentProjectName), pProjectManager.CurrentProjectName, "SimpleIDE"))
+                Dim lProjectTree As New SimpleSyntaxNode(CodeNodeType.eProject, lProjectDisplayName)
                 lProjectTree.FilePath = pProjectManager.ProjectFile
 
                 ' Create root namespace node if needed
