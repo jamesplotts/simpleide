@@ -30,11 +30,13 @@ Namespace Widgets
         Private pSendToAIButton As CustomDrawButton
         Private pThemeManager As ThemeManager
 
-        
-        ' Output tab (still uses ScrolledWindow for text)
-        Private pOutputScrolledWindow As ScrolledWindow
-        Private pOutputTextView As TextView
-        Private pOutputBuffer As TextBuffer
+        ''' <summary>
+        ''' Custom-drawn, line-based console output for the Output tab - replaced a native
+        ''' Gtk.TextView + Gtk.ScrolledWindow, which became very slow to lay out/redraw once
+        ''' a build streamed more than a few thousand lines. Includes its own sunken bevel
+        ''' border and vertical CustomDrawScrollbar internally.
+        ''' </summary>
+        Private pOutputView As CustomDrawTextOutput
         
         ' Errors tab with DataGrid (NO ScrolledWindow)
         Private pErrorsDataGrid As CustomDrawDataGrid
@@ -158,35 +160,14 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Creates the output tab with TextView
+        ''' Creates the output tab with a CustomDrawTextOutput console
         ''' </summary>
         Private Sub CreateOutputTab()
             Try
-                pOutputScrolledWindow = New ScrolledWindow()
-                pOutputScrolledWindow.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-                pOutputScrolledWindow.ShadowType = Gtk.ShadowType.None
-                
-                pOutputTextView = New TextView()
-                pOutputTextView.Editable = False
-                'pOutputTextView.Selectable = True
-                pOutputTextView.WrapMode = WrapMode.Word
-                pOutputTextView.Monospace = True
-                
-                pOutputBuffer = pOutputTextView.Buffer
-                
-                pOutputScrolledWindow.Add(pOutputTextView)
-                
-                ' Add tags for colored output
-                Dim lErrorTag As New TextTag("error")
-                lErrorTag.Foreground = "red"
-                pOutputBuffer.TagTable.Add(lErrorTag)
-                
-                Dim lWarningTag As New TextTag("warning")
-                lWarningTag.Foreground = "orange"
-                pOutputBuffer.TagTable.Add(lWarningTag)
-                
-                pNotebook.AppendPage(pOutputScrolledWindow,"Output")
-                
+                pOutputView = New CustomDrawTextOutput()
+                pOutputView.SetThemeManager(pThemeManager)
+                pNotebook.AppendPage(pOutputView, "Output")
+
             Catch ex As Exception
                 Console.WriteLine($"CreateOutputTab error: {ex.Message}")
             End Try
@@ -389,82 +370,92 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
+        ''' Checks if we're currently on the main GTK thread - the managed thread ID is 1
+        ''' for the thread that runs Program.Main/Gtk.Application.Run in this app, matching
+        ''' the same heuristic ThemeManager.IsOnMainThread already uses
+        ''' </summary>
+        ''' <remarks>
+        ''' Replaces a previous, incorrect check here (Application.EventsPending(), which
+        ''' tests whether GTK's event queue happens to be non-empty at the moment - true or
+        ''' false essentially at random relative to which thread is calling - not which
+        ''' thread is calling). Under a burst of AppendOutput calls, that let a "false" read
+        ''' defer some calls via Application.Invoke while adjacent calls ran immediately,
+        ''' letting queued (deferred) calls finish after later, non-deferred ones and
+        ''' scramble output line order
+        ''' </remarks>
+        Private Function IsOnMainThread() As Boolean
+            Try
+                Return System.Threading.Thread.CurrentThread.ManagedThreadId = 1
+            Catch
+                ' If we can't determine, assume we're not on main thread for safety
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Appends text to the output tab with thread-safe buffer handling
         ''' </summary>
         ''' <param name="vText">Text to append</param>
         Public Sub AppendOutput(vText As String)
             Try
                 ' Ensure we're on the UI thread
-                If Not Application.EventsPending() Then
+                If Not IsOnMainThread() Then
                     Application.Invoke(Sub() AppendOutput(vText))
                     Return
                 End If
-                
-                ' Use marks instead of iterators for position tracking
-                Dim lEndMark As TextMark = pOutputBuffer.CreateMark(Nothing, pOutputBuffer.EndIter, False)
-                pOutputBuffer.PlaceCursor(pOutputBuffer.GetIterAtMark(lEndMark))
-                pOutputBuffer.InsertAtCursor(vText)
-                
-                ' Scroll using the mark (which survives buffer changes)
-                ScrollOutputToBottom()
-                
-                ' Clean up the mark
-                pOutputBuffer.DeleteMark(lEndMark)
-                
+
+                pOutputView?.AppendOutput(vText, CustomDrawTextOutput.eOutputLineStyle.eNormal)
+
             Catch ex As Exception
                 Console.WriteLine($"AppendOutput error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Appends text with a specific tag to the output tab
         ''' </summary>
         ''' <param name="vText">Text to append</param>
-        ''' <param name="vTag">Tag name to apply</param>
+        ''' <param name="vTag">Tag name to apply - "error" or "warning" are colored;
+        ''' anything else (including the historical "normal"/"Success") renders as
+        ''' default-colored text, matching the old TagTable.Lookup-returns-Nothing behavior</param>
         Public Sub AppendOutput(vText As String, vTag As String)
             Try
                 ' Ensure we're on the UI thread
-                If Not Application.EventsPending() Then
+                If Not IsOnMainThread() Then
                     Application.Invoke(Sub() AppendOutput(vText, vTag))
                     Return
                 End If
-                
-                Dim lTag As TextTag = pOutputBuffer.TagTable.Lookup(vTag)
-                
-                ' Store the offset before inserting
-                Dim lStartOffset As Integer = pOutputBuffer.CharCount
-                
-                ' Insert the text
-                pOutputBuffer.PlaceCursor(pOutputBuffer.EndIter)
-                pOutputBuffer.InsertAtCursor(vText)
-                
-                ' Apply the tag if found using offsets (which are stable)
-                If lTag IsNot Nothing Then
-                    Dim lStartIter As TextIter = pOutputBuffer.GetIterAtOffset(lStartOffset)
-                    Dim lEndIter As TextIter = pOutputBuffer.EndIter
-                    pOutputBuffer.ApplyTag(lTag, lStartIter, lEndIter)
-                End If
-                
-                ScrollOutputToBottom()
+
+                Dim lStyle As CustomDrawTextOutput.eOutputLineStyle
+                Select Case vTag
+                    Case "error"
+                        lStyle = CustomDrawTextOutput.eOutputLineStyle.eError
+                    Case "warning"
+                        lStyle = CustomDrawTextOutput.eOutputLineStyle.eWarning
+                    Case Else
+                        lStyle = CustomDrawTextOutput.eOutputLineStyle.eNormal
+                End Select
+
+                pOutputView?.AppendOutput(vText, lStyle)
                 pNotebook.SetCurrentTab(0, True)
             Catch ex As Exception
                 Console.WriteLine($"AppendOutput(tag) error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Appends a line of text to the output
         ''' </summary>
         Public Sub AppendOutputLine(vText As String)
             AppendOutput(vText & Environment.NewLine)
         End Sub
-        
+
         ''' <summary>
         ''' Clears all output and error/warning lists
         ''' </summary>
         Public Sub ClearOutput()
             Try
-                pOutputBuffer.Clear()
+                pOutputView?.Clear()
                 pBuildErrors.Clear()
                 pBuildWarnings.Clear()
                 pErrorsDataGrid.ClearRows()
@@ -623,20 +614,6 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Scrolls the output view to the bottom using marks
-        ''' </summary>
-        Private Sub ScrollOutputToBottom()
-            Try
-                ' Use a mark to track the end position
-                Dim lEndMark As TextMark = pOutputBuffer.CreateMark(Nothing, pOutputBuffer.EndIter, False)
-                pOutputTextView.ScrollToMark(lEndMark, 0.0, False, 0.0, 0.0)
-                pOutputBuffer.DeleteMark(lEndMark)
-            Catch ex As Exception
-                Console.WriteLine($"ScrollOutputToBottom error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Formats errors and warnings for clipboard
         ''' </summary>
         Private Function FormatErrorsForClipboard() As String
@@ -738,26 +715,6 @@ Namespace Widgets
 
 
         
-        ''' <summary>
-        ''' Applies theme colors to the output text view
-        ''' </summary>
-        ''' <param name="vTheme">The theme to apply</param>
-        Private Sub ApplyThemeToOutputView(vTheme As EditorTheme)
-            Try
-                If pOutputTextView Is Nothing OrElse vTheme Is Nothing Then Return
-                
-                ' Apply CSS to style the TextView
-                Dim lCss As String = String.Format(
-                    "textview {{ background-color: {0}; color: {1}; font-family: monospace; font-size: 10pt; }}",
-                    vTheme.BackgroundColor,
-                    vTheme.ForegroundColor)
-                
-                CssHelper.ApplyCssToWidget(pOutputTextView, lCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-                
-            Catch ex As Exception
-                Console.WriteLine($"BuildOutputPanel.ApplyThemeToOutputView error: {ex.Message}")
-            End Try
-        End Sub
 
         ' ===== Icon Rendering Methods =====
         
@@ -933,7 +890,7 @@ Namespace Widgets
         Public Sub ClearOutputOnly()
             Try
                 ' Clear only the output text buffer
-                pOutputBuffer.Clear()
+                pOutputView?.Clear()
                 
                 ' Do NOT clear errors/warnings
                 ' Do NOT clear data grids  
@@ -968,13 +925,9 @@ Namespace Widgets
                     pWarningsDataGrid.SetThemeManager(vThemeManager)
                 End If
                 
-                ' Apply theme to the output TextView
-                If vThemeManager IsNot Nothing Then
-                    Dim lTheme As EditorTheme = vThemeManager.GetCurrentThemeObject()
-                    If lTheme IsNot Nothing Then
-                        ApplyThemeToOutputView(lTheme)
-                    End If
-                End If
+                ' CustomDrawTextOutput reads theme colors directly from its own ThemeManager
+                ' subscription on every draw - no CSS/manual theme-apply step needed
+                pOutputView?.SetThemeManager(vThemeManager)
                 
             Catch ex As Exception
                 Console.WriteLine($"BuildOutputPanel.SetThemeManager error: {ex.Message}")
