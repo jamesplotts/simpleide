@@ -269,26 +269,14 @@ Partial Public Class MainWindow
             AddHandler lProjectExp.Toggled, AddressOf OnToggleProjectExplorer
             lViewMenu.Append(lProjectExp)
             
-            ' Output
-            Dim lOutput As New CheckMenuItem("_Output")
-            AddHandler lOutput.Toggled, AddressOf OnToggleOutput
-            lViewMenu.Append(lOutput)
-            
-            ' Error List
-            Dim lErrorList As New CheckMenuItem("_Error List")
-            AddHandler lErrorList.Toggled, AddressOf OnToggleErrorList
-            lViewMenu.Append(lErrorList)
-            
-            ' TODO List
-            Dim lTodoList As New CheckMenuItem("_TODO List")
-            AddHandler lTodoList.Toggled, AddressOf OnToggleTodoList
-            lViewMenu.Append(lTodoList)
-            
-            ' AI Assistant
-            Dim lAIAssistant As New CheckMenuItem("_AI Assistant")
-            ' TODO: AddHandler lAIAssistant.Toggled, AddressOf OnToggleAIAssistant
-            lViewMenu.Append(lAIAssistant)
-    
+            ' Bottom Panel - single toggle for the whole dock (Output/Errors/Warnings, TODO,
+            ' AI Assistant, Git, Console, etc.) rather than one checkbox per tab. Which tab
+            ' shows is picked via the panel's own tab strip once it's visible.
+            Dim lBottomPanel As New CheckMenuItem("_Bottom Panel")
+            lBottomPanel.Active = pBottomPanelVisible
+            AddHandler lBottomPanel.Toggled, AddressOf OnToggleBottomPanel
+            lViewMenu.Append(lBottomPanel)
+
             AddScratchpadMenuItem(lViewMenu)
     
     
