@@ -536,7 +536,7 @@ Namespace Managers
                 If vDelegate.Kind() = SyntaxKind.DelegateFunctionStatement Then
                     ' It's a function delegate, get the return type
                     If vDelegate.AsClause IsNot Nothing Then
-                        lDelegateNode.ReturnType = vDelegate.AsClause.Type.ToString()
+                        lDelegateNode.ReturnType = If(vDelegate.AsClause.Type?.ToString(), "Object")
                     Else
                         lDelegateNode.ReturnType = "Object"
                     End If
@@ -589,7 +589,7 @@ Namespace Managers
                 ' Determine if it's a function or sub
                 If vDeclare.Kind() = SyntaxKind.DeclareFunctionStatement Then
                     If vDeclare.AsClause IsNot Nothing Then
-                        lDeclareNode.ReturnType = vDeclare.AsClause.Type.ToString()
+                        lDeclareNode.ReturnType = If(vDeclare.AsClause.Type?.ToString(), "Object")
                     Else
                         lDeclareNode.ReturnType = "Object"
                     End If
@@ -694,7 +694,7 @@ Namespace Managers
                 ' Extract return type for functions
                 If vMethod.SubOrFunctionStatement.Kind() = SyntaxKind.FunctionStatement Then
                     If vMethod.SubOrFunctionStatement.AsClause IsNot Nothing Then
-                        lMethodNode.ReturnType = vMethod.SubOrFunctionStatement.AsClause.Type.ToString()
+                        lMethodNode.ReturnType = If(vMethod.SubOrFunctionStatement.AsClause.Type?.ToString(), "Object")
                     Else
                         lMethodNode.ReturnType = "Object"
                     End If
@@ -737,7 +737,7 @@ Namespace Managers
 
                 If vMethod.Kind() = SyntaxKind.FunctionStatement Then
                     If vMethod.AsClause IsNot Nothing Then
-                        lMethodNode.ReturnType = vMethod.AsClause.Type.ToString()
+                        lMethodNode.ReturnType = If(vMethod.AsClause.Type?.ToString(), "Object")
                     Else
                         lMethodNode.ReturnType = "Object"
                     End If
@@ -915,7 +915,7 @@ Namespace Managers
                 
                 ' Extract event type/signature
                 If vEvent.EventStatement.AsClause IsNot Nothing Then
-                    lEventNode.DataType = vEvent.EventStatement.AsClause.Type.ToString()
+                    lEventNode.DataType = If(vEvent.EventStatement.AsClause.Type?.ToString(), "Object")
                 End If
                 
                 ' Extract parameters
@@ -949,7 +949,7 @@ Namespace Managers
                 
                 ' Extract event type/signature
                 If vEvent.AsClause IsNot Nothing Then
-                    lEventNode.DataType = vEvent.AsClause.Type.ToString()
+                    lEventNode.DataType = If(vEvent.AsClause.Type?.ToString(), "Object")
                 End If
                 
                 ' Extract parameters
@@ -1116,7 +1116,10 @@ Namespace Managers
                         ' Get type if specified
                         Dim lDataType As String = "Object"
                         If lDeclarator.AsClause IsNot Nothing Then
-                            lDataType = lDeclarator.AsClause.Type.ToString()
+                            ' AsClause.Type is Nothing for an anonymous type ("Dim x As New
+                            ' With { .Foo = ... }") - there's no named TypeSyntax to report,
+                            ' since the "type" only exists as the inline object initializer
+                            lDataType = If(lDeclarator.AsClause.Type?.ToString(), "Object")
                         ElseIf lDeclarator.Initializer IsNot Nothing Then
                              ' Simplistic inference or default
                              ' We could infer from initializer kind but that requires more logic
