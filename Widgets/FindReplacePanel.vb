@@ -32,12 +32,13 @@ Namespace Widgets
         Private pStatusLabel As Label
         Private pProgressBar As ProgressBar
         Private pCancelButton As CustomDrawButton
-        Private pResultsView As TreeView
-        Private pResultsStore As ListStore
-
-        ' Theme support
-        Private pThemeManager As ThemeManager
-        Private pResultsViewCssProvider As CssProvider
+        ''' <summary>
+        ''' Custom-drawn, multi-column results grid - replaced a native Gtk.TreeView, which
+        ''' only picked up two hardcoded dark/light color pairs from ThemeManager's generic
+        ''' CSS instead of the actual active theme. Reads EditorTheme colors directly, no
+        ''' GTK CSS involved.
+        ''' </summary>
+        Private pResultsGrid As CustomDrawDataGrid
 
         ''' <summary>
         ''' QuickFind button positioned to the left of Find label
@@ -227,29 +228,19 @@ Namespace Widgets
             MyBase.New(Orientation.Vertical, 5)
             InitializeUI()
             ConnectEvents()
-            ConnectSortableEvents()
-            SetupSortFunctions()
             InitializeEscapeHandling()
         End Sub
 
         ''' <summary>
-        ''' Applies the app's color theme to every CustomDraw control this panel owns, and to
-        ''' the results TreeView. Each CustomDraw* control already self-subscribes to
-        ''' ThemeManager.ThemeChanged and redraws itself, so this only needs to hand out the
-        ''' reference once; the panel itself subscribes separately just to refresh the results
-        ''' view's CSS override on live theme changes.
+        ''' Applies the app's color theme to every control this panel owns. Each CustomDraw*
+        ''' control (including pResultsGrid) self-subscribes to ThemeManager.ThemeChanged and
+        ''' redraws itself directly from real EditorTheme colors, so this only needs to hand
+        ''' out the reference once - no GTK CSS override needed, unlike the Gtk.TreeView this
+        ''' results grid replaced.
         ''' </summary>
         ''' <param name="vThemeManager">The shared ThemeManager instance</param>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
-                If pThemeManager IsNot Nothing Then
-                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
-                End If
-                pThemeManager = vThemeManager
-                If pThemeManager IsNot Nothing Then
-                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
-                End If
-
                 pFindEntry.ThemeManager = vThemeManager
                 pReplaceEntry.ThemeManager = vThemeManager
 
@@ -268,59 +259,10 @@ Namespace Widgets
                 pInFileRadio.ThemeManager = vThemeManager
                 pInProjectRadio.ThemeManager = vThemeManager
 
-                ApplyCurrentTheme()
+                pResultsGrid?.SetThemeManager(vThemeManager)
 
             Catch ex As Exception
                 Console.WriteLine($"FindReplacePanel.SetThemeManager error: {ex.Message}")
-            End Try
-        End Sub
-
-        ''' <summary>
-        ''' Handles live theme changes - refreshes what this panel manages directly (the
-        ''' results TreeView's CSS override); the CustomDraw child controls handle their own
-        ''' redraw independently via their own ThemeChanged subscriptions
-        ''' </summary>
-        Private Sub OnThemeChanged(vTheme As EditorTheme)
-            ApplyCurrentTheme()
-        End Sub
-
-        ''' <summary>
-        ''' Gives the results TreeView real EditorTheme colors. Without this it only picks up
-        ''' ThemeManager's generic global "treeview" CSS rule, which just branches on
-        ''' IsDarkTheme between two hardcoded hex pairs rather than reflecting the actual
-        ''' theme in use (same limitation every other TreeView in the app currently has) -
-        ''' this override replaces that with the real theme's colors for this results list.
-        ''' </summary>
-        Private Sub ApplyCurrentTheme()
-            Try
-                If pThemeManager Is Nothing OrElse pResultsView Is Nothing Then Return
-
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then Return
-
-                Dim lBackground As String = lTheme.GetColor(EditorTheme.Tags.eEditorBackgroundColor)
-                Dim lForeground As String = lTheme.GetColor(EditorTheme.Tags.eForegroundColor)
-                Dim lSelectionBackground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionColor)
-                Dim lSelectionForeground As String = lTheme.GetColor(EditorTheme.Tags.eSelectionText)
-                Dim lHeaderBackground As String = lTheme.LineNumberBackgroundColor
-                Dim lHeaderForeground As String = lTheme.LineNumberColor
-
-                Dim lCss As String =
-                    $"treeview {{ background-color: {lBackground}; color: {lForeground}; }}" & Environment.NewLine &
-                    $"treeview:selected {{ background-color: {lSelectionBackground}; color: {lSelectionForeground}; }}" & Environment.NewLine &
-                    $"treeview header button {{ background-color: {lHeaderBackground}; color: {lHeaderForeground}; }}"
-
-                If pResultsViewCssProvider IsNot Nothing Then
-                    pResultsView.StyleContext.RemoveProvider(pResultsViewCssProvider)
-                    pResultsViewCssProvider = Nothing
-                End If
-
-                pResultsViewCssProvider = New CssProvider()
-                pResultsViewCssProvider.LoadFromData(lCss)
-                pResultsView.StyleContext.AddProvider(pResultsViewCssProvider, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-
-            Catch ex As Exception
-                Console.WriteLine($"FindReplacePanel.ApplyCurrentTheme error: {ex.Message}")
             End Try
         End Sub
 
@@ -352,18 +294,9 @@ Namespace Widgets
                 lStatusBox.PackEnd(pProgressBar, False, False, 0)
                 PackStart(lStatusBox, False, False, 0)
                 
-                ' Results list with sortable columns
-                Dim lResultsScroll As New ScrolledWindow()
-                lResultsScroll.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
-                lResultsScroll.ShadowType = ShadowType.in
-                
-                ' Set a minimum height for the results scroll window
-                'lResultsScroll.HeightRequest = 200
-                
-                ' Use the new sortable results view
-                pResultsView = CreateSortableResultsView()
-                lResultsScroll.Add(pResultsView)
-                PackStart(lResultsScroll, True, True, 0)
+                ' Results grid - self-contained, has its own scrollbar (no ScrolledWindow needed)
+                pResultsGrid = CreateResultsGrid()
+                PackStart(pResultsGrid, True, True, 0)
                 
                 ' Initialize
                 UpdateButtonStates()
@@ -397,9 +330,9 @@ Namespace Widgets
                     AddHandler pReplaceEntry.InnerEntry.KeyPressEvent, AddressOf OnFindPanelKeyPress
                 End If
                 
-                ' Connect ESC handler to results tree view
-                If pResultsView IsNot Nothing Then
-                    AddHandler pResultsView.KeyPressEvent, AddressOf OnFindPanelKeyPress
+                ' Connect ESC handler to the results grid's actual key-focused widget
+                If pResultsGrid IsNot Nothing Then
+                    AddHandler pResultsGrid.ContentArea.KeyPressEvent, AddressOf OnFindPanelKeyPress
                 End If
                 
                 Console.WriteLine("FindReplacePanel: ESC handling initialized")
@@ -592,11 +525,10 @@ Namespace Widgets
                 AddHandler pInFileRadio.Toggled, AddressOf OnScopeToggled
                 AddHandler pInProjectRadio.Toggled, AddressOf OnScopeToggled
                 
-                ' Results view events - single click navigation
-                AddHandler pResultsView.CursorChanged, AddressOf OnResultsCursorChanged
-                
-                ' FIXED: Double-click on results should call OnResultActivated, not OnFindEntryActivated
-                AddHandler pResultsView.RowActivated, AddressOf OnResultActivated
+                ' Results grid events - single click/keyboard selection navigates directly
+                ' using the row's own FindResult (DataGridRow.Tag), so no separate
+                ' double-click handler is needed the way the old TreeView's RowActivated was
+                AddHandler pResultsGrid.SelectionChanged, AddressOf OnResultsSelectionChanged
                 
             Catch ex As Exception
                 Console.WriteLine($"ConnectEvents error: {ex.Message}")
@@ -666,7 +598,7 @@ Namespace Widgets
                 }
 
                 ' ALWAYS clear previous results - no caching
-                pResultsStore.Clear()
+                pResultsGrid.ClearRows()
                 pSearchResults.Clear()
                 pCurrentMatches = Nothing
                 ' Don't reset pCurrentMatchIndex here - callers that want a fresh Find All
@@ -1262,7 +1194,7 @@ Namespace Widgets
         End Sub
         
         Public Sub Clear()
-            pResultsStore.Clear()
+            pResultsGrid.ClearRows()
             pSearchResults.Clear()
             pCurrentMatches = Nothing
             pCurrentMatchIndex = -1
@@ -1372,16 +1304,6 @@ Namespace Widgets
                         ' Clear selection
                         pReplaceEntry.InnerEntry.SelectRegion(0, 0)
                         Return True ' Handled internally
-                    End If
-                End If
-                
-                ' If we have search results and TreeView has focus, could clear selection
-                If pResultsView IsNot Nothing AndAlso pResultsView.HasFocus Then
-                    Dim lSelection As TreeSelection = pResultsView.Selection
-                    If lSelection.CountSelectedRows() > 0 Then
-                        ' Could clear selection if desired
-                        ' lSelection.UnselectAll()
-                        ' Return True
                     End If
                 End If
                 

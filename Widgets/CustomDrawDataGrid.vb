@@ -481,6 +481,18 @@ Namespace Widgets
         End Property
         
         ''' <summary>
+        ''' The internal content DrawingArea that actually receives keyboard focus and
+        ''' events - exposed so a parent panel can hook additional key/button handling
+        ''' (e.g. Escape, right-click context menu) beyond what this grid handles
+        ''' internally (row selection, Up/Down/PageUp/PageDown/Home/End)
+        ''' </summary>
+        Public ReadOnly Property ContentArea As DrawingArea
+            Get
+                Return pDrawingArea
+            End Get
+        End Property
+
+        ''' <summary>
         ''' Gets the rows collection
         ''' </summary>
         Public ReadOnly Property Rows As List(Of DataGridRow)

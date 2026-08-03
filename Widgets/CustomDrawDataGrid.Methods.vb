@@ -495,7 +495,28 @@ Namespace Widgets
                 Return New List(Of DataGridRow)
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Gets rows in their current visible/sorted/filtered display order, as opposed to
+        ''' Rows (always raw insertion order) - e.g. for exporting or iterating in on-screen
+        ''' order
+        ''' </summary>
+        Public Function GetVisibleRows() As List(Of DataGridRow)
+            Try
+                Dim lResult As New List(Of DataGridRow)
+                for each lIndex in pVisibleRows
+                    If lIndex >= 0 AndAlso lIndex < pRows.Count Then
+                        lResult.Add(pRows(lIndex))
+                    End If
+                Next
+                Return lResult
+
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawDataGrid.GetVisibleRows error: {ex.Message}")
+                Return New List(Of DataGridRow)
+            End Try
+        End Function
+
         ' ===== Column Management =====
         
         ''' <summary>

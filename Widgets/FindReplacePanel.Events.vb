@@ -92,7 +92,7 @@ Namespace Widgets
                 ' Clear previous results if text is empty
                 If String.IsNullOrEmpty(pFindEntry.Text) Then
                     pSearchResults.Clear()
-                    pResultsStore?.Clear()
+                    pResultsGrid?.ClearRows()
                     pCurrentMatches = Nothing
                     pCurrentMatchIndex = -1
                     pStatusLabel.Text = "Ready"
@@ -166,54 +166,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Handles double-click or Enter key activation in the results tree view
-        ''' This provides an alternative way to navigate to results
-        ''' </summary>
-        ''' <param name="vSender">The sender of the event</param>
-        ''' <param name="vArgs">Row activated event arguments</param>
-        Private Sub OnResultActivated(vSender As Object, vArgs As RowActivatedArgs)
-            Try
-                ' Since we're handling navigation on single-click (CursorChanged),
-                ' this handler can be used for additional actions like:
-                ' - Setting focus to the editor
-                ' - Closing the find panel (optional)
-                ' - Or just as a fallback navigation method
-                
-                Dim lSelection As TreeSelection = pResultsView.Selection
-                Dim lModel As ITreeModel = Nothing
-                Dim lIter As TreeIter = Nothing
-                
-                If lSelection.GetSelected(lModel, lIter) Then
-                    ' Get result details
-                    Dim lFileName As String = CStr(lModel.GetValue(lIter, 0))
-                    Dim lLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
-                    Dim lColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
-                    
-                    ' Find the full path from results
-                    Dim lResult As FindResult = Nothing
-                    for each lRes in pSearchResults
-                        If lRes.LineNumber = lLineNumber AndAlso 
-                           lRes.ColumnNumber = lColumnNumber AndAlso
-                           lRes.FileName = lFileName Then
-                            lResult = lRes
-                            Exit for
-                        End If
-                    Next
-                    
-                    If lResult IsNot Nothing Then
-                        ' Navigate to result (useful if single-click navigation is disabled)
-                        RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
-                        
-                        ' Optionally, you could close the find panel on double-click/Enter
-                        ' RaiseEvent CloseRequested()
-                    End If
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnResultActivated error: {ex.Message}")
-            End Try
-        End Sub
 
         ''' <summary>
         ''' Handles search option changes and re-executes search
@@ -276,43 +228,6 @@ Namespace Widgets
         End Sub
         
         ' ===== Search Implementation (Simplified) =====
-        
-        ''' <summary>
-        ''' Searches in a file by reading from disk
-        ''' </summary>
-        Private Function SearchInFile(vFilePath As String) As List(Of FindResult)
-            Dim lResults As New List(Of FindResult)()
-            
-            Try
-                Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(vFilePath)
-                If lSourceFileInfo Is Nothing Then Return lResults
-                
-                ' Search each line
-                for lLineIndex As Integer = 0 To lSourceFileInfo.TextLines.Count - 1
-                    Dim lLine As String = lSourceFileInfo.TextLines(lLineIndex)
-                    Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions)
-                    
-                    
-                    for each lColumn in lMatches
-                        Dim lResult As New FindResult() with {
-                            .FilePath = vFilePath,
-                            .LineNumber = lLineIndex + 1,
-                            .ColumnNumber = lColumn + 1,
-                            .LineText = lLine.Trim(),
-                            .MatchText = pLastSearchOptions.SearchText,
-                            .MatchLength = pLastSearchOptions.SearchText.Length
-                        }
-                        
-                        lResults.Add(lResult)
-                    Next
-                Next
-                
-            Catch ex As Exception
-                Console.WriteLine($"SearchInFile error: {ex.Message}")
-            End Try
-            
-            Return lResults
-        End Function
         
         ''' <summary>
         ''' Replaces the current/next match in the active file's editor tab. Delegates to
@@ -397,60 +312,27 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Handles single-click selection in the results - always verifies result is current
+        ''' Handles single-click/keyboard selection in the results grid
         ''' </summary>
-        Private Sub OnResultsCursorChanged(vSender As Object, vArgs As EventArgs)
+        ''' <remarks>
+        ''' The old TreeView-based version had to re-run a fresh in-file search on every
+        ''' single click just to re-locate the "current" position, matching by filename +
+        ''' match text + closest line distance (an approximation that could pick the wrong
+        ''' result if the project had two files with the same name, or duplicate match text
+        ''' in the same file). pResultsGrid's rows carry the exact originating FindResult
+        ''' directly (DataGridRow.Tag), so navigation is now a direct lookup - no re-search,
+        ''' no approximation.
+        ''' </remarks>
+        Private Sub OnResultsSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
             Try
-                Dim lSelection As TreeSelection = pResultsView.Selection
-                Dim lModel As ITreeModel = Nothing
-                Dim lIter As TreeIter = Nothing
-                
-                If lSelection.GetSelected(lModel, lIter) Then
-                    ' Get result details from tree
-                    Dim lFileName As String = CStr(lModel.GetValue(lIter, 0))
-                    Dim lOldLineNumber As Integer = CInt(lModel.GetValue(lIter, 2))
-                    Dim lOldColumnNumber As Integer = CInt(lModel.GetValue(lIter, 3))
-                    Dim lMatchText As String = CStr(lModel.GetValue(lIter, 4))
-                    
-                    ' Always re-search to find current position
-                    Dim lFilePath As String = ""
-                    For Each lRes In pSearchResults
-                        If System.IO.Path.GetFileName(lRes.FilePath) = lFileName Then
-                            lFilePath = lRes.FilePath
-                            Exit For
-                        End If
-                    Next
-                    
-                    If Not String.IsNullOrEmpty(lFilePath) Then
-                        ' Perform fresh search in this specific file
-                        Dim lFreshResults As List(Of FindResult) = SearchInFile(lFilePath)
-                        
-                        ' Find the closest match to the old position
-                        Dim lBestMatch As FindResult = Nothing
-                        Dim lMinDistance As Integer = Integer.MaxValue
-                        
-                        For Each lResult In lFreshResults
-                            If lResult.MatchText = lMatchText Then
-                                Dim lDistance As Integer = Math.Abs(lResult.LineNumber - lOldLineNumber)
-                                If lDistance < lMinDistance Then
-                                    lMinDistance = lDistance
-                                    lBestMatch = lResult
-                                End If
-                            End If
-                        Next
-                        
-                        If lBestMatch IsNot Nothing Then
-                            ' Navigate to the fresh location
-                            RaiseEvent ResultSelected(lBestMatch.FilePath, lBestMatch.LineNumber, lBestMatch.ColumnNumber)
-                            UpdateStatus($"Navigated to Line {lBestMatch.LineNumber}, Column {lBestMatch.ColumnNumber}")
-                        Else
-                            UpdateStatus($"Match '{lMatchText}' no longer found in file")
-                        End If
-                    End If
-                End If
-                
+                Dim lResult As FindResult = TryCast(vRow?.Tag, FindResult)
+                If lResult Is Nothing Then Return
+
+                RaiseEvent ResultSelected(lResult.FilePath, lResult.LineNumber, lResult.ColumnNumber)
+                UpdateStatus($"Navigated to Line {lResult.LineNumber}, Column {lResult.ColumnNumber}")
+
             Catch ex As Exception
-                Console.WriteLine($"OnResultsCursorChanged error: {ex.Message}")
+                Console.WriteLine($"OnResultsSelectionChanged error: {ex.Message}")
             End Try
         End Sub
         

@@ -151,17 +151,8 @@ Namespace Widgets
                                     Return a.LineNumber.CompareTo(b.LineNumber)
                                 End Function)
                                 
-                                ' Update tree view
-                                pResultsStore.Clear()
-                                For Each lResult In pSearchResults
-                                    pResultsStore.AppendValues(
-                                        System.IO.Path.GetFileName(lResult.FilePath),
-                                        lResult.LineText,
-                                        lResult.LineNumber,
-                                        lResult.ColumnNumber,
-                                        lResult.MatchText
-                                    )
-                                Next
+                                ' Update results grid
+                                PopulateSortableResults(pSearchResults)
                                 
                                 ' Update status
                                 pStatusLabel.Text = $"Found {lTotalMatches} match(es) in {lFilesSearched} file(s)"

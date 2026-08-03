@@ -322,14 +322,14 @@ Namespace Widgets
                         Return True
                         
                     Case Gdk.Key.Home
-                        If pRows.Count > 0 Then
-                            SelectRow(0)
+                        If pVisibleRows.Count > 0 Then
+                            SelectRow(pVisibleRows(0))
                         End If
                         Return True
-                        
+
                     Case Gdk.Key.End
-                        If pRows.Count > 0 Then
-                            SelectRow(pRows.Count - 1)
+                        If pVisibleRows.Count > 0 Then
+                            SelectRow(pVisibleRows(pVisibleRows.Count - 1))
                         End If
                         Return True
                 End Select
@@ -346,24 +346,32 @@ Namespace Widgets
 
         
         ''' <summary>
-        ''' Moves the selection by the specified delta
+        ''' Moves the selection by the specified delta, one VISIBLE (currently sorted/
+        ''' filtered) row at a time - vDelta counts rows in display order, not pRows'
+        ''' insertion order, so Up/Down/PageUp/PageDown move to the row actually adjacent
+        ''' on screen regardless of the current sort
         ''' </summary>
         Private Sub MoveSelection(vDelta As Integer)
             Try
-                If pRows.Count = 0 Then Return
-                
-                Dim lNewIndex As Integer = Math.Max(0, Math.Min(pRows.Count - 1, pSelectedRowIndex + vDelta))
-                SelectRow(lNewIndex)
-                
+                If pVisibleRows.Count = 0 Then Return
+
+                Dim lCurrentVisibleIndex As Integer = pVisibleRows.IndexOf(pSelectedRowIndex)
+                If lCurrentVisibleIndex < 0 Then lCurrentVisibleIndex = 0
+
+                Dim lNewVisibleIndex As Integer = Math.Max(0, Math.Min(pVisibleRows.Count - 1, lCurrentVisibleIndex + vDelta))
+                SelectRow(pVisibleRows(lNewVisibleIndex))
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawDataGrid.MoveSelection error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
-        ''' Selects a specific row and ensures it's visible
+        ''' Selects a specific row (a pRows insertion-order index - EnsureRowVisible
+        ''' resolves its current on-screen position via pVisibleRows) and ensures it's
+        ''' visible
         ''' </summary>
-        Private Sub SelectRow(vRowIndex As Integer)
+        Public Sub SelectRow(vRowIndex As Integer)
             Try
                 If vRowIndex < 0 OrElse vRowIndex >= pRows.Count Then Return
                 
@@ -390,14 +398,18 @@ Namespace Widgets
         ''' <summary>
         ''' Sorts rows based on the current sort column
         ''' </summary>
+        ''' <remarks>
+        ''' Was a no-op stub (never actually reordered rows) despite PerformSort
+        ''' (CustomDrawDataGrid.Methods.vb) already being a complete, working
+        ''' implementation - RebuildVisibleRows already called PerformSort correctly
+        ''' after filtering/row changes, but the header-click path (OnHeaderButtonPress)
+        ''' called this stub instead, so clicking a column header never actually sorted
+        ''' </remarks>
         Private Sub SortRows()
             Try
                 If pSortColumn < 0 OrElse pSortColumn >= pColumns.Count Then Return
-                
-                ' TODO: Implement actual sorting logic based on column type
-                ' For now, just trigger a redraw
-                QueueDraw()
-                
+                PerformSort()
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawDataGrid.SortRows error: {ex.Message}")
             End Try
