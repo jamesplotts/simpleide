@@ -109,6 +109,39 @@ Namespace Models
         End Function
         
         ''' <summary>
+        ''' Returns the canonical VB.NET casing for vWord if it's a reserved keyword, or Nothing
+        ''' if it isn't one
+        ''' </summary>
+        ''' <param name="vWord">Word to look up, compared case-insensitively</param>
+        ''' <returns>The keyword's canonical casing (e.g. "Dim"), or Nothing if vWord isn't a keyword</returns>
+        ''' <remarks>
+        ''' Keyword-only (never touches pIdentifierCaseMap) so callers doing live, as-you-type
+        ''' correction don't collide with the separate scope-aware identifier case-sync system
+        ''' in CustomDrawingEditor.IdentifierCaseSync.vb, which has its own project-wide/local
+        ''' canonical-casing maps
+        ''' </remarks>
+        Public Function GetKeywordCanonicalCase(vWord As String) As String
+            Try
+                If String.IsNullOrEmpty(vWord) Then Return Nothing
+
+                If pKeywordCaseMap Is Nothing Then
+                    InitializeKeywordCaseMap()
+                End If
+
+                Dim lCorrectCase As String = Nothing
+                If pKeywordCaseMap.TryGetValue(vWord.ToLower(), lCorrectCase) Then
+                    Return lCorrectCase
+                End If
+
+                Return Nothing
+
+            Catch ex As Exception
+                Console.WriteLine($"GetKeywordCanonicalCase error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Corrects the case of a single word (keyword or identifier)
         ''' </summary>
         Private Function CorrectWordCase(vWord As String) As String

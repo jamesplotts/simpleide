@@ -855,6 +855,12 @@ Namespace Editors
                 ' Move cursor forward
                 SetCursorPosition(pCursorLine, pCursorColumn + 1)
 
+                ' A non-identifier character finishes whatever word preceded it - classic
+                ' VB.NET IDE behavior auto-corrects a keyword's casing at exactly this point
+                If Not (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) Then
+                    CorrectKeywordEndingAt(pCursorLine, pCursorColumn - 1)
+                End If
+
                 ' CHECK FOR CODESENSE TRIGGERS
                 CheckCodeSenseTrigger(vChar)
 

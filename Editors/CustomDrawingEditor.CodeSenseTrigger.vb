@@ -33,6 +33,18 @@ Namespace Editors
         }
 
         ''' <summary>
+        ''' Pattern matching a Dim/field declaration that has just finished its (last) variable
+        ''' name and is now positioned where only the "As" keyword can grammatically follow
+        ''' </summary>
+        ''' <remarks>
+        ''' A trailing comma (e.g. "Dim x, ") means another name is still expected, not "As" -
+        ''' DeclarationNamePatterns' first entry already matches that case instead
+        ''' </remarks>
+        Private Shared ReadOnly AsKeywordContextPattern As New Regex(
+            "^\s*(?:Dim|Private|Public|Protected|Friend|Const)\s+(?:Shared\s+)?(?:ReadOnly\s+)?\w+(?:\s*,\s*\w+)*\s+$",
+            RegexOptions.IgnoreCase)
+
+        ''' <summary>
         ''' True if the cursor is currently positioned where a NEW name is being typed as part
         ''' of a declaration (Dim/field/Sub/Function/Property/Event/type/For-loop-variable),
         ''' rather than referencing something that already exists
@@ -65,6 +77,38 @@ Namespace Editors
 
             Catch ex As Exception
                 Console.WriteLine($"IsTypingDeclarationName error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' True if the cursor is positioned right where the "As" keyword of a Dim/field
+        ''' declaration's type clause is grammatically the only thing that can come next
+        ''' </summary>
+        ''' <remarks>
+        ''' E.g. "Dim x " or "Dim x, y " - but not "Dim x, " (a trailing comma means another
+        ''' variable name is still expected, per AsKeywordContextPattern). Without this,
+        ''' typing "As" here pops up the full general suggestion list (types/locals/keywords)
+        ''' instead of recognizing that "As" is the only grammatically valid next token
+        ''' </remarks>
+        Private Function IsTypingAsKeyword() As Boolean
+            Try
+                If pSourceFileInfo Is Nothing OrElse pCursorLine >= pSourceFileInfo.TextLines.Count Then Return False
+
+                Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                If pCursorColumn > lLine.Length Then Return False
+
+                ' Text before the word currently being typed
+                Dim lWordStart As Integer = pCursorColumn
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                Dim lBeforeWord As String = lLine.Substring(0, lWordStart)
+
+                Return AsKeywordContextPattern.IsMatch(lBeforeWord)
+
+            Catch ex As Exception
+                Console.WriteLine($"IsTypingAsKeyword error: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -156,9 +200,11 @@ Namespace Editors
 
                     Case Else
                         ' Regular characters update the suggestion list immediately - but not
-                        ' while typing a brand-new declaration name, where there's nothing yet
-                        ' to complete against
-                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso Not IsTypingDeclarationName() Then
+                        ' while typing a brand-new declaration name (nothing yet to complete
+                        ' against) or the "As" keyword itself (the only grammatically valid
+                        ' token there - a popup would just be noise; InsertCharacter's
+                        ' CorrectKeywordEndingAt call still capitalizes it once typed)
+                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso Not IsTypingDeclarationName() AndAlso Not IsTypingAsKeyword() Then
                             TriggerCodeSenseForCurrentWord()
                         End If
                 End Select

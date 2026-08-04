@@ -16,7 +16,49 @@ Namespace Editors
         
         ' ===== LineExited Event =====
         Public Event LineExited As EventHandler(Of LineExitedEventArgs) Implements IEditor.LineExited
-        
+
+        ''' <summary>
+        ''' Rewrites the word immediately preceding vColumn on vLine to its canonical VB.NET
+        ''' keyword casing (e.g. "dim" becomes "Dim"), if it's a reserved keyword that was just
+        ''' typed with different casing
+        ''' </summary>
+        ''' <param name="vLine">Zero-based line the word is on</param>
+        ''' <param name="vColumn">Column immediately after the word (where the word-ending
+        ''' delimiter - space, punctuation, Enter - was just typed)</param>
+        ''' <remarks>
+        ''' Classic VB.NET IDE behavior: a keyword auto-corrects the instant you finish typing
+        ''' it, independent of CodeSense. Uses SourceFileInfo.GetKeywordCanonicalCase so the
+        ''' keyword table (SourceFileInfo.CaseCorrection.vb) stays the single source of truth,
+        ''' shared with the file-load-time correction pass.
+        ''' </remarks>
+        Private Sub CorrectKeywordEndingAt(vLine As Integer, vColumn As Integer)
+            Try
+                If pSourceFileInfo Is Nothing OrElse vLine < 0 OrElse vLine >= pLineCount Then Return
+                If IsInsideStringOrComment(vLine, vColumn) Then Return
+
+                Dim lLine As String = pSourceFileInfo.TextLines(vLine)
+                If vColumn > lLine.Length Then Return
+
+                Dim lWordStart As Integer = vColumn
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                If lWordStart >= vColumn Then Return
+
+                Dim lWord As String = lLine.Substring(lWordStart, vColumn - lWordStart)
+                Dim lCanonical As String = pSourceFileInfo.GetKeywordCanonicalCase(lWord)
+                If lCanonical Is Nothing OrElse lCanonical.Equals(lWord, StringComparison.Ordinal) Then Return
+
+                pSourceFileInfo.TextLines(vLine) = lLine.Substring(0, lWordStart) & lCanonical & lLine.Substring(vColumn)
+                pLineMetadata(vLine).MarkChanged()
+                InvalidateLine(vLine)
+                IsModified = True
+
+            Catch ex As Exception
+                Console.WriteLine($"CorrectKeywordEndingAt error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Line Change Tracking =====
 
         ''' <summary>
@@ -168,7 +210,10 @@ Namespace Editors
                 ' Mark current line as changed before creating new line
                 If pEditingLine >= 0 AndAlso pEditingLine < pLineCount Then
                     ' Mark line as changed for async parsing
-                    
+
+                    ' Enter is a word boundary too - correct a keyword finished right before it
+                    CorrectKeywordEndingAt(pCursorLine, pCursorColumn)
+
                     ' Fire LineExited event before leaving the line (for capitalization)
                     RaiseLineExitedEvent(pEditingLine)
                     Console.WriteLine($"HandleEnterKey: Raised LineExited for line {pEditingLine}")
