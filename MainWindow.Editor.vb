@@ -547,6 +547,54 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnNotebookTabClosing(vSender As Object, vArgs As TabClosingEventArgs)
         Try
+            ' The Preferences tab isn't a regular file tab (not registered in pOpenTabs) - it
+            ' has its own tracking fields (pPreferencesTab/pPreferencesTabIndex). Without this
+            ' check, clicking its "x" would fall through to the pOpenTabs lookup below, find
+            ' nothing, and let CustomDrawNotebook remove the page directly - leaving
+            ' pPreferencesTab/pPreferencesTabIndex stale (still non-Nothing/>= 0), so
+            ' OnEditPreferences would think the already-closed tab was still open and never
+            ' create a new one.
+            ' Deliberately handled inline (not via a shared "ClosePreferencesTab" helper that
+            ' also calls RemovePage) - RemovePage raises TabClosing itself, so calling it again
+            ' from within this handler would re-enter this same method reentrantly. Instead,
+            ' this leaves vArgs.Cancel False and lets the in-flight RemovePage call (the one
+            ' that raised this very event) complete the actual removal, and just resets our own
+            ' tracking state and defers Dispose to the next idle tick so it runs after that
+            ' removal has fully unparented the widget.
+            If pPreferencesTab IsNot Nothing AndAlso vArgs.TabWidget Is pPreferencesTab Then
+                If pPreferencesTab.IsModified Then
+                    Dim lResponse As ResponseType = ShowCustomButtonDialog(
+                        MessageType.Question,
+                        "The preferences have unsaved changes. Do you want to save them before closing?",
+                        New String() {"Save", "Discard", "Cancel"},
+                        New ResponseType() {ResponseType.Yes, ResponseType.No, ResponseType.Cancel},
+                        "Unsaved Changes")
+
+                    Select Case lResponse
+                        Case ResponseType.Yes
+                            If Not pPreferencesTab.Save() Then
+                                vArgs.Cancel = True
+                                Return
+                            End If
+                        Case ResponseType.No
+                            ' Discard - continue closing
+                        Case Else
+                            vArgs.Cancel = True
+                            Return
+                    End Select
+                End If
+
+                Dim lClosingTab As PreferencesTab = pPreferencesTab
+                pPreferencesTab = Nothing
+                pPreferencesTabIndex = -1
+                UpdateStatusBar("Closed preferences")
+                GLib.Idle.Add(Function()
+                    lClosingTab.Dispose()
+                    Return False
+                End Function)
+                Return
+            End If
+
             Dim lTabInfo As TabInfo = Nothing
             for each lKvp in pOpenTabs
                 If lKvp.Value.EditorContainer Is vArgs.TabWidget Then
