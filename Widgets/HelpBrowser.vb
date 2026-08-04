@@ -33,12 +33,23 @@ Namespace Widgets
         Public Const HOME_URL As String = "simpleide://home"
 
         ''' <summary>
+        ''' Identifies what kind of content a PageEntry holds
+        ''' </summary>
+        Private Enum PageKind
+            eUnspecified
+            eSections
+            eHtmlUrl
+            eLastValue
+        End Enum
+
+        ''' <summary>
         ''' Describes one navigable page in this browser's back/forward history
         ''' </summary>
         Private Class PageEntry
             Public Property Title As String
             Public Property Url As String
             Public Property Sections As List(Of HelpSection)
+            Public Property Kind As PageKind = PageKind.eSections
         End Class
 
         ' Toolbar controls
@@ -53,6 +64,10 @@ Namespace Widgets
         ' Content area
         Private pContentBox As Box
         Private pScrolled As ScrolledWindow
+
+        ' Embedded real-page renderer (litehtml), created lazily only if available -
+        ' see NavigateToUrl/NavigateToUrlEmbedded
+        Private pHtmlView As CustomDrawHtmlView
 
         ' History
         Private pHistory As New List(Of PageEntry)
@@ -90,14 +105,16 @@ Namespace Widgets
         End Property
 
         ''' <summary>
-        ''' Gets whether content is currently loading - always False, since native
-        ''' rendering is synchronous
+        ''' Gets whether content is currently loading - only meaningful for embedded
+        ''' litehtml pages, since native section rendering is synchronous
         ''' </summary>
         Public ReadOnly Property IsLoading As Boolean
             Get
-                Return False
+                Return pIsLoading
             End Get
         End Property
+
+        Private pIsLoading As Boolean = False
 
         ''' <summary>
         ''' Gets whether there is an earlier page to navigate back to
@@ -289,6 +306,7 @@ Namespace Widgets
                 If pForwardButton IsNot Nothing Then pForwardButton.ThemeManager = vThemeManager
                 If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
                 If pHomeButton IsNot Nothing Then pHomeButton.ThemeManager = vThemeManager
+                If pHtmlView IsNot Nothing Then pHtmlView.SetThemeManager(vThemeManager)
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.SetThemeManager error: {ex.Message}")
             End Try
@@ -347,14 +365,60 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Opens vUrl in the system's default web browser and shows a small in-app
-        ''' confirmation page, since the app can no longer embed real web pages
+        ''' Opens vUrl - embedded via litehtml rendering if the native shim is available
+        ''' on this system, otherwise in the user's default web browser with an in-app
+        ''' confirmation page (the pre-litehtml behavior)
         ''' </summary>
         ''' <param name="vUrl">The URL to open</param>
         Public Sub NavigateToUrl(vUrl As String)
             Try
                 If String.IsNullOrEmpty(vUrl) Then Return
 
+                If CustomDrawHtmlView.IsAvailable Then
+                    NavigateToUrlEmbedded(vUrl)
+                Else
+                    NavigateToUrlExternal(vUrl)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.NavigateToUrl error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Pushes vUrl onto history as an embedded litehtml page and begins loading it -
+        ''' RenderCurrentPage drives the actual fetch/render via pHtmlView
+        ''' </summary>
+        ''' <param name="vUrl">The URL to load</param>
+        Private Sub NavigateToUrlEmbedded(vUrl As String)
+            Try
+                Dim lEntry As New PageEntry With {.Title = vUrl, .Url = vUrl, .Kind = PageKind.eHtmlUrl}
+
+                If pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count AndAlso pHistory(pHistoryIndex).Url = vUrl Then
+                    pHistory(pHistoryIndex) = lEntry
+                Else
+                    If pHistoryIndex < pHistory.Count - 1 Then
+                        pHistory.RemoveRange(pHistoryIndex + 1, pHistory.Count - pHistoryIndex - 1)
+                    End If
+                    pHistory.Add(lEntry)
+                    pHistoryIndex = pHistory.Count - 1
+                End If
+
+                RenderCurrentPage()
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.NavigateToUrlEmbedded error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Opens vUrl in the system's default web browser and shows a small in-app
+        ''' confirmation page - used when litehtml rendering is unavailable, or as the
+        ''' fallback when an embedded page fails to load
+        ''' </summary>
+        ''' <param name="vUrl">The URL to open</param>
+        Private Sub NavigateToUrlExternal(vUrl As String)
+            Try
                 OpenExternalUrl(vUrl)
 
                 Dim lSection As New HelpSection("Opened in Your Browser")
@@ -362,7 +426,7 @@ Namespace Widgets
                 ShowSections("Opened Externally", New List(Of HelpSection) From {lSection}, vUrl)
 
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.NavigateToUrl error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.NavigateToUrlExternal error: {ex.Message}")
             End Try
         End Sub
 
@@ -442,47 +506,157 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Rebuilds pContentBox from the page at pHistoryIndex and updates toolbar state
+        ''' Renders the page at pHistoryIndex (native sections or an embedded litehtml
+        ''' page, per its Kind) and updates toolbar state
         ''' </summary>
-        Private Sub RenderCurrentPage()
+        Private Async Sub RenderCurrentPage()
             Try
+                pIsLoading = True
                 RaiseEvent LoadingStateChanged(True)
+
+                If pHistoryIndex < 0 OrElse pHistoryIndex >= pHistory.Count Then
+                    pIsLoading = False
+                    RaiseEvent LoadingStateChanged(False)
+                    Return
+                End If
+
+                Dim lPage As PageEntry = pHistory(pHistoryIndex)
+                pUrlBar.Text = lPage.Url
+                pBackButton.Sensitive = CanGoBack
+                pForwardButton.Sensitive = CanGoForward
+
+                If lPage.Kind = PageKind.eHtmlUrl Then
+                    Await RenderHtmlPageAsync(lPage)
+                Else
+                    RenderSectionsPage(lPage)
+                End If
+
+                pIsLoading = False
+                RaiseEvent LoadingStateChanged(False)
+                RaiseEvent NavigationCompleted(lPage.Url)
+
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.RenderCurrentPage error: {ex.Message}")
+                pIsLoading = False
+                RaiseEvent LoadingStateChanged(False)
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Rebuilds pContentBox from vPage's sections and shows the native content area
+        ''' </summary>
+        ''' <param name="vPage">The sections page to render</param>
+        Private Sub RenderSectionsPage(vPage As PageEntry)
+            Try
+                ShowNativeContent()
 
                 For Each lChild As Widget In pContentBox.Children
                     pContentBox.Remove(lChild)
                     lChild.Destroy()
                 Next
 
-                If pHistoryIndex < 0 OrElse pHistoryIndex >= pHistory.Count Then
-                    RaiseEvent LoadingStateChanged(False)
-                    Return
-                End If
-
-                Dim lPage As PageEntry = pHistory(pHistoryIndex)
-
                 Dim lTitleLabel As New Label()
-                lTitleLabel.Markup = $"<span size='xx-large' weight='bold'>{GLib.Markup.EscapeText(lPage.Title)}</span>"
+                lTitleLabel.Markup = $"<span size='xx-large' weight='bold'>{GLib.Markup.EscapeText(vPage.Title)}</span>"
                 lTitleLabel.Xalign = 0
                 lTitleLabel.MarginBottom = 12
                 pContentBox.PackStart(lTitleLabel, False, False, 0)
 
-                For Each lSection As HelpSection In lPage.Sections
+                For Each lSection As HelpSection In vPage.Sections
                     pContentBox.PackStart(BuildSectionWidget(lSection), False, False, 0)
                 Next
 
                 pContentBox.ShowAll()
-
-                pUrlBar.Text = lPage.Url
-                pStatusLabel.Text = lPage.Title
-
-                pBackButton.Sensitive = CanGoBack
-                pForwardButton.Sensitive = CanGoForward
-
-                RaiseEvent LoadingStateChanged(False)
-                RaiseEvent NavigationCompleted(lPage.Url)
+                pStatusLabel.Text = vPage.Title
 
             Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.RenderCurrentPage error: {ex.Message}")
+                Console.WriteLine($"HelpBrowser.RenderSectionsPage error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Shows the embedded litehtml view and asks it to load vPage's URL - on failure,
+        ''' falls back to NavigateToUrlExternal (which replaces this same history entry
+        ''' in place, since the URL is unchanged)
+        ''' </summary>
+        ''' <param name="vPage">The HTML page to render</param>
+        Private Async Function RenderHtmlPageAsync(vPage As PageEntry) As Task
+            Try
+                EnsureHtmlViewCreated()
+                ShowHtmlContent()
+                pStatusLabel.Text = $"Loading {vPage.Url}..."
+                Await pHtmlView.NavigateAsync(vPage.Url)
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.RenderHtmlPageAsync error: {ex.Message}")
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Creates pHtmlView and wires its events on first use - only ever called after
+        ''' confirming CustomDrawHtmlView.IsAvailable
+        ''' </summary>
+        Private Sub EnsureHtmlViewCreated()
+            If pHtmlView IsNot Nothing Then Return
+
+            pHtmlView = New CustomDrawHtmlView()
+            pHtmlView.NoShowAll = True
+            If pThemeManager IsNot Nothing Then pHtmlView.SetThemeManager(pThemeManager)
+
+            AddHandler pHtmlView.LinkClicked, AddressOf OnHtmlViewLinkClicked
+            AddHandler pHtmlView.LoadCompleted, AddressOf OnHtmlViewLoadCompleted
+            AddHandler pHtmlView.LoadFailed, AddressOf OnHtmlViewLoadFailed
+
+            PackStart(pHtmlView, True, True, 0)
+        End Sub
+
+        ''' <summary>
+        ''' Shows the native sections ScrolledWindow and hides the embedded HTML view
+        ''' </summary>
+        Private Sub ShowNativeContent()
+            If pHtmlView IsNot Nothing Then pHtmlView.Hide()
+            pScrolled.Show()
+        End Sub
+
+        ''' <summary>
+        ''' Shows the embedded HTML view and hides the native sections ScrolledWindow
+        ''' </summary>
+        Private Sub ShowHtmlContent()
+            pScrolled.Hide()
+            pHtmlView.ShowAll()
+        End Sub
+
+        ''' <summary>
+        ''' Follows a link clicked inside an embedded litehtml page the same way any other
+        ''' navigation is handled
+        ''' </summary>
+        ''' <param name="vUrl">The clicked link's absolute URL</param>
+        Private Sub OnHtmlViewLinkClicked(vUrl As String)
+            NavigateToUrl(vUrl)
+        End Sub
+
+        ''' <summary>
+        ''' Updates the status bar once an embedded page finishes loading
+        ''' </summary>
+        ''' <param name="vUrl">The URL that finished loading</param>
+        Private Sub OnHtmlViewLoadCompleted(vUrl As String)
+            Try
+                pStatusLabel.Text = vUrl
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.OnHtmlViewLoadCompleted error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Gracefully falls back to opening vUrl in the system browser when embedded
+        ''' fetch/render fails - replaces the failed history entry in place
+        ''' </summary>
+        ''' <param name="vUrl">The URL that failed to load</param>
+        ''' <param name="vError">The failure reason, logged for diagnostics</param>
+        Private Sub OnHtmlViewLoadFailed(vUrl As String, vError As String)
+            Try
+                Console.WriteLine($"HelpBrowser: embedded load failed for {vUrl}: {vError}")
+                NavigateToUrlExternal(vUrl)
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.OnHtmlViewLoadFailed error: {ex.Message}")
             End Try
         End Sub
 

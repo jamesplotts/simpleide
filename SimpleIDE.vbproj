@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1102.0</AssemblyVersion>
-    <FileVersion>1.1.1102.0</FileVersion>
+    <AssemblyVersion>1.1.1108.0</AssemblyVersion>
+    <FileVersion>1.1.1108.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1102</Version>
+    <Version>1.1.1108</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -74,6 +74,9 @@
   <ItemGroup>
     <!-- Program Entry Point -->
     <Compile Include="Program.vb" />
+    <!-- Interop (P/Invoke) -->
+    <Compile Include="Interop/LiteHtmlNative.vb" />
+    <Compile Include="Interop/LiteHtmlDocumentHandle.vb" />
     <!-- Main Window - Core and Partial Classes -->
     <Compile Include="MainWindow.vb" />
     <Compile Include="MainWindow.AI.vb" />
@@ -234,6 +237,7 @@
     <Compile Include="Utilities/FoldStateStore.vb" />
     <Compile Include="Utilities/FontMetrics.vb" />
     <Compile Include="Utilities/GitIgnoreHelper.vb" />
+    <Compile Include="Utilities/HtmlPageFetcher.vb" />
     <Compile Include="Utilities/IconContrastHelper.vb" />
     <Compile Include="Utilities/InputDialog.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
@@ -288,6 +292,7 @@
     <Compile Include="Widgets/FindReplacePanel.SortableResults.vb" />
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
+    <Compile Include="Widgets/CustomDrawHtmlView.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
     <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
@@ -379,6 +384,7 @@
   <ItemGroup>
     <!-- Folder Structure -->
     <Folder Include="Editors\" />
+    <Folder Include="Interop\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Models\" />
     <Folder Include="Utilities\" />
@@ -391,6 +397,21 @@
     <Folder Include="Resources\Themes\" />
     <Folder Include="Resources\Help\" />
     <Folder Include="Resources\Templates\" />
+  </ItemGroup>
+  <!--
+    litehtml native shim (Widgets/CustomDrawHtmlView.vb's rendering backend, via
+    Interop/LiteHtmlNative.vb) - built separately by native/build-native.sh, never by
+    `dotnet build` itself, so a plain .NET-only build/contributor doesn't need cmake/g++
+    installed. The Exists() condition means a build with no native toolchain present still
+    succeeds; LiteHtmlDocumentHandle.IsAvailable checks for the .so at runtime and callers
+    fall back gracefully (never an unhandled DllNotFoundException) if it's missing - same
+    lesson as the WebKitGTK breakage this whole feature exists to work around.
+  -->
+  <ItemGroup Condition="Exists('native/build/lib/liblitehtml_shim.so')">
+    <None Include="native/build/lib/liblitehtml_shim.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>liblitehtml_shim.so</Link>
+    </None>
   </ItemGroup>
   <!-- Build Events -->
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
