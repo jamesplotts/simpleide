@@ -233,13 +233,19 @@ Namespace Widgets
                     ' lLayout.Alignment = Pango.Alignment.Right
                     ' lLayout.Width = Pango.Units.FromPixels(pWidth - pRightPadding)
                     
-                    ' Set default text color
+                    ' Resolve default text color once - re-applied explicitly per row below
+                    ' (not left as leftover Cairo state) so it's never clobbered by the
+                    ' current-line row's color switch
+                    Dim lFgRed As Double = 0.52
+                    Dim lFgGreen As Double = 0.52
+                    Dim lFgBlue As Double = 0.52
                     Dim lFgColor As New RGBA()
                     If lFgColor.Parse(pForegroundColor) Then
-                        vContext.SetSourceRgba(lFgColor.Red, lFgColor.Green, lFgColor.Blue, 1.0)
-                    Else
-                        vContext.SetSourceRgba(0.52, 0.52, 0.52, 1.0) ' Fallback gray
+                        lFgRed = lFgColor.Red
+                        lFgGreen = lFgColor.Green
+                        lFgBlue = lFgColor.Blue
                     End If
+                    vContext.SetSourceRgba(lFgRed, lFgGreen, lFgBlue, 1.0)
                     
                     ' Get font metrics for proper baseline alignment
                     Dim lAscent As Integer = 0
@@ -295,7 +301,9 @@ Namespace Widgets
                         lLayout.GetPixelSize(lTextWidth, lTextHeight)
                         Dim lX As Integer = pWidth - pRightPadding - lTextWidth - 5 ' Extra 5px buffer
 
-                        ' Highlight current line number if needed
+                        ' Highlight current line number if needed - color is set explicitly for
+                        ' every row (not left as sticky Cairo state from the previous row), so
+                        ' rows after the current line can't inherit the wrong color
                         If lSourceLine = lCurrentSourceLine Then
                             Dim lCurrentColor As New RGBA()
                             If lCurrentColor.Parse(pCurrentLineColor) Then
@@ -303,16 +311,12 @@ Namespace Widgets
                             Else
                                 vContext.SetSourceRgba(0.78, 0.78, 0.78, 1.0) ' Fallback light gray
                             End If
-
-                            vContext.MoveTo(lX, lY)
-                            Pango.CairoHelper.ShowLayout(vContext, lLayout)
-
-                            ' Restore default color
-                            vContext.SetSourceRGB(0.5, 0.5, 0.5)
                         Else
-                            vContext.MoveTo(lX, lY)
-                            Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                            vContext.SetSourceRgba(lFgRed, lFgGreen, lFgBlue, 1.0)
                         End If
+
+                        vContext.MoveTo(lX, lY)
+                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
 
                         ' Draw fold icon if needed, at the far left of the gutter
                         ' lY marks the TOP of the glyph box (Pango draws top-down from the
