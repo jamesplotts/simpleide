@@ -32,15 +32,15 @@ Namespace Widgets
         Private pTextViewCssProvider As CssProvider
         
         ' Toolbar buttons
-        Private pNewButton As ToolButton
-        Private pDeleteButton As ToolButton
-        Private pCopyButton As ToolButton
-        Private pPasteButton As ToolButton
-        Private pCutButton As ToolButton
-        Private pClearButton As ToolButton
-        Private pInsertDateButton As ToolButton
-        Private pInsertTodoButton As ToolButton
-        Private pSearchButton As ToolButton
+        Private pNewButton As CustomDrawButton
+        Private pDeleteButton As CustomDrawButton
+        Private pCopyButton As CustomDrawButton
+        Private pPasteButton As CustomDrawButton
+        Private pCutButton As CustomDrawButton
+        Private pClearButton As CustomDrawButton
+        Private pInsertDateButton As CustomDrawButton
+        Private pInsertTodoButton As CustomDrawButton
+        Private pSearchButton As CustomDrawButton
         
         ' Events
         Public Event ScratchpadChanged(vScratchpad As ScratchpadData)
@@ -77,6 +77,15 @@ Namespace Widgets
                 End If
 
                 If pScratchpadCombo IsNot Nothing Then pScratchpadCombo.ThemeManager = vThemeManager
+                If pNewButton IsNot Nothing Then pNewButton.ThemeManager = vThemeManager
+                If pDeleteButton IsNot Nothing Then pDeleteButton.ThemeManager = vThemeManager
+                If pCopyButton IsNot Nothing Then pCopyButton.ThemeManager = vThemeManager
+                If pCutButton IsNot Nothing Then pCutButton.ThemeManager = vThemeManager
+                If pPasteButton IsNot Nothing Then pPasteButton.ThemeManager = vThemeManager
+                If pClearButton IsNot Nothing Then pClearButton.ThemeManager = vThemeManager
+                If pInsertDateButton IsNot Nothing Then pInsertDateButton.ThemeManager = vThemeManager
+                If pInsertTodoButton IsNot Nothing Then pInsertTodoButton.ThemeManager = vThemeManager
+                If pSearchButton IsNot Nothing Then pSearchButton.ThemeManager = vThemeManager
 
                 ApplyCurrentTheme()
 
@@ -236,11 +245,33 @@ Namespace Widgets
             End Try
         End Function
         
-        Private Function CreateToolButton(vIconName As String, vTooltip As String) As ToolButton
-            Dim lButton As New ToolButton(Nothing, Nothing)
-            lButton.IconWidget = Image.NewFromIconName(vIconName, IconSize.SmallToolbar)
+        ''' <summary>
+        ''' Creates a beveled, icon-only toolbar button matching this app's CustomDraw look
+        ''' </summary>
+        ''' <remarks>
+        ''' Was a native Gtk.ToolButton - rendered flat (system toolbar style) with whatever
+        ''' contrast the system icon theme happened to have against this app's own theme.
+        ''' CustomDrawButton matches every other panel's toolbar (see GitPanel.CreateToolbar)
+        ''' and its own IconContrastHelper auto-inverts the icon for dark/light contrast.
+        ''' </remarks>
+        Private Function CreateToolButton(vIconName As String, vTooltip As String) As CustomDrawButton
+            Dim lButton As New CustomDrawButton("", LoadToolIconPixbuf(vIconName))
             lButton.TooltipText = vTooltip
             Return lButton
+        End Function
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"ScratchpadPanel.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
         End Function
         
         Private Function CreateStatusBar() As Widget
