@@ -1,6 +1,7 @@
 #include "shim_container.h"
 #include <litehtml/url.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <cstdint>
 #include <cstring>
 
 shim_container::shim_container(std::string vBaseUrl)
@@ -83,14 +84,49 @@ cairo_surface_t* shim_container::get_image(const std::string& vUrl)
 
 	int lWidth = gdk_pixbuf_get_width(lPixbuf);
 	int lHeight = gdk_pixbuf_get_height(lPixbuf);
-	cairo_format_t lFormat = gdk_pixbuf_get_has_alpha(lPixbuf) ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
+	bool lHasAlpha = gdk_pixbuf_get_has_alpha(lPixbuf) != FALSE;
+	cairo_format_t lFormat = lHasAlpha ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
 	lSurface = cairo_image_surface_create(lFormat, lWidth, lHeight);
-	if (lSurface)
+	if (lSurface && cairo_surface_status(lSurface) == CAIRO_STATUS_SUCCESS)
 	{
-		cairo_t* lCr = cairo_create(lSurface);
-		gdk_cairo_set_source_pixbuf(lCr, lPixbuf, 0, 0);
-		cairo_paint(lCr);
-		cairo_destroy(lCr);
+		// Deliberately not gdk_cairo_set_source_pixbuf() - that lives in full GDK
+		// (gdk-3.0), which pulls in the whole X11/Wayland windowing stack. This shim only
+		// links gdk-pixbuf-2.0 (decode only), so pixels are copied by hand instead: read
+		// each gdk-pixbuf RGB(A) pixel, premultiply alpha (Cairo's ARGB32 contract), and
+		// pack into the native-endian 32-bit word Cairo expects.
+		cairo_surface_flush(lSurface);
+
+		unsigned char* lDst = cairo_image_surface_get_data(lSurface);
+		int lDstStride = cairo_image_surface_get_stride(lSurface);
+		const unsigned char* lSrc = gdk_pixbuf_get_pixels(lPixbuf);
+		int lSrcStride = gdk_pixbuf_get_rowstride(lPixbuf);
+		int lChannels = gdk_pixbuf_get_n_channels(lPixbuf);
+
+		for (int lY = 0; lY < lHeight; ++lY)
+		{
+			const unsigned char* lSrcRow = lSrc + static_cast<std::size_t>(lY) * lSrcStride;
+			uint32_t* lDstRow = reinterpret_cast<uint32_t*>(lDst + static_cast<std::size_t>(lY) * lDstStride);
+			for (int lX = 0; lX < lWidth; ++lX)
+			{
+				const unsigned char* lPixel = lSrcRow + static_cast<std::size_t>(lX) * lChannels;
+				unsigned int lR = lPixel[0];
+				unsigned int lG = lPixel[1];
+				unsigned int lB = lPixel[2];
+				unsigned int lA = lHasAlpha ? lPixel[3] : 255u;
+
+				if (lHasAlpha && lA != 255u)
+				{
+					lR = (lR * lA + 127u) / 255u;
+					lG = (lG * lA + 127u) / 255u;
+					lB = (lB * lA + 127u) / 255u;
+				}
+
+				lDstRow[lX] = (lA << 24) | (lR << 16) | (lG << 8) | lB;
+			}
+		}
+
+		cairo_surface_mark_dirty(lSurface);
+
 		m_images.add_image(vUrl, lSurface);
 		// add_image doesn't take a reference for the caller - we must do it manually
 		// (matches litehtml's own containers/cairo/render2png.cpp reference)
