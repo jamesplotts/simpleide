@@ -50,6 +50,16 @@ sudo apt install pkg-config
 For additional VB.NET tooling (optional)
 sudo apt install mono-devel mono-vbnc
 
+### 6. Native HTML Renderer (optional, litehtml)
+Only needed if you want to build the native shim behind the Help tab's embedded doc-page
+renderer (`native/shim/`, see `readme.md`'s "Optional: Native HTML Renderer" section for
+the full build steps). Without it, `dotnet build`/`dotnet run` work exactly the same and
+the Help tab falls back to opening real doc pages in the system browser.
+
+sudo apt install cmake pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev
+git submodule update --init --recursive
+./native/build-native.sh
+
 ## Project Setup
 
 ### 1. Clone Repository
@@ -235,7 +245,9 @@ ls /usr/lib/cli/gtk-sharp-3.0/
 
 #### 2. Missing Dependencies
 Install all potential missing dependencies
-sudo apt install libgtk-3-0 libgirepository1.0-dev libwebkit2gtk-4.0-dev
+sudo apt install libgtk-3-0 libgirepository1.0-dev
+(SimpleIDE no longer uses WebKitGTK - see section 6 above for the optional litehtml-based
+HTML renderer instead)
 
 #### 3. Font Rendering Issues
 Install Microsoft core fonts

@@ -108,6 +108,32 @@ dotnet build --configuration Release
 dotnet run --configuration Release
 ```
 
+### Optional: Native HTML Renderer (real doc pages in the Help tab)
+
+The Help tab can render real documentation pages (e.g. `learn.microsoft.com`) inline via a
+vendored [litehtml](https://github.com/litehtml/litehtml) engine, painted through
+Cairo/Pango. This is entirely optional - if the native library isn't built, SimpleIDE opens
+those links in your system's default web browser instead, exactly as before.
+
+To build it:
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y cmake pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev
+
+# Fedora
+sudo dnf install cmake pkgconf-pkg-config cairo-devel pango-devel gdk-pixbuf2-devel
+
+# Fetch the vendored litehtml source (submodule)
+git submodule update --init --recursive
+
+# Build the native shim
+./native/build-native.sh
+```
+
+This produces `native/build/lib/liblitehtml_shim.so`; a subsequent `dotnet build` picks it
+up automatically and bundles it into the output directory. No native toolchain is required
+to build or run SimpleIDE itself - this step is purely additive.
+
 ## Usage
 
 ### Command Line Interface
