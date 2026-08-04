@@ -70,6 +70,25 @@ Namespace Editors
         End Function
 
         ''' <summary>
+        ''' True if the word currently at the cursor is a numeric literal rather than an
+        ''' identifier
+        ''' </summary>
+        ''' <remarks>
+        ''' A VB identifier can never start with a digit, so if the current word starts with
+        ''' one it must be a number (e.g. "123") - CodeSense has nothing to complete against it
+        ''' </remarks>
+        Private Function IsTypingNumericLiteral() As Boolean
+            Try
+                Dim lWord As String = GetCurrentWord()
+                Return lWord.Length > 0 AndAlso Char.IsDigit(lWord(0))
+
+            Catch ex As Exception
+                Console.WriteLine($"IsTypingNumericLiteral error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Checks if CodeSense should be triggered based on the typed character
         ''' </summary>
         ''' <param name="vChar">The character that was just typed</param>
@@ -98,14 +117,30 @@ Namespace Editors
                     Return
                 End If
 
+                ' Same for a numeric literal - a VB identifier can never start with a digit, so
+                ' once the current word starts with one it's a number (e.g. "123", "45.6"), not
+                ' something CodeSense could ever complete against
+                If IsTypingNumericLiteral() Then
+                    If pCodeSenseActive Then CancelCodeSense()
+                    Return
+                End If
+
                 ' Store the last typed character
                 pLastTypedChar = vChar
 
                 ' Check for immediate trigger characters
                 Select Case vChar
                     Case "."c
-                        ' Period triggers member list immediately
-                        TriggerCodeSenseImmediate(CodeSenseTriggerReason.eMemberList)
+                        ' A digit immediately before the "." means this is a decimal point in a
+                        ' numeric literal (e.g. "3.14"), not member access - VB has no syntax for
+                        ' calling a member directly off an integer literal without parens, so this
+                        ' is never ambiguous
+                        Dim lLineText As String = If(pSourceFileInfo IsNot Nothing AndAlso pCursorLine < pSourceFileInfo.TextLines.Count, pSourceFileInfo.TextLines(pCursorLine), "")
+                        Dim lDigitBeforeDot As Boolean = pCursorColumn >= 2 AndAlso pCursorColumn - 2 < lLineText.Length AndAlso Char.IsDigit(lLineText(pCursorColumn - 2))
+                        If Not lDigitBeforeDot Then
+                            ' Period triggers member list immediately
+                            TriggerCodeSenseImmediate(CodeSenseTriggerReason.eMemberList)
+                        End If
 
                     ' "(" no longer triggers CodeSenseEngine.GetParameterHints here - that
                     ' path shows the whole signature as a single suggestion-list entry (and,
