@@ -163,7 +163,7 @@ Namespace Managers
                 CreateAIAssistantTab()
                 Console.WriteLine("  Creating Git tab")
                 CreateGitTab()
-                Console.WriteLine("  Creating Console tab")
+                Console.WriteLine("  Creating console log buffer (no tab)")
                 CreateConsoleTab()
                 
                 InitializeEscapeKeyHandling()
@@ -559,10 +559,6 @@ Namespace Managers
                                     ' FIXED: Use AppendOutput method
                                     pBuildOutputPanel.AppendOutput(vText, "normal")
                                 End If
-                            Case 5 ' Console
-                                If pConsoleTextView IsNot Nothing Then
-                                    AppendToConsole(vText)
-                                End If
                         End Select
                     End If
                     Return False
@@ -605,26 +601,26 @@ Namespace Managers
         ''' <summary>
         ''' Creates the Console tab with icon
         ''' </summary>
+        ''' <summary>
+        ''' Creates the backing TextView that ShowError/ShowInfo/ConsoleLineOut write to
+        ''' </summary>
+        ''' <remarks>
+        ''' No longer added as a bottom-panel tab (James doesn't want a separate Console tab -
+        ''' Build Output already serves that purpose) - the TextView still exists so the many
+        ''' MainWindow.ShowError/ShowInfo call sites keep working unchanged, it's just not shown
+        ''' anywhere
+        ''' </remarks>
         Private Sub CreateConsoleTab()
             Try
-                Dim lScrolledWindow As New ScrolledWindow()
-                lScrolledWindow.VscrollbarPolicy = PolicyType.Automatic
-                lScrolledWindow.HscrollbarPolicy = PolicyType.Never
-                
                 pConsoleTextView = New TextView()
                 pConsoleTextView.Editable = False
                 pConsoleTextView.CursorVisible = False
                 pConsoleTextView.WrapMode = WrapMode.Word
-                
+
                 ' Apply monospace font
                 Dim lFontDesc As Pango.FontDescription = Pango.FontDescription.FromString("Monospace 10")
                 pConsoleTextView.OverrideFont(lFontDesc)
-                
-                lScrolledWindow.Add(pConsoleTextView)
-                
-                ' Add to notebook with icon
-                pNotebook.AppendPage(lScrolledWindow, "Console", "terminal")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateConsoleTab error: {ex.Message}")
             End Try
@@ -818,7 +814,6 @@ Namespace Managers
             eTodoList = 2
             eAIAssistant = 3
             eGit = 4
-            eConsole = 5
         End Enum
 
         ' Get the widget to add to the UI (for packing into paned)
@@ -1064,14 +1059,6 @@ Namespace Managers
                         If pBuildOutputPanel IsNot Nothing Then
                             ' Switch to output sub-tab within BuildOutputPanel
                             pBuildOutputPanel.SwitchToOutputTab()
-                        End If
-                        
-                    Case 5 ' Console
-                        ' Auto-scroll to bottom when switching to console
-                        If pConsoleTextView IsNot Nothing Then
-                            Dim lBuffer As TextBuffer = pConsoleTextView.Buffer
-                            Dim lEndIter As TextIter = lBuffer.EndIter
-                            pConsoleTextView.ScrollToIter(lEndIter, 0, False, 0, 0)
                         End If
                 End Select
                 
