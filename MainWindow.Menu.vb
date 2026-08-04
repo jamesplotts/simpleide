@@ -376,8 +376,8 @@ Partial Public Class MainWindow
             lProjectMenuItem.Submenu = lProjectMenu
             pMenuBar.Append(lProjectMenuItem)
             
-            ' Add Reference
-            Dim lAddReference As New MenuItem("Add _Reference...")
+            ' References
+            Dim lAddReference As New MenuItem("_References...")
             AddHandler lAddReference.Activated, Sub() OnManageReferences(Nothing, Nothing, 0)
             lProjectMenu.Append(lAddReference)
             
