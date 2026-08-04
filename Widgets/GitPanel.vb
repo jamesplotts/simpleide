@@ -58,6 +58,7 @@ Namespace Widgets
             ' Create notebook for tabs
             pNotebook = New CustomDrawNotebook(pThemeManager)
             'pNotebook.TabPos = PositionType.Top
+            pNotebook.ShowTabCloseButtons = False ' Changes/History/Diff are permanent, not closable
 
             ' Create Changes tab
             Dim lChangesPage As Widget = CreateChangesPage()
