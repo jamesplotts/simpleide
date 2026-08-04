@@ -24,12 +24,23 @@ Namespace Editors
         ''' This method validates and clamps the position, handles line tracking,
         ''' and raises appropriate events including NavigationUpdateRequested
         ''' </remarks>
-        Public Sub SetCursorPosition(vLine As Integer, vColumn As Integer) 
+        Public Sub SetCursorPosition(vLine As Integer, vColumn As Integer)
             Try
                 ' Store previous position for events and line tracking
                 Dim lOldLine As Integer = pCursorLine
                 Dim lOldColumn As Integer = pCursorColumn
-                
+
+                ' Every caret move away from a position is a potential "leaving this token"
+                ' moment - correct a keyword sitting right there (classic VB.NET IDE behavior).
+                ' CorrectKeywordEndingAt's own "nothing continues after vColumn" guard is what
+                ' keeps this from misfiring during forward typing (see its remarks) - this one
+                ' central call covers every other way the caret moves (arrows, Home/End, mouse
+                ' clicks, Page Up/Down, Ctrl+Home/End - all route through this method) without
+                ' needing a call at each of those sites individually
+                If (lOldLine <> vLine OrElse lOldColumn <> vColumn) Then
+                    CorrectKeywordEndingAt(lOldLine, lOldColumn)
+                End If
+
                 ' Validate and clamp line
                 If vLine < 0 Then
                     vLine = 0

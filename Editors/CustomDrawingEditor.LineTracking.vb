@@ -31,6 +31,14 @@ Namespace Editors
         ''' keyword table (SourceFileInfo.CaseCorrection.vb) stays the single source of truth,
         ''' shared with the file-load-time correction pass.
         ''' </remarks>
+        ''' <remarks>
+        ''' Requires vColumn to be a genuine trailing word boundary (nothing identifier-like
+        ''' continues immediately after it) - this is what makes it safe to call from
+        ''' SetCursorPosition on every cursor move, including the single-character advances
+        ''' InsertCharacter makes while typing forward through a word: at that moment the
+        ''' letter just typed still sits right at vColumn, so the check fails and no premature
+        ''' correction happens on a not-yet-finished word (e.g. "for" mid-way through "format")
+        ''' </remarks>
         Private Sub CorrectKeywordEndingAt(vLine As Integer, vColumn As Integer)
             Try
                 If pSourceFileInfo Is Nothing OrElse vLine < 0 OrElse vLine >= pLineCount Then Return
@@ -38,6 +46,7 @@ Namespace Editors
 
                 Dim lLine As String = pSourceFileInfo.TextLines(vLine)
                 If vColumn > lLine.Length Then Return
+                If vColumn < lLine.Length AndAlso (Char.IsLetterOrDigit(lLine(vColumn)) OrElse lLine(vColumn) = "_"c) Then Return
 
                 Dim lWordStart As Integer = vColumn
                 While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
