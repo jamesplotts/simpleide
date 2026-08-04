@@ -90,6 +90,14 @@ Namespace Editors
                 ' applicable - don't let the generic identifier-based triggers below clobber it
                 If pCursorInEnumParameterSlot Then Return
 
+                ' Don't trigger/update CodeSense while typing inside a string literal or comment
+                ' (e.g. a string argument in a function call) - there's nothing to complete
+                ' against, and leaving a stale popup open there is just noise
+                If IsInsideStringOrComment(pCursorLine, pCursorColumn - 1) Then
+                    If pCodeSenseActive Then CancelCodeSense()
+                    Return
+                End If
+
                 ' Store the last typed character
                 pLastTypedChar = vChar
 

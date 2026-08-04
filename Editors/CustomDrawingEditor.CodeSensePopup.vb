@@ -534,6 +534,38 @@ Namespace Editors
                         CommitCodeSenseSelection()
                         Return False
 
+                    Case Gdk.Key.equal, Gdk.Key.plus, Gdk.Key.minus, Gdk.Key.asterisk, Gdk.Key.slash,
+                         Gdk.Key.less, Gdk.Key.greater, Gdk.Key.ampersand
+                        ' Operator "commit characters" - accept the highlighted suggestion, then
+                        ' insert a leading space and the operator ourselves rather than letting it
+                        ' fall through to normal character handling like the space/period/"("
+                        ' commit characters above, so completing "Boolean" here produces
+                        ' "Boolean =" instead of "Boolean="
+                        CommitCodeSenseSelection()
+
+                        Dim lOperatorChar As String
+                        Select Case vKey
+                            Case Gdk.Key.equal
+                                lOperatorChar = "="
+                            Case Gdk.Key.plus
+                                lOperatorChar = "+"
+                            Case Gdk.Key.minus
+                                lOperatorChar = "-"
+                            Case Gdk.Key.asterisk
+                                lOperatorChar = "*"
+                            Case Gdk.Key.slash
+                                lOperatorChar = "/"
+                            Case Gdk.Key.less
+                                lOperatorChar = "<"
+                            Case Gdk.Key.greater
+                                lOperatorChar = ">"
+                            Case Else
+                                lOperatorChar = "&"
+                        End Select
+
+                        InsertText(" " & lOperatorChar)
+                        Return True
+
                     Case Gdk.Key.Escape
                         HideCodeSensePopup()
                         Return True

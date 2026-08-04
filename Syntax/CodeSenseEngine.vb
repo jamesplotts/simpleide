@@ -825,7 +825,26 @@ Namespace Syntax
                     New CodeSenseSuggestion() with {.Text = "Return", .Kind = CodeSenseSuggestionKind.eKeyword},
                     New CodeSenseSuggestion() with {.Text = "Nothing", .Kind = CodeSenseSuggestionKind.eKeyword},
                     New CodeSenseSuggestion() with {.Text = "True", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "False", .Kind = CodeSenseSuggestionKind.eKeyword}
+                    New CodeSenseSuggestion() with {.Text = "False", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Me", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "MyBase", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "MyClass", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Boolean", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Byte", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "SByte", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Char", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Date", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Decimal", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Double", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Integer", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "UInteger", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Long", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "ULong", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Short", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "UShort", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Single", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "String", .Kind = CodeSenseSuggestionKind.eKeyword},
+                    New CodeSenseSuggestion() with {.Text = "Object", .Kind = CodeSenseSuggestionKind.eKeyword}
                 }
                 
             Catch ex As Exception
