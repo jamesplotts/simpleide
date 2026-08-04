@@ -223,22 +223,20 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Show AI settings dialog for configuration
+    ''' Shows AI settings - opens (or switches to) the Preferences tab, landing directly on
+    ''' its AI sub-tab, same pattern as ShowGitSettings for Git > Settings...
     ''' </summary>
+    ''' <remarks>
+    ''' Used to open a separate modal AISettingsDialog; consolidated into the Preferences
+    ''' tab's own AI page so AI settings live in exactly one place. Reinitializing the AI
+    ''' client on save is now handled by ApplyAISettings, called when PreferencesTab raises
+    ''' SettingsApplied (see OpenPreferencesTab), rather than here.
+    ''' </remarks>
     Public Sub ShowAISettings()
         Try
-            Dim lDialog As New AISettingsDialog(Me, pSettingsManager, pThemeManager)
-            
-            If lDialog.Run() = CInt(ResponseType.Ok) Then
-                ' Settings saved, reinitialize AI
-                InitializeAI()
-                
-                ' Update status
-                UpdateStatusBar("AI settings updated")
-            End If
-            
-            lDialog.Destroy()
-            
+            OnEditPreferences(Nothing, Nothing)
+            pPreferencesTab?.SelectAITab()
+
         Catch ex As Exception
             Console.WriteLine($"ShowAISettings error: {ex.Message}")
             ShowError("AI Settings Error", ex.Message)

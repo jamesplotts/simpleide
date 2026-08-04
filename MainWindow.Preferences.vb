@@ -48,12 +48,11 @@ Partial Public Class MainWindow
         Try
             ' Create the preferences tab
             pPreferencesTab = New PreferencesTab(pSettingsManager, pThemeManager)
-            
-            ' Hook up events (if needed)
-            ' AddHandler pPreferencesTab.SettingsChanged, AddressOf OnPreferencesSettingsChanged
-            
-            ' Create tab label with close button
-            
+
+            ' Re-apply settings live (theme, AI client, Git, UI) whenever Save/Apply writes
+            ' new values, instead of requiring an app restart to take effect
+            AddHandler pPreferencesTab.SettingsApplied, AddressOf OnPreferencesSettingsChanged
+
             ' Add to notebook
             pPreferencesTabIndex = pNotebook.AppendPage(pPreferencesTab, "Preferences")
             
@@ -73,7 +72,7 @@ Partial Public Class MainWindow
     ''' <summary>
     ''' Handler for when preferences settings change - applies changes immediately to the IDE
     ''' </summary>
-    Private Sub OnPreferencesSettingsChanged(vSender As Object, vArgs As EventArgs)
+    Private Sub OnPreferencesSettingsChanged()
         Try
             Console.WriteLine("Applying preferences changes to IDE...")
             
@@ -223,17 +222,20 @@ Partial Public Class MainWindow
         Try
             ' Get AI settings
             Dim lAIEnabled As Boolean = pSettingsManager.GetBoolean("AI.Enabled", False)
-            
+
             If lAIEnabled Then
-                ' FIX: Comment out or remove pAIPanel references until it's implemented
-                ' For now, just log the settings
-                
+                ' Rebuild the Claude client/AI Assistant panel with whatever API key/settings
+                ' were just saved (was only done by the old modal AISettingsDialog on OK;
+                ' now that AI settings live in the Preferences tab, this is the live-apply
+                ' path instead)
+                InitializeAI()
+
                 ' Apply artifact settings
                 Dim lShowArtifacts As Boolean = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
                 Dim lAutoContext As Boolean = pSettingsManager.GetBoolean("AI.AutoContext", True)
-                
+
                 Console.WriteLine($"AI Settings: ShowArtifacts={lShowArtifacts}, AutoContext={lAutoContext}")
-                
+
                 ' TODO: Update AI panel when it's implemented
                 ' If pAIPanel IsNot Nothing Then
                 '     pAIPanel.ShowArtifacts = lShowArtifacts

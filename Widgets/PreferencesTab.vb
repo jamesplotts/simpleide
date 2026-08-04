@@ -74,7 +74,15 @@ Namespace Widgets
         Private pShowArtifactsCheck As CheckButton
         Private pAutoContextCheck As CheckButton
         Private pMem0EnabledCheck As CheckButton
-        Private pAISettingsButton As CustomDrawButton
+        Private pApiKeyEntry As CustomDrawTextBox
+        Private pApiKeyVisibleCheck As CheckButton
+        Private pAIModelCombo As CustomDrawComboBox
+        Private pMaxTokensSpin As SpinButton
+        Private pTemperatureSpin As SpinButton
+        Private pStreamResponsesCheck As CheckButton
+        Private pAutoSuggestCheck As CheckButton
+        Private pSaveHistoryCheck As CheckButton
+        Private pHistoryLimitSpin As SpinButton
         
         ' Advanced tab controls
         Private pEnableLoggingCheck As CheckButton
@@ -100,8 +108,15 @@ Namespace Widgets
         Private pAutoIncrementEnableCheck As CheckButton
         
         ' ===== Events (IEditor Implementation) =====
-        Public Event Modified As EventHandler  
-        Public Event CursorPositionChanged(vLine As Integer, vColumn As Integer) 
+        Public Event Modified As EventHandler
+        Public Event CursorPositionChanged(vLine As Integer, vColumn As Integer)
+
+        ''' <summary>
+        ''' Raised after settings are written to pSettingsManager (Save or Apply) - lets
+        ''' MainWindow re-apply the new values live (theme, AI client, etc.) instead of
+        ''' requiring an app restart
+        ''' </summary>
+        Public Event SettingsApplied()
         
         ' ===== Constructor =====
         
@@ -213,6 +228,19 @@ Namespace Widgets
                 pNotebook.CurrentPage = 3 ' Git tab - see InitializeUI's AppendPage order
             Catch ex As Exception
                 Console.WriteLine($"PreferencesTab.SelectGitTab error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Switches the category notebook to the AI tab - used by MainWindow.ShowAISettings
+        ''' (the AI > AI Settings... menu command) so it lands directly on AI settings instead
+        ''' of just opening Preferences to whatever tab was last active
+        ''' </summary>
+        Public Sub SelectAITab()
+            Try
+                pNotebook.CurrentPage = 4 ' AI tab - see InitializeUI's AppendPage order
+            Catch ex As Exception
+                Console.WriteLine($"PreferencesTab.SelectAITab error: {ex.Message}")
             End Try
         End Sub
 
@@ -759,16 +787,113 @@ Namespace Widgets
             pMem0EnabledCheck.MarginStart = 20
             AddHandler pMem0EnabledCheck.Toggled, AddressOf OnSettingChanged
             lConfigBox.PackStart(pMem0EnabledCheck, False, False, 0)
-            
-            ' AI Settings Button
-            pAISettingsButton = New CustomDrawButton("Configure AI Connection...")
-            pAISettingsButton.ThemeManager = pThemeManager
-            AddHandler pAISettingsButton.Clicked, AddressOf OnAISettingsClicked
-            lConfigBox.PackStart(pAISettingsButton, False, False, 10)
-            
+
             lConfigFrame.Add(lConfigBox)
             lBox.PackStart(lConfigFrame, False, False, 0)
-            
+
+            ' API Configuration - was a separate modal AISettingsDialog opened via a
+            ' "Configure AI Connection..." button; consolidated directly into this tab
+            Dim lApiFrame As New Frame("API Configuration")
+            Dim lApiBox As New Box(Orientation.Vertical, 5)
+            lApiBox.BorderWidth = 10
+
+            Dim lApiKeyBox As New Box(Orientation.Horizontal, 10)
+            lApiKeyBox.PackStart(New Label("API key:"), False, False, 0)
+            pApiKeyEntry = New CustomDrawTextBox()
+            pApiKeyEntry.ThemeManager = pThemeManager
+            pApiKeyEntry.InnerEntry.Visibility = False ' Hide API key by default
+            pApiKeyEntry.TooltipText = "Your Claude API key"
+            AddHandler pApiKeyEntry.Changed, AddressOf OnSettingChanged
+            lApiKeyBox.PackStart(pApiKeyEntry, True, True, 0)
+
+            pApiKeyVisibleCheck = New CheckButton("Show")
+            AddHandler pApiKeyVisibleCheck.Toggled, AddressOf OnApiKeyVisibleToggled
+            lApiKeyBox.PackStart(pApiKeyVisibleCheck, False, False, 0)
+            lApiBox.PackStart(lApiKeyBox, False, False, 0)
+
+            Dim lModelBox As New Box(Orientation.Horizontal, 10)
+            lModelBox.PackStart(New Label("Model:"), False, False, 0)
+            pAIModelCombo = New CustomDrawComboBox()
+            pAIModelCombo.ThemeManager = pThemeManager
+            pAIModelCombo.AppendText("claude-3-opus-20240229")
+            pAIModelCombo.AppendText("claude-3-sonnet-20240229")
+            pAIModelCombo.AppendText("claude-3-haiku-20240307")
+            pAIModelCombo.AppendText("claude-2.1")
+            pAIModelCombo.AppendText("claude-2.0")
+            AddHandler pAIModelCombo.Changed, AddressOf OnSettingChanged
+            lModelBox.PackStart(pAIModelCombo, True, True, 0)
+            lApiBox.PackStart(lModelBox, False, False, 0)
+
+            Dim lApiHelpLabel As New Label()
+            lApiHelpLabel.Markup = "<small>Get your API key from <a href='https://console.anthropic.com/'>Anthropic Console</a></small>"
+            lApiHelpLabel.Xalign = 0
+            lApiBox.PackStart(lApiHelpLabel, False, False, 0)
+
+            lApiFrame.Add(lApiBox)
+            lBox.PackStart(lApiFrame, False, False, 0)
+
+            ' Generation Settings
+            Dim lGenFrame As New Frame("Generation Settings")
+            Dim lGenBox As New Box(Orientation.Vertical, 5)
+            lGenBox.BorderWidth = 10
+
+            Dim lMaxTokensBox As New Box(Orientation.Horizontal, 10)
+            lMaxTokensBox.PackStart(New Label("Max tokens:"), False, False, 0)
+            pMaxTokensSpin = New SpinButton(100, 100000, 100)
+            AddHandler pMaxTokensSpin.ValueChanged, AddressOf OnSettingChanged
+            lMaxTokensBox.PackStart(pMaxTokensSpin, False, False, 0)
+            Dim lMaxTokensHelp As New Label("<small>Maximum response length</small>")
+            lMaxTokensHelp.UseMarkup = True
+            lMaxTokensHelp.Xalign = 0
+            lMaxTokensBox.PackStart(lMaxTokensHelp, True, True, 0)
+            lGenBox.PackStart(lMaxTokensBox, False, False, 0)
+
+            Dim lTemperatureBox As New Box(Orientation.Horizontal, 10)
+            lTemperatureBox.PackStart(New Label("Temperature:"), False, False, 0)
+            pTemperatureSpin = New SpinButton(0.0, 1.0, 0.1)
+            pTemperatureSpin.Digits = 1
+            AddHandler pTemperatureSpin.ValueChanged, AddressOf OnSettingChanged
+            lTemperatureBox.PackStart(pTemperatureSpin, False, False, 0)
+            Dim lTemperatureHelp As New Label("<small>0.0 = focused, 1.0 = creative</small>")
+            lTemperatureHelp.UseMarkup = True
+            lTemperatureHelp.Xalign = 0
+            lTemperatureBox.PackStart(lTemperatureHelp, True, True, 0)
+            lGenBox.PackStart(lTemperatureBox, False, False, 0)
+
+            pStreamResponsesCheck = New CheckButton("Stream responses (show text as it's generated)")
+            AddHandler pStreamResponsesCheck.Toggled, AddressOf OnSettingChanged
+            lGenBox.PackStart(pStreamResponsesCheck, False, False, 0)
+
+            lGenFrame.Add(lGenBox)
+            lBox.PackStart(lGenFrame, False, False, 0)
+
+            ' Conversation Features
+            Dim lConvFrame As New Frame("Conversation Features")
+            Dim lConvBox As New Box(Orientation.Vertical, 5)
+            lConvBox.BorderWidth = 10
+
+            pAutoSuggestCheck = New CheckButton("Enable auto-suggestions while typing")
+            AddHandler pAutoSuggestCheck.Toggled, AddressOf OnSettingChanged
+            lConvBox.PackStart(pAutoSuggestCheck, False, False, 0)
+
+            pSaveHistoryCheck = New CheckButton("Save conversation history")
+            AddHandler pSaveHistoryCheck.Toggled, AddressOf OnSaveHistoryToggled
+            lConvBox.PackStart(pSaveHistoryCheck, False, False, 0)
+
+            Dim lHistoryBox As New Box(Orientation.Horizontal, 10)
+            lHistoryBox.PackStart(New Label("History limit:"), False, False, 0)
+            pHistoryLimitSpin = New SpinButton(0, 100, 1)
+            AddHandler pHistoryLimitSpin.ValueChanged, AddressOf OnSettingChanged
+            lHistoryBox.PackStart(pHistoryLimitSpin, False, False, 0)
+            Dim lHistoryHelp As New Label("<small>conversations (0 = unlimited)</small>")
+            lHistoryHelp.UseMarkup = True
+            lHistoryHelp.Xalign = 0
+            lHistoryBox.PackStart(lHistoryHelp, True, True, 0)
+            lConvBox.PackStart(lHistoryBox, False, False, 0)
+
+            lConvFrame.Add(lConvBox)
+            lBox.PackStart(lConvFrame, False, False, 0)
+
             ' AI Features Info
             Dim lInfoFrame As New Frame("AI Features")
             Dim lInfoBox As New Box(Orientation.Vertical, 5)
@@ -1081,7 +1206,35 @@ Namespace Widgets
                 pShowArtifactsCheck.Active = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
                 pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", False)
                 pMem0EnabledCheck.Active = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
-                
+
+                pApiKeyEntry.Text = pSettingsManager.GetString("AI.ApiKey", "")
+
+                Dim lModel As String = pSettingsManager.GetString("AI.Model", "claude-3-sonnet-20240229")
+                Dim lModelIndex As Integer = pAIModelCombo.IndexOf(lModel)
+                pAIModelCombo.Active = If(lModelIndex >= 0, lModelIndex, 0)
+
+                pMaxTokensSpin.Value = pSettingsManager.GetInteger("AI.MaxTokens", 4096)
+                pTemperatureSpin.Value = pSettingsManager.GetDouble("AI.Temperature", 0.7)
+                pStreamResponsesCheck.Active = pSettingsManager.GetBoolean("AI.StreamResponses", True)
+                pAutoSuggestCheck.Active = pSettingsManager.GetBoolean("AI.AutoSuggest", False)
+                pSaveHistoryCheck.Active = pSettingsManager.GetBoolean("AI.SaveHistory", True)
+                pHistoryLimitSpin.Value = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
+
+                ' Update UI sensitivity state to match loaded values
+                Dim lAIEnabled As Boolean = pAIEnabledCheck.Active
+                pShowArtifactsCheck.Sensitive = lAIEnabled
+                pAutoContextCheck.Sensitive = lAIEnabled
+                pMem0EnabledCheck.Sensitive = lAIEnabled
+                pApiKeyEntry.Sensitive = lAIEnabled
+                pApiKeyVisibleCheck.Sensitive = lAIEnabled
+                pAIModelCombo.Sensitive = lAIEnabled
+                pMaxTokensSpin.Sensitive = lAIEnabled
+                pTemperatureSpin.Sensitive = lAIEnabled
+                pStreamResponsesCheck.Sensitive = lAIEnabled
+                pAutoSuggestCheck.Sensitive = lAIEnabled
+                pSaveHistoryCheck.Sensitive = lAIEnabled
+                pHistoryLimitSpin.Sensitive = lAIEnabled AndAlso pSaveHistoryCheck.Active
+
                 ' Advanced
                 pEnableLoggingCheck.Active = pSettingsManager.GetBoolean("Advanced.EnableLogging", False)
                 
@@ -1195,7 +1348,17 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("AI.ShowArtifacts", pShowArtifactsCheck.Active)
                 pSettingsManager.SetBoolean("AI.AutoContext", pAutoContextCheck.Active)
                 pSettingsManager.SetBoolean("AI.Mem0.Enabled", pMem0EnabledCheck.Active)
-                
+                pSettingsManager.SetString("AI.ApiKey", pApiKeyEntry.Text.Trim())
+                If pAIModelCombo.ActiveText IsNot Nothing Then
+                    pSettingsManager.SetString("AI.Model", pAIModelCombo.ActiveText)
+                End If
+                pSettingsManager.SetInteger("AI.MaxTokens", CInt(pMaxTokensSpin.Value))
+                pSettingsManager.SetDouble("AI.Temperature", pTemperatureSpin.Value)
+                pSettingsManager.SetBoolean("AI.StreamResponses", pStreamResponsesCheck.Active)
+                pSettingsManager.SetBoolean("AI.AutoSuggest", pAutoSuggestCheck.Active)
+                pSettingsManager.SetBoolean("AI.SaveHistory", pSaveHistoryCheck.Active)
+                pSettingsManager.SetInteger("AI.HistoryLimit", CInt(pHistoryLimitSpin.Value))
+
                 ' Advanced
                 pSettingsManager.SetBoolean("Advanced.EnableLogging", pEnableLoggingCheck.Active)
                 pSettingsManager.SetString("Advanced.LogLevel", pLogLevelCombo.ActiveText)
@@ -1209,7 +1372,9 @@ Namespace Widgets
                 
                 ' Save to disk
                 pSettingsManager.Save()
-                
+
+                RaiseEvent SettingsApplied()
+
             Catch ex As Exception
                 Console.WriteLine($"PreferencesTab.SaveSettings error: {ex.Message}")
                 Throw
@@ -1333,7 +1498,15 @@ Namespace Widgets
             pShowArtifactsCheck.Sensitive = lEnabled
             pAutoContextCheck.Sensitive = lEnabled
             pMem0EnabledCheck.Sensitive = lEnabled
-            pAISettingsButton.Sensitive = lEnabled
+            pApiKeyEntry.Sensitive = lEnabled
+            pApiKeyVisibleCheck.Sensitive = lEnabled
+            pAIModelCombo.Sensitive = lEnabled
+            pMaxTokensSpin.Sensitive = lEnabled
+            pTemperatureSpin.Sensitive = lEnabled
+            pStreamResponsesCheck.Sensitive = lEnabled
+            pAutoSuggestCheck.Sensitive = lEnabled
+            pSaveHistoryCheck.Sensitive = lEnabled
+            pHistoryLimitSpin.Sensitive = lEnabled AndAlso pSaveHistoryCheck.Active
             OnSettingChanged(vSender, vArgs)
         End Sub
         
@@ -1348,20 +1521,18 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles AI settings button click
+        ''' Handles the API key show/hide checkbox toggle
         ''' </summary>
-        Private Sub OnAISettingsClicked(vSender As Object, vArgs As EventArgs)
-            Try
-                ' Show AI settings dialog
-                Dim lDialog As New Dialogs.AISettingsDialog(GetParentWindow, pSettingsManager)
-                If lDialog.Run() = ResponseType.Ok Then
-                    OnSettingChanged(vSender, vArgs)
-                End If
-                lDialog.Destroy()
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnAISettingsClicked error: {ex.Message}")
-            End Try
+        Private Sub OnApiKeyVisibleToggled(vSender As Object, vArgs As EventArgs)
+            pApiKeyEntry.InnerEntry.Visibility = pApiKeyVisibleCheck.Active
+        End Sub
+
+        ''' <summary>
+        ''' Handles save-history checkbox toggle
+        ''' </summary>
+        Private Sub OnSaveHistoryToggled(vSender As Object, vArgs As EventArgs)
+            pHistoryLimitSpin.Sensitive = pSaveHistoryCheck.Active
+            OnSettingChanged(vSender, vArgs)
         End Sub
 
         ' Get the parent window properly
