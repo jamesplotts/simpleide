@@ -36,7 +36,10 @@ Namespace Models
         Private pSyntaxTree As SyntaxNode
         Private pProjectManager As ProjectManager
         Private pParseErrors As List(Of ParseError)
-        Private pKeywordCaseMap As Dictionary(Of String, String) = Nothing
+        ' Shared (not per-instance) - the VB.NET keyword table is a language constant, not
+        ' per-file state, and CodeSenseEngine.vb reads it too (see SourceFileInfo.CaseCorrection.vb's
+        ' AllKeywords) so there's exactly one authoritative keyword list in the whole app
+        Private Shared pKeywordCaseMap As Dictionary(Of String, String) = Nothing
         Private pIdentifierCaseMap As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)  
         Private pFoldingState As New Dictionary(Of String, Boolean)()
         Public Property ProjectRootNamespace As String = ""

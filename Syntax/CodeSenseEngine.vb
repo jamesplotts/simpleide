@@ -792,61 +792,22 @@ Namespace Syntax
         ''' <summary>
         ''' Initialize keyword suggestions
         ''' </summary>
+        ''' <remarks>
+        ''' Built from SourceFileInfo.GetAllKeywords - the same authoritative keyword table
+        ''' used for live case-correction - rather than a separately hardcoded list. The two
+        ''' independent lists previously drifted apart (this one covered under half of VB.NET's
+        ''' real keyword set), so typing a keyword missing here left the suggestion popup's
+        ''' selection stuck on whatever it last had, silently replacing the typed keyword with
+        ''' that leftover selection when a commit character was typed (e.g. "Imports"/"Partial"
+        ''' both became "AI", the project's own namespace and alphabetically-first suggestion)
+        ''' </remarks>
         Private Sub InitializeKeywordSuggestions()
             Try
-                pKeywordSuggestions = New List(Of CodeSenseSuggestion) From {
-                    New CodeSenseSuggestion() with {.Text = "Public", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Private", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Protected", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Friend", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Shared", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Class", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Module", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Interface", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Function", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Sub", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Property", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "If", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Then", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Else", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "ElseIf", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "End If", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "For", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Next", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "While", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "End While", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Try", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Catch", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Finally", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "End Try", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Dim", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "As", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "New", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Return", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Nothing", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "True", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "False", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Me", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "MyBase", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "MyClass", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Boolean", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Byte", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "SByte", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Char", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Date", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Decimal", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Double", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Integer", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "UInteger", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Long", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "ULong", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Short", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "UShort", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Single", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "String", .Kind = CodeSenseSuggestionKind.eKeyword},
-                    New CodeSenseSuggestion() with {.Text = "Object", .Kind = CodeSenseSuggestionKind.eKeyword}
-                }
-                
+                pKeywordSuggestions = New List(Of CodeSenseSuggestion)()
+                for each lKeyword As String in SourceFileInfo.GetAllKeywords()
+                    pKeywordSuggestions.Add(New CodeSenseSuggestion() With {.Text = lKeyword, .Kind = CodeSenseSuggestionKind.eKeyword})
+                Next
+
             Catch ex As Exception
                 Console.WriteLine($"InitializeKeywordSuggestions error: {ex.Message}")
             End Try

@@ -189,9 +189,11 @@ Namespace Editors
                     .Add(New DeclarationPattern(
                         "^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:ReadOnly\s+|WriteOnly\s+)?Property\s+(\w+)",
                         IdentifierScope.eProperty ) )
-                    ' Class/Module/Structure declarations
+                    ' Class/Module/Structure declarations - modifiers in any order (this
+                    ' codebase's own convention writes "Partial Public Class", not "Public
+                    ' Partial Class")
                     .Add(New DeclarationPattern(
-                        "^\s*(?:Public|Private|Protected|Friend)?\s*(?:Partial\s+)?(?:Class|Module|Structure|Interface)\s+(\w+)",
+                        "^\s*(?:(?:Public|Private|Protected|Friend|Partial|MustInherit|NotInheritable)\s+)*(?:Class|Module|Structure|Interface)\s+(\w+)",
                         IdentifierScope.eType ) )
                     ' Event declarations
                     .Add(New DeclarationPattern(
@@ -318,9 +320,11 @@ Namespace Editors
         ' Matches the End Sub/Function/Property that closes a member header
         Private Shared ReadOnly MemberEndPattern As New Regex("^\s*End\s+(?:Sub|Function|Property)\b", RegexOptions.IgnoreCase)
 
-        ' Matches a Class/Module/Structure header line, capturing its name
+        ' Matches a Class/Module/Structure header line, capturing its name - modifiers in any
+        ' order (this codebase's own convention writes "Partial Public Class", not "Public
+        ' Partial Class")
         Private Shared ReadOnly TypeHeaderPattern As New Regex(
-            "^\s*(?:Public|Private|Protected|Friend)?\s*(?:Partial\s+)?(?:Class|Module|Structure)\s+(\w+)",
+            "^\s*(?:(?:Public|Private|Protected|Friend|Partial|MustInherit|NotInheritable)\s+)*(?:Class|Module|Structure)\s+(\w+)",
             RegexOptions.IgnoreCase)
 
         ''' <summary>

@@ -23,12 +23,19 @@ Namespace Editors
         ''' end-of-string since they're matched against the line text up to (not including) the
         ''' word currently being typed
         ''' </summary>
+        ''' <remarks>
+        ''' The Class/Module/Structure/Interface/Enum pattern accepts its modifiers in any
+        ''' order - this codebase's own convention writes "Partial Public Class", not "Public
+        ''' Partial Class"; a previous fixed-order version of this pattern only recognized the
+        ''' latter, so it silently failed to suppress CodeSense while typing a new class name
+        ''' anywhere in this project's own house style
+        ''' </remarks>
         Private Shared ReadOnly DeclarationNamePatterns As Regex() = {
             New Regex("^\s*(?:Dim|Private|Public|Protected|Friend|Const)\s+(?:Shared\s+)?(?:ReadOnly\s+)?(?:\w+\s*,\s*)*$", RegexOptions.IgnoreCase),
             New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:Overrides\s+|Overridable\s+|MustOverride\s+)?(?:Sub|Function)\s+$", RegexOptions.IgnoreCase),
             New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:ReadOnly\s+|WriteOnly\s+)?Property\s+$", RegexOptions.IgnoreCase),
             New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*Event\s+$", RegexOptions.IgnoreCase),
-            New Regex("^\s*(?:Public|Private|Protected|Friend)?\s*(?:Partial\s+)?(?:Class|Module|Structure|Interface|Enum)\s+$", RegexOptions.IgnoreCase),
+            New Regex("^\s*(?:(?:Public|Private|Protected|Friend|Partial|MustInherit|NotInheritable)\s+)*(?:Class|Module|Structure|Interface|Enum)\s+$", RegexOptions.IgnoreCase),
             New Regex("\bFor\s+(?:Each\s+)?$", RegexOptions.IgnoreCase)
         }
 

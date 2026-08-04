@@ -142,6 +142,27 @@ Namespace Models
         End Function
 
         ''' <summary>
+        ''' The full set of VB.NET reserved keywords in their canonical casing - the single
+        ''' authoritative keyword list for the whole app
+        ''' </summary>
+        ''' <remarks>
+        ''' CodeSenseEngine.InitializeKeywordSuggestions builds its suggestion-popup keyword
+        ''' list from this instead of maintaining its own separate hardcoded list - the two
+        ''' independently-hardcoded lists previously drifted apart (CodeSenseEngine's covered
+        ''' under half the real keyword set), so typing a keyword missing from CodeSenseEngine's
+        ''' list left the suggestion popup's selection stuck on whatever it last had (e.g. the
+        ''' project's own "AI" namespace, alphabetically first among the suggestions), silently
+        ''' replacing the typed keyword with that leftover selection when a commit character
+        ''' (space, etc.) was typed - e.g. "Imports"/"Partial" both became "AI"
+        ''' </remarks>
+        Public Shared Function GetAllKeywords() As IEnumerable(Of String)
+            If pKeywordCaseMap Is Nothing Then
+                InitializeKeywordCaseMap()
+            End If
+            Return pKeywordCaseMap.Values
+        End Function
+
+        ''' <summary>
         ''' Corrects the case of a single word (keyword or identifier)
         ''' </summary>
         Private Function CorrectWordCase(vWord As String) As String
@@ -191,7 +212,7 @@ Namespace Models
         ''' <summary>
         ''' Initializes the keyword case map with VB.NET keywords
         ''' </summary>
-        Private Sub InitializeKeywordCaseMap()
+        Private Shared Sub InitializeKeywordCaseMap()
             pKeywordCaseMap = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
                 {"AddHandler", "AddHandler"}, {"AddressOf", "AddressOf"}, {"Alias", "Alias"}, 
                 {"and", "and"}, {"AndAlso", "AndAlso"}, {"As", "As"}, {"Boolean", "Boolean"}, 
