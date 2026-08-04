@@ -22,7 +22,6 @@ Namespace Managers
         Private pFindPanel As FindReplacePanel
         Private pTodoPanel As TodoPanel
         Private pAIAssistantPanel As AIAssistantPanel
-        Private pHelpViewerPanel As HelpViewerPanel
         Private pGitPanel As GitPanel
         Private pConsoleTextView As TextView
         
@@ -37,7 +36,6 @@ Namespace Managers
         Public Event SendTodoToAI(vTodo As TODOItem)
         Public Event SendErrorsToAI(vErrorsText As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
-        Public Event HelpTitleChanged(vTitle As String)
         ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
         Public Event BuildRequested()
         ''' <summary>Relayed from BuildOutputPanel.RunRequested (its own panel-local Run button)</summary>
@@ -82,12 +80,6 @@ Namespace Managers
         Public ReadOnly Property AIAssistantPanel As AIAssistantPanel
             Get
                 Return pAIAssistantPanel
-            End Get
-        End Property
-        
-        Public ReadOnly Property HelpViewerPanel As HelpViewerPanel
-            Get
-                Return pHelpViewerPanel
             End Get
         End Property
         
@@ -169,8 +161,6 @@ Namespace Managers
                 CreateTodoListTab()
                 Console.WriteLine("  Creating AI Assistant tab")
                 CreateAIAssistantTab()
-                Console.WriteLine("  Creating Help Viewer tab")
-                CreateHelpViewerTab()
                 Console.WriteLine("  Creating Git tab")
                 CreateGitTab()
                 Console.WriteLine("  Creating Console tab")
@@ -229,11 +219,6 @@ Namespace Managers
                 ' Connect to AI Assistant Panel
                 If pAIAssistantPanel IsNot Nothing Then
                     ConnectEscapeHandlerToWidget(pAIAssistantPanel)
-                End If
-                
-                ' Connect to Help Viewer Panel
-                If pHelpViewerPanel IsNot Nothing Then
-                    ConnectEscapeHandlerToWidget(pHelpViewerPanel)
                 End If
                 
                 ' Connect to Git Panel
@@ -574,7 +559,7 @@ Namespace Managers
                                     ' FIXED: Use AppendOutput method
                                     pBuildOutputPanel.AppendOutput(vText, "normal")
                                 End If
-                            Case 6 ' Console
+                            Case 5 ' Console
                                 If pConsoleTextView IsNot Nothing Then
                                     AppendToConsole(vText)
                                 End If
@@ -586,49 +571,7 @@ Namespace Managers
                 Console.WriteLine($"UpdateSelectedTab error: {ex.Message}")
             End Try
         End Sub
-        
-        ''' <summary>
-        ''' Creates the Help Viewer tab with icon
-        ''' </summary>
-        Private Sub CreateHelpViewerTab()
-            Try
-                pHelpViewerPanel = New HelpViewerPanel()
-                
-                AddHandler pHelpViewerPanel.TitleChanged,
-                    Sub(vTitle As String)
-                        OnHelpTitleChanged(vTitle)
-                    End Sub
-                
-                ' Add to notebook with icon
-                pNotebook.AppendPage(pHelpViewerPanel, "Help", "help-browser")
 
-                ' This tab is created lazily, so if the theme was already set before this ran,
-                ' the new panel needs to be brought up to date immediately
-                If pThemeManager IsNot Nothing Then
-                    pHelpViewerPanel.SetThemeManager(pThemeManager)
-                End If
-
-            Catch ex As Exception
-                Console.WriteLine($"CreateHelpViewerTab error: {ex.Message}")
-            End Try
-        End Sub
-          
-        ' Update help title - PUBLIC METHOD
-        Public Sub UpdateHelpTitle(vTitle As String)
-            Try
-                ' FIXED: Use Function delegate instead of Action
-                GLib.Idle.Add(Function()
-                    If pHelpViewerPanel IsNot Nothing Then
-                        ' Update the help viewer title
-                        RaiseEvent HelpTitleChanged(vTitle)
-                    End If
-                    Return False
-                End Function)
-            Catch ex As Exception
-                Console.WriteLine($"UpdateHelpTitle error: {ex.Message}")
-            End Try
-        End Sub
-        
         ''' <summary>
         ''' Creates the Git tab with icon
         ''' </summary>
@@ -861,34 +804,6 @@ Namespace Managers
             End Try
         End Sub
         
-        ' Event handler for tab switching
-        Private Sub OnTabSwitched(vSender As Object, vArgs As SwitchPageArgs)
-            Try
-                RaiseEvent TabChanged(CInt(vArgs.PageNum))
-                
-                ' Focus appropriate widget based on tab
-                Select Case vArgs.PageNum
-                    Case 0 ' Build output
-                        pBuildOutputPanel?.GrabFocus()
-                    Case 1 ' Find Results
-                        pFindPanel?.GrabFocus()
-                    Case 2 ' TODO List
-                        pTodoPanel?.GrabFocus()
-                    Case 3 ' AI Assistant
-                        pAIAssistantPanel?.GrabFocus()
-                    Case 4 ' Help Viewer
-                        pHelpViewerPanel?.GrabFocus()
-                    Case 5 ' git
-                        pGitPanel?.GrabFocus()
-                    Case 6 ' Console
-                        pConsoleTextView?.GrabFocus()
-                End Select
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnTabSwitched error: {ex.Message}")
-            End Try
-        End Sub
-        
         ' Copy errors to clipboard
         Public Sub CopyErrorsToClipboard()
             If pBuildOutputPanel IsNot Nothing Then
@@ -902,20 +817,9 @@ Namespace Managers
             eFindResults = 1
             eTodoList = 2
             eAIAssistant = 3
-            eHelpViewer = 4
-            eGit = 5
-            eConsole = 6
+            eGit = 4
+            eConsole = 5
         End Enum
-
-        Private Sub OnHelpTitleChanged(vTitle As String)
-            Try
-                ' Update window title or status bar with help title
-                RaiseEvent HelpTitleChanged(vTitle)
-                Console.WriteLine($"Help Title changed: {vTitle}")
-            Catch ex As Exception
-                Console.WriteLine($"OnHelpTitleChanged error: {ex.Message}")
-            End Try
-        End Sub
 
         ' Get the widget to add to the UI (for packing into paned)
         Public Function GetWidget() As Widget
@@ -1126,10 +1030,6 @@ Namespace Managers
                     pAIAssistantPanel.SetThemeManager(vThemeManager)
                 End If
 
-                If pHelpViewerPanel IsNot Nothing Then
-                    pHelpViewerPanel.SetThemeManager(vThemeManager)
-                End If
-
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.SetThemeManager error: {ex.Message}")
             End Try
@@ -1166,7 +1066,7 @@ Namespace Managers
                             pBuildOutputPanel.SwitchToOutputTab()
                         End If
                         
-                    Case 6 ' Console
+                    Case 5 ' Console
                         ' Auto-scroll to bottom when switching to console
                         If pConsoleTextView IsNot Nothing Then
                             Dim lBuffer As TextBuffer = pConsoleTextView.Buffer

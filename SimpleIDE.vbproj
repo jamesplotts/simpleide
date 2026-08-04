@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1078.0</AssemblyVersion>
-    <FileVersion>1.1.1078.0</FileVersion>
+    <AssemblyVersion>1.1.1079.0</AssemblyVersion>
+    <FileVersion>1.1.1079.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1078</Version>
+    <Version>1.1.1079</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -289,7 +289,6 @@
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
-    <Compile Include="Widgets/HelpViewerPanel.vb" />
     <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
     <Compile Include="Widgets/NavigationDropdownPopup.vb" />

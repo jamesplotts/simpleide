@@ -542,12 +542,6 @@ Partial Public Class MainWindow
         End Get
     End Property
     
-    Private ReadOnly Property pHelpViewerPanel As HelpViewerPanel
-        Get
-            Return pBottomPanelManager?.HelpViewerPanel
-        End Get
-    End Property
-    
     Private ReadOnly Property pGitPanel As GitPanel
         Get
             Return pBottomPanelManager?.GitPanel

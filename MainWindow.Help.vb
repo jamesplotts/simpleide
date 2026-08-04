@@ -165,29 +165,6 @@ Partial Public Class MainWindow
         End Try
     End Function
     
-    ' Show context-sensitive help for a specific topic
-    Private Sub ShowContextHelp(vContext As String)
-        Try
-            ShowHelpPanel()
-            
-            ' Navigate to specific help topic using available methods
-            If pHelpViewerPanel IsNot Nothing Then
-                ' Use available methods like ShowVBNetHelp, ShowGtkHelp, etc.
-                Select Case vContext.ToLower()
-                    Case "string", "integer", "boolean", "double", "date"
-                        pHelpViewerPanel.ShowVBNetHelp()
-                    Case "button", "label", "textbox", "window"
-                        pHelpViewerPanel.ShowGtkHelp()
-                    Case Else
-                        pHelpViewerPanel.ShowDotNetHelp()
-                End Select
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"ShowContextHelp error: {ex.Message}")
-        End Try
-    End Sub
-    
     ' Show keyboard shortcuts dialog
     ''' <summary>
     ''' Shows keyboard shortcuts in a HelpBrowser tab
@@ -400,30 +377,6 @@ Partial Public Class MainWindow
             )
             lDialog.Run()
             lDialog.Destroy()
-        End Try
-    End Sub
-    
-    ' ===== Help Panel Event Handlers =====
-    
-    Private Sub OnHelpTitleChanged(vTitle As String)
-        Try
-            ' Update help tab title if needed
-            If pHelpViewerPanel IsNot Nothing AndAlso pBottomPanelManager IsNot Nothing Then
-                pBottomPanelManager.SetTabLabelText(pHelpViewerPanel, $"Help - {vTitle}")
-            End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnHelpTitleChanged error: {ex.Message}")
-        End Try
-    End Sub
-    
-    Private Sub OnHelpNavigationChanged(vCanGoBack As Boolean, vCanGoForward As Boolean)
-        Try
-            ' Update help navigation buttons if they exist
-            ' This would be implemented if we had navigation buttons in the help panel
-            
-        Catch ex As Exception
-            Console.WriteLine($"OnHelpNavigationChanged error: {ex.Message}")
         End Try
     End Sub
     
