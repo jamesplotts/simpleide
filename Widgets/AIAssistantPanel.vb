@@ -43,6 +43,8 @@ Namespace Widgets
         Private pFixErrorsButton As CustomDrawButton
         Private pRefactorButton As CustomDrawButton
         Private pGenerateTestsButton As CustomDrawButton
+        Private pClearButton As CustomDrawButton
+        Private pSaveButton As CustomDrawButton
         
         ' Events
         Public Event FileCreated(vFilePath As String)
@@ -120,6 +122,8 @@ Namespace Widgets
                 pFixErrorsButton.ThemeManager = vThemeManager
                 pRefactorButton.ThemeManager = vThemeManager
                 pGenerateTestsButton.ThemeManager = vThemeManager
+                pClearButton.ThemeManager = vThemeManager
+                pSaveButton.ThemeManager = vThemeManager
 
                 ApplyCurrentTheme()
 
@@ -258,28 +262,44 @@ Namespace Widgets
             ShowAll()
         End Sub
         
+        ''' <summary>
+        ''' Builds the beveled Clear/Save toolbar - was a native Gtk.Toolbar (ToolbarStyle.Both,
+        ''' i.e. icon+label) with ToolButtons (flat, system icon-theme contrast), now matches
+        ''' this panel's own CreateActionButton/CustomDrawButton convention used everywhere
+        ''' else in this file
+        ''' </summary>
         Private Function CreateToolbar() As Widget
-            Dim lToolbar As New Toolbar()
-            lToolbar.ToolbarStyle = ToolbarStyle.Both
-            lToolbar.IconSize = IconSize.SmallToolbar
-            
+            Dim lBox As New Box(Orientation.Horizontal, 2)
+
             ' Clear conversation
-            Dim lClearButton As New ToolButton(Nothing, "Clear")
-            lClearButton.IconWidget = Image.NewFromIconName("edit-clear", IconSize.SmallToolbar)
-            lClearButton.TooltipText = "Clear conversation"
-            AddHandler lClearButton.Clicked, AddressOf OnClearConversation
-            lToolbar.Insert(lClearButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            pClearButton = New CustomDrawButton("Clear", LoadToolIconPixbuf("edit-clear"))
+            pClearButton.TooltipText = "Clear conversation"
+            AddHandler pClearButton.Clicked, AddressOf OnClearConversation
+            lBox.PackStart(pClearButton, False, False, 0)
+
+            lBox.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Save conversation
-            Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
-            lSaveButton.TooltipText = "Save conversation"
-            AddHandler lSaveButton.Clicked, AddressOf OnSaveConversation
-            lToolbar.Insert(lSaveButton, -1)
-            
-            Return lToolbar
+            pSaveButton = New CustomDrawButton("Save", LoadToolIconPixbuf("document-save"))
+            pSaveButton.TooltipText = "Save conversation"
+            AddHandler pSaveButton.Clicked, AddressOf OnSaveConversation
+            lBox.PackStart(pSaveButton, False, False, 0)
+
+            Return lBox
+        End Function
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a small toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"AIAssistantPanel.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
         End Function
 
         Public Sub UpdateProjectContext(vKnowledgeBuilder As StringBuilder)

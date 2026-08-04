@@ -105,36 +105,37 @@ Namespace Editors
             ShowAll()
         End Sub
         
+        ''' <summary>
+        ''' Builds the beveled, icon-only toolbar - was a native Gtk.Toolbar (ToolbarStyle.Icons)
+        ''' with ToolButton/ToggleToolButton (flat, system icon-theme contrast), now matches
+        ''' every other panel's toolbar in this app (see GitPanel.CreateToolbar). This editor
+        ''' has no ThemeManager of its own (unlike most other panels), so these buttons render
+        ''' with CustomDrawButton's own sane default bevel/icon-contrast colors rather than the
+        ''' app's live theme - still beveled, just not theme-reactive.
+        ''' </summary>
         Private Function CreateToolbar() As Widget
-            Dim lToolbar As New Toolbar()
-            lToolbar.ToolbarStyle = ToolbarStyle.Icons
-            lToolbar.IconSize = IconSize.SmallToolbar
-            
+            Dim lToolbar As New Box(Orientation.Horizontal, 2)
+
             ' Save button
-            Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
+            Dim lSaveButton As New CustomDrawButton("", LoadToolIconPixbuf("document-save"))
             lSaveButton.TooltipText = "Save image (Ctrl+S)"
             AddHandler lSaveButton.Clicked, AddressOf OnSave
-            lToolbar.Insert(lSaveButton, -1)
-            
+            lToolbar.PackStart(lSaveButton, False, False, 0)
+
             ' Save As button
-            Dim lSaveAsButton As New ToolButton(Nothing, "Save As")
-            lSaveAsButton.IconWidget = Image.NewFromIconName("document-save-as", IconSize.SmallToolbar)
+            Dim lSaveAsButton As New CustomDrawButton("", LoadToolIconPixbuf("document-save-as"))
             lSaveAsButton.TooltipText = "Save image as..."
             AddHandler lSaveAsButton.Clicked, AddressOf OnSaveAs
-            lToolbar.Insert(lSaveAsButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            lToolbar.PackStart(lSaveAsButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Zoom controls
-            Dim lZoomOutButton As New ToolButton(Nothing, "Zoom Out")
-            lZoomOutButton.IconWidget = Image.NewFromIconName("zoom-out", IconSize.SmallToolbar)
+            Dim lZoomOutButton As New CustomDrawButton("", LoadToolIconPixbuf("zoom-out"))
             lZoomOutButton.TooltipText = "Zoom out"
             AddHandler lZoomOutButton.Clicked, AddressOf OnZoomOut
-            lToolbar.Insert(lZoomOutButton, -1)
-            
-            ' Zoom combo
-            Dim lZoomItem As New ToolItem()
+            lToolbar.PackStart(lZoomOutButton, False, False, 0)
+
             pZoomCombo = New CustomDrawComboBox()
             pZoomCombo.AppendText("10%")
             pZoomCombo.AppendText("25%")
@@ -147,75 +148,79 @@ Namespace Editors
             pZoomCombo.AppendText("800%")
             pZoomCombo.Active = 4 ' 100%
             AddHandler pZoomCombo.Changed, AddressOf OnZoomChanged
-            lZoomItem.Add(pZoomCombo)
-            lToolbar.Insert(lZoomItem, -1)
-            
-            Dim lZoomInButton As New ToolButton(Nothing, "Zoom in")
-            lZoomInButton.IconWidget = Image.NewFromIconName("zoom-in", IconSize.SmallToolbar)
+            lToolbar.PackStart(pZoomCombo, False, False, 0)
+
+            Dim lZoomInButton As New CustomDrawButton("", LoadToolIconPixbuf("zoom-in"))
             lZoomInButton.TooltipText = "Zoom in"
             AddHandler lZoomInButton.Clicked, AddressOf OnZoomIn
-            lToolbar.Insert(lZoomInButton, -1)
-            
-            Dim lZoomFitButton As New ToolButton(Nothing, "Zoom Fit")
-            lZoomFitButton.IconWidget = Image.NewFromIconName("zoom-fit-best", IconSize.SmallToolbar)
+            lToolbar.PackStart(lZoomInButton, False, False, 0)
+
+            Dim lZoomFitButton As New CustomDrawButton("", LoadToolIconPixbuf("zoom-fit-best"))
             lZoomFitButton.TooltipText = "Fit to window"
             AddHandler lZoomFitButton.Clicked, AddressOf OnZoomFit
-            lToolbar.Insert(lZoomFitButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            lToolbar.PackStart(lZoomFitButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Toggle grid
-            Dim lGridButton As New ToggleToolButton()
-            lGridButton.IconWidget = Image.NewFromIconName("view-grid", IconSize.SmallToolbar)
+            Dim lGridButton As New CustomDrawToggleButton("", LoadToolIconPixbuf("view-grid"))
             lGridButton.TooltipText = "Show grid"
             AddHandler lGridButton.Toggled, AddressOf OnToggleGrid
-            lToolbar.Insert(lGridButton, -1)
-            
+            lToolbar.PackStart(lGridButton, False, False, 0)
+
             ' Toggle transparency
-            Dim lTransparencyButton As New ToggleToolButton()
-            lTransparencyButton.IconWidget = Image.NewFromIconName("dialog-information", IconSize.SmallToolbar)
+            Dim lTransparencyButton As New CustomDrawToggleButton("", LoadToolIconPixbuf("dialog-information"))
             lTransparencyButton.TooltipText = "Show transparency Pattern"
             lTransparencyButton.Active = True
             AddHandler lTransparencyButton.Toggled, AddressOf OnToggleTransparency
-            lToolbar.Insert(lTransparencyButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            lToolbar.PackStart(lTransparencyButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Image operations
-            Dim lRotateLeftButton As New ToolButton(Nothing, "Rotate Left")
-            lRotateLeftButton.IconWidget = Image.NewFromIconName("object-rotate-left", IconSize.SmallToolbar)
+            Dim lRotateLeftButton As New CustomDrawButton("", LoadToolIconPixbuf("object-rotate-left"))
             lRotateLeftButton.TooltipText = "Rotate 90° counter-clockwise"
             AddHandler lRotateLeftButton.Clicked, AddressOf OnRotateLeft
-            lToolbar.Insert(lRotateLeftButton, -1)
-            
-            Dim lRotateRightButton As New ToolButton(Nothing, "Rotate Right")
-            lRotateRightButton.IconWidget = Image.NewFromIconName("object-rotate-right", IconSize.SmallToolbar)
+            lToolbar.PackStart(lRotateLeftButton, False, False, 0)
+
+            Dim lRotateRightButton As New CustomDrawButton("", LoadToolIconPixbuf("object-rotate-right"))
             lRotateRightButton.TooltipText = "Rotate 90° clockwise"
             AddHandler lRotateRightButton.Clicked, AddressOf OnRotateRight
-            lToolbar.Insert(lRotateRightButton, -1)
-            
-            Dim lFlipHButton As New ToolButton(Nothing, "Flip H")
-            lFlipHButton.IconWidget = Image.NewFromIconName("object-flip-horizontal", IconSize.SmallToolbar)
+            lToolbar.PackStart(lRotateRightButton, False, False, 0)
+
+            Dim lFlipHButton As New CustomDrawButton("", LoadToolIconPixbuf("object-flip-horizontal"))
             lFlipHButton.TooltipText = "Flip horizontally"
             AddHandler lFlipHButton.Clicked, AddressOf OnFlipHorizontal
-            lToolbar.Insert(lFlipHButton, -1)
-            
-            Dim lFlipVButton As New ToolButton(Nothing, "Flip V")
-            lFlipVButton.IconWidget = Image.NewFromIconName("object-flip-vertical", IconSize.SmallToolbar)
+            lToolbar.PackStart(lFlipHButton, False, False, 0)
+
+            Dim lFlipVButton As New CustomDrawButton("", LoadToolIconPixbuf("object-flip-vertical"))
             lFlipVButton.TooltipText = "Flip vertically"
             AddHandler lFlipVButton.Clicked, AddressOf OnFlipVertical
-            lToolbar.Insert(lFlipVButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            lToolbar.PackStart(lFlipVButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Resize button
-            Dim lResizeButton As New ToolButton(Nothing, "Resize")
-            lResizeButton.IconWidget = Image.NewFromIconName("view-fullscreen", IconSize.SmallToolbar)
+            Dim lResizeButton As New CustomDrawButton("", LoadToolIconPixbuf("view-fullscreen"))
             lResizeButton.TooltipText = "Resize image..."
             AddHandler lResizeButton.Clicked, AddressOf OnResize
-            lToolbar.Insert(lResizeButton, -1)
-            
+            lToolbar.PackStart(lResizeButton, False, False, 0)
+
             Return lToolbar
+        End Function
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"PngEditor.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
         End Function
         
         Private Sub LoadImage()
@@ -469,12 +474,12 @@ Namespace Editors
         End Sub
         
         Private Sub OnToggleGrid(vSender As Object, vE As EventArgs)
-            pShowGrid = CType(vSender, ToggleToolButton).Active
+            pShowGrid = CType(vSender, CustomDrawToggleButton).Active
             pDrawingArea.QueueDraw()
         End Sub
-        
+
         Private Sub OnToggleTransparency(vSender As Object, vE As EventArgs)
-            pShowTransparency = CType(vSender, ToggleToolButton).Active
+            pShowTransparency = CType(vSender, CustomDrawToggleButton).Active
             pDrawingArea.QueueDraw()
         End Sub
         

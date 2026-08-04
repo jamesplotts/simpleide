@@ -44,10 +44,10 @@ Namespace Widgets
         ' Toolbar controls
         Private pUrlBar As CustomDrawTextBox
         Private pSearchEntry As CustomDrawTextBox
-        Private pBackButton As ToolButton
-        Private pForwardButton As ToolButton
-        Private pRefreshButton As ToolButton
-        Private pHomeButton As ToolButton
+        Private pBackButton As CustomDrawButton
+        Private pForwardButton As CustomDrawButton
+        Private pRefreshButton As CustomDrawButton
+        Private pHomeButton As CustomDrawButton
         Private pStatusLabel As Label
 
         ' Content area
@@ -143,71 +143,51 @@ Namespace Widgets
                 Orientation = Orientation.Vertical
                 Spacing = 0
 
-                ' Toolbar
-                Dim lToolbar As New Toolbar()
-                lToolbar.ToolbarStyle = ToolbarStyle.Icons
+                ' Toolbar - a plain Box, not a native Gtk.Toolbar, so its buttons can be
+                ' beveled CustomDrawButtons like every other panel's toolbar in this app
+                ' (was ToolButton - flat, system icon-theme contrast)
+                Dim lToolbar As New Box(Orientation.Horizontal, 2)
+                lToolbar.MarginStart = 4
+                lToolbar.MarginEnd = 4
+                lToolbar.MarginTop = 2
+                lToolbar.MarginBottom = 2
 
-                pBackButton = New ToolButton(Nothing, "Back")
-                pBackButton.IconWidget = Image.NewFromIconName("go-previous", IconSize.SmallToolbar)
+                pBackButton = New CustomDrawButton("", LoadToolIconPixbuf("go-previous"))
                 pBackButton.TooltipText = "Go back"
                 pBackButton.Sensitive = False
 
-                pForwardButton = New ToolButton(Nothing, "Forward")
-                pForwardButton.IconWidget = Image.NewFromIconName("go-next", IconSize.SmallToolbar)
+                pForwardButton = New CustomDrawButton("", LoadToolIconPixbuf("go-next"))
                 pForwardButton.TooltipText = "Go forward"
                 pForwardButton.Sensitive = False
 
-                pRefreshButton = New ToolButton(Nothing, "Refresh")
-                pRefreshButton.IconWidget = Image.NewFromIconName("view-refresh", IconSize.SmallToolbar)
+                pRefreshButton = New CustomDrawButton("", LoadToolIconPixbuf("view-refresh"))
                 pRefreshButton.TooltipText = "Refresh page"
 
-                pHomeButton = New ToolButton(Nothing, "Home")
-                pHomeButton.IconWidget = Image.NewFromIconName("go-home", IconSize.SmallToolbar)
+                pHomeButton = New CustomDrawButton("", LoadToolIconPixbuf("go-home"))
                 pHomeButton.TooltipText = "Go to home page"
 
-                Dim lBackItem As New ToolItem()
-                lBackItem.Add(pBackButton)
-                lToolbar.Add(lBackItem)
+                lToolbar.PackStart(pBackButton, False, False, 0)
+                lToolbar.PackStart(pForwardButton, False, False, 0)
+                lToolbar.PackStart(pRefreshButton, False, False, 0)
+                lToolbar.PackStart(pHomeButton, False, False, 0)
 
-                Dim lForwardItem As New ToolItem()
-                lForwardItem.Add(pForwardButton)
-                lToolbar.Add(lForwardItem)
-
-                Dim lRefreshItem As New ToolItem()
-                lRefreshItem.Add(pRefreshButton)
-                lToolbar.Add(lRefreshItem)
-
-                Dim lHomeItem As New ToolItem()
-                lHomeItem.Add(pHomeButton)
-                lToolbar.Add(lHomeItem)
-
-                lToolbar.Add(New SeparatorToolItem())
+                lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
 
                 ' URL bar - opens whatever's entered in the system's default browser
                 pUrlBar = New CustomDrawTextBox("Enter a URL to open in your browser...")
                 pUrlBar.WidthRequest = 300
+                lToolbar.PackStart(pUrlBar, True, True, 0)
 
-                Dim lUrlItem As New ToolItem()
-                lUrlItem.Add(pUrlBar)
-                lUrlItem.Expand = True
-                lToolbar.Add(lUrlItem)
-
-                lToolbar.Add(New SeparatorToolItem())
+                lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
 
                 Dim lSearchLabel As New Label("Search:")
                 lSearchLabel.MarginStart = 5
                 lSearchLabel.MarginEnd = 5
+                lToolbar.PackStart(lSearchLabel, False, False, 0)
 
                 pSearchEntry = New CustomDrawTextBox("Search Microsoft Learn...")
                 pSearchEntry.WidthRequest = 200
-
-                Dim lSearchLabelItem As New ToolItem()
-                lSearchLabelItem.Add(lSearchLabel)
-                lToolbar.Add(lSearchLabelItem)
-
-                Dim lSearchItem As New ToolItem()
-                lSearchItem.Add(pSearchEntry)
-                lToolbar.Add(lSearchItem)
+                lToolbar.PackStart(pSearchEntry, False, False, 0)
 
                 PackStart(lToolbar, False, False, 0)
 
@@ -305,10 +285,28 @@ Namespace Widgets
                 pThemeManager = vThemeManager
                 If pUrlBar IsNot Nothing Then pUrlBar.ThemeManager = vThemeManager
                 If pSearchEntry IsNot Nothing Then pSearchEntry.ThemeManager = vThemeManager
+                If pBackButton IsNot Nothing Then pBackButton.ThemeManager = vThemeManager
+                If pForwardButton IsNot Nothing Then pForwardButton.ThemeManager = vThemeManager
+                If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
+                If pHomeButton IsNot Nothing Then pHomeButton.ThemeManager = vThemeManager
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.SetThemeManager error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"HelpBrowser.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
 
         ''' <summary>
         ''' Navigates to the built-in Home page

@@ -6,6 +6,7 @@ Imports System.Text
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Editors
     Public Class ManifestEditor
@@ -101,44 +102,67 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Builds the beveled, icon-only toolbar - was a native Gtk.Toolbar (ToolbarStyle.Icons)
+        ''' with ToolButton/MenuToolButton (flat, system icon-theme contrast), now matches
+        ''' every other panel's toolbar in this app (see GitPanel.CreateToolbar). This editor
+        ''' has no ThemeManager of its own (unlike most other panels), so these buttons render
+        ''' with CustomDrawButton's own sane default bevel/icon-contrast colors rather than the
+        ''' app's live theme - still beveled, just not theme-reactive.
+        ''' </summary>
         Private Function CreateToolbar() As Widget
-            Dim lToolbar As New Toolbar()
-            lToolbar.ToolbarStyle = ToolbarStyle.Icons
-            lToolbar.IconSize = IconSize.SmallToolbar
-            
+            Dim lToolbar As New Box(Orientation.Horizontal, 2)
+
             ' Save button
-            Dim lSaveButton As New ToolButton(Nothing, "Save")
-            lSaveButton.IconWidget = Image.NewFromIconName("document-save", IconSize.SmallToolbar)
+            Dim lSaveButton As New CustomDrawButton("", LoadToolIconPixbuf("document-save"))
             lSaveButton.TooltipText = "Save Manifest"
             AddHandler lSaveButton.Clicked, AddressOf OnSave
-            lToolbar.Insert(lSaveButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
+            lToolbar.PackStart(lSaveButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
             ' Format button
-            Dim lFormatButton As New ToolButton(Nothing, "Format")
-            lFormatButton.IconWidget = Image.NewFromIconName("format-indent-more", IconSize.SmallToolbar)
+            Dim lFormatButton As New CustomDrawButton("", LoadToolIconPixbuf("format-indent-more"))
             lFormatButton.TooltipText = "Format XML"
             AddHandler lFormatButton.Clicked, AddressOf OnFormat
-            lToolbar.Insert(lFormatButton, -1)
-            
+            lToolbar.PackStart(lFormatButton, False, False, 0)
+
             ' Validate button
-            Dim lValidateButton As New ToolButton(Nothing, "Validate")
-            lValidateButton.IconWidget = Image.NewFromIconName("dialog-information", IconSize.SmallToolbar)
+            Dim lValidateButton As New CustomDrawButton("", LoadToolIconPixbuf("dialog-information"))
             lValidateButton.TooltipText = "Validate XML"
             AddHandler lValidateButton.Clicked, AddressOf OnValidate
-            lToolbar.Insert(lValidateButton, -1)
-            
-            lToolbar.Insert(New SeparatorToolItem(), -1)
-            
-            ' Template menu
-            Dim lTemplateButton As New MenuToolButton(Nothing, "Templates")
-            lTemplateButton.IconWidget = Image.NewFromIconName("document-new", IconSize.SmallToolbar)
+            lToolbar.PackStart(lValidateButton, False, False, 0)
+
+            lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
+            ' Template menu - the button itself is beveled CustomDraw; the dropdown menu it
+            ' opens stays a native Gtk.Menu, same as every other menu in this app (main menu
+            ' bar, context menus, CustomDrawNotebook's own tab-list dropdown)
+            Dim lTemplateButton As New CustomDrawButton("", LoadToolIconPixbuf("document-new"))
             lTemplateButton.TooltipText = "Insert Template"
-            lTemplateButton.Menu = CreateTemplateMenu()
-            lToolbar.Insert(lTemplateButton, -1)
-            
+            lTemplateButton.ShowDropdownArrow = True
+            AddHandler lTemplateButton.Clicked, Sub()
+                Dim lMenu As Menu = CreateTemplateMenu()
+                lMenu.ShowAll()
+                lMenu.PopupAtWidget(lTemplateButton, Gdk.Gravity.SouthWest, Gdk.Gravity.NorthWest, Nothing)
+            End Sub
+            lToolbar.PackStart(lTemplateButton, False, False, 0)
+
             Return lToolbar
+        End Function
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"ManifestEditor.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
         End Function
         
         Private Function CreateTemplateMenu() As Menu

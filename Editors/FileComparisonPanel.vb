@@ -8,6 +8,7 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Widgets
 
 Namespace Editors
     
@@ -27,12 +28,12 @@ Namespace Editors
         Private pRightHeader As Box
         Private pLeftFileLabel As Label
         Private pRightFileLabel As Label
-        Private pToolbar As Toolbar
-        Private pSyncScrollButton As ToggleToolButton
-        Private pShowDifferencesButton As ToggleToolButton
-        Private pSwapButton As ToolButton
-        Private pNextDiffButton As ToolButton
-        Private pPrevDiffButton As ToolButton
+        Private pToolbar As Box
+        Private pSyncScrollButton As CustomDrawToggleButton
+        Private pShowDifferencesButton As CustomDrawToggleButton
+        Private pSwapButton As CustomDrawButton
+        Private pNextDiffButton As CustomDrawButton
+        Private pPrevDiffButton As CustomDrawButton
         
         ' SourceFileInfo for each editor
         Private pLeftSourceFileInfo As SourceFileInfo
@@ -289,59 +290,75 @@ Namespace Editors
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Builds the beveled toolbar - was a native Gtk.Toolbar with ToggleToolButton/
+        ''' ToolButton (flat, system icon-theme contrast), now matches every other panel's
+        ''' toolbar in this app (see GitPanel.CreateToolbar)
+        ''' </summary>
         Private Sub CreateToolbar()
             Try
-                pToolbar = New Toolbar()
-                pToolbar.ToolbarStyle = ToolbarStyle.Both
-                
+                pToolbar = New Box(Orientation.Horizontal, 2)
+
                 ' Sync scrolling button
-                pSyncScrollButton = New ToggleToolButton()
-                pSyncScrollButton.Label = "Sync Scroll"
-                pSyncScrollButton.IconName = "view-refresh"
+                pSyncScrollButton = New CustomDrawToggleButton("Sync Scroll", LoadToolIconPixbuf("view-refresh"))
+                pSyncScrollButton.ThemeManager = pThemeManager
                 pSyncScrollButton.TooltipText = "Synchronize scrolling between editors"
                 pSyncScrollButton.Active = pSyncScrolling
                 AddHandler pSyncScrollButton.Toggled, AddressOf OnSyncScrollToggled
-                pToolbar.Add(pSyncScrollButton)
-                
+                pToolbar.PackStart(pSyncScrollButton, False, False, 0)
+
                 ' Show differences button
-                pShowDifferencesButton = New ToggleToolButton()
-                pShowDifferencesButton.Label = "Highlight"
-                pShowDifferencesButton.IconName = "format-text-underline"
+                pShowDifferencesButton = New CustomDrawToggleButton("Highlight", LoadToolIconPixbuf("format-text-underline"))
+                pShowDifferencesButton.ThemeManager = pThemeManager
                 pShowDifferencesButton.TooltipText = "Highlight differences"
                 pShowDifferencesButton.Active = pShowDifferences
                 AddHandler pShowDifferencesButton.Toggled, AddressOf OnShowDifferencesToggled
-                pToolbar.Add(pShowDifferencesButton)
-                
-                pToolbar.Add(New SeparatorToolItem())
-                
+                pToolbar.PackStart(pShowDifferencesButton, False, False, 0)
+
+                pToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
                 ' Navigation buttons
-                pPrevDiffButton = New ToolButton(Nothing, "GoUp")
-                pPrevDiffButton.Label = "Previous"
+                pPrevDiffButton = New CustomDrawButton("Previous", LoadToolIconPixbuf("go-up"))
+                pPrevDiffButton.ThemeManager = pThemeManager
                 pPrevDiffButton.TooltipText = "Go to previous difference"
                 pPrevDiffButton.Sensitive = False
                 AddHandler pPrevDiffButton.Clicked, AddressOf OnPrevDifferenceClicked
-                pToolbar.Add(pPrevDiffButton)
-                
-                pNextDiffButton = New ToolButton(Nothing, "GoDown")
-                pNextDiffButton.Label = "Next"
+                pToolbar.PackStart(pPrevDiffButton, False, False, 0)
+
+                pNextDiffButton = New CustomDrawButton("Next", LoadToolIconPixbuf("go-down"))
+                pNextDiffButton.ThemeManager = pThemeManager
                 pNextDiffButton.TooltipText = "Go to next difference"
                 pNextDiffButton.Sensitive = False
                 AddHandler pNextDiffButton.Clicked, AddressOf OnNextDifferenceClicked
-                pToolbar.Add(pNextDiffButton)
-                
-                pToolbar.Add(New SeparatorToolItem())
-                
+                pToolbar.PackStart(pNextDiffButton, False, False, 0)
+
+                pToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
+
                 ' Swap button
-                pSwapButton = New ToolButton(Nothing, "Refresh")
-                pSwapButton.Label = "Swap Files"
+                pSwapButton = New CustomDrawButton("Swap Files", LoadToolIconPixbuf("object-flip-horizontal"))
+                pSwapButton.ThemeManager = pThemeManager
                 pSwapButton.TooltipText = "Swap left and right files"
                 AddHandler pSwapButton.Clicked, AddressOf OnSwapClicked
-                pToolbar.Add(pSwapButton)
-                
+                pToolbar.PackStart(pSwapButton, False, False, 0)
+
             Catch ex As Exception
                 Console.WriteLine($"CreateToolbar error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Loads a 16px icon-theme icon for a toolbar button - CustomDrawButton's own
+        ''' IconContrastHelper auto-inverts it for dark/light contrast
+        ''' </summary>
+        ''' <param name="vIconName">Icon-theme name to look up</param>
+        Private Function LoadToolIconPixbuf(vIconName As String) As Gdk.Pixbuf
+            Try
+                Return Gtk.IconTheme.Default.LoadIcon(vIconName, 16, IconLookupFlags.UseBuiltin)
+            Catch ex As Exception
+                Console.WriteLine($"FileComparisonPanel.LoadToolIconPixbuf error ({vIconName}): {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
         
         Private Sub CreateLeftHeader()
             Try
