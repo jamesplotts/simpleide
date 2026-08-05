@@ -658,7 +658,17 @@ Namespace Widgets
         ''' </summary>
         Private Sub ShowHtmlContent()
             pScrolled.Hide()
-            pHtmlView.ShowAll()
+            ' Deliberately Show(), not ShowAll() - pHtmlView.NoShowAll is set (so an
+            ' ancestor's ShowAll doesn't force it visible while Home is showing), and GTK's
+            ' ShowAll() also no-ops when called directly on a widget that itself has
+            ' NoShowAll set, not just when propagating from an ancestor. ShowAll() worked
+            ' the first time only because the widget was already Visible from its own
+            ' constructor and had never been Hidden yet - after the first trip through
+            ' ShowNativeContent() actually Hides it, ShowAll() here would never bring it
+            ' back. Show() is never blocked by NoShowAll, and pHtmlView's own children were
+            ' already made visible once by its constructor's own ShowAll() call, so a plain
+            ' Show() on the outer widget is all that's needed.
+            pHtmlView.Show()
         End Sub
 
         ''' <summary>
