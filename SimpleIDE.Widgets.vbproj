@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
   <!--
     Reusable, toolkit-generic control library split out of the main SimpleIDE.vbproj so a
     fork (e.g. a Windows port swapping in a different embedded-browser backend) can
@@ -20,6 +20,21 @@
     this looked like at first glance; moving it is pure completeness with zero bearing on
     forkability, so it stays in the exe too.
   -->
+  <!-- Both .vbproj files live in this same directory (deliberately - files were not
+       physically moved, just re-listed under a new project, to avoid git-mv churn).
+       Without distinct intermediate/output paths they'd collide on a shared obj/ and
+       bin/, which corrupts each other's restore state when building via SimpleIDE.sln
+       (confirmed live: SimpleIDE.vbproj's own Roslyn package references broke building
+       this way). BaseIntermediateOutputPath must be set BEFORE Sdk.props is imported
+       (MSB3539) or NuGet's own restore-generated files still land in the default shared
+       obj/ regardless of the property override further down - the single-line
+       <Project Sdk="..."> shorthand imports Sdk.props too early for that, so this file
+       uses the explicit split-import form instead. -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>obj\Widgets\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\Widgets\</BaseOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net8.0</TargetFramework>
@@ -28,14 +43,6 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <!-- Both .vbproj files live in this same directory (deliberately - files were not
-         physically moved, just re-listed under a new project, to avoid git-mv churn).
-         Without distinct intermediate/output paths they'd collide on a shared obj/ and
-         bin/, which corrupts each other's restore state when building via SimpleIDE.sln
-         (confirmed live: SimpleIDE.vbproj's own Roslyn package references broke building
-         this way until these were set). -->
-    <BaseIntermediateOutputPath>obj\Widgets\</BaseIntermediateOutputPath>
-    <BaseOutputPath>bin\Widgets\</BaseOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="GtkSharp" Version="3.24.24.95" />
@@ -75,4 +82,5 @@
     <Compile Include="Widgets/CustomDrawTextOutput.vb" />
     <Compile Include="Widgets/WelcomeTabWidget.vb" />
   </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>
