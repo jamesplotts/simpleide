@@ -225,13 +225,17 @@ Uses modern SDK-style project format with GTK# support.
 
 ### Build Commands
 Development build with debugging
-dotnet build --configuration Debug
+dotnet build SimpleIDE.sln --configuration Debug
 
 Production build
-dotnet build --configuration Release
+dotnet build SimpleIDE.sln --configuration Release
 
 Build with specific runtime (experimental)
-dotnet build --runtime linux-x64
+dotnet build SimpleIDE.vbproj --runtime linux-x64
+
+(SimpleIDE.sln for build/restore, --project SimpleIDE.vbproj for run/publish - the repo
+root has three project files, so bare `dotnet build`/`dotnet run` error with
+`MSB1011: Specify which project or solution file to use`.)
 
 ## Common Issues and Solutions
 
@@ -246,8 +250,9 @@ ls /usr/lib/cli/gtk-sharp-3.0/
 #### 2. Missing Dependencies
 Install all potential missing dependencies
 sudo apt install libgtk-3-0 libgirepository1.0-dev
-(SimpleIDE no longer uses WebKitGTK - see section 6 above for the optional litehtml-based
-HTML renderer instead)
+(SimpleIDE's Help tab now uses WebKitGTK again via hand-rolled P/Invoke (SimpleIDE.WebKitGtk.vbproj),
+falling back to the litehtml renderer from section 6 above when libwebkit2gtk-4.1 isn't
+installed - see readme.md's "Embedded browser architecture" section)
 
 #### 3. Font Rendering Issues
 Install Microsoft core fonts
@@ -262,7 +267,7 @@ Clear NuGet cache
 dotnet nuget locals all --clear
 
 Restore packages
-dotnet restore --force
+dotnet restore SimpleIDE.sln --force
 
 #### 2. File Permission Issues
 Ensure execute permissions on scripts
@@ -289,10 +294,10 @@ Theme consistency with XFCE appearance settings
 
 ### Build Optimization
 Parallel build
-dotnet build --maxCpuCount
+dotnet build SimpleIDE.sln --maxCpuCount
 
 Incremental build (development)
-dotnet build --no-incremental false
+dotnet build SimpleIDE.sln --no-incremental false
 
 ### Runtime Optimization
 Use Release configuration for performance testing

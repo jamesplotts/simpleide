@@ -99,23 +99,46 @@ git clone https://github.com/jamesplotts/simpleide.git
 cd simpleide
 
 # Restore dependencies
-dotnet restore
+dotnet restore SimpleIDE.sln
 
 # Build the project
-dotnet build --configuration Release
+dotnet build SimpleIDE.sln --configuration Release
 
 # Run SimpleIDE
-dotnet run --configuration Release
+dotnet run --project SimpleIDE.vbproj --configuration Release
 ```
 
-### Optional: Native HTML Renderer (real doc pages in the Help tab)
+Note: the repo root holds three project files (`SimpleIDE.vbproj` the main app,
+`SimpleIDE.Widgets.vbproj` the reusable control library, `SimpleIDE.WebKitGtk.vbproj` the
+WebKitGTK rendering backend - see "Embedded browser architecture" below) plus
+`SimpleIDE.sln`. With more than one project file present, `dotnet` commands need to be
+told explicitly which one to use - hence `SimpleIDE.sln` for build/restore and
+`--project SimpleIDE.vbproj` for run/publish, rather than the bare `dotnet build`/
+`dotnet run` that worked with the old single-project layout.
 
-The Help tab can render real documentation pages (e.g. `learn.microsoft.com`) inline via a
-vendored [litehtml](https://github.com/litehtml/litehtml) engine, painted through
-Cairo/Pango. This is entirely optional - if the native library isn't built, SimpleIDE opens
-those links in your system's default web browser instead, exactly as before.
+### Embedded browser architecture (Help tab)
 
-To build it:
+The Help tab renders real documentation pages (e.g. `learn.microsoft.com`) inline through
+one of two interchangeable rendering backends, selected automatically at runtime by
+`Managers/EmbeddedBrowserFactory.vb`:
+
+1. **WebKitGTK** (`SimpleIDE.WebKitGtk.vbproj`, `Widgets/CustomDrawWebView.vb`) - full,
+   real, JavaScript-capable rendering via the system's `libwebkit2gtk-4.1`. Preferred
+   whenever that library is present. Linux-only (WebKitGTK has no Windows build), hand-rolled
+   P/Invoke against the native C API rather than any pre-built binding (see
+   `Interop/WebKitNative.vb`'s header comment for why).
+2. **litehtml** (`Widgets/CustomDrawHtmlView.vb`, vendored native shim) - lightweight,
+   genuinely cross-platform, but no JavaScript at all. Always available once its bundled
+   `.so` is built (see below), and the automatic fallback whenever WebKitGTK isn't - which
+   also makes it the *only* backend on a platform that doesn't have WebKitGTK.
+
+Both are entirely optional in the sense that the Help tab still works with neither built:
+SimpleIDE just opens links in your system's default browser instead, exactly as before
+either backend existed. A Preferences toggle ("Prefer native WebKit rendering when
+available", General tab) lets you force the litehtml fallback for troubleshooting without
+uninstalling WebKitGTK.
+
+#### Building the litehtml backend
 ```bash
 # Ubuntu/Debian
 sudo apt-get install -y cmake pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev
@@ -133,6 +156,40 @@ git submodule update --init --recursive
 This produces `native/build/lib/liblitehtml_shim.so`; a subsequent `dotnet build` picks it
 up automatically and bundles it into the output directory. No native toolchain is required
 to build or run SimpleIDE itself - this step is purely additive.
+
+#### Building the WebKitGTK backend
+
+Nothing to build - `SimpleIDE.WebKitGtk.vbproj` is pure managed code (P/Invoke, no vendored
+native source). It just needs `libwebkit2gtk-4.1-0` installed at runtime:
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y libwebkit2gtk-4.1-0
+
+# Fedora
+sudo dnf install webkit2gtk4.1
+```
+`CustomDrawWebView.IsAvailable` probes for this at runtime (never a hard
+`DllNotFoundException`) and the factory falls back to litehtml if it's missing.
+
+#### Porting to another platform (e.g. Windows)
+
+This is the reason `Widgets/` was split into its own assembly in the first place. A fork
+targeting Windows (or any platform without WebKitGTK) doesn't need to touch or understand
+the rest of the app:
+
+1. Reference `SimpleIDE.Widgets.vbproj` (the reusable control library - buttons, text
+   boxes, `CustomDrawHtmlView`, theming, etc. - none of it Linux-specific).
+2. Implement `Interfaces/IEmbeddedBrowserView` (defined in `SimpleIDE.Widgets.vbproj`)
+   against whatever rendering engine is available on the target platform - WebView2 and CEF
+   are the natural choices on Windows - as a `Gtk.Widget` subclass in a new
+   `SimpleIDE.<Backend>.vbproj`, following `Widgets/CustomDrawWebView.vb` as a reference
+   implementation (its P/Invoke specifics are WebKitGTK-only, but the widget-lifecycle
+   pattern - wrap a native view as a child widget, forward navigation events, no
+   navigation policy of its own - carries over).
+3. Add one more preference check to `Managers/EmbeddedBrowserFactory.Create()`.
+
+Nothing in `HelpBrowser.vb` or anywhere else in the main app needs to change - it only ever
+talks to the `IEmbeddedBrowserView` interface, never a concrete provider type.
 
 ## Usage
 
@@ -162,18 +219,22 @@ Run `SimpleIDE --help` for the full list of options - there are quite a few beyo
 
 ```bash
 # Run in test mode - exits after 5 seconds by default
-dotnet run -- --test-mode
+dotnet run --project SimpleIDE.vbproj -- --test-mode
 
 # Run with custom delay (in milliseconds)
-dotnet run -- --test-delay 5000 --test-mode
+dotnet run --project SimpleIDE.vbproj -- --test-delay 5000 --test-mode
 
 # Test with a specific project
-dotnet run -- --test-mode --project /path/to/project.vbproj
+dotnet run --project SimpleIDE.vbproj -- --test-mode --project /path/to/project.vbproj
 
 # Build and test
-dotnet build
-dotnet run -- --test-mode --test-delay 3000
+dotnet build SimpleIDE.sln
+dotnet run --project SimpleIDE.vbproj -- --test-mode --test-delay 3000
 ```
+
+(`--project SimpleIDE.vbproj` is required now that the repo root has multiple project
+files - see "Build SimpleIDE" above. A bare `dotnet run`/`dotnet build` errors with
+`MSB1011: Specify which project or solution file to use`.)
 
 If you're running without a real X11/Wayland display available (e.g. a bare CI container), wrap the command with `xvfb-run -a`. A real display is used directly otherwise - `xvfb` is not a hard requirement.
 
@@ -262,6 +323,14 @@ SimpleIDE/
 
 Parsing is Roslyn-based (`Microsoft.CodeAnalysis.VisualBasic`) rather than a hand-written parser.
 
+This tree shows physical folders, not assembly boundaries - files aren't moved between
+project files, they're just compiled by different `.vbproj`s (`EnableDefaultCompileItems`
+is off, so every file is listed explicitly in whichever project owns it). A handful of
+`Widgets/`/`Managers/`/`Models/`/`Utilities/` files with no IDE-specific dependencies
+(`ThemeManager`, `SettingsManager`, `EditorTheme`, the generic `CustomDraw*` controls,
+`CustomDrawHtmlView`, etc.) are compiled into `SimpleIDE.Widgets.vbproj` instead of the
+main `SimpleIDE.vbproj` - see "Embedded browser architecture" above for why.
+
 ## Screenshots
 
 ### Main Editor View
@@ -296,13 +365,13 @@ The project follows strict coding conventions:
 
 ```bash
 # Debug build
-dotnet build --configuration Debug
+dotnet build SimpleIDE.sln --configuration Debug
 
 # Release build
-dotnet build --configuration Release
+dotnet build SimpleIDE.sln --configuration Release
 
 # Create self-contained executable
-dotnet publish -c Release -r linux-x64 --self-contained
+dotnet publish SimpleIDE.vbproj -c Release -r linux-x64 --self-contained
 ```
 
 ## Contributing
