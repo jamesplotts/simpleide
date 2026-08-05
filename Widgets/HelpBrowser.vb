@@ -16,6 +16,7 @@ Imports System.Diagnostics
 Imports System.Collections.Generic
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
+Imports SimpleIDE.Utilities
 
 Namespace Widgets
 
@@ -50,6 +51,14 @@ Namespace Widgets
             Public Property Url As String
             Public Property Sections As List(Of HelpSection)
             Public Property Kind As PageKind = PageKind.eSections
+
+            ' Populated after the first successful embedded (eHtmlUrl) load so Back/Forward
+            ' can redisplay the exact same content instantly via LoadCachedPage, with no
+            ' network fetch and so no way for revisiting a page to fail - Html Is Nothing
+            ' means "not fetched yet" (or Reload() deliberately cleared it to force a
+            ' fresh fetch)
+            Public Property Html As String
+            Public Property Resources As Dictionary(Of String, Byte())
         End Class
 
         ' Toolbar controls
@@ -480,10 +489,16 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Re-renders the current page
+        ''' Re-renders the current page - for an embedded page, clears its cached content
+        ''' first so this always forces a fresh network fetch (Back/Forward deliberately do
+        ''' not; see RenderHtmlPageAsync)
         ''' </summary>
         Public Sub Reload()
             Try
+                If pHistoryIndex >= 0 AndAlso pHistoryIndex < pHistory.Count Then
+                    pHistory(pHistoryIndex).Html = Nothing
+                    pHistory(pHistoryIndex).Resources = Nothing
+                End If
                 RenderCurrentPage()
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.Reload error: {ex.Message}")
@@ -574,17 +589,39 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Shows the embedded litehtml view and asks it to load vPage's URL - on failure,
-        ''' falls back to NavigateToUrlExternal (which replaces this same history entry
-        ''' in place, since the URL is unchanged)
+        ''' Shows the embedded litehtml view and displays vPage - if it was already fetched
+        ''' once (Html is cached), redisplays that exact content via LoadCachedPage with no
+        ''' network involved at all, so Back/Forward can never fail or re-open the external
+        ''' browser just because a page that loaded fine the first time hit a transient
+        ''' network problem on a later revisit. Only a genuinely new page (Html Is Nothing -
+        ''' a fresh NavigateToUrlEmbedded push, or after Reload() clears the cache) actually
+        ''' fetches, and on failure falls back to NavigateToUrlExternal (which replaces this
+        ''' same history entry in place, since the URL is unchanged)
         ''' </summary>
         ''' <param name="vPage">The HTML page to render</param>
         Private Async Function RenderHtmlPageAsync(vPage As PageEntry) As Task
             Try
                 EnsureHtmlViewCreated()
                 ShowHtmlContent()
+
+                If vPage.Html IsNot Nothing Then
+                    pHtmlView.LoadCachedPage(vPage.Html, vPage.Url, vPage.Resources)
+                    Return
+                End If
+
                 pStatusLabel.Text = $"Loading {vPage.Url}..."
                 Await pHtmlView.NavigateAsync(vPage.Url)
+
+                ' Cache the fetched content on this history entry (only on success -
+                ' NavigateAsync only updates LastFetchResult when the fetch succeeded) so a
+                ' later Back/Forward to this same entry redisplays instantly, above, instead
+                ' of re-fetching
+                Dim lFetched As HtmlPageFetchResult = pHtmlView.LastFetchResult
+                If lFetched IsNot Nothing AndAlso lFetched.Success AndAlso lFetched.BaseUrl = pHtmlView.CurrentUrl Then
+                    vPage.Html = lFetched.Html
+                    vPage.Resources = lFetched.Resources
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.RenderHtmlPageAsync error: {ex.Message}")
             End Try

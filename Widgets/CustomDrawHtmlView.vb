@@ -37,6 +37,7 @@ Namespace Widgets
         Private pCurrentUrl As String = ""
         Private pIsLoading As Boolean = False
         Private pNavigationCts As CancellationTokenSource
+        Private pLastFetchResult As HtmlPageFetchResult
 
         ' ===== Events =====
 
@@ -73,6 +74,16 @@ Namespace Widgets
             Get
                 If pDocHandle Is Nothing OrElse Not pDocHandle.IsValid Then Return 0
                 Return pDocHandle.ContentHeight
+            End Get
+        End Property
+
+        ''' <summary>Gets the raw HTML/base URL/resources from the most recent successful
+        ''' NavigateAsync fetch, or Nothing if none has succeeded yet - consumers that keep
+        ''' their own history (e.g. HelpBrowser) can cache this to redisplay the same page
+        ''' later via LoadCachedPage without hitting the network again</summary>
+        Public ReadOnly Property LastFetchResult As HtmlPageFetchResult
+            Get
+                Return pLastFetchResult
             End Get
         End Property
 
@@ -142,6 +153,27 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
+        ''' Renders vHtml with vResources pre-registered, with no network fetch at all -
+        ''' unlike LoadHtml, resources are applied so images/stylesheets from a prior
+        ''' NavigateAsync fetch still work. Intended for consumers redisplaying a page they
+        ''' already fetched once (e.g. HelpBrowser's Back/Forward), so revisiting a page
+        ''' already shown neither re-hits the network nor can fail because of it
+        ''' </summary>
+        ''' <param name="vHtml">Previously-fetched HTML (e.g. from LastFetchResult)</param>
+        ''' <param name="vBaseUrl">The page's base URL, for relative link resolution</param>
+        ''' <param name="vResources">Previously-fetched resources (e.g. from LastFetchResult)</param>
+        Public Sub LoadCachedPage(vHtml As String, vBaseUrl As String, vResources As System.Collections.Generic.Dictionary(Of String, Byte()))
+            Try
+                ReplaceDocument(vHtml, vBaseUrl, vResources)
+                pCurrentUrl = vBaseUrl
+                RaiseEvent LoadCompleted(vBaseUrl)
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawHtmlView.LoadCachedPage error: {ex.Message}")
+                RaiseEvent LoadFailed(vBaseUrl, ex.Message)
+            End Try
+        End Sub
+
+        ''' <summary>
         ''' Fetches vUrl and every stylesheet/image it references (via HtmlPageFetcher),
         ''' then renders it. Cancels any fetch already in flight for this widget first.
         ''' Raises LoadCompleted/LoadFailed on the GTK main thread when done
@@ -169,6 +201,7 @@ Namespace Widgets
 
                 ReplaceDocument(lResult.Html, lResult.BaseUrl, lResult.Resources)
                 pCurrentUrl = lResult.BaseUrl
+                pLastFetchResult = lResult
                 RaiseEvent LoadCompleted(lResult.BaseUrl)
 
             Catch ex As Exception
