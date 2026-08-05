@@ -39,6 +39,12 @@ Namespace Widgets
         Private pNavigationCts As CancellationTokenSource
         Private pLastFetchResult As HtmlPageFetchResult
 
+        ' The raw (pre theme-injection) HTML/resources behind whatever's currently loaded,
+        ' if anything - kept so OnThemeChanged can re-render with the new theme's colors
+        ' without re-fetching over the network or losing already-downloaded images
+        Private pCurrentHtml As String
+        Private pCurrentResources As System.Collections.Generic.Dictionary(Of String, Byte())
+
         ' ===== Events =====
 
         ''' <summary>Raised when the user clicks a link - this widget takes no navigation
@@ -143,7 +149,7 @@ Namespace Widgets
         ''' <param name="vBaseUrl">Used to resolve any relative links for LinkClicked; may be empty</param>
         Public Sub LoadHtml(vHtml As String, Optional vBaseUrl As String = "")
             Try
-                ReplaceDocument(vHtml, vBaseUrl, Nothing)
+                ReplaceDocument(vHtml, vBaseUrl, Nothing, vResetScroll:=True)
                 pCurrentUrl = vBaseUrl
                 RaiseEvent LoadCompleted(vBaseUrl)
             Catch ex As Exception
@@ -164,7 +170,7 @@ Namespace Widgets
         ''' <param name="vResources">Previously-fetched resources (e.g. from LastFetchResult)</param>
         Public Sub LoadCachedPage(vHtml As String, vBaseUrl As String, vResources As System.Collections.Generic.Dictionary(Of String, Byte()))
             Try
-                ReplaceDocument(vHtml, vBaseUrl, vResources)
+                ReplaceDocument(vHtml, vBaseUrl, vResources, vResetScroll:=True)
                 pCurrentUrl = vBaseUrl
                 RaiseEvent LoadCompleted(vBaseUrl)
             Catch ex As Exception
@@ -199,7 +205,7 @@ Namespace Widgets
                     Return
                 End If
 
-                ReplaceDocument(lResult.Html, lResult.BaseUrl, lResult.Resources)
+                ReplaceDocument(lResult.Html, lResult.BaseUrl, lResult.Resources, vResetScroll:=True)
                 pCurrentUrl = lResult.BaseUrl
                 pLastFetchResult = lResult
                 RaiseEvent LoadCompleted(lResult.BaseUrl)
@@ -214,23 +220,56 @@ Namespace Widgets
         ''' <summary>
         ''' Wires the shared ThemeManager - injected as a lightweight default stylesheet
         ''' (low CSS specificity, so any page's own styling still wins where it applies)
-        ''' rather than fighting the page's own CSS
+        ''' rather than fighting the page's own CSS. Subscribes to ThemeChanged so a
+        ''' currently-loaded page picks up new theme colors immediately, re-rendered from
+        ''' its already-downloaded HTML/resources with no network fetch involved
         ''' </summary>
         ''' <param name="vThemeManager">The shared ThemeManager instance</param>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
                 pThemeManager = vThemeManager
-                ' No live re-render on theme change for v1 - the injected stylesheet only
-                ' takes effect for documents loaded/reloaded after this call. Reasonable
-                ' scope for a documentation viewer; revisit if it proves annoying in practice.
+
+                If pThemeManager IsNot Nothing Then
+                    AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
+                If pCurrentHtml IsNot Nothing Then
+                    ReplaceDocument(pCurrentHtml, pCurrentUrl, pCurrentResources, vResetScroll:=False)
+                End If
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawHtmlView.SetThemeManager error: {ex.Message}")
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Re-renders whatever's currently loaded so it picks up the new theme's colors -
+        ''' a no-op if nothing is loaded yet (SetThemeManager is called before any
+        ''' navigation happens, so this fires harmlessly during that early call too)
+        ''' </summary>
+        ''' <param name="vTheme">The newly-applied theme (unused directly - InjectThemeStylesheet reads pThemeManager itself)</param>
+        Private Sub OnThemeChanged(vTheme As EditorTheme)
+            Try
+                If pCurrentHtml Is Nothing Then Return
+                ReplaceDocument(pCurrentHtml, pCurrentUrl, pCurrentResources, vResetScroll:=False)
+            Catch ex As Exception
+                Console.WriteLine($"CustomDrawHtmlView.OnThemeChanged error: {ex.Message}")
+            End Try
+        End Sub
+
         ' ===== Document lifecycle =====
 
-        Private Sub ReplaceDocument(vHtml As String, vBaseUrl As String, vResources As System.Collections.Generic.Dictionary(Of String, Byte()))
+        ''' <summary>
+        ''' Parses, lays out, and shows vHtml, replacing whatever was loaded before
+        ''' </summary>
+        ''' <param name="vHtml">Raw (pre theme-injection) HTML - cached to pCurrentHtml so a later theme change can re-render without a network fetch</param>
+        ''' <param name="vBaseUrl">Used to resolve relative links/images/stylesheets</param>
+        ''' <param name="vResources">Pre-fetched resources this document may reference by URL, or Nothing</param>
+        ''' <param name="vResetScroll">True for a real navigation (start at the top); False when only re-rendering the same page for a new theme, so the reader's scroll position survives</param>
+        Private Sub ReplaceDocument(vHtml As String, vBaseUrl As String, vResources As System.Collections.Generic.Dictionary(Of String, Byte()), vResetScroll As Boolean)
             Try
                 pDocHandle?.Dispose()
                 pDocHandle = Nothing
@@ -253,18 +292,23 @@ Namespace Widgets
                 End If
 
                 pDocHandle = lHandle
+                pCurrentHtml = vHtml
+                pCurrentResources = vResources
 
                 Dim lWidth As Integer = Math.Max(pDrawingArea.AllocatedWidth, 1)
                 pDocHandle.SetViewportWidth(lWidth)
                 pDrawingArea.SetSizeRequest(lWidth, Math.Max(pDocHandle.ContentHeight, 1))
 
-                ' Without this, a new document inherits whatever scroll position was left
-                ' over from whatever was shown here before - if that page was scrolled down
-                ' and this one is shorter (or just different), the viewport can land past
-                ' this document's real content and show nothing at all, looking exactly
-                ' like a blank/broken page even though it rendered fine
-                pScrolled.Vadjustment.Value = pScrolled.Vadjustment.Lower
-                pScrolled.Hadjustment.Value = pScrolled.Hadjustment.Lower
+                If vResetScroll Then
+                    ' Without this, a new document inherits whatever scroll position was
+                    ' left over from whatever was shown here before - if that page was
+                    ' scrolled down and this one is shorter (or just different), the
+                    ' viewport can land past this document's real content and show nothing
+                    ' at all, looking exactly like a blank/broken page even though it
+                    ' rendered fine
+                    pScrolled.Vadjustment.Value = pScrolled.Vadjustment.Lower
+                    pScrolled.Hadjustment.Value = pScrolled.Hadjustment.Lower
+                End If
 
                 pDrawingArea.QueueDraw()
 
@@ -377,6 +421,9 @@ Namespace Widgets
                 pNavigationCts?.Cancel()
                 pDocHandle?.Dispose()
                 pDocHandle = Nothing
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawHtmlView.OnDestroyed error: {ex.Message}")
             Finally
