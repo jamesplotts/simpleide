@@ -713,7 +713,7 @@ Namespace Widgets
                 lLinkLabel.Halign = Align.Start
 
                 Dim lUrl As String = vItem.Url
-                Dim lLink As Widget = MakeClickable(lLinkLabel, Sub() OpenExternalUrl(lUrl))
+                Dim lLink As Widget = MakeClickable(lLinkLabel, Sub() NavigateToUrl(lUrl))
                 lLink.TooltipText = vItem.Url
 
                 lItemBox.PackStart(lLink, False, False, 0)
