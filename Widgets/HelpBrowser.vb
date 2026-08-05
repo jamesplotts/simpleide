@@ -212,6 +212,15 @@ Namespace Widgets
                 pScrolled = New ScrolledWindow()
                 pScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 pScrolled.Add(pContentBox)
+                ' Same reasoning as pHtmlView's NoShowAll (see EnsureHtmlViewCreated): without
+                ' this, any ancestor's ShowAll() call - e.g. OpenHelpTab's own
+                ' pNotebook.ShowAll() right after creating this tab - force-shows pScrolled
+                ' again even while an embedded page is what's supposed to be showing instead,
+                ' since ShowAll() propagation isn't aware of ShowNativeContent/ShowHtmlContent's
+                ' own explicit Hide()/Show() toggling. Confirmed live: without this, pScrolled
+                ' and pHtmlView could both end up Visible at once, showing Home's content
+                ' stacked above the embedded page's
+                pScrolled.NoShowAll = True
 
                 PackStart(pScrolled, True, True, 0)
 
