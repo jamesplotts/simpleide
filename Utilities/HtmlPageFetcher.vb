@@ -88,12 +88,25 @@ Namespace Utilities
             Dim lResult As New HtmlPageFetchResult()
             Try
                 Dim lPageUri As New Uri(vUrl)
-                Dim lHtml As String = Await pHttpClient.GetStringAsync(lPageUri)
+
+                ' GetStringAsync alone loses the final URL - HttpClient follows redirects
+                ' internally (e.g. google.com -> www.google.com, or http -> https) but only
+                ' the response's RequestMessage.RequestUri reflects where the content
+                ' actually came from. Using the original vUrl as the resolution base would
+                ' resolve every relative link/image/stylesheet against the wrong host for
+                ' any site that redirects this way - a very common case
+                Dim lHtml As String
+                Dim lFinalUri As Uri
+                Using lResponse As HttpResponseMessage = Await pHttpClient.GetAsync(lPageUri)
+                    lResponse.EnsureSuccessStatusCode()
+                    lHtml = Await lResponse.Content.ReadAsStringAsync()
+                    lFinalUri = If(lResponse.RequestMessage?.RequestUri, lPageUri)
+                End Using
 
                 lResult.Html = lHtml
-                lResult.BaseUrl = lPageUri.AbsoluteUri
+                lResult.BaseUrl = lFinalUri.AbsoluteUri
 
-                Dim lResourceUrls As List(Of String) = ExtractResourceUrls(lHtml, lPageUri)
+                Dim lResourceUrls As List(Of String) = ExtractResourceUrls(lHtml, lFinalUri)
                 If lResourceUrls.Count > 0 Then
                     Dim lFetchTasks As New List(Of Task(Of KeyValuePair(Of String, Byte())?))
                     for each lResourceUrl in lResourceUrls
