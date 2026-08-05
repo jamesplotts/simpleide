@@ -257,6 +257,15 @@ Namespace Widgets
                 Dim lWidth As Integer = Math.Max(pDrawingArea.AllocatedWidth, 1)
                 pDocHandle.SetViewportWidth(lWidth)
                 pDrawingArea.SetSizeRequest(lWidth, Math.Max(pDocHandle.ContentHeight, 1))
+
+                ' Without this, a new document inherits whatever scroll position was left
+                ' over from whatever was shown here before - if that page was scrolled down
+                ' and this one is shorter (or just different), the viewport can land past
+                ' this document's real content and show nothing at all, looking exactly
+                ' like a blank/broken page even though it rendered fine
+                pScrolled.Vadjustment.Value = pScrolled.Vadjustment.Lower
+                pScrolled.Hadjustment.Value = pScrolled.Hadjustment.Lower
+
                 pDrawingArea.QueueDraw()
 
             Catch ex As Exception
