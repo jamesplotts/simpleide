@@ -671,6 +671,21 @@ Namespace Widgets
             ' were already made visible once by its constructor's own ShowAll() call, so a
             ' plain Show() on the outer widget is all that's needed.
             pBrowserWidget.Show()
+
+            ' WebKitGTK-specific: after being Hidden (an X11/GDK unmap) and Shown again,
+            ' the native WebKitWebView's own backing store can come back stale - reported
+            ' as nested <div> content going blank after a few Home <-> page round-trips,
+            ' fixable by scrolling/resizing the window, consistent with a real GTK
+            ' expose/compositor issue rather than a content or layout bug (a WebKit-side
+            ' snapshot of the exact same sequence rendered correctly, so the page's own
+            ' layout isn't what's corrupted - only what's actually reaching the screen).
+            ' QueueResize() forces a real size-allocate cycle (not just a repaint), which
+            ' is the standard remedy for a native windowed widget's stale backing store
+            ' after an unmap/remap cycle in GTK3.
+            If TypeOf pBrowserWidget Is CustomDrawWebView Then
+                pBrowserWidget.QueueResize()
+                pBrowserWidget.QueueDraw()
+            End If
         End Sub
 
         ''' <summary>
