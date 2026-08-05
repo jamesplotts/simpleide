@@ -339,7 +339,15 @@ Namespace Editors
                     Console.WriteLine($"Error in InitializeEditor: {ex.Message}")
                     ' Continue with what we have
                 End Try
-                
+
+                Try
+                    InitializeUndoRedo()
+                Catch ex As Exception
+                    Console.WriteLine($"Error in InitializeUndoRedo: {ex.Message}")
+                    ' Continue with what we have - pUndoRedoManager stays Nothing, Undo/Redo
+                    ' become permanent no-ops (guarded elsewhere), rather than a crash
+                End Try
+
                 ' REMOVED: Don't try to get ProjectManager here - it will be set by CreateNewTab
                 Console.WriteLine($"CustomDrawingEditor created for {vSourceFileInfo.FileName}, awaiting ProjectManager")
                
