@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Reusable, toolkit-generic control library split out of the main SimpleIDE.vbproj so a
+    fork (e.g. a Windows port swapping in a different embedded-browser backend) can
+    reference just this assembly plus its own SimpleIDE.<Backend>.vbproj, without needing
+    to understand or touch IDE-specific code (Managers/ProjectManager, Editors, Dialogs,
+    etc. all stay in the main exe - see SimpleIDE.vbproj's own Compile list).
+
+    Files here are exactly the widgets confirmed to have no IDE-domain coupling beyond
+    ThemeManager/SettingsManager/EditorTheme (themselves self-contained on top of plain
+    file/JSON I/O), plus CustomDrawHtmlView's own dependencies (the litehtml P/Invoke
+    interop and its HTTP fetcher, both already zero-SimpleIDE-dependency).
+
+    Deliberately NOT split further right now: CustomDrawNotebook.*/CustomDrawDataGrid.*
+    still couple to Editors.CustomDrawingEditor/IEditor: real interface-extraction work
+    with no payoff for the actual goal (a swappable browser backend), so left in the exe.
+    Same for LineNumberWidget - its CustomDrawingEditor dependency (fold state, line-drag,
+    SyntaxNode-returning fold lookups) is a much larger surface than the "tiny interface"
+    this looked like at first glance; moving it is pure completeness with zero bearing on
+    forkability, so it stays in the exe too.
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SimpleIDE</RootNamespace>
+    <AssemblyName>SimpleIDE.Widgets</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>Latest</LangVersion>
+    <SignAssembly>false</SignAssembly>
+    <!-- Both .vbproj files live in this same directory (deliberately - files were not
+         physically moved, just re-listed under a new project, to avoid git-mv churn).
+         Without distinct intermediate/output paths they'd collide on a shared obj/ and
+         bin/, which corrupts each other's restore state when building via SimpleIDE.sln
+         (confirmed live: SimpleIDE.vbproj's own Roslyn package references broke building
+         this way until these were set). -->
+    <BaseIntermediateOutputPath>obj\Widgets\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\Widgets\</BaseOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="GtkSharp" Version="3.24.24.95" />
+    <PackageReference Include="CairoSharp" Version="3.24.24.95" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Interop (P/Invoke) - CustomDrawHtmlView's litehtml rendering backend -->
+    <Compile Include="Interop/LiteHtmlNative.vb" />
+    <Compile Include="Interop/LiteHtmlDocumentHandle.vb" />
+    <!-- Models -->
+    <Compile Include="Models/EditorTheme.vb" />
+    <Compile Include="Models/SyntaxColorSet.vb" />
+    <!-- Managers -->
+    <Compile Include="Managers/SettingsManager.vb" />
+    <Compile Include="Managers/ThemeManager.vb" />
+    <!-- Utilities -->
+    <Compile Include="Utilities/ApplicationSettings.vb" />
+    <Compile Include="Utilities/FontMetrics.vb" />
+    <Compile Include="Utilities/CssHelper.vb" />
+    <Compile Include="Utilities/HtmlPageFetcher.vb" />
+    <Compile Include="Utilities/IconContrastHelper.vb" />
+    <Compile Include="Utilities/ListBoxItem.vb" />
+    <!-- Widgets -->
+    <Compile Include="Widgets/ColorPicker.vb" />
+    <Compile Include="Widgets/CustomDrawButton.vb" />
+    <Compile Include="Widgets/CustomDrawCheckBox.vb" />
+    <Compile Include="Widgets/CustomDrawComboBox.vb" />
+    <Compile Include="Widgets/CustomDrawComboBoxPopup.vb" />
+    <Compile Include="Widgets/CustomDrawHtmlView.vb" />
+    <Compile Include="Widgets/CustomDrawListBox.vb" />
+    <Compile Include="Widgets/CustomDrawScrollbar.vb" />
+    <Compile Include="Widgets/CustomDrawSpinButton.vb" />
+    <Compile Include="Widgets/CustomDrawTextBox.vb" />
+    <Compile Include="Widgets/CustomDrawTextOutput.vb" />
+    <Compile Include="Widgets/WelcomeTabWidget.vb" />
+  </ItemGroup>
+</Project>

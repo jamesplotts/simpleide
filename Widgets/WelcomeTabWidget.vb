@@ -631,7 +631,11 @@ Namespace Widgets
         ''' </summary>
         Private Sub LoadPenguinImage()
             Try
-                Dim lIconStream As System.IO.Stream = GetType(WelcomeTabWidget).Assembly.GetManifestResourceStream("SimpleIDE.icon.png")
+                ' Not GetType(WelcomeTabWidget).Assembly - this widget now lives in
+                ' SimpleIDE.Widgets.dll, but icon.png is embedded in the exe (Resources/
+                ' stays with SimpleIDE.vbproj). GetEntryAssembly() always resolves to the
+                ' running exe regardless of which assembly this code itself lives in.
+                Dim lIconStream As System.IO.Stream = System.Reflection.Assembly.GetEntryAssembly().GetManifestResourceStream("SimpleIDE.icon.png")
                 If lIconStream IsNot Nothing Then
                     pPenguinPixbuf = New Gdk.Pixbuf(lIconStream)
                     ' Scale to a nice size for the welcome tab (128x128)

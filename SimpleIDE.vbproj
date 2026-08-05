@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1138.0</AssemblyVersion>
-    <FileVersion>1.1.1138.0</FileVersion>
+    <AssemblyVersion>1.1.1146.0</AssemblyVersion>
+    <FileVersion>1.1.1146.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1138</Version>
+    <Version>1.1.1146</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -72,11 +72,11 @@
     <PackageReference Include="CairoSharp" Version="3.24.24.95" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="SimpleIDE.Widgets.vbproj" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Program Entry Point -->
     <Compile Include="Program.vb" />
-    <!-- Interop (P/Invoke) -->
-    <Compile Include="Interop/LiteHtmlNative.vb" />
-    <Compile Include="Interop/LiteHtmlDocumentHandle.vb" />
     <!-- Main Window - Core and Partial Classes -->
     <Compile Include="MainWindow.vb" />
     <Compile Include="MainWindow.AI.vb" />
@@ -181,7 +181,6 @@
     <Compile Include="Models/DocumentModel.vb" />
     <Compile Include="Models/DocumentNode.vb" />
     <Compile Include="Models/EditorPosition.vb" />
-    <Compile Include="Models/EditorTheme.vb" />
     <Compile Include="Models/HelpResourceItem.vb" />
     <Compile Include="Models/HelpSection.vb" />
     <Compile Include="Models/LineMetadata.vb" />
@@ -190,7 +189,6 @@
     <Compile Include="Models/ProjectNodeType.vb" />
     <Compile Include="Models/ScratchpadData.vb" />
     <Compile Include="Models/SourceFileInfo.vb" />
-    <Compile Include="Models/SyntaxColorSet.vb" />
     <Compile Include="Models/SyntaxToken.vb" />
     <Compile Include="Models/TabInfo.vb" />
     <Compile Include="Models/TODOItem.vb" />
@@ -215,8 +213,6 @@
     <Compile Include="Managers/ProjectManager.SymbolIndex.vb" />
     <Compile Include="Managers/ReferenceManager.vb" />
     <Compile Include="Managers/ScratchpadManager.vb" />
-    <Compile Include="Managers/SettingsManager.vb" />
-    <Compile Include="Managers/ThemeManager.vb" />
     <Compile Include="Managers/TODOManager.vb" />
     <Compile Include="Managers/UndoRedoManager.vb" />
     <!-- Parsers -->
@@ -225,23 +221,17 @@
     <Compile Include="Parsers/RoslynConverter.vb" />
     <Compile Include="Parsers/ProjectParser.vb" />
     <!-- Utilities -->
-    <Compile Include="Utilities/ApplicationSettings.vb" />
     <Compile Include="Utilities/ApplicationVersion.vb" />
     <Compile Include="Utilities/ApplicationVersionExtensions.vb" />
     <Compile Include="Utilities/AssemblyBrowser.vb" />
     <Compile Include="Utilities/BuildEventArgs.vb" />
-    <Compile Include="Utilities/CssHelper.vb" />
     <Compile Include="Utilities/EnhancedClaudeApiClient.vb" />
     <Compile Include="Utilities/FileOperations.vb" />
     <Compile Include="Utilities/FileSystemWatcher.vb" />
     <Compile Include="Utilities/FoldStateStore.vb" />
-    <Compile Include="Utilities/FontMetrics.vb" />
     <Compile Include="Utilities/GitIgnoreHelper.vb" />
-    <Compile Include="Utilities/HtmlPageFetcher.vb" />
-    <Compile Include="Utilities/IconContrastHelper.vb" />
     <Compile Include="Utilities/InputDialog.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
-    <Compile Include="Utilities/ListBoxItem.vb" />
     <Compile Include="Utilities/ProjectFileParser.vb" />
     <Compile Include="Utilities/ProjectFileScanner.vb" />
     <Compile Include="Utilities/ReflectionHelper.vb" />
@@ -253,16 +243,6 @@
     <Compile Include="Widgets/AIAssistantPanel.vb" />
     <Compile Include="Widgets/BuildOutputPanel.vb" />
     <Compile Include="Widgets/BuildOutputPanel.DataGrid.vb" />
-    <Compile Include="Widgets/ColorPicker.vb" />
-    <Compile Include="Widgets/CustomDrawButton.vb" />
-    <Compile Include="Widgets/CustomDrawCheckBox.vb" />
-    <Compile Include="Widgets/CustomDrawComboBox.vb" />
-    <Compile Include="Widgets/CustomDrawComboBoxPopup.vb" />
-    <Compile Include="Widgets/CustomDrawListBox.vb" />
-    <Compile Include="Widgets/CustomDrawScrollbar.vb" />
-    <Compile Include="Widgets/CustomDrawSpinButton.vb" />
-    <Compile Include="Widgets/CustomDrawTextBox.vb" />
-    <Compile Include="Widgets/CustomDrawTextOutput.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.Drawing.vb" />
     <Compile Include="Widgets/CustomDrawDataGrid.Events.vb" />
@@ -292,7 +272,6 @@
     <Compile Include="Widgets/FindReplacePanel.SortableResults.vb" />
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
-    <Compile Include="Widgets/CustomDrawHtmlView.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
     <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
@@ -338,7 +317,6 @@
     <Compile Include="Interfaces/ICustomNotebook.vb" />
     <Compile Include="Models/TabClosingEventArgs.vb" />
     <Compile Include="MainWindow.Diagnose.vb" />
-    <Compile Include="Widgets/WelcomeTabWidget.vb" />
     <Compile Include="MainWindow.WindowState.vb" />
     <Compile Include="Models/DefinitionInfo.vb" />
   </ItemGroup>
