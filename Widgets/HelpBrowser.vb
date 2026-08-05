@@ -14,6 +14,7 @@
 Imports Gtk
 Imports System.Diagnostics
 Imports System.Collections.Generic
+Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
@@ -73,9 +74,13 @@ Namespace Widgets
         Private pContentBox As Box
         Private pScrolled As ScrolledWindow
 
-        ' Embedded real-page renderer (litehtml), created lazily only if available -
-        ' see NavigateToUrl/NavigateToUrlEmbedded
-        Private pHtmlView As CustomDrawHtmlView
+        ' Embedded real-page renderer, created lazily only if some provider is available -
+        ' see NavigateToUrl/NavigateToUrlEmbedded/EmbeddedBrowserFactory. Both fields point
+        ' at the SAME object: pBrowserWidget is Widget-typed for PackStart/Show/Hide (VB
+        ' widgets must literally inherit Gtk.Widget), pBrowserView is the same object
+        ' IEmbeddedBrowserView-typed for the actual navigation behavior
+        Private pBrowserWidget As Widget
+        Private pBrowserView As IEmbeddedBrowserView
 
         ' History
         Private pHistory As New List(Of PageEntry)
@@ -212,13 +217,13 @@ Namespace Widgets
                 pScrolled = New ScrolledWindow()
                 pScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
                 pScrolled.Add(pContentBox)
-                ' Same reasoning as pHtmlView's NoShowAll (see EnsureHtmlViewCreated): without
-                ' this, any ancestor's ShowAll() call - e.g. OpenHelpTab's own
+                ' Same reasoning as pBrowserWidget's NoShowAll (see EnsureBrowserViewCreated):
+                ' without this, any ancestor's ShowAll() call - e.g. OpenHelpTab's own
                 ' pNotebook.ShowAll() right after creating this tab - force-shows pScrolled
                 ' again even while an embedded page is what's supposed to be showing instead,
                 ' since ShowAll() propagation isn't aware of ShowNativeContent/ShowHtmlContent's
                 ' own explicit Hide()/Show() toggling. Confirmed live: without this, pScrolled
-                ' and pHtmlView could both end up Visible at once, showing Home's content
+                ' and pBrowserWidget could both end up Visible at once, showing Home's content
                 ' stacked above the embedded page's
                 pScrolled.NoShowAll = True
 
@@ -298,7 +303,7 @@ Namespace Widgets
                 If pForwardButton IsNot Nothing Then pForwardButton.ThemeManager = vThemeManager
                 If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
                 If pHomeButton IsNot Nothing Then pHomeButton.ThemeManager = vThemeManager
-                If pHtmlView IsNot Nothing Then pHtmlView.SetThemeManager(vThemeManager)
+                If pBrowserView IsNot Nothing Then pBrowserView.SetThemeManager(vThemeManager)
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.SetThemeManager error: {ex.Message}")
             End Try
@@ -357,16 +362,16 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Opens vUrl - embedded via litehtml rendering if the native shim is available
-        ''' on this system, otherwise in the user's default web browser with an in-app
-        ''' confirmation page (the pre-litehtml behavior)
+        ''' Opens vUrl - embedded via WebKitGTK (real JS-capable rendering) or litehtml
+        ''' (always available, no JS) rendering, whichever EmbeddedBrowserFactory picks,
+        ''' otherwise in the user's default web browser with an in-app confirmation page
         ''' </summary>
         ''' <param name="vUrl">The URL to open</param>
         Public Sub NavigateToUrl(vUrl As String)
             Try
                 If String.IsNullOrEmpty(vUrl) Then Return
 
-                If CustomDrawHtmlView.IsAvailable Then
+                If CustomDrawWebView.IsAvailable OrElse CustomDrawHtmlView.IsAvailable Then
                     NavigateToUrlEmbedded(vUrl)
                 Else
                     NavigateToUrlExternal(vUrl)
@@ -378,8 +383,8 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Pushes vUrl onto history as an embedded litehtml page and begins loading it -
-        ''' RenderCurrentPage drives the actual fetch/render via pHtmlView
+        ''' Pushes vUrl onto history as an embedded page and begins loading it -
+        ''' RenderCurrentPage drives the actual fetch/render via pBrowserView
         ''' </summary>
         ''' <param name="vUrl">The URL to load</param>
         Private Sub NavigateToUrlEmbedded(vUrl As String)
@@ -572,37 +577,44 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Shows the embedded litehtml view and displays vPage - if it was already fetched
-        ''' once (Html is cached), redisplays that exact content via LoadCachedPage with no
-        ''' network involved at all, so Back/Forward can never fail or re-open the external
-        ''' browser just because a page that loaded fine the first time hit a transient
-        ''' network problem on a later revisit. Only a genuinely new page (Html Is Nothing -
-        ''' a fresh NavigateToUrlEmbedded push, or after Reload() clears the cache) actually
-        ''' fetches, and on failure falls back to NavigateToUrlExternal (which replaces this
-        ''' same history entry in place, since the URL is unchanged)
+        ''' Shows the embedded view and displays vPage. HTML/resource caching
+        ''' (LoadCachedPage/LastFetchResult) only exists on the litehtml provider - WebKit
+        ''' does its own real HTTP caching internally, so a plain NavigateAsync on every
+        ''' revisit is simple and correct there, without the "hand-rolled fetch might
+        ''' flakily fail on repeat" risk that motivated caching for litehtml specifically.
+        ''' When caching does apply and Html is already populated, this redisplays that
+        ''' exact content with no network involved at all, so Back/Forward can never fail
+        ''' or re-open the external browser just because a page that loaded fine the first
+        ''' time hit a transient network problem on a later revisit. On failure, falls back
+        ''' to NavigateToUrlExternal (which replaces this same history entry in place,
+        ''' since the URL is unchanged)
         ''' </summary>
         ''' <param name="vPage">The HTML page to render</param>
         Private Async Function RenderHtmlPageAsync(vPage As PageEntry) As Task
             Try
-                EnsureHtmlViewCreated()
+                EnsureBrowserViewCreated()
                 ShowHtmlContent()
 
-                If vPage.Html IsNot Nothing Then
-                    pHtmlView.LoadCachedPage(vPage.Html, vPage.Url, vPage.Resources)
+                Dim lHtmlView As CustomDrawHtmlView = TryCast(pBrowserWidget, CustomDrawHtmlView)
+
+                If lHtmlView IsNot Nothing AndAlso vPage.Html IsNot Nothing Then
+                    lHtmlView.LoadCachedPage(vPage.Html, vPage.Url, vPage.Resources)
                     Return
                 End If
 
                 pStatusLabel.Text = $"Loading {vPage.Url}..."
-                Await pHtmlView.NavigateAsync(vPage.Url)
+                Await pBrowserView.NavigateAsync(vPage.Url)
 
-                ' Cache the fetched content on this history entry (only on success -
-                ' NavigateAsync only updates LastFetchResult when the fetch succeeded) so a
-                ' later Back/Forward to this same entry redisplays instantly, above, instead
-                ' of re-fetching
-                Dim lFetched As HtmlPageFetchResult = pHtmlView.LastFetchResult
-                If lFetched IsNot Nothing AndAlso lFetched.Success AndAlso lFetched.BaseUrl = pHtmlView.CurrentUrl Then
-                    vPage.Html = lFetched.Html
-                    vPage.Resources = lFetched.Resources
+                If lHtmlView IsNot Nothing Then
+                    ' Cache the fetched content on this history entry (only on success -
+                    ' NavigateAsync only updates LastFetchResult when the fetch succeeded)
+                    ' so a later Back/Forward to this same entry redisplays instantly,
+                    ' above, instead of re-fetching
+                    Dim lFetched As HtmlPageFetchResult = lHtmlView.LastFetchResult
+                    If lFetched IsNot Nothing AndAlso lFetched.Success AndAlso lFetched.BaseUrl = lHtmlView.CurrentUrl Then
+                        vPage.Html = lFetched.Html
+                        vPage.Resources = lFetched.Resources
+                    End If
                 End If
 
             Catch ex As Exception
@@ -611,47 +623,54 @@ Namespace Widgets
         End Function
 
         ''' <summary>
-        ''' Creates pHtmlView and wires its events on first use - only ever called after
-        ''' confirming CustomDrawHtmlView.IsAvailable
+        ''' Creates the provider widget (via EmbeddedBrowserFactory) and wires its events on
+        ''' first use - only ever called after confirming CustomDrawWebView.IsAvailable
+        ''' OrElse CustomDrawHtmlView.IsAvailable. Respects the "Prefer native WebKit
+        ''' rendering when available" Preferences toggle (General.PreferWebKitRendering,
+        ''' defaults True) so litehtml can be forced for troubleshooting without needing to
+        ''' uninstall WebKitGTK
         ''' </summary>
-        Private Sub EnsureHtmlViewCreated()
-            If pHtmlView IsNot Nothing Then Return
+        Private Sub EnsureBrowserViewCreated()
+            If pBrowserWidget IsNot Nothing Then Return
 
-            pHtmlView = New CustomDrawHtmlView()
-            pHtmlView.NoShowAll = True
-            If pThemeManager IsNot Nothing Then pHtmlView.SetThemeManager(pThemeManager)
+            Dim lPreferWebKit As Boolean = If(pSettingsManager Is Nothing, True, pSettingsManager.GetBoolean("General.PreferWebKitRendering", True))
+            pBrowserWidget = EmbeddedBrowserFactory.Create(lPreferWebKit)
+            pBrowserView = TryCast(pBrowserWidget, IEmbeddedBrowserView)
 
-            AddHandler pHtmlView.LinkClicked, AddressOf OnHtmlViewLinkClicked
-            AddHandler pHtmlView.LoadCompleted, AddressOf OnHtmlViewLoadCompleted
-            AddHandler pHtmlView.LoadFailed, AddressOf OnHtmlViewLoadFailed
+            pBrowserWidget.NoShowAll = True
+            If pThemeManager IsNot Nothing Then pBrowserView.SetThemeManager(pThemeManager)
 
-            PackStart(pHtmlView, True, True, 0)
+            AddHandler pBrowserView.LinkClicked, AddressOf OnHtmlViewLinkClicked
+            AddHandler pBrowserView.LoadCompleted, AddressOf OnHtmlViewLoadCompleted
+            AddHandler pBrowserView.LoadFailed, AddressOf OnHtmlViewLoadFailed
+
+            PackStart(pBrowserWidget, True, True, 0)
         End Sub
 
         ''' <summary>
-        ''' Shows the native sections ScrolledWindow and hides the embedded HTML view
+        ''' Shows the native sections ScrolledWindow and hides the embedded provider widget
         ''' </summary>
         Private Sub ShowNativeContent()
-            If pHtmlView IsNot Nothing Then pHtmlView.Hide()
+            If pBrowserWidget IsNot Nothing Then pBrowserWidget.Hide()
             pScrolled.Show()
         End Sub
 
         ''' <summary>
-        ''' Shows the embedded HTML view and hides the native sections ScrolledWindow
+        ''' Shows the embedded provider widget and hides the native sections ScrolledWindow
         ''' </summary>
         Private Sub ShowHtmlContent()
             pScrolled.Hide()
-            ' Deliberately Show(), not ShowAll() - pHtmlView.NoShowAll is set (so an
+            ' Deliberately Show(), not ShowAll() - pBrowserWidget.NoShowAll is set (so an
             ' ancestor's ShowAll doesn't force it visible while Home is showing), and GTK's
             ' ShowAll() also no-ops when called directly on a widget that itself has
             ' NoShowAll set, not just when propagating from an ancestor. ShowAll() worked
             ' the first time only because the widget was already Visible from its own
             ' constructor and had never been Hidden yet - after the first trip through
             ' ShowNativeContent() actually Hides it, ShowAll() here would never bring it
-            ' back. Show() is never blocked by NoShowAll, and pHtmlView's own children were
-            ' already made visible once by its constructor's own ShowAll() call, so a plain
-            ' Show() on the outer widget is all that's needed.
-            pHtmlView.Show()
+            ' back. Show() is never blocked by NoShowAll, and pBrowserWidget's own children
+            ' were already made visible once by its constructor's own ShowAll() call, so a
+            ' plain Show() on the outer widget is all that's needed.
+            pBrowserWidget.Show()
         End Sub
 
         ''' <summary>

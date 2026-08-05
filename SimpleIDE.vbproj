@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1149.0</AssemblyVersion>
-    <FileVersion>1.1.1149.0</FileVersion>
+    <AssemblyVersion>1.1.1154.0</AssemblyVersion>
+    <FileVersion>1.1.1154.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1149</Version>
+    <Version>1.1.1154</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -73,6 +73,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="SimpleIDE.Widgets.vbproj" />
+    <ProjectReference Include="SimpleIDE.WebKitGtk.vbproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Program Entry Point -->
@@ -202,6 +203,7 @@
     <Compile Include="Managers/BuildManager.vb" />
     <Compile Include="Managers/CodeSenseManager.vb" />
     <Compile Include="Managers/CredentialManager.vb" />
+    <Compile Include="Managers/EmbeddedBrowserFactory.vb" />
     <Compile Include="Managers/GitManager.vb" />
     <Compile Include="Managers/ProjectInfo.vb" />
     <Compile Include="Managers/ProjectManager.vb" />

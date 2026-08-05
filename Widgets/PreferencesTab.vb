@@ -33,6 +33,7 @@ Namespace Widgets
         Private pAutoSaveCheck As CheckButton
         Private pAutoSaveIntervalSpin As SpinButton
         Private pRecentFilesCountSpin As SpinButton
+        Private pPreferWebKitCheck As CustomDrawCheckBox
         
         ' Editor tab controls
         Private pFontButton As FontButton
@@ -396,7 +397,23 @@ Namespace Widgets
             
             lAppFrame.Add(lAppBox)
             lBox.PackStart(lAppFrame, False, False, 0)
-            
+
+            ' Help / Documentation rendering
+            Dim lHelpFrame As New Frame("Help Tab")
+            Dim lHelpBox As New Box(Orientation.Vertical, 5)
+            lHelpBox.BorderWidth = 10
+
+            pPreferWebKitCheck = New CustomDrawCheckBox("Prefer native WebKit rendering when available")
+            pPreferWebKitCheck.ThemeManager = pThemeManager
+            pPreferWebKitCheck.TooltipText = "Real, JavaScript-capable page rendering via the system's WebKitGTK. " &
+                "Turn off to force the built-in litehtml renderer (no JavaScript) even when WebKitGTK is installed - " &
+                "useful for troubleshooting."
+            AddHandler pPreferWebKitCheck.Toggled, AddressOf OnSettingChanged
+            lHelpBox.PackStart(pPreferWebKitCheck, False, False, 0)
+
+            lHelpFrame.Add(lHelpBox)
+            lBox.PackStart(lHelpFrame, False, False, 0)
+
             Return lBox
         End Function
         
@@ -1125,7 +1142,8 @@ Namespace Widgets
                 pAutoSaveCheck.Active = pSettingsManager.GetBoolean("General.AutoSave", False)
                 pAutoSaveIntervalSpin.Value = pSettingsManager.GetInteger("General.AutoSaveInterval", 10)
                 pRecentFilesCountSpin.Value = pSettingsManager.GetInteger("General.RecentFilesCount", 10)
-                
+                pPreferWebKitCheck.Active = pSettingsManager.GetBoolean("General.PreferWebKitRendering", True)
+
                 ' Editor
                 pFontButton.Font = pSettingsManager.EditorFont
                 pTabWidthSpin.Value = pSettingsManager.TabWidth
@@ -1287,6 +1305,7 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("General.AutoSave", pAutoSaveCheck.Active)
                 pSettingsManager.SetInteger("General.AutoSaveInterval", CInt(pAutoSaveIntervalSpin.Value))
                 pSettingsManager.SetInteger("General.RecentFilesCount", CInt(pRecentFilesCountSpin.Value))
+                pSettingsManager.SetBoolean("General.PreferWebKitRendering", pPreferWebKitCheck.Active)
                 
                 ' Editor
                 pSettingsManager.EditorFont = pFontButton.Font
