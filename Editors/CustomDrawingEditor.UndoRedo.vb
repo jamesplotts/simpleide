@@ -41,6 +41,10 @@ Namespace Editors
         ''' </summary>
         Public Sub Undo() Implements IEditor.Undo
             Try
+                ' Undo rewrites the buffer out from under whatever word/position
+                ' CodeSense was tracking - close it rather than leave it stranded
+                If pCodeSenseActive Then CancelCodeSense()
+
                 ' If there's a selection but nothing to undo, clear the selection
                 If pHasSelection AndAlso pUndoRedoManager IsNot Nothing Then
                     If Not pUndoRedoManager.CanUndo Then
@@ -49,12 +53,12 @@ Namespace Editors
                         Return
                     End If
                 End If
-                
+
                 ' Perform the actual undo if available
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.Undo()
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"Undo error: {ex.Message}")
             End Try
@@ -64,9 +68,18 @@ Namespace Editors
         ''' Executes redo operation from the undo/redo manager
         ''' </summary>
         Public Sub Redo() Implements IEditor.Redo
-            If pUndoRedoManager IsNot Nothing Then
-                pUndoRedoManager.Redo()
-            End If
+            Try
+                ' Same reasoning as Undo - redo rewrites the buffer out from under
+                ' whatever word/position CodeSense was tracking
+                If pCodeSenseActive Then CancelCodeSense()
+
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.Redo()
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"Redo error: {ex.Message}")
+            End Try
         End Sub
 
         ''' <summary>
