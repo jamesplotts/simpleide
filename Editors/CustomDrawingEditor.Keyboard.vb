@@ -348,6 +348,13 @@ Namespace Editors
                             ' (including its own cursor movement) when applicable; falls
                             ' through to normal single-character insertion otherwise
                             If Not HandleBracketAutoClose(lChar) Then
+                                ' Record for undo BEFORE the operation
+                                If pUndoRedoManager IsNot Nothing Then
+                                    Dim lUndoStartPos As New EditorPosition(pCursorLine, pCursorColumn)
+                                    Dim lUndoEndPos As New EditorPosition(pCursorLine, pCursorColumn + 1)
+                                    pUndoRedoManager.RecordInsertText(lUndoStartPos, lChar.ToString(), lUndoEndPos)
+                                End If
+
                                 ' Insert the character
                                 pSourceFileInfo.InsertCharacter(pCursorLine, pCursorColumn, lChar)
 

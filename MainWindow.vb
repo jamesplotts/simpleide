@@ -263,7 +263,7 @@ Partial Public Class MainWindow
             If String.IsNullOrEmpty(pPendingProjectFile) Then
                 AddHandler Me.Shown, AddressOf OnWindowShownNoProject
             End If
-            
+
             Console.WriteLine("MainWindow initialized successfully")
             
         Catch ex As Exception
