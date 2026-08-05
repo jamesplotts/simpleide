@@ -63,7 +63,6 @@ Namespace Widgets
 
         ' Toolbar controls
         Private pUrlBar As CustomDrawTextBox
-        Private pSearchEntry As CustomDrawTextBox
         Private pBackButton As CustomDrawButton
         Private pForwardButton As CustomDrawButton
         Private pRefreshButton As CustomDrawButton
@@ -204,17 +203,6 @@ Namespace Widgets
                 pUrlBar.WidthRequest = 300
                 lToolbar.PackStart(pUrlBar, True, True, 0)
 
-                lToolbar.PackStart(New Separator(Orientation.Vertical), False, False, 4)
-
-                Dim lSearchLabel As New Label("Search:")
-                lSearchLabel.MarginStart = 5
-                lSearchLabel.MarginEnd = 5
-                lToolbar.PackStart(lSearchLabel, False, False, 0)
-
-                pSearchEntry = New CustomDrawTextBox("Search Microsoft Learn...")
-                pSearchEntry.WidthRequest = 200
-                lToolbar.PackStart(pSearchEntry, False, False, 0)
-
                 PackStart(lToolbar, False, False, 0)
 
                 ' Native content area
@@ -252,7 +240,6 @@ Namespace Widgets
                 AddHandler pRefreshButton.Clicked, AddressOf OnRefreshClicked
                 AddHandler pHomeButton.Clicked, AddressOf OnHomeClicked
                 AddHandler pUrlBar.Activated, AddressOf OnUrlActivated
-                AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.ConnectEvents error: {ex.Message}")
             End Try
@@ -288,18 +275,6 @@ Namespace Widgets
             End Try
         End Sub
 
-        Private Sub OnSearchActivated(vSender As Object, vArgs As EventArgs)
-            Try
-                Dim lSearchTerm As String = pSearchEntry.Text.Trim()
-                If Not String.IsNullOrEmpty(lSearchTerm) Then
-                    Dim lSearchUrl As String = $"https://learn.microsoft.com/en-us/search/?terms={Uri.EscapeDataString(lSearchTerm)}&category=documentation"
-                    NavigateToUrl(lSearchUrl)
-                End If
-            Catch ex As Exception
-                Console.WriteLine($"HelpBrowser.OnSearchActivated error: {ex.Message}")
-            End Try
-        End Sub
-
         ''' <summary>
         ''' Wires the shared ThemeManager into this browser's CustomDraw controls; the
         ''' native content area (Labels, Buttons, Frames) already follows the app-wide
@@ -310,7 +285,6 @@ Namespace Widgets
             Try
                 pThemeManager = vThemeManager
                 If pUrlBar IsNot Nothing Then pUrlBar.ThemeManager = vThemeManager
-                If pSearchEntry IsNot Nothing Then pSearchEntry.ThemeManager = vThemeManager
                 If pBackButton IsNot Nothing Then pBackButton.ThemeManager = vThemeManager
                 If pForwardButton IsNot Nothing Then pForwardButton.ThemeManager = vThemeManager
                 If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
