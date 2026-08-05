@@ -295,10 +295,14 @@ Namespace Managers
                         pEditor.SetCursorPosition(lAction.StartPosition)
                         
                     Case UndoActionType.eDelete
-                        ' Undo delete by inserting
+                        ' Undo delete by inserting. Cursor goes to EndPosition (right after
+                        ' the reinserted text), not CursorPosition - CursorPosition is where
+                        ' the cursor ended up AFTER the original delete (i.e. right BEFORE
+                        ' the text being restored here), which would leave the cursor
+                        ' stranded ahead of text the user just watched get undone
                         pEditor.InsertTextAtPosition(lAction.StartPosition, lAction.Text)
-                        pEditor.SetCursorPosition(lAction.CursorPosition)
-                        
+                        pEditor.SetCursorPosition(lAction.EndPosition)
+
                     Case UndoActionType.eReplace
                         ' Undo replace by restoring old text
                         pEditor.ReplaceText(lAction.StartPosition, lAction.EndPosition, lAction.OldText)
