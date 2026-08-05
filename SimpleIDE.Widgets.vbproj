@@ -46,6 +46,8 @@
     <!-- Interop (P/Invoke) - CustomDrawHtmlView's litehtml rendering backend -->
     <Compile Include="Interop/LiteHtmlNative.vb" />
     <Compile Include="Interop/LiteHtmlDocumentHandle.vb" />
+    <!-- Interfaces -->
+    <Compile Include="Interfaces/IEmbeddedBrowserView.vb" />
     <!-- Models -->
     <Compile Include="Models/EditorTheme.vb" />
     <Compile Include="Models/SyntaxColorSet.vb" />

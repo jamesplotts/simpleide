@@ -12,6 +12,7 @@ Imports Gdk
 Imports System
 Imports System.Threading
 Imports System.Threading.Tasks
+Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Interop
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
@@ -21,10 +22,13 @@ Namespace Widgets
 
     ''' <summary>
     ''' Renders a real HTML/CSS page (via the litehtml native shim) inside a self-managed
-    ''' scrollable area - drop this widget into any layout and call LoadHtml/NavigateAsync
+    ''' scrollable area - drop this widget into any layout and call LoadHtml/NavigateAsync.
+    ''' The litehtml-backed IEmbeddedBrowserView provider - see that interface for the
+    ''' shared contract other rendering backends (e.g. CustomDrawWebView) also implement
     ''' </summary>
     Public Class CustomDrawHtmlView
         Inherits Box
+        Implements IEmbeddedBrowserView
 
         ' ===== Fields =====
 
@@ -49,26 +53,26 @@ Namespace Widgets
 
         ''' <summary>Raised when the user clicks a link - this widget takes no navigation
         ''' action itself, the consumer decides what to do with vUrl</summary>
-        Public Event LinkClicked(vUrl As String)
+        Public Event LinkClicked(vUrl As String) Implements IEmbeddedBrowserView.LinkClicked
 
         ''' <summary>Raised after a LoadHtml/NavigateAsync call finishes successfully</summary>
-        Public Event LoadCompleted(vUrl As String)
+        Public Event LoadCompleted(vUrl As String) Implements IEmbeddedBrowserView.LoadCompleted
 
         ''' <summary>Raised when NavigateAsync's fetch or render fails</summary>
-        Public Event LoadFailed(vUrl As String, vError As String)
+        Public Event LoadFailed(vUrl As String, vError As String) Implements IEmbeddedBrowserView.LoadFailed
 
         ' ===== Properties =====
 
         ''' <summary>Gets the URL most recently loaded via NavigateAsync, or the base URL
         ''' passed to LoadHtml - empty if nothing has been loaded yet</summary>
-        Public ReadOnly Property CurrentUrl As String
+        Public ReadOnly Property CurrentUrl As String Implements IEmbeddedBrowserView.CurrentUrl
             Get
                 Return pCurrentUrl
             End Get
         End Property
 
         ''' <summary>Gets whether a NavigateAsync fetch is currently in flight</summary>
-        Public ReadOnly Property IsLoading As Boolean
+        Public ReadOnly Property IsLoading As Boolean Implements IEmbeddedBrowserView.IsLoading
             Get
                 Return pIsLoading
             End Get
@@ -147,7 +151,7 @@ Namespace Widgets
         ''' </summary>
         ''' <param name="vHtml">The HTML to render</param>
         ''' <param name="vBaseUrl">Used to resolve any relative links for LinkClicked; may be empty</param>
-        Public Sub LoadHtml(vHtml As String, Optional vBaseUrl As String = "")
+        Public Sub LoadHtml(vHtml As String, Optional vBaseUrl As String = "") Implements IEmbeddedBrowserView.LoadHtml
             Try
                 ReplaceDocument(vHtml, vBaseUrl, Nothing, vResetScroll:=True)
                 pCurrentUrl = vBaseUrl
@@ -185,7 +189,7 @@ Namespace Widgets
         ''' Raises LoadCompleted/LoadFailed on the GTK main thread when done
         ''' </summary>
         ''' <param name="vUrl">The page URL to load</param>
-        Public Async Function NavigateAsync(vUrl As String) As Task
+        Public Async Function NavigateAsync(vUrl As String) As Task Implements IEmbeddedBrowserView.NavigateAsync
             Try
                 pNavigationCts?.Cancel()
                 pNavigationCts = New CancellationTokenSource()
@@ -225,7 +229,7 @@ Namespace Widgets
         ''' its already-downloaded HTML/resources with no network fetch involved
         ''' </summary>
         ''' <param name="vThemeManager">The shared ThemeManager instance</param>
-        Public Sub SetThemeManager(vThemeManager As ThemeManager)
+        Public Sub SetThemeManager(vThemeManager As ThemeManager) Implements IEmbeddedBrowserView.SetThemeManager
             Try
                 If pThemeManager IsNot Nothing Then
                     RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
