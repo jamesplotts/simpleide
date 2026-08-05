@@ -233,22 +233,31 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Prepends a small `&lt;style&gt;` block derived from the current theme right
-        ''' after vHtml's opening `&lt;head&gt;` (or at the very start if there's no
-        ''' `&lt;head&gt;` tag - litehtml/gumbo parse loose HTML fine either way). Kept as
-        ''' plain HTML injection rather than a native API change (a real litehtml "user
-        ''' stylesheet" parameter) since normal CSS cascade/source-order already gives the
-        ''' desired effect: these are just early, low-specificity defaults, so the page's
-        ''' own linked stylesheets (added later, generally more specific) still win wherever
+        ''' Prepends a small `&lt;style&gt;` block right after vHtml's opening `&lt;head&gt;`
+        ''' (or at the very start if there's no `&lt;head&gt;` tag - litehtml/gumbo parse
+        ''' loose HTML fine either way): always a UA-stylesheet gap-fill (see below), plus
+        ''' the current theme's colors if a ThemeManager is set. Kept as plain HTML
+        ''' injection rather than a native API change (a real litehtml "user stylesheet"
+        ''' parameter) since normal CSS cascade/source-order already gives the desired
+        ''' effect: these are just early, low-specificity defaults, so the page's own
+        ''' linked stylesheets (added later, generally more specific) still win wherever
         ''' they actually style something
         ''' </summary>
         Private Function InjectThemeStylesheet(vHtml As String) As String
             Try
-                If pThemeManager Is Nothing Then Return vHtml
-                Dim lTheme As EditorTheme = pThemeManager.GetCurrentThemeObject()
-                If lTheme Is Nothing Then Return vHtml
+                ' litehtml's built-in default stylesheet has no rule for the standard HTML5
+                ' `hidden` attribute (real browsers ship `[hidden] { display: none }` in
+                ' their own UA stylesheet). Sites commonly render "no-JS"/"unsupported
+                ' browser" fallback content with `hidden` set, then remove it via JS once
+                ' feature-detection passes - since litehtml never runs that JS, the
+                ' attribute alone must do the hiding, or that fallback content shows up on
+                ' every single page regardless of what actually rendered fine
+                Dim lStyle As String = "<style>[hidden] { display: none !important; }</style>"
 
-                Dim lStyle As String = $"<style>body {{ background-color: {lTheme.BackgroundColor}; color: {lTheme.ForegroundColor}; }} a {{ color: {lTheme.AccentColor}; }}</style>"
+                Dim lTheme As EditorTheme = If(pThemeManager IsNot Nothing, pThemeManager.GetCurrentThemeObject(), Nothing)
+                If lTheme IsNot Nothing Then
+                    lStyle &= $"<style>body {{ background-color: {lTheme.BackgroundColor}; color: {lTheme.ForegroundColor}; }} a {{ color: {lTheme.AccentColor}; }}</style>"
+                End If
 
                 Dim lHeadIndex As Integer = vHtml.IndexOf("<head>", StringComparison.OrdinalIgnoreCase)
                 If lHeadIndex >= 0 Then

@@ -52,7 +52,20 @@ Namespace Utilities
         ' Shared across all fetches (and ideally the app's lifetime) rather than one
         ' HttpClient per call, matching the standard .NET guidance against socket
         ' exhaustion from repeated short-lived instances
-        Private Shared ReadOnly pHttpClient As New HttpClient()
+        Private Shared ReadOnly pHttpClient As HttpClient = CreateHttpClient()
+
+        ''' <summary>
+        ''' Builds the shared HttpClient with a normal desktop-browser User-Agent - without
+        ''' one, sites like learn.microsoft.com treat the request as an unrecognized/legacy
+        ''' client and inject a "this browser is no longer supported" banner into the page,
+        ''' even though litehtml renders the actual content just fine
+        ''' </summary>
+        Private Shared Function CreateHttpClient() As HttpClient
+            Dim lClient As New HttpClient()
+            lClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+            Return lClient
+        End Function
 
         Private Shared ReadOnly pStylesheetLinkPattern As New Regex(
             "<link\b[^>]*>", RegexOptions.IgnoreCase Or RegexOptions.Compiled)
