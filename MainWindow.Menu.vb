@@ -108,6 +108,11 @@ Partial Public Class MainWindow
             Dim lOpenProject As MenuItem = CreateMenuItemWithIcon("_Open project...", "document-open")
             AddHandler lOpenProject.Activated, AddressOf OnOpenProject
             lFileMenu.Append(lOpenProject)
+
+            ' Open Solution
+            Dim lOpenSolution As MenuItem = CreateMenuItemWithIcon("Open _Solution...", "document-open")
+            AddHandler lOpenSolution.Activated, AddressOf OnOpenSolution
+            lFileMenu.Append(lOpenSolution)
             
             ' Recent Projects submenu
             Dim lRecentProjects As New MenuItem("_Recent Projects")

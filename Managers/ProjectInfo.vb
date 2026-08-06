@@ -88,6 +88,7 @@ Namespace Managers
                 Me.CompileItems = vParsedInfo.CompileItems
                 Me.References = vParsedInfo.References
                 Me.PackageReferences = vParsedInfo.PackageReferences
+                Me.ProjectImports = vParsedInfo.ProjectImports
                 
                 ' Initialize source files from compile items
                 for each lItem in Me.CompileItems

@@ -309,9 +309,11 @@ Namespace Managers
                 pCurrentProjectInfo.ProjectName = lParsedInfo.ProjectName
                 pCurrentProjectInfo.ProjectPath = lParsedInfo.ProjectPath
                 pCurrentProjectInfo.ProjectDirectory = lParsedInfo.ProjectDirectory
+                pCurrentProjectInfo.RootNamespace = lParsedInfo.RootNamespace
                 pCurrentProjectInfo.CompileItems = lParsedInfo.CompileItems
                 pCurrentProjectInfo.References = lParsedInfo.References
                 pCurrentProjectInfo.PackageReferences = lParsedInfo.PackageReferences
+                pCurrentProjectInfo.ProjectImports = lParsedInfo.ProjectImports
                 
                 ' Initialize source files list from compile items
                 for each lItem in lParsedInfo.CompileItems

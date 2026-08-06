@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1212.0</AssemblyVersion>
-    <FileVersion>1.1.1212.0</FileVersion>
+    <AssemblyVersion>1.1.1217.0</AssemblyVersion>
+    <FileVersion>1.1.1217.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1212</Version>
+    <Version>1.1.1217</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -111,6 +111,7 @@
     <Compile Include="MainWindow.Project.vb" />
     <Compile Include="MainWindow.ProjectLoading.vb" />
     <Compile Include="MainWindow.ProjectManager.vb" />
+    <Compile Include="MainWindow.SolutionManager.vb" />
     <Compile Include="MainWindow.References.vb" />
     <Compile Include="MainWindow.Resources.vb" />
     <Compile Include="MainWindow.Run.vb" />
@@ -175,6 +176,7 @@
     <!-- Models -->
     <Compile Include="Models/BuildResult.vb" />
     <Compile Include="Models/CharacterColorInfo.vb" />
+    <Compile Include="Models/Solution.vb" />
     <Compile Include="Models/CodeSenseContext.vb" />
     <Compile Include="Models/CodeSenseTypeInfo.vb" />
     <Compile Include="Models/CodeTypes.vb" />
@@ -214,6 +216,7 @@
     <Compile Include="Managers/ProjectManager.ReferenceManager.vb" />
     <Compile Include="Managers/ProjectManager.SymbolIndex.vb" />
     <Compile Include="Managers/ReferenceManager.vb" />
+    <Compile Include="Managers/SolutionManager.vb" />
     <Compile Include="Managers/ScratchpadManager.vb" />
     <Compile Include="Managers/TODOManager.vb" />
     <Compile Include="Managers/UndoRedoManager.vb" />
@@ -235,6 +238,7 @@
     <Compile Include="Utilities/InputDialog.vb" />
     <Compile Include="Utilities/KeyboardHelper.vb" />
     <Compile Include="Utilities/ProjectFileParser.vb" />
+    <Compile Include="Utilities/SolutionFileParser.vb" />
     <Compile Include="Utilities/ProjectFileScanner.vb" />
     <Compile Include="Utilities/ReflectionHelper.vb" />
     <Compile Include="Utilities/SimpleNuGetClient.vb" />

@@ -15,6 +15,13 @@ Namespace Utilities
             Public Property CompileItems As New List(Of String)
             Public Property References As New List(Of ReferenceInfo)
             Public Property PackageReferences As New List(Of PackageInfo)
+
+            ''' <summary>
+            ''' Project-level VB.NET namespace imports (&lt;Import Include="System" /&gt; items) -
+            ''' auto-imported into every file in the project, distinct from a file's own
+            ''' in-source Imports statements
+            ''' </summary>
+            Public Property ProjectImports As New List(Of String)
         End Class
         
         Public Class ReferenceInfo
@@ -53,6 +60,9 @@ Namespace Utilities
                 
                 ' Parse package references
                 ParsePackageReferences(lDoc, lInfo)
+
+                ' Parse project-level namespace imports
+                ParseProjectImports(lDoc, lNamespaceManager, lInfo)
                 
                 ' If no root namespace was found, use project name as fallback
                 If String.IsNullOrEmpty(lInfo.RootNamespace) Then
@@ -154,6 +164,31 @@ Namespace Utilities
             Next
         End Sub
         
+        ''' <summary>
+        ''' Parses project-level namespace imports (&lt;Import Include="System" /&gt; items,
+        ''' the VB.NET-specific "Imports" ItemGroup entries VS's project properties UI writes
+        ''' as global imports) - distinct from MSBuild's own &lt;Import Project="..."&gt;
+        ''' element (which imports a .props/.targets file, an unrelated concept sharing the
+        ''' same element name)
+        ''' </summary>
+        Private Shared Sub ParseProjectImports(vDoc As XmlDocument, vNamespaceManager As XmlNamespaceManager, vInfo As ProjectInfo)
+            Try
+                Dim lImportNodes As XmlNodeList = vDoc.SelectNodes("//ms:Import[@Include]", vNamespaceManager)
+                If lImportNodes.Count = 0 Then
+                    lImportNodes = vDoc.SelectNodes("//Import[@Include]")
+                End If
+
+                for each lNode As XmlNode in lImportNodes
+                    Dim lNamespaceName As String = lNode.Attributes("Include").Value
+                    If Not String.IsNullOrWhiteSpace(lNamespaceName) Then
+                        vInfo.ProjectImports.Add(lNamespaceName.Trim())
+                    End If
+                Next
+            Catch ex As Exception
+                Console.WriteLine($"ParseProjectImports error: {ex.Message}")
+            End Try
+        End Sub
+
         Public Shared Function GetProjectFileExtensions() As String()
             Return {".vbproj", ".csproj", ".fsproj"}
         End Function

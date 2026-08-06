@@ -141,6 +141,18 @@ Namespace Managers
                     End If
                 Next
 
+                ' Project-level imports (<Import Include="..."> in the .vbproj) are implicitly
+                ' in scope for every file, same as an in-source Imports statement would be, but
+                ' aren't part of any file's own SyntaxTree - added last since an explicit
+                ' in-file Imports is the more likely match
+                If pCurrentProjectInfo?.ProjectImports IsNot Nothing Then
+                    for each lProjectImport in pCurrentProjectInfo.ProjectImports
+                        If Not String.IsNullOrEmpty(lProjectImport) Then
+                            lCandidates.Add($"{lProjectImport}.{vBareName}")
+                        End If
+                    Next
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"GetImportsDerivedCandidates error: {ex.Message}")
             End Try
