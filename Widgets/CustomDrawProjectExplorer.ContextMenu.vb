@@ -161,6 +161,16 @@ Namespace Widgets
         ''' </summary>
         Private Sub ShowContextMenu(vEvent As Gdk.Event)
             Try
+                ' When a solution is loaded, every context-menu action below (Add File, New
+                ' Folder, Delete, Rename, etc. - AddNewItem.vb/ContextMenu.vb) reads pProjectManager
+                ' directly rather than resolving the clicked node's own project each time - point
+                ' it at whichever project actually owns the just-selected node (SelectNode already
+                ' ran in OnButtonPress before this), so those existing handlers act on the right
+                ' project without each needing its own resolution logic. A no-op when no solution
+                ' is loaded (GetOwningProjectManager falls back to pProjectManager itself) or when
+                ' the selected node has no resolvable owner (e.g. nothing selected)
+                pProjectManager = GetOwningProjectManager(pSelectedNode?.Node)
+
                 ' Customize menu based on selection
                 CustomizeContextMenu()
                 

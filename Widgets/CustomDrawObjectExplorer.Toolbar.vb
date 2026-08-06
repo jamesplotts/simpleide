@@ -6,6 +6,7 @@ Imports System.Collections.Generic
 Imports SimpleIDE.Models
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Interfaces
+Imports SimpleIDE.Managers
 
 Namespace Widgets
     
@@ -25,6 +26,8 @@ Namespace Widgets
         Private pSearchItem As ToolItem
         Private pScaleCombo As CustomDrawComboBox
         Private pScaleItem As ToolItem
+        Private pProjectCombo As CustomDrawComboBox
+        Private pProjectItem As ToolItem
         
         ' ===== Search State =====
         Private pSearchText As String = String.Empty
@@ -46,7 +49,12 @@ Namespace Widgets
                 
                 ' Create refresh button FIRST (to match Project Explorer order)
                 CreateRefreshButton()
-                
+
+                ' Create the project picker (hidden until a solution is loaded via
+                ' SetSolutionManager - a plain single-project open never shows it, keeping
+                ' today's appearance/behavior unchanged)
+                CreateProjectPicker()
+
                 ' Add separator
                 pToolbar.Add(New SeparatorToolItem())
                 
@@ -138,6 +146,53 @@ Namespace Widgets
 
             Catch ex As Exception
                 Console.WriteLine($"CreateRefreshButton error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Creates the project picker combo box - lets the user choose which solution
+        ''' project's symbol tree this Object Explorer displays, since it only ever shows one
+        ''' project at a time (InitializeWithProjectManager takes exactly one instance)
+        ''' </summary>
+        Private Sub CreateProjectPicker()
+            Try
+                pProjectItem = New ToolItem()
+                pProjectCombo = New CustomDrawComboBox()
+                pProjectCombo.ThemeManager = pThemeManager
+                pProjectCombo.WidthRequest = 160
+                pProjectCombo.TooltipText = "Which solution project's symbols to show"
+                AddHandler pProjectCombo.Changed, AddressOf OnProjectComboChanged
+
+                pProjectItem.Add(pProjectCombo)
+                pToolbar.Add(pProjectItem)
+
+                ' Hidden until SetSolutionManager populates it - NoShowAll so a later
+                ' pToolbar.ShowAll() elsewhere doesn't reveal it for the single-project case
+                pProjectItem.NoShowAll = True
+                pProjectItem.Visible = False
+
+            Catch ex As Exception
+                Console.WriteLine($"CreateProjectPicker error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles the project picker's selection changing - re-initializes the explorer
+        ''' against the newly chosen project's ProjectManager
+        ''' </summary>
+        Private Sub OnProjectComboChanged(vSender As Object, vE As EventArgs)
+            Try
+                If pSolutionManager Is Nothing OrElse pProjectCombo.Active < 0 Then Return
+
+                Dim lProjects As IReadOnlyList(Of ProjectManager) = pSolutionManager.AllProjects
+                If pProjectCombo.Active >= lProjects.Count Then Return
+
+                Dim lChosen As ProjectManager = lProjects(pProjectCombo.Active)
+                Console.WriteLine($"Object Explorer: Project picker changed to {lChosen.CurrentProjectName}")
+                InitializeWithProjectManager(lChosen)
+
+            Catch ex As Exception
+                Console.WriteLine($"OnProjectComboChanged error: {ex.Message}")
             End Try
         End Sub
         

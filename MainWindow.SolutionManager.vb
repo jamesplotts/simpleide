@@ -107,11 +107,35 @@ Partial Public Class MainWindow
     ''' once the startup project's own single-project load (kicked off by LoadSolutionEnhanced)
     ''' has fully finished
     ''' </summary>
+    ''' <remarks>
+    ''' Confirmed via direct testing (stack-trace-dumping LoadProjectFromManager itself) that
+    ''' a plain Application.Invoke here is NOT sufficient: OnProjectFileListLoaded's own
+    ''' Application.Invoke-queued LoadProjectFromManager() call (queued much earlier, when
+    ''' ProjectFileListLoaded first raises) does not reliably run before this one, because
+    ''' several existing code paths in this app (ThemeManager.ForceGlobalRefresh,
+    ''' UpdateProgressBar) call Gtk.Application.RunIteration() reentrantly from inside other
+    ''' Application.Invoke callbacks to force synchronous UI updates during long operations -
+    ''' this breaks the normal FIFO ordering GTK's invoke queue would otherwise guarantee, so
+    ''' a callback queued earlier can end up processed later than one queued after it. A short
+    ''' settling delay (matching the existing GLib.Timeout.Add(1000, ...) already used in
+    ''' OnAllFilesParseCompleted for the same "let the reentrant pumping finish" reason) is
+    ''' the pragmatic fix - reordering the reentrant RunIteration calls themselves would be a
+    ''' much larger, riskier change unrelated to solution support.
+    ''' </remarks>
     Private Sub OnStartupProjectAllFilesParsed(vFileCount As Integer, vTotalMilliseconds As Double)
         Try
             RemoveHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
-            If pSolutionManager IsNot Nothing Then
-                pProjectExplorer?.LoadSolutionFromManager(pSolutionManager)
+            Dim lSolutionManager As SolutionManager = pSolutionManager
+            If lSolutionManager IsNot Nothing Then
+                GLib.Timeout.Add(750, New GLib.TimeoutHandler(Function()
+                    Try
+                        pProjectExplorer?.LoadSolutionFromManager(lSolutionManager)
+                        pObjectExplorer?.SetSolutionManager(lSolutionManager)
+                    Catch ex As Exception
+                        Console.WriteLine($"OnStartupProjectAllFilesParsed (settled apply) error: {ex.Message}")
+                    End Try
+                    Return False
+                End Function))
             End If
         Catch ex As Exception
             Console.WriteLine($"OnStartupProjectAllFilesParsed error: {ex.Message}")

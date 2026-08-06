@@ -303,7 +303,7 @@ Namespace Widgets
         Public Sub LoadProjectFromManager()
             Try
                 Console.WriteLine("LoadProjectFromManager: Starting...")
-                
+
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
                     Console.WriteLine("LoadProjectFromManager: No project loaded in ProjectManager")
                     Return

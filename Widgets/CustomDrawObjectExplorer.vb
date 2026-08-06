@@ -85,6 +85,12 @@ Namespace Widgets
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
         Private pCurrentEditor As IEditor
+
+        ''' <summary>
+        ''' The currently loaded solution, when SetSolutionManager has been called - Nothing
+        ''' for a plain single-project open, matching CustomDrawProjectExplorer's pattern
+        ''' </summary>
+        Private pSolutionManager As SolutionManager
         
         ' ===== Private Fields - Drawing State =====
         Private pCurrentScale As Integer = DEFAULT_SCALE
@@ -486,7 +492,49 @@ Namespace Widgets
                 Console.WriteLine($"InitializeWithProjectManager error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Loads a solution's projects into the picker and displays the startup project's
+        ''' symbol tree - Object Explorer only ever shows one project at a time, so this
+        ''' populates a toolbar combo the user can switch between the solution's member
+        ''' projects with, rather than attempting to merge multiple projects' symbol trees
+        ''' into one display
+        ''' </summary>
+        ''' <param name="vSolutionManager">The loaded solution's SolutionManager</param>
+        Public Sub SetSolutionManager(vSolutionManager As SolutionManager)
+            Try
+                pSolutionManager = vSolutionManager
+
+                If vSolutionManager Is Nothing OrElse vSolutionManager.AllProjects.Count = 0 Then
+                    pProjectItem.Visible = False
+                    Return
+                End If
+
+                pProjectCombo.RemoveAll()
+                for each lMember in vSolutionManager.AllProjects
+                    pProjectCombo.AppendText(lMember.CurrentProjectName)
+                Next
+
+                pProjectItem.Visible = True
+
+                Dim lStartupIndex As Integer = 0
+                Dim lProjects As IReadOnlyList(Of ProjectManager) = vSolutionManager.AllProjects
+                for i As Integer = 0 To lProjects.Count - 1
+                    If lProjects(i) Is vSolutionManager.StartupProject Then
+                        lStartupIndex = i
+                        Exit for
+                    End If
+                Next
+
+                ' Setting Active raises Changed, which calls InitializeWithProjectManager for
+                ' the newly-selected project - no separate explicit call needed here
+                pProjectCombo.Active = lStartupIndex
+
+            Catch ex As Exception
+                Console.WriteLine($"SetSolutionManager error: {ex.Message}")
+            End Try
+        End Sub
+
         ''' <summary>
         ''' Navigates to and highlights a specific node in the tree
         ''' </summary>
