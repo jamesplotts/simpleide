@@ -33,7 +33,12 @@ Namespace Editors
                 ' Copy to clipboard
                 Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Atom.Intern("CLIPBOARD", False))
                 lClipboard.Text = lSelectedText
-                
+
+                ' Record for undo BEFORE the operation
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordDeleteText(lStart, lEnd, lSelectedText, lStart)
+                End If
+
                 ' Delete the selection using atomic operation
                 pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
                 
