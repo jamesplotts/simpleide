@@ -335,15 +335,26 @@ Namespace Editors
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
                             
+                            Dim lReplacedSelection As Boolean = pHasSelection
                             If pHasSelection Then
                                 ' Delete selection first
                                 Dim lStart As EditorPosition = GetSelectionStart()
                                 Dim lEnd As EditorPosition = GetSelectionEnd()
+                                Dim lSelectedText As String = GetSelectedText()
+
+                                ' Record for undo BEFORE the operation, grouped with
+                                ' whatever insert follows below so a single Ctrl+Z
+                                ' restores the replaced text instead of losing it
+                                If pUndoRedoManager IsNot Nothing Then
+                                    pUndoRedoManager.BeginUserAction()
+                                    pUndoRedoManager.RecordDeleteText(lStart, lEnd, lSelectedText, lStart)
+                                End If
+
                                 pSourceFileInfo.DeleteText(lStart.Line, lStart.Column, lEnd.Line, lEnd.Column)
                                 SetCursorPosition(lStart.Line, lStart.Column)
                                 ClearSelection()
                             End If
-                            
+
                             ' Bracket/quote auto-close - handles skip-over and auto-pairing
                             ' (including its own cursor movement) when applicable; falls
                             ' through to normal single-character insertion otherwise
@@ -360,6 +371,10 @@ Namespace Editors
 
                                 ' Move cursor forward
                                 SetCursorPosition(pCursorLine, pCursorColumn + 1)
+                            End If
+
+                            If lReplacedSelection AndAlso pUndoRedoManager IsNot Nothing Then
+                                pUndoRedoManager.EndUserAction()
                             End If
 
                             ' CHECK FOR CODESENSE TRIGGERS

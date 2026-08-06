@@ -151,7 +151,14 @@ Namespace Editors
                     End If
                 End If 
                 
-                ' Use atomic InsertText for the paste operation 
+                ' Record for undo BEFORE the operation
+                If pUndoRedoManager IsNot Nothing Then
+                    Dim lPasteStartPos As New EditorPosition(lPasteStartLine, lPasteStartColumn)
+                    Dim lPasteEndPos As New EditorPosition(lPasteEndLine, lPasteEndColumn)
+                    pUndoRedoManager.RecordInsertText(lPasteStartPos, vText, lPasteEndPos)
+                End If
+
+                ' Use atomic InsertText for the paste operation
                 ' This will properly update metadata and character tokens
                 pSourceFileInfo.InsertText(lPasteStartLine, lPasteStartColumn, vText)
                 
