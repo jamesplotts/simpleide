@@ -304,10 +304,16 @@ Namespace Managers
                         pEditor.SetCursorPosition(lAction.EndPosition)
 
                     Case UndoActionType.eReplace
-                        ' Undo replace by restoring old text
-                        pEditor.ReplaceText(lAction.StartPosition, lAction.EndPosition, lAction.OldText)
-                        pEditor.SetCursorPosition(lAction.CursorPosition)
-                        
+                        ' Undo replace: the buffer currently holds NewText, spanning
+                        ' [StartPosition, CursorPosition) - CursorPosition was recorded as
+                        ' "position right after NewText" when the replace was originally
+                        ' performed. That (not EndPosition, which is the OLD text's span
+                        ' end) is the range that must be handed to ReplaceText so it
+                        ' deletes exactly what's really there. Cursor then lands at
+                        ' EndPosition - right after the just-restored OldText
+                        pEditor.ReplaceText(lAction.StartPosition, lAction.CursorPosition, lAction.OldText)
+                        pEditor.SetCursorPosition(lAction.EndPosition)
+
                     Case UndoActionType.eDragDrop
                         HandleDragDropUndo(lAction)
                         
