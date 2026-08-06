@@ -42,6 +42,18 @@ Namespace Models
         ''' Gets or sets the parent node reference
         ''' </summary>
         Public Property Parent As ProjectNode
+
+        ''' <summary>
+        ''' Gets or sets the full path to the .vbproj that owns this subtree - set only on a
+        ''' project-root node (NodeType = eProject); Nothing/empty on every other node
+        ''' </summary>
+        ''' <remarks>
+        ''' Lets a UI showing multiple projects (a loaded .sln solution) determine which
+        ''' project any given node belongs to by walking up the Parent chain to the nearest
+        ''' node with this set, without ProjectNode itself needing to know about ProjectManager
+        ''' or any other Managers-layer type
+        ''' </remarks>
+        Public Property OwningProjectPath As String
         
         ''' <summary>
         ''' Gets or sets the icon name for this node

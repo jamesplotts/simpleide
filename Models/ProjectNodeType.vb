@@ -34,6 +34,8 @@ Namespace Models
         eResources
         ''' <summary>My Project folder (special folder)</summary>
         eMyProject
+        ''' <summary>Solution root node - the synthetic parent of each member project's own root node when multiple projects are loaded together</summary>
+        eSolution
         ''' <summary>Sentinel value for enum bounds checking</summary>
         eLastValue
     End Enum

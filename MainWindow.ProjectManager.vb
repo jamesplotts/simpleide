@@ -84,18 +84,46 @@ Partial Public Class MainWindow
     ''' <param name="e">EventArgs containing the ProjectManager property to set</param>
     Private Sub OnEditorProjectManagerRequested(sender As Object, e As ProjectManagerRequestEventArgs)
         Try
-            ' Provide the ProjectManager reference
-            If pProjectManager IsNot Nothing Then
-                e.ProjectManager = pProjectManager
+            ' When a solution is loaded, resolve the requesting editor's OWN file to whichever
+            ' member project actually owns it, rather than always handing back the startup
+            ' project's instance - matters for a file that belongs to a non-startup project
+            ' (e.g. SimpleIDE.Widgets/SimpleIDE.WebKitGtk's own source when SimpleIDE.sln is
+            ' open) getting correct CodeSense/FQN resolution against ITS OWN root namespace
+            Dim lResolved As ProjectManager = ResolveProjectManagerForRequester(sender)
+
+            If lResolved IsNot Nothing Then
+                e.ProjectManager = lResolved
                 Console.WriteLine($"MainWindow provided ProjectManager to {sender.GetType().Name}")
             Else
                 Console.WriteLine("MainWindow: ProjectManager not available for request")
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnEditorProjectManagerRequested error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Resolves the correct ProjectManager for a requester (typically an editor) - when a
+    ''' solution is loaded and the requester's own file can be matched to a specific member
+    ''' project, that project's ProjectManager is returned; otherwise falls back to
+    ''' pProjectManager (the startup/single-open project), exactly today's behavior
+    ''' </summary>
+    Private Function ResolveProjectManagerForRequester(vRequester As Object) As ProjectManager
+        Try
+            If pSolutionManager IsNot Nothing Then
+                Dim lEditor As IEditor = TryCast(vRequester, IEditor)
+                If lEditor IsNot Nothing AndAlso Not String.IsNullOrEmpty(lEditor.FilePath) Then
+                    Dim lOwner As ProjectManager = pSolutionManager.FindOwningProject(lEditor.FilePath)
+                    If lOwner IsNot Nothing Then Return lOwner
+                End If
+            End If
+            Return pProjectManager
+        Catch ex As Exception
+            Console.WriteLine($"ResolveProjectManagerForRequester error: {ex.Message}")
+            Return pProjectManager
+        End Try
+    End Function
     
     ''' <summary>
     ''' Wire up ProjectManager request event when creating a new editor

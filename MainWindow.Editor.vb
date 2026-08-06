@@ -331,10 +331,19 @@ Partial Public Class MainWindow
                     lEditor.SetThemeManager(pThemeManager)
                 End If
                 
-                ' Set the ProjectManager BEFORE any other initialization
-                If pProjectManager IsNot Nothing Then
+                ' Set the ProjectManager BEFORE any other initialization - when a solution is
+                ' loaded, use whichever member project actually owns this file rather than
+                ' always the startup project, so CodeSense/FQN resolution uses the right
+                ' project's root namespace
+                Dim lOwningProjectManager As ProjectManager = pProjectManager
+                If pSolutionManager IsNot Nothing Then
+                    Dim lOwner As ProjectManager = pSolutionManager.FindOwningProject(vFilePath)
+                    If lOwner IsNot Nothing Then lOwningProjectManager = lOwner
+                End If
+
+                If lOwningProjectManager IsNot Nothing Then
                     Console.WriteLine($"CreateNewTab: Setting ProjectManager on editor for {vFilePath}")
-                    lEditor.ProjectManager = pProjectManager
+                    lEditor.ProjectManager = lOwningProjectManager
                 Else
                     Console.WriteLine($"CreateNewTab: WARNING - No ProjectManager available for {vFilePath}")
                 End If

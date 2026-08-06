@@ -98,6 +98,12 @@ Namespace Widgets
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
         Private pThemeManager As ThemeManager
+
+        ''' <summary>
+        ''' Owns every ProjectManager for the currently loaded solution, when one is loaded via
+        ''' LoadSolutionFromManager - Nothing when only a plain single project is open
+        ''' </summary>
+        Private pSolutionManager As SolutionManager
         Private pContextMenu As Menu
         
         ' ===== Private Fields - Drawing State =====
@@ -374,7 +380,135 @@ Namespace Widgets
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Loads every project in a solution, building one subtree per project (via the exact
+        ''' same tree-building logic LoadProjectFromManager uses for a single project) under a
+        ''' synthetic solution root node
+        ''' </summary>
+        ''' <param name="vSolutionManager">The loaded solution's SolutionManager</param>
+        ''' <remarks>
+        ''' Builds each project's subtree by temporarily pointing pProjectManager/pProjectFile/
+        ''' pProjectDirectory/pRootNode (and the special-node tracking flags) at that project,
+        ''' one at a time, then calling BuildTreeFromFileList/CreateSpecialNodes/SortChildren
+        ''' completely unchanged - reuses the entire existing single-project tree-building,
+        ''' viewport-culling, hit-testing, and Cairo drawing pipeline without modification,
+        ''' rather than re-implementing it to natively understand multiple trees. Each
+        ''' project's own root node records its ProjectPath via ProjectNode.OwningProjectPath so
+        ''' GetOwningProjectManager can later determine which project any given node (or its
+        ''' descendants) belongs to.
+        ''' Known scope boundary: right-click context-menu actions (Add File, New Folder, etc.
+        ''' - Widgets/CustomDrawProjectExplorer.AddNewItem.vb/.ContextMenu.vb) still operate
+        ''' against whichever project pProjectManager currently points to (the startup project
+        ''' by default) rather than the specific node that was clicked - full per-action
+        ''' project resolution is a follow-up, not yet wired through every handler.
+        ''' </remarks>
+        Public Sub LoadSolutionFromManager(vSolutionManager As SolutionManager)
+            Try
+                If vSolutionManager Is Nothing OrElse vSolutionManager.AllProjects.Count = 0 Then
+                    Console.WriteLine("LoadSolutionFromManager: No solution/projects available")
+                    Return
+                End If
+
+                pSolutionManager = vSolutionManager
+                ClearProject()
+
+                Dim lSolutionRoot As New ProjectNode() With {
+                    .Name = System.IO.Path.GetFileNameWithoutExtension(vSolutionManager.CurrentSolution.SolutionPath),
+                    .Path = vSolutionManager.CurrentSolution.SolutionDirectory,
+                    .NodeType = ProjectNodeType.eSolution,
+                    .IsFile = False,
+                    .IsExpanded = True
+                }
+
+                for each lMemberProjectManager in vSolutionManager.AllProjects
+                    Dim lProjectInfo As ProjectInfo = lMemberProjectManager.CurrentProjectInfo
+                    If lProjectInfo Is Nothing Then Continue for
+
+                    ' Point the instance fields at this project so every existing single-
+                    ' project helper below sees exactly the state it always expects
+                    pProjectManager = lMemberProjectManager
+                    pProjectFile = lProjectInfo.ProjectPath
+                    pProjectDirectory = lProjectInfo.ProjectDirectory
+                    pRootNode = New ProjectNode() With {
+                        .Name = lProjectInfo.ProjectName,
+                        .Path = pProjectDirectory,
+                        .NodeType = ProjectNodeType.eProject,
+                        .IsFile = False,
+                        .IsExpanded = True,
+                        .OwningProjectPath = lProjectInfo.ProjectPath
+                    }
+
+                    BuildTreeFromFileList(lProjectInfo.SourceFiles)
+
+                    ' Each project needs its own References/Resources/Manifest special nodes -
+                    ' reset the trackers so CreateSpecialNodes doesn't skip them as "already
+                    ' created" from the previous project's iteration
+                    pHasReferencesNode = False
+                    pHasResourcesNode = False
+                    pHasManifestNode = False
+                    CreateSpecialNodes()
+
+                    pRootNode.SortChildren()
+                    lSolutionRoot.AddChild(pRootNode)
+
+                    Console.WriteLine($"LoadSolutionFromManager: Built subtree for {lProjectInfo.ProjectName} ({pRootNode.Children.Count} children)")
+                Next
+
+                ' Leave the explorer's "current single project" pointed at the startup
+                ' project - existing single-project-scoped UI (toolbar state, etc.) stays
+                ' sensible, and this is also what right-click actions still operate against
+                ' until they're made node-aware (see remarks above)
+                pProjectManager = vSolutionManager.StartupProject
+                pProjectFile = pProjectManager?.CurrentProjectPath
+                pProjectDirectory = pProjectManager?.CurrentProjectDirectory
+
+                pRootNode = lSolutionRoot
+                pExpandedNodes.Add(GetNodePath(pRootNode))
+
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+
+                Console.WriteLine($"LoadSolutionFromManager: Loaded {lSolutionRoot.Children.Count} project(s), {pVisibleNodes.Count} visible nodes")
+
+            Catch ex As Exception
+                Console.WriteLine($"LoadSolutionFromManager error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Determines which project a given tree node belongs to, by walking up its Parent
+        ''' chain to the nearest node with OwningProjectPath set
+        ''' </summary>
+        ''' <param name="vNode">The node to resolve, or Nothing</param>
+        ''' <returns>
+        ''' The owning project's ProjectManager if a solution is loaded and the node's project
+        ''' can be resolved; otherwise falls back to pProjectManager (the single-project field),
+        ''' which is exactly today's behavior when no solution is loaded
+        ''' </returns>
+        Private Function GetOwningProjectManager(vNode As ProjectNode) As ProjectManager
+            Try
+                If vNode IsNot Nothing AndAlso pSolutionManager IsNot Nothing Then
+                    Dim lNode As ProjectNode = vNode
+                    While lNode IsNot Nothing
+                        If Not String.IsNullOrEmpty(lNode.OwningProjectPath) Then
+                            Dim lResolved As ProjectManager = pSolutionManager.GetProjectManager(lNode.OwningProjectPath)
+                            If lResolved IsNot Nothing Then Return lResolved
+                            Exit While
+                        End If
+                        lNode = lNode.Parent
+                    End While
+                End If
+
+                Return pProjectManager
+
+            Catch ex As Exception
+                Console.WriteLine($"GetOwningProjectManager error: {ex.Message}")
+                Return pProjectManager
+            End Try
+        End Function
+
         ''' <summary>
         ''' Builds the project tree from a list of file paths
         ''' </summary>

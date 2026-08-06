@@ -85,12 +85,36 @@ Partial Public Class MainWindow
 
             Dim lStartupPath As String = pSolutionManager.StartupProject?.CurrentProjectPath
             If Not String.IsNullOrEmpty(lStartupPath) Then
+                ' LoadProjectEnhanced's own async load fires ProjectFileListLoaded partway
+                ' through, whose handler (OnProjectFileListLoaded) populates Project Explorer
+                ' with just the startup project's single-project tree via
+                ' LoadProjectFromManager() - wait for AllFilesParseCompleted (which can only
+                ' fire after that already happened) before replacing it with the full
+                ' multi-root solution tree, so the override always lands last regardless of
+                ' background-task timing
+                AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
                 LoadProjectEnhanced(lStartupPath)
             End If
 
         Catch ex As Exception
             Console.WriteLine($"LoadSolutionEnhanced error: {ex.Message}")
             ShowError("Open Solution Error", ex.Message)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' One-shot handler that applies the full multi-root solution tree to Project Explorer
+    ''' once the startup project's own single-project load (kicked off by LoadSolutionEnhanced)
+    ''' has fully finished
+    ''' </summary>
+    Private Sub OnStartupProjectAllFilesParsed(vFileCount As Integer, vTotalMilliseconds As Double)
+        Try
+            RemoveHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
+            If pSolutionManager IsNot Nothing Then
+                pProjectExplorer?.LoadSolutionFromManager(pSolutionManager)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnStartupProjectAllFilesParsed error: {ex.Message}")
         End Try
     End Sub
 
