@@ -94,11 +94,19 @@ Namespace Editors
                                 ' Remove the apostrophe and the space after it (if present)
                                 If lLine.Length > 1 AndAlso lLine(1) = " " Then
                                     ' Remove apostrophe and one space
+                                    If pUndoRedoManager IsNot Nothing Then
+                                        pUndoRedoManager.RecordDeleteText(New EditorPosition(i, 0), New EditorPosition(i, 2),
+                                                                          lLine.Substring(0, 2), New EditorPosition(i, 0))
+                                    End If
                                     pSourceFileInfo.DeleteCharacter(i, 0)
                                     pSourceFileInfo.DeleteCharacter(i, 0)
 
                                 Else
                                     ' Remove just the apostrophe
+                                    If pUndoRedoManager IsNot Nothing Then
+                                        pUndoRedoManager.RecordDeleteText(New EditorPosition(i, 0), New EditorPosition(i, 1),
+                                                                          "'", New EditorPosition(i, 0))
+                                    End If
                                     pSourceFileInfo.DeleteCharacter(i, 0)
                                 End If
                             Else
@@ -108,6 +116,9 @@ Namespace Editors
                         Else
                             ' Add comment to all lines at position 0
                             ' Add apostrophe and space at the very beginning
+                            If pUndoRedoManager IsNot Nothing Then
+                                pUndoRedoManager.RecordInsertText(New EditorPosition(i, 0), "'", New EditorPosition(i, 1))
+                            End If
                             pSourceFileInfo.InsertCharacter(i, 0, "'"c)
 
                         End If
