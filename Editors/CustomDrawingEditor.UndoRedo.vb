@@ -59,6 +59,13 @@ Namespace Editors
                     pUndoRedoManager.Undo()
                 End If
 
+                ' None of the low-level primitives Undo() drives (DeleteTextDirect,
+                ' InsertTextAtPosition, ReplaceText) ever establish a selection of
+                ' their own, so any selection still active at this point is stale
+                ' (e.g. Paste leaves the pasted text selected - undoing the paste
+                ' must not leave that selection pointing at text that's now gone)
+                ClearSelection()
+
             Catch ex As Exception
                 Console.WriteLine($"Undo error: {ex.Message}")
             End Try
@@ -76,6 +83,9 @@ Namespace Editors
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.Redo()
                 End If
+
+                ' Same reasoning as Undo - leave a plain cursor, not a stale selection
+                ClearSelection()
 
             Catch ex As Exception
                 Console.WriteLine($"Redo error: {ex.Message}")
