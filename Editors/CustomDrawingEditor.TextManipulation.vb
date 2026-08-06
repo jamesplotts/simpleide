@@ -166,26 +166,38 @@ Namespace Editors
         Public Sub ReplaceAllText(vText As String) Implements IEditor.ReplaceAllText
             Try
                 If pIsReadOnly Then Return
-                
-                ' Begin undo group for complete text replacement
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.BeginUserAction()
-                End If
+
                 Dim lLastLine As Integer = pSourceFileInfo.TextLines.Count - 1
+                Dim lOldText As String = Me.Text
+                Dim lOldEndColumn As Integer = pSourceFileInfo.TextLines(lLastLine).Length
+
+                ' Record for undo BEFORE the operation. vNewCursorPos must be the position
+                ' right after vText ends (not wherever the cursor is reset to afterward) -
+                ' Undo() uses this as the range to delete when reverting the replacement
+                Dim lNewEndPos As EditorPosition
+                If String.IsNullOrEmpty(vText) Then
+                    lNewEndPos = New EditorPosition(0, 0)
+                ElseIf vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
+                    Dim lNewLines() As String = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
+                    lNewEndPos = New EditorPosition(lNewLines.Length - 1, lNewLines(lNewLines.Length - 1).Length)
+                Else
+                    lNewEndPos = New EditorPosition(0, vText.Length)
+                End If
+
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordReplaceText(New EditorPosition(0, 0), New EditorPosition(lLastLine, lOldEndColumn),
+                                                       lOldText, vText, lNewEndPos)
+                End If
+
                 ' Update the Text property which will handle all the necessary updates
-                pSourceFileInfo.DeleteText(0, 0, lLastLine, pSourceFileInfo.TextLines(lLastLine).Length - 1)
-                pSourceFileinfo.InsertText(0, 0, vText)
-                
+                pSourceFileInfo.DeleteText(0, 0, lLastLine, lOldEndColumn)
+                pSourceFileInfo.InsertText(0, 0, vText)
+
                 ' Clear any selection
                 ClearSelection()
-                
+
                 ' Reset cursor position to start of document
                 SetCursorPosition(0, 0)
-                
-                ' End undo group
-                If pUndoRedoManager IsNot Nothing Then
-                    pUndoRedoManager.EndUserAction()
-                End If
                 
                 ' Mark as modified and raise events
                 IsModified = True
@@ -520,7 +532,13 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         For i As Integer = lStartLine To lEndLine
             If i < pSourceFileInfo.TextLines.Count Then
                 Console.WriteLine($"IndentSelection: Indenting line {i}")
-                
+
+                ' Record for undo BEFORE the operation
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordInsertText(New EditorPosition(i, 0), lIndentString,
+                                                      New EditorPosition(i, lIndentLength))
+                End If
+
                 ' Use atomic InsertText at beginning of line
                 pSourceFileInfo.InsertText(i, 0, lIndentString)
                 lLinesIndented += 1
@@ -677,6 +695,12 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
                 End If
                 
                 If lCharsToRemove > 0 Then
+                    ' Record for undo BEFORE the operation
+                    If pUndoRedoManager IsNot Nothing Then
+                        pUndoRedoManager.RecordDeleteText(New EditorPosition(i, 0), New EditorPosition(i, lCharsToRemove),
+                                                          lLine.Substring(0, lCharsToRemove), New EditorPosition(i, 0))
+                    End If
+
                     ' Use atomic DeleteText
                     pSourceFileInfo.DeleteText(i, 0, i, lCharsToRemove)
                     lRemovedPerLine(i) = lCharsToRemove
