@@ -497,9 +497,15 @@ Namespace Editors
                 Dim lIndent As String = GetLineIndentation(vLine - 1)
                 
                 If Not String.IsNullOrEmpty(lIndent) Then
+                    ' Record for undo BEFORE the operation
+                    If pUndoRedoManager IsNot Nothing Then
+                        pUndoRedoManager.RecordInsertText(New EditorPosition(vLine, 0), lIndent,
+                                                          New EditorPosition(vLine, lIndent.Length))
+                    End If
+
                     ' Use atomic InsertText to add indentation
                     pSourceFileInfo.InsertText(vLine, 0, lIndent)
-                    
+
                     ' Move cursor to after indentation
                     SetCursorPosition(vLine, lIndent.Length)
                 End If
