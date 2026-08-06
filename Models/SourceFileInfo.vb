@@ -43,7 +43,28 @@ Namespace Models
         Private pIdentifierCaseMap As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)  
         Private pFoldingState As New Dictionary(Of String, Boolean)()
         Public Property ProjectRootNamespace As String = ""
-        Public ProjectManager As ProjectManager
+
+        ''' <summary>
+        ''' Gets or sets the project manager reference for this file
+        ''' </summary>
+        ''' <remarks>
+        ''' Previously a raw public field, separate from the private pProjectManager field
+        ''' RequestAsyncParse/etc. read - the two were never kept in sync, so a SourceFileInfo
+        ''' created for a file outside the currently loaded project (CreateEmptyFile sets only
+        ''' this) never actually got pProjectManager populated, RequestAsyncParse's retry timer
+        ''' exhausted itself after 5 seconds, and the file was left permanently unparsed/
+        ''' uncolored. Now a real property backed by the same field, so every setter (whether
+        ''' code assigns .ProjectManager or calls SetProjectManager) is equally visible to
+        ''' every reader.
+        ''' </remarks>
+        Public Property ProjectManager As ProjectManager
+            Get
+                Return pProjectManager
+            End Get
+            Set(value As ProjectManager)
+                pProjectManager = value
+            End Set
+        End Property
 
         ''' <summary>
         ''' Guards pTextLines/pLineMetadata/pCharacterTokens against concurrent structural
@@ -243,12 +264,25 @@ Namespace Models
                 InitializeLineMetadataArray()
                 InitializeCharacterTokenArrays()
                 pNeedsParsing = True
-    
+
                 ' Set state flags based on mode
                 If IsDemoMode OrElse Not String.IsNullOrEmpty(vContent) Then
                     pIsLoaded = True  ' Content is immediately available
                 Else
                     pIsLoaded = False  ' Regular files need LoadContent() to be called
+                End If
+
+                ' When this constructor self-loads real content straight from disk (the
+                ' System.IO.Path.Exists branch above - used whenever a caller passes a path
+                ' that already exists, even with placeholder/no content, e.g.
+                ' ProjectManager.CreateEmptyFile opening a file that isn't in the project's
+                ' own SourceFileInfo cache), pIsLoaded/IsLoaded ends up True from construction
+                ' alone, so OpenFile's "If Not IsLoaded Then LoadContent()" never runs -
+                ' LoadContent is the ONLY other place that calls RequestAsyncParse, so without
+                ' this, pNeedsParsing stays True forever with nothing ever consuming it: the
+                ' file is left permanently unparsed and stuck showing default/uncolored text
+                If pIsLoaded Then
+                    RequestAsyncParse()
                 End If
 
                 ' Restore any persisted code-folding expansion state for this file
@@ -399,9 +433,6 @@ Namespace Models
         ''' several parsing pathways (live-edit reparse, whole-project batch parse, on-demand
         ''' single-file parse) is the one doing the assigning - a single choke point here is far
         ''' more robust than hooking every call site individually and hoping none are missed.
-        ''' Checks both pProjectManager (the private field RequestAsyncParse etc. use) and the
-        ''' separate public ProjectManager field (which WireSourceFileInfoEvents sets instead,
-        ''' during whole-project load) since the two aren't kept in sync with each other.
         ''' </remarks>
         Public Property SyntaxTree As SyntaxNode
             Get
@@ -409,8 +440,7 @@ Namespace Models
             End Get
             Set(value As SyntaxNode)
                 pSyntaxTree = value
-                Dim lProjectManager As Managers.ProjectManager = If(pProjectManager, ProjectManager)
-                lProjectManager?.ReindexFile(Me)
+                pProjectManager?.ReindexFile(Me)
             End Set
         End Property
         

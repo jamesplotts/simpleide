@@ -18,9 +18,9 @@ Public Sub RequestAsyncParse()
     Try
         ' Only request if we need parsing
         If Not pNeedsParsing Then Return
-        
+
         pNeedsParsing = True
-        
+
         ' Try to get ProjectManager reference
         If pProjectManager Is Nothing Then
             Dim lArgs As New ProjectManagerRequestEventArgs()
