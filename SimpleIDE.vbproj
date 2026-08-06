@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1209.0</AssemblyVersion>
-    <FileVersion>1.1.1209.0</FileVersion>
+    <AssemblyVersion>1.1.1212.0</AssemblyVersion>
+    <FileVersion>1.1.1212.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1209</Version>
+    <Version>1.1.1212</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -72,8 +72,8 @@
     <PackageReference Include="CairoSharp" Version="3.24.24.95" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="SimpleIDE.Widgets.vbproj" />
-    <ProjectReference Include="SimpleIDE.WebKitGtk.vbproj" />
+    <ProjectReference Include="..\SimpleIDE.Widgets\SimpleIDE.Widgets.vbproj" />
+    <ProjectReference Include="..\SimpleIDE.WebKitGtk\SimpleIDE.WebKitGtk.vbproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Program Entry Point -->
@@ -377,21 +377,6 @@
     <Folder Include="Resources\Themes\" />
     <Folder Include="Resources\Help\" />
     <Folder Include="Resources\Templates\" />
-  </ItemGroup>
-  <!--
-    litehtml native shim (Widgets/CustomDrawHtmlView.vb's rendering backend, via
-    Interop/LiteHtmlNative.vb) - built separately by native/build-native.sh, never by
-    `dotnet build` itself, so a plain .NET-only build/contributor doesn't need cmake/g++
-    installed. The Exists() condition means a build with no native toolchain present still
-    succeeds; LiteHtmlDocumentHandle.IsAvailable checks for the .so at runtime and callers
-    fall back gracefully (never an unhandled DllNotFoundException) if it's missing - same
-    lesson as the WebKitGTK breakage this whole feature exists to work around.
-  -->
-  <ItemGroup Condition="Exists('native/build/lib/liblitehtml_shim.so')">
-    <None Include="native/build/lib/liblitehtml_shim.so">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>liblitehtml_shim.so</Link>
-    </None>
   </ItemGroup>
   <!-- Build Events -->
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">

@@ -93,9 +93,14 @@ sudo dnf install gtk3 gtk3-devel
 ```
 
 ### Build SimpleIDE
+
+SimpleIDE is split across three sibling repos, referenced via relative
+`ProjectReference`s - clone all three into the same parent directory:
 ```bash
-# Clone the repository
+# Clone all three repos as siblings
 git clone https://github.com/jamesplotts/simpleide.git
+git clone https://github.com/jamesplotts/SimpleIDE.Widgets.git
+git clone https://github.com/jamesplotts/SimpleIDE.WebKitGtk.git
 cd simpleide
 
 # Restore dependencies
@@ -108,13 +113,13 @@ dotnet build SimpleIDE.sln --configuration Release
 dotnet run --project SimpleIDE.vbproj --configuration Release
 ```
 
-Note: the repo root holds three project files (`SimpleIDE.vbproj` the main app,
-`SimpleIDE.Widgets.vbproj` the reusable control library, `SimpleIDE.WebKitGtk.vbproj` the
-WebKitGTK rendering backend - see "Embedded browser architecture" below) plus
-`SimpleIDE.sln`. With more than one project file present, `dotnet` commands need to be
-told explicitly which one to use - hence `SimpleIDE.sln` for build/restore and
-`--project SimpleIDE.vbproj` for run/publish, rather than the bare `dotnet build`/
-`dotnet run` that worked with the old single-project layout.
+`SimpleIDE.vbproj` is the main app; [`SimpleIDE.Widgets`](https://github.com/jamesplotts/SimpleIDE.Widgets)
+is the reusable control library; [`SimpleIDE.WebKitGtk`](https://github.com/jamesplotts/SimpleIDE.WebKitGtk)
+is the WebKitGTK rendering backend (see "Embedded browser architecture" below) - all three
+referenced from `SimpleIDE.sln`. With more than one project file present, `dotnet`
+commands need to be told explicitly which one to use - hence `SimpleIDE.sln` for
+build/restore and `--project SimpleIDE.vbproj` for run/publish, rather than the bare
+`dotnet build`/`dotnet run` that worked with the old single-project layout.
 
 ### Embedded browser architecture (Help tab)
 
@@ -139,12 +144,18 @@ available", General tab) lets you force the litehtml fallback for troubleshootin
 uninstalling WebKitGTK.
 
 #### Building the litehtml backend
+
+The litehtml source (a submodule) and native shim build live in the `SimpleIDE.Widgets`
+repo, not here:
 ```bash
 # Ubuntu/Debian
 sudo apt-get install -y cmake pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev
 
 # Fedora
 sudo dnf install cmake pkgconf-pkg-config cairo-devel pango-devel gdk-pixbuf2-devel
+
+# From the SimpleIDE.Widgets checkout (sibling of this repo):
+cd ../SimpleIDE.Widgets
 
 # Fetch the vendored litehtml source (submodule)
 git submodule update --init --recursive
@@ -153,9 +164,11 @@ git submodule update --init --recursive
 ./native/build-native.sh
 ```
 
-This produces `native/build/lib/liblitehtml_shim.so`; a subsequent `dotnet build` picks it
-up automatically and bundles it into the output directory. No native toolchain is required
-to build or run SimpleIDE itself - this step is purely additive.
+This produces `SimpleIDE.Widgets/native/build/lib/liblitehtml_shim.so`; a subsequent
+`dotnet build` of `SimpleIDE.sln` (from this repo) picks it up automatically via the
+`SimpleIDE.Widgets` `ProjectReference` and bundles it into SimpleIDE's own output
+directory. No native toolchain is required to build or run SimpleIDE itself - this step
+is purely additive.
 
 #### Building the WebKitGTK backend
 
@@ -173,19 +186,21 @@ sudo dnf install webkit2gtk4.1
 
 #### Porting to another platform (e.g. Windows)
 
-This is the reason `Widgets/` was split into its own assembly in the first place. A fork
-targeting Windows (or any platform without WebKitGTK) doesn't need to touch or understand
-the rest of the app:
+This is the reason `Widgets/` was split into its own assembly (and, later, its own repo)
+in the first place. A fork targeting Windows (or any platform without WebKitGTK) doesn't
+need to touch or understand the rest of the app:
 
-1. Reference `SimpleIDE.Widgets.vbproj` (the reusable control library - buttons, text
-   boxes, `CustomDrawHtmlView`, theming, etc. - none of it Linux-specific).
-2. Implement `Interfaces/IEmbeddedBrowserView` (defined in `SimpleIDE.Widgets.vbproj`)
-   against whatever rendering engine is available on the target platform - WebView2 and CEF
-   are the natural choices on Windows - as a `Gtk.Widget` subclass in a new
-   `SimpleIDE.<Backend>.vbproj`, following `Widgets/CustomDrawWebView.vb` as a reference
-   implementation (its P/Invoke specifics are WebKitGTK-only, but the widget-lifecycle
-   pattern - wrap a native view as a child widget, forward navigation events, no
-   navigation policy of its own - carries over).
+1. Clone [`SimpleIDE.Widgets`](https://github.com/jamesplotts/SimpleIDE.Widgets) as a
+   sibling and reference it (the reusable control library - buttons, text boxes,
+   `CustomDrawHtmlView`, theming, etc. - none of it Linux-specific).
+2. Implement `Interfaces/IEmbeddedBrowserView` (defined in `SimpleIDE.Widgets`) against
+   whatever rendering engine is available on the target platform - WebView2 and CEF are
+   the natural choices on Windows - as a `Gtk.Widget` subclass in a new
+   `SimpleIDE.<Backend>` repo/project, following
+   [`SimpleIDE.WebKitGtk`](https://github.com/jamesplotts/SimpleIDE.WebKitGtk)'s
+   `Widgets/CustomDrawWebView.vb` as a reference implementation (its P/Invoke specifics
+   are WebKitGTK-only, but the widget-lifecycle pattern - wrap a native view as a child
+   widget, forward navigation events, no navigation policy of its own - carries over).
 3. Add one more preference check to `Managers/EmbeddedBrowserFactory.Create()`.
 
 Nothing in `HelpBrowser.vb` or anywhere else in the main app needs to change - it only ever
@@ -303,8 +318,7 @@ SimpleIDE/
 │   ├── CustomDrawObjectExplorer.vb   # Code structure view
 │   └── BuildOutputPanel.vb           # Build output display
 ├── Models/
-│   ├── SourceFileInfo.vb             # File content and metadata
-│   └── EditorTheme.vb                # Theme definitions
+│   └── SourceFileInfo.vb             # File content and metadata
 ├── Syntax/
 │   ├── SyntaxNode.vb                 # Syntax tree node representation
 │   └── VBSyntaxHighlighter.vb        # Syntax highlighting engine
@@ -312,24 +326,23 @@ SimpleIDE/
 │   └── RoslynConverter.vb            # Converts Roslyn syntax trees to SimpleIDE's model
 ├── Managers/
 │   ├── ProjectManager.vb             # Project file management
-│   ├── BuildManager.vb               # Build system integration
-│   └── SettingsManager.vb            # Settings persistence
+│   └── BuildManager.vb               # Build system integration
 ├── Utilities/
-│   ├── FileOperations.vb             # File operations
-│   └── CssHelper.vb                  # GTK CSS styling
+│   └── FileOperations.vb             # File operations
 └── Resources/
     └── *.png                         # Embedded icons and images
 ```
 
 Parsing is Roslyn-based (`Microsoft.CodeAnalysis.VisualBasic`) rather than a hand-written parser.
 
-This tree shows physical folders, not assembly boundaries - files aren't moved between
-project files, they're just compiled by different `.vbproj`s (`EnableDefaultCompileItems`
-is off, so every file is listed explicitly in whichever project owns it). A handful of
-`Widgets/`/`Managers/`/`Models/`/`Utilities/` files with no IDE-specific dependencies
-(`ThemeManager`, `SettingsManager`, `EditorTheme`, the generic `CustomDraw*` controls,
-`CustomDrawHtmlView`, etc.) are compiled into `SimpleIDE.Widgets.vbproj` instead of the
-main `SimpleIDE.vbproj` - see "Embedded browser architecture" above for why.
+This tree shows this repo's own files only. The generic, toolkit-agnostic `CustomDraw*`
+controls plus `ThemeManager`/`SettingsManager`/`EditorTheme`/`CssHelper` and
+`CustomDrawHtmlView` (with its litehtml interop) physically live in the separate
+[`SimpleIDE.Widgets`](https://github.com/jamesplotts/SimpleIDE.Widgets) repo, referenced
+via `ProjectReference` - see "Build SimpleIDE" and "Embedded browser architecture" above.
+Files still in this repo's `Widgets/`/`Managers/`/`Models/`/`Utilities/` folders are the
+ones with real IDE-domain coupling (Project Explorer, Object Explorer, Git panel, etc.)
+that don't belong in the reusable library.
 
 ## Screenshots
 

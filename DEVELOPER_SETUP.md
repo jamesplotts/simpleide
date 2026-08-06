@@ -52,30 +52,47 @@ sudo apt install mono-devel mono-vbnc
 
 ### 6. Native HTML Renderer (optional, litehtml)
 Only needed if you want to build the native shim behind the Help tab's embedded doc-page
-renderer (`native/shim/`, see `readme.md`'s "Optional: Native HTML Renderer" section for
-the full build steps). Without it, `dotnet build`/`dotnet run` work exactly the same and
-the Help tab falls back to opening real doc pages in the system browser.
+renderer. The shim source and submodule now live in the separate `SimpleIDE.Widgets` repo
+(cloned as a sibling in step 1 below), not here - see `readme.md`'s "Building the litehtml
+backend" section for the full build steps. Without it, `dotnet build`/`dotnet run` work
+exactly the same and the Help tab falls back to opening real doc pages in the system
+browser.
 
 sudo apt install cmake pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev
+cd ../SimpleIDE.Widgets
 git submodule update --init --recursive
 ./native/build-native.sh
+cd ../simpleide
 
 ## Project Setup
 
-### 1. Clone Repository
+### 1. Clone Repositories
+SimpleIDE is split across three sibling repos - clone all three into the same parent
+directory (relative `ProjectReference`s depend on this layout):
+
 git clone https://github.com/jamesplotts/simpleide.git
+git clone https://github.com/jamesplotts/SimpleIDE.Widgets.git
+git clone https://github.com/jamesplotts/SimpleIDE.WebKitGtk.git
 cd simpleide
 
 ### 2. Verify Project Structure
-simpleide/
-├── SimpleIDE.sln           # Main solution file
-├── SimpleIDE.vbproj        # Main project file
-├── MainWindow.vb           # Primary application window
-├── Editors/                # Text editor components
-├── Models/                 # Data models
-├── Utilities/              # Helper classes
-├── Widgets/                # UI components
-└── Resources/              # Embedded resources
+Projects/
+├── simpleide/                      # This repo - the main exe
+│   ├── SimpleIDE.sln               # Main solution file (references the two below)
+│   ├── SimpleIDE.vbproj            # Main project file
+│   ├── MainWindow.vb               # Primary application window
+│   ├── Editors/                    # Text editor components
+│   ├── Models/                     # Data models
+│   ├── Utilities/                  # Helper classes
+│   ├── Widgets/                    # IDE-specific UI components (Project Explorer, Git panel, etc.)
+│   └── Resources/                  # Embedded resources
+├── SimpleIDE.Widgets/               # Reusable control library (separate repo)
+│   ├── SimpleIDE.Widgets.vbproj
+│   ├── native/                     # litehtml native shim + submodule
+│   └── Widgets/, Managers/, Models/, Utilities/, Interop/, Interfaces/
+└── SimpleIDE.WebKitGtk/             # WebKitGTK rendering backend (separate repo)
+    ├── SimpleIDE.WebKitGtk.vbproj
+    └── Interop/, Widgets/
 
 ### 3. Restore Dependencies
 dotnet restore SimpleIDE.sln
