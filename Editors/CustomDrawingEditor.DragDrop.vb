@@ -449,29 +449,31 @@ Namespace Editors
                 
                 ' Move cursor to drop position
                 SetCursorPosition(vTargetLine, vTargetColumn)
-                
-                ' Insert the text using SourceFileInfo
+
+                ' Compute where the inserted text will end, for undo recording and selection
+                Dim lEndLine As Integer
+                Dim lEndColumn As Integer
                 If vText.Contains(Environment.NewLine) OrElse vText.Contains(vbLf) Then
-                    ' Multi-line insertion
-                    pSourceFileInfo.InsertText(vTargetLine, vTargetColumn, vText)
-                    
-                    ' Mark all affected lines as changed
                     Dim lLines() As String = vText.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)
-                    
-                    
-                    ' Select the inserted text
-                    Dim lEndLine As Integer = vTargetLine + lLines.Length - 1
-                    Dim lEndColumn As Integer = lLines(lLines.Length - 1).Length
-                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn), 
-                               New EditorPosition(lEndLine, lEndColumn))
+                    lEndLine = vTargetLine + lLines.Length - 1
+                    lEndColumn = lLines(lLines.Length - 1).Length
                 Else
-                    ' Single line insertion
-                    pSourceFileInfo.InsertText(vTargetLine, vTargetColumn, vText)
-                    
-                    ' Select the inserted text
-                    SetSelection(New EditorPosition(vTargetLine, vTargetColumn),
-                               New EditorPosition(vTargetLine, vTargetColumn + vText.Length))
+                    lEndLine = vTargetLine
+                    lEndColumn = vTargetColumn + vText.Length
                 End If
+
+                ' Record for undo BEFORE the operation
+                If pUndoRedoManager IsNot Nothing Then
+                    pUndoRedoManager.RecordInsertText(New EditorPosition(vTargetLine, vTargetColumn), vText,
+                                                      New EditorPosition(lEndLine, lEndColumn))
+                End If
+
+                ' Insert the text using SourceFileInfo
+                pSourceFileInfo.InsertText(vTargetLine, vTargetColumn, vText)
+
+                ' Select the inserted text
+                SetSelection(New EditorPosition(vTargetLine, vTargetColumn),
+                           New EditorPosition(lEndLine, lEndColumn))
                 
                 ' End undo group
                 If pUndoRedoManager IsNot Nothing Then
