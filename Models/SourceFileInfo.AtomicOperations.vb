@@ -567,15 +567,32 @@ Namespace Models
             End SyncLock
         End Sub   
 
+        ''' <summary>
+        ''' Atomic method to insert a new line at the given index, shifting all
+        ''' subsequent lines down by one
+        ''' </summary>
+        ''' <remarks>
+        ''' Previously appended Environment.NewLine to vLineText and routed through
+        ''' InsertSingleLineTextInternal at column 0 - that PREPENDS onto whatever line
+        ''' already occupies vLineIndex (overwriting it in place) instead of inserting a
+        ''' new element, and the appended newline ended up embedded as a literal character
+        ''' inside a single TextLines entry rather than as a real line break. Callers that
+        ''' assume "insert a line here, push the rest down" (e.g. DeleteTextDirect's
+        ''' multi-line merge in CustomDrawingEditor.UndoRedoHelpers.vb, used whenever
+        ''' undoing an Enter/newline insertion) got silently corrupted state and lost
+        ''' whatever line ended up misaligned by the resulting off-by-one.
+        ''' </remarks>
         Public Sub InsertLine(vLineIndex As Integer, vLineText As String)
-            If String.IsNullOrEmpty(vLineText) Then Return
-            Dim lLineText As String = vLineText
-            If Not lLineText.Contains(Environment.NewLine) AndAlso Not lLineText.Contains(vbCr) AndAlso Not lLineText.Contains(vbLf) Then
-                lLineText += Environment.NewLine
-            Else
+            If vLineText Is Nothing Then vLineText = ""
+            If vLineText.Contains(Environment.NewLine) OrElse vLineText.Contains(vbCr) OrElse vLineText.Contains(vbLf) Then
                 Throw New Exception("SourceFileInfo.InsertLine Error:  vLineText parameter is NOT a single line of text")
             End If
-            InsertSingleLineTextInternal(vLineIndex, 0, lLineText)
+
+            InsertLineInternal(vLineIndex, vLineText)
+
+            pIsModified = True
+            pNeedsParsing = True
+            RaiseTextChangedEvent(TextChangeType.eLineInserted, vLineIndex, vLineIndex, 1)
         End Sub
         
     End Class
