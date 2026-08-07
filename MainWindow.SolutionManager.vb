@@ -4,6 +4,8 @@ Imports System
 Imports System.Threading.Tasks
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Widgets
+Imports SimpleIDE.Models
 
 Partial Public Class MainWindow
 
@@ -207,6 +209,65 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnStartupProjectAllFilesParsed error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the "Solution Settings..." context-menu request from Project Explorer's
+    ''' solution root node
+    ''' </summary>
+    Private Sub OnSolutionSettingsRequested()
+        Try
+            OpenSolutionSettingsTab()
+        Catch ex As Exception
+            Console.WriteLine($"OnSolutionSettingsRequested error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Opens (or switches to) the read-only Solution Settings tab showing every loaded
+    ''' project in build/dependency order
+    ''' </summary>
+    ''' <remarks>
+    ''' Follows the same pattern as OpenAssemblySettingsEditor (MainWindow.AssemblySettings.vb) -
+    ''' a settings view, not a text editor, so it deliberately does NOT implement IEditor;
+    ''' registered in pOpenTabs with Editor = Nothing and IsSpecialTab = True purely so it
+    ''' participates in normal tab close/dispose handling
+    ''' </remarks>
+    Private Sub OpenSolutionSettingsTab()
+        Try
+            If pSolutionManager Is Nothing Then
+                ShowError("No Solution Loaded", "Open a solution first (File > Open Solution...).")
+                Return
+            End If
+
+            for each lTabEntry in pOpenTabs
+                If lTabEntry.Key = "Solution Settings" Then
+                    SwitchToTab(lTabEntry.Key)
+                    Return
+                End If
+            Next
+
+            Dim lSettingsTab As New SolutionSettingsTab(pSolutionManager, pThemeManager)
+
+            Dim lTabInfo As New TabInfo() With {
+                .FilePath = "Solution Settings",
+                .Editor = Nothing,
+                .EditorContainer = lSettingsTab,
+                .Modified = False,
+                .IsSpecialTab = True
+            }
+
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lSettingsTab, "Solution Settings")
+            pNotebook.ShowAll()
+            pNotebook.CurrentPage = lPageIndex
+
+            pOpenTabs("Solution Settings") = lTabInfo
+            UpdateStatusBar("Opened solution settings")
+
+        Catch ex As Exception
+            Console.WriteLine($"OpenSolutionSettingsTab error: {ex.Message}")
+            ShowError("Solution Settings Error", ex.Message)
         End Try
     End Sub
 

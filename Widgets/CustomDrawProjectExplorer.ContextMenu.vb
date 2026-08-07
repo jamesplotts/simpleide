@@ -81,7 +81,18 @@ Namespace Widgets
                 Dim lPropertiesItem As New MenuItem("Properties")
                 AddHandler lPropertiesItem.Activated, AddressOf OnContextMenuProperties
                 pContextMenu.Append(lPropertiesItem)
-                
+
+                ' Solution Settings - only ever shown for the synthetic solution root node
+                ' (ProjectNodeType.eSolution), toggled in CustomizeContextMenu. The separator
+                ' is toggled alongside it so there's no dangling separator with nothing after
+                ' it when the item is hidden for every other node type.
+                pSolutionSettingsSeparator = New SeparatorMenuItem()
+                pContextMenu.Append(pSolutionSettingsSeparator)
+
+                pSolutionSettingsItem = New MenuItem("Solution Settings...")
+                AddHandler pSolutionSettingsItem.Activated, AddressOf OnContextMenuSolutionSettings
+                pContextMenu.Append(pSolutionSettingsItem)
+
                 pContextMenu.ShowAll()
                 
             Catch ex As Exception
@@ -191,29 +202,36 @@ Namespace Widgets
                 If pSelectedNode Is Nothing OrElse pSelectedNode.Node Is Nothing Then
                     ' Disable most items if nothing selected
                     SetMenuSensitivity(False)
+                    pSolutionSettingsSeparator.Visible = False
+                    pSolutionSettingsItem.Visible = False
                     Return
                 End If
-                
+
                 SetMenuSensitivity(True)
-                
+
                 ' Customize based on node type
                 Dim lIsFile As Boolean = pSelectedNode.Node.IsFile
                 Dim lIsProject As Boolean = pSelectedNode.Node.NodeType = ProjectNodeType.eProject
+                Dim lIsSolution As Boolean = pSelectedNode.Node.NodeType = ProjectNodeType.eSolution
                 Dim lIsSpecial As Boolean = pSelectedNode.Node.NodeType = ProjectNodeType.eReferences OrElse
                                            pSelectedNode.Node.NodeType = ProjectNodeType.eResources OrElse
                                            pSelectedNode.Node.NodeType = ProjectNodeType.eManifest
-                
-                ' Can't delete or rename project node or special nodes
-                If lIsProject OrElse lIsSpecial Then
+
+                ' Can't delete or rename project node, the solution root, or special nodes
+                If lIsProject OrElse lIsSolution OrElse lIsSpecial Then
                     SetMenuItemSensitivity("Delete", False)
                     SetMenuItemSensitivity("Rename...", False)
                     SetMenuItemSensitivity("Exclude From Project", False)
                 End If
-                
+
                 ' Add items only for folders
                 If lIsFile Then
                     SetMenuItemSensitivity("Add", False)
                 End If
+
+                ' Solution Settings only makes sense for the solution root
+                pSolutionSettingsSeparator.Visible = lIsSolution
+                pSolutionSettingsItem.Visible = lIsSolution
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomizeContextMenu error: {ex.Message}")
@@ -430,9 +448,20 @@ Namespace Widgets
             Try
                 ' TODO: Implement properties dialog
                 Console.WriteLine("Properties Not yet implemented")
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuProperties error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles the "Solution Settings..." context menu item click
+        ''' </summary>
+        Private Sub OnContextMenuSolutionSettings(vSender As Object, vArgs As EventArgs)
+            Try
+                RaiseEvent SolutionSettingsRequested()
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuSolutionSettings error: {ex.Message}")
             End Try
         End Sub
         

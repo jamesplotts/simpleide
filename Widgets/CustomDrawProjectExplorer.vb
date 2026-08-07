@@ -83,6 +83,11 @@ Namespace Widgets
         ''' Raised when the close button is clicked
         ''' </summary>
         Public Event CloseRequested()
+
+        ''' <summary>
+        ''' Raised when "Solution Settings..." is chosen from the solution root's context menu
+        ''' </summary>
+        Public Event SolutionSettingsRequested()
         
         ''' <summary>
         ''' Raised when a node is double-clicked
@@ -105,6 +110,8 @@ Namespace Widgets
         ''' </summary>
         Private pSolutionManager As SolutionManager
         Private pContextMenu As Menu
+        Private pSolutionSettingsSeparator As SeparatorMenuItem
+        Private pSolutionSettingsItem As MenuItem
         
         ' ===== Private Fields - Drawing State =====
         Private pCurrentScale As Integer = DEFAULT_SCALE
