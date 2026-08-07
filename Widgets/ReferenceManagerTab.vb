@@ -499,7 +499,6 @@ Namespace Widgets
                 End If
 
                 LoadCurrentReferences()
-                LoadInstalledPackages()
 
             Catch ex As Exception
                 Console.WriteLine($"ReferenceManagerTab.SwitchToProject error: {ex.Message}")
@@ -524,9 +523,19 @@ Namespace Widgets
                     pCurrentReferences = New List(Of ReferenceManager.ReferenceInfo)()
                 End If
 
-                ' Update UI to show current references
+                ' Update UI to show current references - LoadInstalledPackages belongs here
+                ' too, not just in SwitchToProject: CreateNuGetTab() (called from BuildUI(),
+                ' which the constructor runs BEFORE this method) already calls it ONCE, but
+                ' at that point pCurrentReferences is still the placeholder empty list this
+                ' method hasn't populated with real data yet - so the initially-opened
+                ' project's NuGet tab was permanently stuck showing zero installed packages,
+                ' never getting a second refresh once real data existed. Confirmed live: the
+                ' project switched TO via the picker (which explicitly re-calls
+                ' LoadInstalledPackages in SwitchToProject) showed its packages correctly,
+                ' but the project the tab originally opened for never did.
                 UpdateAssemblyList()
                 UpdateProjectList()
+                LoadInstalledPackages()
 
             Catch ex As Exception
                 Console.WriteLine($"Error loading References: {ex.Message}")
