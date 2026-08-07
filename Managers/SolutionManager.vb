@@ -130,8 +130,15 @@ Namespace Managers
         ''' exact same object rather than being left pointed at a stale, disconnected instance
         ''' once a solution loads
         ''' </param>
+        ''' <param name="vOnProjectLoading">
+        ''' Optional callback invoked just before each project's own LoadProject() call - args
+        ''' are (project display name, 1-based index, total project count). Invoked on
+        ''' whatever thread LoadSolution itself is called from; callers driving this from a
+        ''' background thread must marshal to the UI thread themselves before touching any
+        ''' GTK state from inside the callback
+        ''' </param>
         ''' <returns>True if the solution file was parsed and at least one project loaded successfully</returns>
-        Public Function LoadSolution(vSolutionPath As String, Optional vStartupProjectManager As ProjectManager = Nothing) As Boolean
+        Public Function LoadSolution(vSolutionPath As String, Optional vStartupProjectManager As ProjectManager = Nothing, Optional vOnProjectLoading As Action(Of String, Integer, Integer) = Nothing) As Boolean
             Try
                 Dim lSolution As Solution = SolutionFileParser.ParseSolutionFile(vSolutionPath)
                 If lSolution Is Nothing OrElse lSolution.Projects.Count = 0 Then
@@ -145,11 +152,16 @@ Namespace Managers
                 pStartupProjectPath = lSolution.Projects(0).ProjectPath
 
                 Dim lLoadedCount As Integer = 0
+                Dim lTotalCount As Integer = lSolution.Projects.Count
+                Dim lIndex As Integer = 0
                 for each lEntry in lSolution.Projects
+                    lIndex += 1
                     If Not File.Exists(lEntry.ProjectPath) Then
                         Console.WriteLine($"SolutionManager.LoadSolution: Skipping missing project file {lEntry.ProjectPath}")
                         Continue for
                     End If
+
+                    vOnProjectLoading?.Invoke(lEntry.Name, lIndex, lTotalCount)
 
                     Dim lIsStartup As Boolean = String.Equals(lEntry.ProjectPath, pStartupProjectPath, StringComparison.OrdinalIgnoreCase)
                     Dim lProjectManager As ProjectManager = If(lIsStartup AndAlso vStartupProjectManager IsNot Nothing, vStartupProjectManager, New ProjectManager())

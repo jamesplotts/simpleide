@@ -478,6 +478,52 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
+        ''' Shows a synthetic solution root with a single non-interactive "Loading projects..."
+        ''' child, before any of the solution's member projects have actually finished loading -
+        ''' gives immediate visual feedback that a solution open is in progress instead of an
+        ''' empty tree
+        ''' </summary>
+        ''' <param name="vSolutionName">Display name for the synthetic solution root - usually the .sln's file name without extension</param>
+        ''' <remarks>
+        ''' LoadSolutionFromManager (called once every member project has actually finished
+        ''' loading) replaces pRootNode wholesale, which naturally removes this placeholder -
+        ''' no explicit cleanup call is needed once real loading completes
+        ''' </remarks>
+        Public Sub ShowSolutionLoadingPlaceholder(vSolutionName As String)
+            Try
+                ClearProject()
+
+                Dim lSolutionRoot As New ProjectNode() With {
+                    .Name = vSolutionName,
+                    .Path = "",
+                    .NodeType = ProjectNodeType.eSolution,
+                    .IsFile = False,
+                    .IsExpanded = True
+                }
+
+                Dim lLoadingNode As New ProjectNode() With {
+                    .Name = "Loading projects...",
+                    .Path = "",
+                    .NodeType = ProjectNodeType.eLoadingPlaceholder,
+                    .IsFile = False,
+                    .IsExpanded = False
+                }
+                lSolutionRoot.AddChild(lLoadingNode)
+
+                pRootNode = lSolutionRoot
+                pExpandedNodes.Add(GetNodePath(pRootNode))
+
+                RebuildVisualTree()
+                pDrawingArea?.QueueDraw()
+
+                Console.WriteLine($"ShowSolutionLoadingPlaceholder: Showing placeholder for '{vSolutionName}'")
+
+            Catch ex As Exception
+                Console.WriteLine($"ShowSolutionLoadingPlaceholder error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
         ''' Determines which project a given tree node belongs to, by walking up its Parent
         ''' chain to the nearest node with OwningProjectPath set
         ''' </summary>

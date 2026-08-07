@@ -36,6 +36,8 @@ Namespace Models
         eMyProject
         ''' <summary>Solution root node - the synthetic parent of each member project's own root node when multiple projects are loaded together</summary>
         eSolution
+        ''' <summary>Non-interactive placeholder shown under the solution root while its member projects are still being loaded</summary>
+        eLoadingPlaceholder
         ''' <summary>Sentinel value for enum bounds checking</summary>
         eLastValue
     End Enum

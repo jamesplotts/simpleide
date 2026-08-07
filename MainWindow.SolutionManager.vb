@@ -1,6 +1,7 @@
 ' MainWindow.SolutionManager.vb - Multi-project .sln solution loading
 Imports Gtk
 Imports System
+Imports System.Threading.Tasks
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Utilities
 
@@ -71,43 +72,96 @@ Partial Public Class MainWindow
     ''' visible UI. Doing this instead of reusing MainWindow's own pProjectManager instance
     ''' inside SolutionManager avoids a race between the two independent load paths (one
     ''' synchronous on the UI thread, one asynchronous on a background Task) touching the same
-    ''' object concurrently. Multi-root UI/per-tab project association (Phase 2) will replace
-    ''' this with a single, solution-aware load path - this is intentionally the simpler,
-    ''' lower-risk Phase 1 slice: prove SolutionManager's own loading/dependency-graph logic is
-    ''' correct without touching the existing single-project UI machinery at all.
+    ''' object concurrently.
+    '''
+    ''' SolutionManager.LoadSolution() itself is NOT lightweight - ProjectManager.LoadProject()
+    ''' (called once per member project) fully Roslyn-parses every one of that project's source
+    ''' files synchronously (EnsureAllFilesLoaded), so calling it directly on the UI thread
+    ''' would freeze the window for the whole solution load and never let the "Loading
+    ''' projects..." placeholder (ShowSolutionLoadingPlaceholder) actually paint. Run on a
+    ''' background Task instead, with a progress callback marshaled back to the UI thread via
+    ''' Application.Invoke for status-bar feedback; pSolutionManager itself is only assigned
+    ''' once back on the UI thread with a fully-populated instance, so nothing else in the app
+    ''' can observe a half-initialized SolutionManager mid-load.
     ''' </remarks>
     Private Sub LoadSolutionEnhanced(vSolutionPath As String)
         Try
             Console.WriteLine($"LoadSolutionEnhanced: Loading solution: {vSolutionPath}")
 
-            pSolutionManager = New SolutionManager()
+            Dim lSolutionName As String = System.IO.Path.GetFileNameWithoutExtension(vSolutionPath)
+            UpdateStatusBar($"Opening solution '{lSolutionName}'...")
+            pProjectExplorer?.ShowSolutionLoadingPlaceholder(lSolutionName)
+            ShowProgressBar(True)
+            UpdateProgressBar(0)
 
-            If Not pSolutionManager.LoadSolution(vSolutionPath) Then
-                pSolutionManager = Nothing
-                ShowError("Open Solution Failed", $"Failed to load any projects from: {vSolutionPath}")
-                Return
-            End If
+            Dim lNewSolutionManager As New SolutionManager()
 
-            Console.WriteLine($"LoadSolutionEnhanced: Loaded {pSolutionManager.AllProjects.Count} project(s), dependency order:")
-            for each lMember in pSolutionManager.AllProjects
-                Console.WriteLine($"  {lMember.CurrentProjectName} ({lMember.CurrentProjectPath})")
-            Next
+            Task.Run(Sub()
+                Try
+                    Dim lSuccess As Boolean = lNewSolutionManager.LoadSolution(vSolutionPath, Nothing,
+                        Sub(vProjectName As String, vIndex As Integer, vTotal As Integer)
+                            Application.Invoke(Sub()
+                                Try
+                                    UpdateStatusBar($"Loading project {vIndex} of {vTotal}: {vProjectName}...")
+                                    UpdateProgressBar(CInt((vIndex - 1) * 100.0 / vTotal))
+                                Catch ex As Exception
+                                    Console.WriteLine($"LoadSolutionEnhanced progress callback error: {ex.Message}")
+                                End Try
+                            End Sub)
+                        End Sub)
 
-            UpdateStatusBar($"Solution loaded: {pSolutionManager.AllProjects.Count} project(s)")
+                    Application.Invoke(Sub()
+                        Try
+                            If Not lSuccess OrElse lNewSolutionManager.AllProjects.Count = 0 Then
+                                ShowProgressBar(False)
+                                pProjectExplorer?.ClearProject()
+                                UpdateStatusBar("Open Solution Failed")
+                                ShowError("Open Solution Failed", $"Failed to load any projects from: {vSolutionPath}")
+                                Return
+                            End If
 
-            Dim lStartupPath As String = pSolutionManager.StartupProject?.CurrentProjectPath
-            If Not String.IsNullOrEmpty(lStartupPath) Then
-                ' LoadProjectEnhanced's own async load fires ProjectFileListLoaded partway
-                ' through, whose handler (OnProjectFileListLoaded) populates Project Explorer
-                ' with just the startup project's single-project tree via
-                ' LoadProjectFromManager() - wait for AllFilesParseCompleted (which can only
-                ' fire after that already happened) before replacing it with the full
-                ' multi-root solution tree, so the override always lands last regardless of
-                ' background-task timing
-                AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
-                pSolutionStartupLoadPending = True
-                LoadProjectEnhanced(lStartupPath)
-            End If
+                            pSolutionManager = lNewSolutionManager
+
+                            Console.WriteLine($"LoadSolutionEnhanced: Loaded {pSolutionManager.AllProjects.Count} project(s), dependency order:")
+                            for each lMember in pSolutionManager.AllProjects
+                                Console.WriteLine($"  {lMember.CurrentProjectName} ({lMember.CurrentProjectPath})")
+                            Next
+
+                            UpdateProgressBar(100)
+                            ShowProgressBar(False)
+                            UpdateStatusBar($"Solution loaded: {pSolutionManager.AllProjects.Count} project(s) - parsing source files...")
+
+                            Dim lStartupPath As String = pSolutionManager.StartupProject?.CurrentProjectPath
+                            If Not String.IsNullOrEmpty(lStartupPath) Then
+                                ' LoadProjectEnhanced's own async load fires ProjectFileListLoaded
+                                ' partway through - OnProjectFileListLoaded skips populating
+                                ' Project Explorer with the startup project's own single-project
+                                ' tree while pSolutionStartupLoadPending is set (see its own doc
+                                ' comment), leaving the "Loading projects..." placeholder up
+                                ' until AllFilesParseCompleted fires and the real multi-root
+                                ' solution tree replaces it wholesale
+                                AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
+                                pSolutionStartupLoadPending = True
+                                LoadProjectEnhanced(lStartupPath)
+                            End If
+
+                        Catch ex As Exception
+                            Console.WriteLine($"LoadSolutionEnhanced (completion) error: {ex.Message}")
+                            ShowProgressBar(False)
+                            ShowError("Open Solution Error", ex.Message)
+                        End Try
+                    End Sub)
+
+                Catch ex As Exception
+                    Application.Invoke(Sub()
+                        Console.WriteLine($"LoadSolutionEnhanced (background) error: {ex.Message}")
+                        ShowProgressBar(False)
+                        pProjectExplorer?.ClearProject()
+                        UpdateStatusBar("Open Solution Failed")
+                        ShowError("Open Solution Error", ex.Message)
+                    End Sub)
+                End Try
+            End Sub)
 
         Catch ex As Exception
             Console.WriteLine($"LoadSolutionEnhanced error: {ex.Message}")
@@ -144,6 +198,7 @@ Partial Public Class MainWindow
                     Try
                         pProjectExplorer?.LoadSolutionFromManager(lSolutionManager)
                         pObjectExplorer?.SetSolutionManager(lSolutionManager)
+                        UpdateStatusBar($"Solution ready: {lSolutionManager.AllProjects.Count} project(s) loaded")
                     Catch ex As Exception
                         Console.WriteLine($"OnStartupProjectAllFilesParsed (settled apply) error: {ex.Message}")
                     End Try
