@@ -390,10 +390,20 @@ Namespace Managers
             ' Create new ItemGroup
             Dim lItemGroup As XmlElement = vDoc.CreateElement("ItemGroup", vDoc.DocumentElement.NamespaceURI)
             
-            ' Find a good place to insert it
-            Dim lProject As XmlNode = vDoc.SelectSingleNode("//ms:project", vNsMgr)
+            ' Find a good place to insert it - XML element names are case-sensitive and the
+            ' real root element is <Project ...> (capital P); the lowercase "project" used
+            ' here previously never matched anything, silently orphaning the newly-created
+            ' ItemGroup (and whatever reference element the caller appends to it) - it was
+            ' never attached to the document at all, so SaveProjectFile wrote out the
+            ' unchanged original content while this function still reported success. Only
+            ' ever surfaced for a project with no PRE-EXISTING plain-Reference/
+            ' PackageReference/ProjectReference ItemGroup of the relevant kind to find via
+            ' the (correct) XPath fallback above - a project that already had at least one
+            ' masked the bug entirely, which is why this worked for some projects and not
+            ' others
+            Dim lProject As XmlNode = vDoc.SelectSingleNode("//ms:Project", vNsMgr)
             If lProject Is Nothing Then
-                lProject = vDoc.SelectSingleNode("//project")
+                lProject = vDoc.SelectSingleNode("//Project")
             End If
             
             If lProject IsNot Nothing Then
