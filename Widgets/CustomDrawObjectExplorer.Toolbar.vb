@@ -256,9 +256,14 @@ Namespace Widgets
                 Dim lScaleLabel As New Label("Scale:")
                 lScaleBox.PackStart(lScaleLabel, False, False, 0)
                 
-                ' Create combo box with preset scales
+                ' Create combo box with preset scales - CustomDrawComboBox has no built-in
+                ' natural-width sizing (it's custom-drawn, so GTK's layout system has no way
+                ' to know its content's size on its own) and is packed with Fill/Expand both
+                ' False below, so without an explicit WidthRequest it collapses to
+                ' essentially nothing - visually just the "Scale:" label with nothing next to it
                 pScaleCombo = New CustomDrawComboBox()
                 pScaleCombo.ThemeManager = pThemeManager
+                pScaleCombo.WidthRequest = 70
                 pScaleCombo.AppendText("50%")
                 pScaleCombo.AppendText("75%")
                 pScaleCombo.AppendText("100%")
