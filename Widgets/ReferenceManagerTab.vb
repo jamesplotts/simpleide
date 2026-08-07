@@ -37,7 +37,7 @@ Namespace Widgets
         Private pThemeManager As ThemeManager
         Private pSolutionManager As SolutionManager
         Private pProjectFile As String
-        Private pNuGetClient As NuGetClient
+        Private pNuGetClientInstance As NuGetClient
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
         Private pTitleLabel As Label
@@ -72,7 +72,19 @@ Namespace Widgets
         Private pProjectBrowseButton As CustomDrawButton
 
         ' Current references
-        Private pCurrentReferences As List(Of ReferenceManager.ReferenceInfo)
+        ''' <summary>
+        ''' Eagerly initialized (never Nothing) - LoadRuntimeAssemblies() (called from
+        ''' BuildUI(), BEFORE the constructor's later LoadCurrentReferences() call actually
+        ''' populates this with real data) reads this via LINQ .Any() to pre-check assembly
+        ''' rows; a Nothing list there throws ArgumentNullException on the very first
+        ''' iteration, silently aborting the whole loop and leaving the Assemblies tab
+        ''' permanently empty (confirmed live: "error loading Runtime assemblies: Value
+        ''' cannot be null. (Parameter 'source')", 0 rows for every project). The exception
+        ''' was swallowed by LoadRuntimeAssemblies' own Try/Catch, so nothing visibly failed -
+        ''' the Assembly tab just looked empty, with both its buttons correctly-but-uselessly
+        ''' disabled since nothing was ever selectable.
+        ''' </summary>
+        Private pCurrentReferences As New List(Of ReferenceManager.ReferenceInfo)
 
         ' ===== Events =====
         Public Event ReferencesChanged()
@@ -97,6 +109,25 @@ Namespace Widgets
         Private ReadOnly Property pReferenceManager() As ReferenceManager
             Get
                 Return pProjectManager.ReferenceManager
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Lazily created on first actual use (NuGet search, or selecting an already-
+        ''' installed package to see its version list) rather than eagerly in the
+        ''' constructor - NuGetClient's own constructor makes a blocking synchronous network
+        ''' call to resolve NuGet's service index, which would otherwise stall opening this
+        ''' tab even when the user never touches the NuGet sub-tab at all. Was previously
+        ''' declared but never assigned anywhere - every NuGet operation would have thrown
+        ''' NullReferenceException (confirmed live: pNuGetClient Is Nothing = True after
+        ''' opening the tab), which is why Install/Update never worked
+        ''' </summary>
+        Private ReadOnly Property pNuGetClient() As NuGetClient
+            Get
+                If pNuGetClientInstance Is Nothing Then
+                    pNuGetClientInstance = New NuGetClient()
+                End If
+                Return pNuGetClientInstance
             End Get
         End Property
 
