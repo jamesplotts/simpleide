@@ -477,8 +477,17 @@ Partial Public Class MainWindow
             UpdateWindowTitle()
             UpdateToolbarButtons()
             
-            ' Clear existing content in explorers
-            pProjectExplorer?.ClearProject()
+            ' Clear existing content in explorers - EXCEPT Project Explorer when this call is
+            ' the startup project's own leg of a solution load (pSolutionStartupLoadPending):
+            ' LoadSolutionEnhanced already put up the solution root + "Loading projects..."
+            ' placeholder before calling here, and clearing it now would wipe that placeholder
+            ' for the several seconds this project's own parse takes, leaving Project Explorer
+            ' empty until LoadSolutionFromManager finally replaces it - exactly the "nodes
+            ' appear then disappear" flash this is meant to avoid. Object Explorer is a
+            ' separate widget with its own single-project view, so it always clears normally.
+            If Not pSolutionStartupLoadPending Then
+                pProjectExplorer?.ClearProject()
+            End If
             If pObjectExplorer IsNot Nothing Then
                 pObjectExplorer.ClearStructure()
             End If
