@@ -272,6 +272,7 @@ Namespace Editors
         Public Event UndoRedoStateChanged(vCanUndo As Boolean, vCanRedo As Boolean) Implements IEditor.UndoRedoStateChanged
         Public Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs) Implements IEditor.ProjectManagerRequested
         Public Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestGotoDefinition
+        Public Event RequestFindAllReferences(o as Object, e as GoToDefinitionEventArgs) Implements IEditor.RequestFindAllReferences
         Public Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext) Implements IEditor.CodeSenseRequested
         Public Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs) Implements IEditor.CodeSenseCancelled
         Public Event FindRequested(vSender As Object, vArgs As EventArgs) Implements IEditor.FindRequested

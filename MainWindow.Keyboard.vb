@@ -233,9 +233,15 @@ Partial Public Class MainWindow
                         OnStopDebugging(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
+
+                    Case "F12"
+                        ' Shift+F12 - Find All References
+                        FindAllReferences()
+                        vArgs.RetVal = True
+                        Return
                 End Select
             End If
-            
+
             ' ===== Handle Ctrl + Function Key combinations =====
             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask AndAlso
                (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
@@ -530,9 +536,38 @@ Partial Public Class MainWindow
         ' TODO: Implement navigate to next highlight
     End Sub
     
+    ''' <summary>
+    ''' Shift+F12 - finds every whole-word occurrence of the symbol at the cursor across
+    ''' every project in a loaded solution (or just the current project when none is
+    ''' loaded), showing results in the existing Find Results panel/tab
+    ''' </summary>
     Private Sub FindAllReferences()
-        Console.WriteLine("Find All References - Not yet implemented")
-        ' TODO: Implement find all references
+        Try
+            Dim lEditor As IEditor = GetCurrentEditor()
+            If lEditor Is Nothing Then
+                UpdateStatusBar("Find All References: No active editor")
+                Return
+            End If
+
+            Dim lWord As String = lEditor.GetWordAtCursor()
+            If String.IsNullOrWhiteSpace(lWord) Then
+                UpdateStatusBar("Find All References: No symbol at cursor")
+                Return
+            End If
+
+            If Not pBottomPanelVisible Then
+                ToggleBottomPanel()
+            End If
+
+            If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                pBottomPanelManager.ShowTabForPanel(pFindPanel)
+            End If
+
+            pFindPanel?.FindAllReferences(lWord, pSolutionManager)
+
+        Catch ex As Exception
+            Console.WriteLine($"FindAllReferences error: {ex.Message}")
+        End Try
     End Sub
     
     Private Sub RenameSymbol()
@@ -560,9 +595,38 @@ Partial Public Class MainWindow
         ' TODO: Implement step out debugging
     End Sub
     
+    ''' <summary>
+    ''' F12 - resolves the word at the current cursor position and routes it through the
+    ''' same OnRequestGotoDefinition handler the editor's right-click "Go to Definition"
+    ''' context-menu item uses (Editors/CustomDrawingEditor.ContextMenu.vb), so both entry
+    ''' points share one implementation including cross-project resolution
+    ''' </summary>
     Private Sub GoToDefinition()
-        Console.WriteLine("Go to Definition - Not yet implemented")
-        ' TODO: Implement go to definition
+        Try
+            Dim lEditor As IEditor = GetCurrentEditor()
+            If lEditor Is Nothing Then
+                UpdateStatusBar("Go to Definition: No active editor")
+                Return
+            End If
+
+            Dim lWord As String = lEditor.GetWordAtCursor()
+            If String.IsNullOrWhiteSpace(lWord) Then
+                UpdateStatusBar("Go to Definition: No symbol at cursor")
+                Return
+            End If
+
+            Dim lEventArgs As New GotoDefinitionEventArgs() With {
+                .FilePath = lEditor.FilePath,
+                .LineNumber = lEditor.CurrentLine,
+                .ColumnNumber = lEditor.CurrentColumn,
+                .Word = lWord
+            }
+
+            OnRequestGotoDefinition(lEditor, lEventArgs)
+
+        Catch ex As Exception
+            Console.WriteLine($"GoToDefinition error: {ex.Message}")
+        End Try
     End Sub
     
     Private Sub OnRebuildProject(vSender As Object, vArgs As EventArgs)

@@ -114,6 +114,12 @@ Namespace Editors
                 AddHandler lGoToDefinitionItem.Activated, AddressOf OnContextMenuGoToDefinition
                 pContextMenu.Append(lGoToDefinitionItem)
 
+                ' Find All References menu item
+                Dim lFindAllReferencesItem As New MenuItem("Find All _References")
+                lFindAllReferencesItem.Name = "FindAllReferencesMenuItem"
+                AddHandler lFindAllReferencesItem.Activated, AddressOf OnContextMenuFindAllReferences
+                pContextMenu.Append(lFindAllReferencesItem)
+
                 ' Generate Field(s) From Parameters menu item (conditional - only shown when
                 ' the cursor is inside a Sub/Function/constructor with a parameter that
                 ' doesn't already have a matching field)
@@ -510,6 +516,51 @@ Namespace Editors
 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuGoToDefinition error: {ex.Message}")
+                Console.WriteLine($"Stack trace: {ex.StackTrace}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles the "Find All References" context menu item click
+        ''' </summary>
+        ''' <param name="vSender">The menu item that was clicked</param>
+        ''' <param name="vArgs">Event arguments</param>
+        ''' <remarks>
+        ''' Resolves the word exactly like Go to Definition does, then raises
+        ''' RequestFindAllReferences instead of RequestGotoDefinition
+        ''' </remarks>
+        Private Sub OnContextMenuFindAllReferences(vSender As Object, vArgs As EventArgs)
+            Try
+                Console.WriteLine("OnContextMenuFindAllReferences: Started")
+
+                Dim lSelectedText As String = GetSelectedText()
+                Dim lWord As String = ""
+                Dim lLineNumber As Integer = 0
+                Dim lColumnNumber As Integer = 0
+
+                If Not String.IsNullOrWhiteSpace(lSelectedText) Then
+                    lWord = lSelectedText.Trim()
+                    lLineNumber = pSelectionStartLine
+                    lColumnNumber = Math.Min(pSelectionStartColumn, pSelectionEndColumn)
+                Else
+                    lWord = GetWordAtClickPosition(lLineNumber, lColumnNumber)
+                End If
+
+                If String.IsNullOrWhiteSpace(lWord) Then
+                    Console.WriteLine("OnContextMenuFindAllReferences: No word found at click position")
+                    Return
+                End If
+
+                Dim lEventArgs As New GoToDefinitionEventArgs()
+                lEventArgs.FilePath = pSourceFileInfo.FilePath
+                lEventArgs.LineNumber = lLineNumber
+                lEventArgs.ColumnNumber = lColumnNumber
+                lEventArgs.Word = lWord
+
+                RaiseEvent RequestFindAllReferences(Me, lEventArgs)
+
+            Catch ex As Exception
+                Console.WriteLine($"OnContextMenuFindAllReferences error: {ex.Message}")
                 Console.WriteLine($"Stack trace: {ex.StackTrace}")
             End Try
         End Sub

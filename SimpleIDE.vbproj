@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1238.0</AssemblyVersion>
-    <FileVersion>1.1.1238.0</FileVersion>
+    <AssemblyVersion>1.1.1243.0</AssemblyVersion>
+    <FileVersion>1.1.1243.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1238</Version>
+    <Version>1.1.1243</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -276,6 +276,7 @@
     <Compile Include="Widgets/FindReplacePanel.Events.vb" />
     <Compile Include="Widgets/FindReplacePanel.InMemorySearch.vb" />
     <Compile Include="Widgets/FindReplacePanel.SortableResults.vb" />
+    <Compile Include="Widgets/FindReplacePanel.References.vb" />
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
@@ -301,6 +302,7 @@
     <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
     <Compile Include="Dialogs/GitCommitDialog.vb" />
     <Compile Include="Dialogs/GitBranchDialog.vb" />
+    <Compile Include="Dialogs/DefinitionPickerDialog.vb" />
     <!-- Syntax and Language Support -->
     <Compile Include="Syntax/CodeSenseEngine.vb" />
     <Compile Include="Syntax/CodeSenseSuggestion.vb" />

@@ -60,6 +60,7 @@ Namespace Interfaces
         Event LineExited As EventHandler(Of CustomDrawingEditor.LineExitedEventArgs)
         Event ProjectManagerRequested(o As Object, e As ProjectManagerRequestEventArgs)
         Event RequestGotoDefinition(o as Object, e as GoToDefinitionEventArgs)
+        Event RequestFindAllReferences(o as Object, e as GoToDefinitionEventArgs)
         Event CodeSenseRequested(vSender As Object, vContext As CodeSenseContext)
         Event CodeSenseCancelled(vSender As Object, vArgs As EventArgs)
         Event FindRequested(vSender As Object, vArgs As EventArgs)

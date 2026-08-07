@@ -13,6 +13,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Syntax
 Imports SimpleIDE.Widgets
+Imports SimpleIDE.Dialogs
 
 Partial Public Class MainWindow
     Inherits Window
@@ -442,6 +443,7 @@ Partial Public Class MainWindow
             ' ProjectManager request event
             AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             AddHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
+            AddHandler vEditor.RequestFindAllReferences, AddressOf OnRequestFindAllReferences
 
 
             AddHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
@@ -508,6 +510,7 @@ Partial Public Class MainWindow
             RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             
             RemoveHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
+            RemoveHandler vEditor.RequestFindAllReferences, AddressOf OnRequestFindAllReferences
 
             RemoveHandler vEditor.CodeSenseRequested, AddressOf OnCodeSenseRequested
             RemoveHandler vEditor.CodeSenseCancelled, AddressOf OnCodeSenseCancelled
@@ -1690,119 +1693,74 @@ End Function
     End Sub    
 
     ''' <summary>
-    ''' Handles the RequestGotoDefinition event from CustomDrawingEditor instances
+    ''' Handles the RequestGotoDefinition event from CustomDrawingEditor instances (and F12
+    ''' via GoToDefinition() in MainWindow.Keyboard.vb, which raises the same event shape)
     ''' </summary>
     ''' <param name="vSender">The CustomDrawingEditor that raised the event</param>
     ''' <param name="vArgs">Event arguments containing word and location information</param>
     ''' <remarks>
-    ''' This method searches for the definition of the word across all project files,
-    ''' opens the file containing the definition, and navigates to the exact location
+    ''' Searches the requester's own project first (resolved per-file when a solution is
+    ''' loaded via ResolveProjectManagerForRequester, so a tab from a non-startup project
+    ''' searches ITS project, not the startup one). If not found there and a solution with
+    ''' more than one project is loaded, searches every sibling project too - each project's
+    ''' FindDefinition can only ever return one match, so this collects at most one candidate
+    ''' per sibling project. Exactly one cross-project match navigates directly; more than one
+    ''' shows DefinitionPickerDialog rather than silently picking a winner, since first-match-
+    ''' wins across projects would just be a coin flip based on solution load order.
     ''' </remarks>
     Private Sub OnRequestGotoDefinition(vSender As Object, vArgs As GoToDefinitionEventArgs)
         Try
             Console.WriteLine($"OnRequestGotoDefinition: Word='{vArgs.Word}' at {vArgs.FilePath}:{vArgs.LineNumber}:{vArgs.ColumnNumber}")
-            
-            ' Validate input
+
             If String.IsNullOrWhiteSpace(vArgs.Word) Then
                 Console.WriteLine("OnRequestGotoDefinition: No word specified")
                 UpdateStatusBar("No symbol selected for Go to Definition")
                 Return
             End If
-            
-            ' Check if we have a project manager
-            If pProjectManager Is Nothing Then
+
+            Dim lOwnProjectManager As ProjectManager = ResolveProjectManagerForRequester(vSender)
+            If lOwnProjectManager Is Nothing Then
                 Console.WriteLine("OnRequestGotoDefinition: No ProjectManager available")
                 UpdateStatusBar($"Go to Definition: No project open")
                 Return
             End If
-            
-            ' Call the ProjectManager to find the definition
-            Dim lDefinitionInfo As DefinitionInfo = pProjectManager.FindDefinition(vArgs.Word, vArgs.FilePath, vArgs.LineNumber, vArgs.ColumnNumber)
-            
-            If lDefinitionInfo Is Nothing Then
-                Console.WriteLine($"OnRequestGotoDefinition: Definition not found for '{vArgs.Word}'")
-                UpdateStatusBar($"Definition Of '{vArgs.Word}' not found")
+
+            Dim lDefinitionInfo As DefinitionInfo = lOwnProjectManager.FindDefinition(vArgs.Word, vArgs.FilePath, vArgs.LineNumber, vArgs.ColumnNumber)
+            If lDefinitionInfo IsNot Nothing Then
+                Console.WriteLine($"OnRequestGotoDefinition: Found definition in {lDefinitionInfo.FilePath} at line {lDefinitionInfo.Line}")
+                NavigateToDefinitionResult(lDefinitionInfo, vArgs.Word)
                 Return
             End If
-            
-            Console.WriteLine($"OnRequestGotoDefinition: Found definition in {lDefinitionInfo.FilePath} at line {lDefinitionInfo.Line}")
-            
-            ' Check if the file is already open
-            Dim lTargetFilePath As String = lDefinitionInfo.FilePath
-            Dim lIsAlreadyOpen As Boolean = pOpenTabs.ContainsKey(lTargetFilePath)
-            
-            If lIsAlreadyOpen Then
-                Console.WriteLine($"OnRequestGotoDefinition: File already open, switching to tab")
-                ' Switch to the existing tab
-                SwitchToTab(lTargetFilePath)
-            Else
-                Console.WriteLine($"OnRequestGotoDefinition: Opening file {lTargetFilePath}")
-                ' Open the file
-                OpenFile(lTargetFilePath)
-            End If
-            
-            ' Navigate to the definition location
-            Dim lTabInfo As TabInfo = Nothing
-            If pOpenTabs.TryGetValue(lTargetFilePath, lTabInfo) Then
-                If lTabInfo.Editor IsNot Nothing Then
-                    ' lDefinitionInfo.Line/Column are 0-based (from SyntaxNode.StartLine/
-                    ' StartColumn or a 0-based text-search match), but GoToPosition/EditorPosition
-                    ' take 1-based coordinates (see GoToLine/GoToPosition and every other correct
-                    ' caller, e.g. MainWindow.LeftPanel.vb's "+ 1" conversions) - passing the raw
-                    ' 0-based values here landed one line/column short of the real target, which
-                    ' is why the view scrolled to roughly the right place but the cursor didn't
-                    ' end up on it.
-                    '
-                    ' lDefinitionInfo.Column also generally points at the start of the whole
-                    ' declaration (e.g. the "Public" in "Public Class TabInfo"), not the
-                    ' identifier itself, since that's what the underlying SyntaxNode spans - find
-                    ' the identifier's own column on that line so the cursor (and flash) land
-                    ' exactly on "TabInfo", not on "Public".
-                    Dim lIdentifierColumn As Integer = lDefinitionInfo.Column
-                    Dim lIdentifierEndColumn As Integer = lDefinitionInfo.Column + vArgs.Word.Length
-                    If lDefinitionInfo.Line >= 0 AndAlso lDefinitionInfo.Line < lTabInfo.Editor.TextLines.Count Then
-                        Dim lDestLine As String = lTabInfo.Editor.TextLines(lDefinitionInfo.Line)
-                        Dim lTokenizer As New VBTokenizer()
-                        for each lToken As Token in lTokenizer.TokenizeLine(lDestLine)
-                            If lToken.StartColumn >= lDefinitionInfo.Column AndAlso
-                               String.Equals(lToken.Text, vArgs.Word, StringComparison.OrdinalIgnoreCase) Then
-                                lIdentifierColumn = lToken.StartColumn
-                                lIdentifierEndColumn = lToken.EndColumn + 1
-                                Exit for
-                            End If
-                        Next
+
+            If pSolutionManager IsNot Nothing AndAlso pSolutionManager.AllProjects.Count > 1 Then
+                Dim lCandidates As New List(Of DefinitionCandidate)
+                for each lOtherProject In pSolutionManager.AllProjects
+                    If lOtherProject Is lOwnProjectManager Then Continue for
+                    Dim lOtherDefinition As DefinitionInfo = lOtherProject.FindDefinition(vArgs.Word, vArgs.FilePath, vArgs.LineNumber, vArgs.ColumnNumber)
+                    If lOtherDefinition IsNot Nothing Then
+                        lCandidates.Add(New DefinitionCandidate() With {.ProjectName = lOtherProject.CurrentProjectName, .Definition = lOtherDefinition})
                     End If
+                Next
 
-                    ' Create EditorPosition for navigation (1-based)
-                    Dim lPosition As New EditorPosition(lDefinitionInfo.Line + 1, lIdentifierColumn + 1)
-
-                    Console.WriteLine($"OnRequestGotoDefinition: Navigating to position {lPosition}")
-
-                    ' Navigate to the position
-                    lTabInfo.Editor.GoToPosition(lPosition)
-
-                    ' Briefly highlight the identifier so the eye finds it immediately
-                    lTabInfo.Editor.FlashIdentifierAt(lDefinitionInfo.Line, lIdentifierColumn, lIdentifierEndColumn)
-
-                    ' Focus the editor - IEditor.GrabFocus() (not .Widget.GrabFocus(), which
-                    ' focuses the outer container Box and never reaches the actual focusable
-                    ' drawing area, since CustomDrawingEditor.GrabFocus() is Shadows rather than
-                    ' Overrides and .Widget is statically typed as the base Gtk.Widget) is what
-                    ' actually grabs focus on the inner DrawingArea - the cursor is only drawn
-                    ' when THAT widget reports HasFocus, which is why the cursor showed up in
-                    ' the right place but sat there solid/non-blinking until manually clicked
-                    lTabInfo.Editor.GrabFocus()
-
-                    ' Update status bar
-                    Dim lFileName As String = System.IO.Path.GetFileName(lTargetFilePath)
-                    UpdateStatusBar($"Navigated to definition of '{vArgs.Word}' in {lFileName} at line {lDefinitionInfo.Line + 1}")
-                Else
-                    Console.WriteLine("OnRequestGotoDefinition: Editor Not found in tab")
+                If lCandidates.Count = 1 Then
+                    Console.WriteLine($"OnRequestGotoDefinition: Found definition in sibling project {lCandidates(0).ProjectName}")
+                    NavigateToDefinitionResult(lCandidates(0).Definition, vArgs.Word)
+                    Return
+                ElseIf lCandidates.Count > 1 Then
+                    Console.WriteLine($"OnRequestGotoDefinition: Found {lCandidates.Count} candidates across sibling projects, prompting user")
+                    Using lPicker As New DefinitionPickerDialog(Me, vArgs.Word, lCandidates, pThemeManager)
+                        If lPicker.Run() = CInt(ResponseType.Ok) AndAlso lPicker.SelectedCandidate IsNot Nothing Then
+                            NavigateToDefinitionResult(lPicker.SelectedCandidate.Definition, vArgs.Word)
+                        End If
+                        lPicker.Destroy()
+                    End Using
+                    Return
                 End If
-            Else
-                Console.WriteLine($"OnRequestGotoDefinition: Could Not find tab for {lTargetFilePath}")
             End If
-            
+
+            Console.WriteLine($"OnRequestGotoDefinition: Definition not found for '{vArgs.Word}'")
+            UpdateStatusBar($"Definition Of '{vArgs.Word}' not found")
+
         Catch ex As Exception
             Console.WriteLine($"OnRequestGotoDefinition error: {ex.Message}")
             Console.WriteLine($"Stack trace: {ex.StackTrace}")
@@ -1810,5 +1768,109 @@ End Function
         End Try
     End Sub
 
-        
+    ''' <summary>
+    ''' Opens (or switches to) the tab containing a resolved definition and moves the cursor
+    ''' to it, re-resolving the exact identifier column and briefly flashing it so the eye
+    ''' finds it immediately
+    ''' </summary>
+    ''' <param name="vDefinitionInfo">The resolved definition location</param>
+    ''' <param name="vWord">The identifier text being navigated to</param>
+    Private Sub NavigateToDefinitionResult(vDefinitionInfo As DefinitionInfo, vWord As String)
+        Try
+            Dim lTargetFilePath As String = vDefinitionInfo.FilePath
+
+            If pOpenTabs.ContainsKey(lTargetFilePath) Then
+                Console.WriteLine($"NavigateToDefinitionResult: File already open, switching to tab")
+                SwitchToTab(lTargetFilePath)
+            Else
+                Console.WriteLine($"NavigateToDefinitionResult: Opening file {lTargetFilePath}")
+                OpenFile(lTargetFilePath)
+            End If
+
+            Dim lTabInfo As TabInfo = Nothing
+            If Not pOpenTabs.TryGetValue(lTargetFilePath, lTabInfo) OrElse lTabInfo.Editor Is Nothing Then
+                Console.WriteLine($"NavigateToDefinitionResult: Could Not find tab for {lTargetFilePath}")
+                Return
+            End If
+
+            ' vDefinitionInfo.Line/Column are 0-based (from SyntaxNode.StartLine/StartColumn
+            ' or a 0-based text-search match), but GoToPosition/EditorPosition take 1-based
+            ' coordinates (see GoToLine/GoToPosition and every other correct caller, e.g.
+            ' MainWindow.LeftPanel.vb's "+ 1" conversions) - passing the raw 0-based values
+            ' here landed one line/column short of the real target, which is why the view
+            ' scrolled to roughly the right place but the cursor didn't end up on it.
+            '
+            ' vDefinitionInfo.Column also generally points at the start of the whole
+            ' declaration (e.g. the "Public" in "Public Class TabInfo"), not the identifier
+            ' itself, since that's what the underlying SyntaxNode spans - find the
+            ' identifier's own column on that line so the cursor (and flash) land exactly on
+            ' "TabInfo", not on "Public".
+            Dim lIdentifierColumn As Integer = vDefinitionInfo.Column
+            Dim lIdentifierEndColumn As Integer = vDefinitionInfo.Column + vWord.Length
+            If vDefinitionInfo.Line >= 0 AndAlso vDefinitionInfo.Line < lTabInfo.Editor.TextLines.Count Then
+                Dim lDestLine As String = lTabInfo.Editor.TextLines(vDefinitionInfo.Line)
+                Dim lTokenizer As New VBTokenizer()
+                for each lToken As Token in lTokenizer.TokenizeLine(lDestLine)
+                    If lToken.StartColumn >= vDefinitionInfo.Column AndAlso
+                       String.Equals(lToken.Text, vWord, StringComparison.OrdinalIgnoreCase) Then
+                        lIdentifierColumn = lToken.StartColumn
+                        lIdentifierEndColumn = lToken.EndColumn + 1
+                        Exit for
+                    End If
+                Next
+            End If
+
+            Dim lPosition As New EditorPosition(vDefinitionInfo.Line + 1, lIdentifierColumn + 1)
+            Console.WriteLine($"NavigateToDefinitionResult: Navigating to position {lPosition}")
+
+            lTabInfo.Editor.GoToPosition(lPosition)
+            lTabInfo.Editor.FlashIdentifierAt(vDefinitionInfo.Line, lIdentifierColumn, lIdentifierEndColumn)
+
+            ' Focus the editor - IEditor.GrabFocus() (not .Widget.GrabFocus(), which focuses
+            ' the outer container Box and never reaches the actual focusable drawing area,
+            ' since CustomDrawingEditor.GrabFocus() is Shadows rather than Overrides and
+            ' .Widget is statically typed as the base Gtk.Widget) is what actually grabs
+            ' focus on the inner DrawingArea - the cursor is only drawn when THAT widget
+            ' reports HasFocus, which is why the cursor showed up in the right place but sat
+            ' there solid/non-blinking until manually clicked
+            lTabInfo.Editor.GrabFocus()
+
+            Dim lFileName As String = System.IO.Path.GetFileName(lTargetFilePath)
+            UpdateStatusBar($"Navigated to definition of '{vWord}' in {lFileName} at line {vDefinitionInfo.Line + 1}")
+
+        Catch ex As Exception
+            Console.WriteLine($"NavigateToDefinitionResult error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the RequestFindAllReferences event from CustomDrawingEditor instances
+    ''' (context menu "Find All References"; Shift+F12 reaches the same underlying search
+    ''' via FindAllReferences() in MainWindow.Keyboard.vb)
+    ''' </summary>
+    ''' <param name="vSender">The CustomDrawingEditor that raised the event</param>
+    ''' <param name="vArgs">Event arguments containing word and location information</param>
+    Private Sub OnRequestFindAllReferences(vSender As Object, vArgs As GoToDefinitionEventArgs)
+        Try
+            If String.IsNullOrWhiteSpace(vArgs.Word) Then
+                UpdateStatusBar("No symbol selected for Find All References")
+                Return
+            End If
+
+            If Not pBottomPanelVisible Then
+                ToggleBottomPanel()
+            End If
+
+            If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                pBottomPanelManager.ShowTabForPanel(pFindPanel)
+            End If
+
+            pFindPanel?.FindAllReferences(vArgs.Word, pSolutionManager)
+
+        Catch ex As Exception
+            Console.WriteLine($"OnRequestFindAllReferences error: {ex.Message}")
+        End Try
+    End Sub
+
+
 End Class
