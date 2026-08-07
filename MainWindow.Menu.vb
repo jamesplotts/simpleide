@@ -438,7 +438,15 @@ Partial Public Class MainWindow
             Dim lRebuild As New MenuItem("_Rebuild Project")
             AddHandler lRebuild.Activated, AddressOf OnRebuildProject
             lBuildMenu.Append(lRebuild)
-            
+
+            ' Build Solution (Ctrl+Shift+B) - builds every project in the loaded .sln in
+            ' dependency order; falls back to a plain project build when no solution is open
+            Dim lBuildSolution As MenuItem = CreateMenuItemWithIcon("Build _Solution", "system-run")
+            lBuildSolution.UseUnderline = True
+            lBuildSolution.Label = "Build _Solution" & vbTab & "Ctrl+Shift+B"
+            AddHandler lBuildSolution.Activated, AddressOf OnBuildSolution
+            lBuildMenu.Append(lBuildSolution)
+
             ' Clean Project
             Dim lClean As New MenuItem("_Clean Project")
             AddHandler lClean.Activated, AddressOf OnCleanProject

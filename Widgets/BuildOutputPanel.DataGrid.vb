@@ -136,9 +136,15 @@ Namespace Widgets
                         Dim lRow As New DataGridRow()
                         lRow.Tag = lError  ' Store the error object for later retrieval
                         
-                        ' Add cells
+                        ' Add cells - prefix the file name with the owning project (in
+                        ' brackets) when this is a solution build result spanning multiple
+                        ' projects (BuildError.project is only ever stamped by BuildSolution)
+                        Dim lErrorFileText As String = System.IO.Path.GetFileName(lError.FilePath)
+                        If Not String.IsNullOrEmpty(lError.project) Then
+                            lErrorFileText = $"[{lError.project}] {lErrorFileText}"
+                        End If
                         lRow.Cells.Add(CreateErrorIconCell())
-                        lRow.Cells.Add(CreateTextCell(System.IO.Path.GetFileName(lError.FilePath)))
+                        lRow.Cells.Add(CreateTextCell(lErrorFileText))
                         lRow.Cells.Add(CreateNumberCell(lError.Line))
                         lRow.Cells.Add(CreateNumberCell(lError.Column))
                         lRow.Cells.Add(CreateTextCell(lError.ErrorCode))
@@ -161,9 +167,15 @@ Namespace Widgets
                         Dim lRow As New DataGridRow()
                         lRow.Tag = lWarning  ' Store the warning object for later retrieval
                         
-                        ' Add cells
+                        ' Add cells - prefix the file name with the owning project (in
+                        ' brackets) when this is a solution build result spanning multiple
+                        ' projects (BuildWarning.project is only ever stamped by BuildSolution)
+                        Dim lWarningFileText As String = System.IO.Path.GetFileName(lWarning.FilePath)
+                        If Not String.IsNullOrEmpty(lWarning.project) Then
+                            lWarningFileText = $"[{lWarning.project}] {lWarningFileText}"
+                        End If
                         lRow.Cells.Add(CreateWarningIconCell())
-                        lRow.Cells.Add(CreateTextCell(System.IO.Path.GetFileName(lWarning.FilePath)))
+                        lRow.Cells.Add(CreateTextCell(lWarningFileText))
                         lRow.Cells.Add(CreateNumberCell(lWarning.Line))
                         lRow.Cells.Add(CreateNumberCell(lWarning.Column))
                         lRow.Cells.Add(CreateTextCell(lWarning.WarningCode))

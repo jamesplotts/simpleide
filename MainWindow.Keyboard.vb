@@ -310,7 +310,7 @@ Partial Public Class MainWindow
                         
                     Case "b"
                         ' Ctrl+Shift+B - Build Solution
-                         ' TODO: OnBuildSolution(Nothing, Nothing)
+                        OnBuildSolution(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
 

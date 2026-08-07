@@ -188,7 +188,181 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ' ===== Solution Build Orchestration (Phase 3) =====
 
+    ''' <summary>
+    ''' Dedicated BuildManager instance for solution builds - kept separate from pBuildManager
+    ''' so the existing single-project handlers (OnBuildStarted/OnBuildCompleted, wired to
+    ''' pBuildManager in InitializeBuildSystem) don't fire once per solution project. Those
+    ''' handlers replace the Build Output panel's error/warning grids on every BuildCompleted
+    ''' and unconditionally reset pIsBuildingNow to False - both wrong for a multi-project
+    ''' sequential build, which needs to accumulate results across projects and only clear
+    ''' pIsBuildingNow once the whole solution finishes
+    ''' </summary>
+    Private pSolutionBuildManager As BuildManager = Nothing
+
+    ''' <summary>
+    ''' Lazily creates the solution build manager, wiring only OutputReceived (safe to share -
+    ''' it just appends text) and leaving BuildStarted/BuildCompleted unwired
+    ''' </summary>
+    Private Sub InitializeSolutionBuildManager()
+        Try
+            If pSolutionBuildManager Is Nothing Then
+                pSolutionBuildManager = New BuildManager()
+                AddHandler pSolutionBuildManager.OutputReceived, AddressOf OnBuildOutput
+            End If
+
+            If pBuildConfiguration Is Nothing Then
+                pBuildConfiguration = New BuildConfiguration()
+                LoadBuildConfiguration()
+            End If
+
+            pSolutionBuildManager.Configuration = pBuildConfiguration
+
+        Catch ex As Exception
+            Console.WriteLine($"InitializeSolutionBuildManager error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Builds every project in the currently loaded solution, in dependency order (own
+    ''' project first, then whatever it references), using the existing unmodified
+    ''' BuildManager.BuildProjectAsync once per project - fails fast on the first project
+    ''' whose build doesn't succeed. Falls back to the plain single-project BuildProject()
+    ''' when no solution is loaded, so Ctrl+Shift+B behaves sensibly either way
+    ''' </summary>
+    Public Sub BuildSolution()
+        Try
+            If pIsBuildingNow Then
+                Console.WriteLine("BuildSolution: Already building (early exit)")
+                Return
+            End If
+
+            If pSolutionManager Is Nothing OrElse pSolutionManager.AllProjects.Count = 0 Then
+                Console.WriteLine("BuildSolution: No solution loaded, falling back to BuildProject")
+                BuildProject()
+                Return
+            End If
+
+            InitializeSolutionBuildManager()
+
+            If pSolutionBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
+                ShowError("Build Error", "Failed to initialize build system")
+                Return
+            End If
+
+            pIsBuildingNow = True
+
+            Dim lProjects As New List(Of ProjectManager)(pSolutionManager.AllProjects)
+
+            SetBuildButtonsEnabled(False)
+            UpdateStatusBar($"Building solution ({lProjects.Count} project(s))...")
+            SaveAllFiles()
+
+            If pSettingsManager IsNot Nothing AndAlso pSettingsManager.ClearOutputOnBuild Then
+                pBuildOutputPanel?.ClearOutputOnly()
+            End If
+
+            If pBottomPanelManager IsNot Nothing Then
+                pBottomPanelManager.Show()
+                pBottomPanelManager.ShowTab(0) ' Build output is tab 0
+            End If
+            pBuildOutputPanel?.SwitchToOutputTab()
+
+            Task.Run(Async Function() As Task
+                Dim lMergedResult As New BuildResult() With {.Success = True}
+                Dim lFailedProjectName As String = Nothing
+
+                Try
+                    for each lProject In lProjects
+                        Dim lProjectPath As String = lProject.CurrentProjectPath
+                        Dim lProjectName As String = lProject.CurrentProjectName
+
+                        Application.Invoke(Sub()
+                            UpdateStatusBar($"Building {lProjectName}...")
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Building {lProjectName} =========={Environment.NewLine}")
+                        End Sub)
+
+                        pSolutionBuildManager.ProjectPath = lProjectPath
+                        pSolutionBuildManager.Configuration = pBuildConfiguration
+
+                        Dim lResult As BuildResult = Await pSolutionBuildManager.BuildProjectAsync(pBuildConfiguration)
+                        If lResult Is Nothing Then Continue for
+
+                        ' Stamp the owning project onto each error/warning so the merged
+                        ' result can attribute rows back to their project (BuildOutputPanel
+                        ' folds this into the file-name cell text)
+                        for each lError In lResult.Errors
+                            lError.project = lProjectName
+                            lMergedResult.Errors.Add(lError)
+                        Next
+                        for each lWarning In lResult.Warnings
+                            lWarning.project = lProjectName
+                            lMergedResult.Warnings.Add(lWarning)
+                        Next
+
+                        If Not lResult.Success Then
+                            lMergedResult.Success = False
+                            lFailedProjectName = lProjectName
+                            Exit for
+                        End If
+                    Next
+
+                Catch ex As Exception
+                    Console.WriteLine($"BuildSolution build loop error: {ex.Message}")
+                    lMergedResult.Success = False
+                End Try
+
+                lMergedResult.ErrorCount = lMergedResult.Errors.Count
+                lMergedResult.WarningCount = lMergedResult.Warnings.Count
+
+                Application.Invoke(Sub()
+                    Try
+                        pBuildOutputPanel?.ShowBuildResult(lMergedResult, pCurrentProject)
+
+                        If lMergedResult.Success Then
+                            UpdateStatusBar($"Solution build succeeded ({lProjects.Count} project(s))")
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Solution build succeeded =========={Environment.NewLine}")
+                        Else
+                            UpdateStatusBar($"Solution build failed ({lFailedProjectName}): {lMergedResult.Errors.Count} error(s)")
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Solution build failed ({lFailedProjectName}): {lMergedResult.Errors.Count} error(s), {lMergedResult.Warnings.Count} warning(s) =========={Environment.NewLine}")
+
+                            If lMergedResult.Errors.Count > 0 Then
+                                pBuildOutputPanel.Notebook.CurrentPage = 1
+                            ElseIf lMergedResult.Warnings.Count > 0 Then
+                                pBuildOutputPanel.Notebook.CurrentPage = 2
+                            End If
+                        End If
+
+                        SetBuildButtonsEnabled(True)
+
+                    Catch ex As Exception
+                        Console.WriteLine($"BuildSolution completion error: {ex.Message}")
+                    Finally
+                        pIsBuildingNow = False
+                    End Try
+                End Sub)
+            End Function)
+
+        Catch ex As Exception
+            Console.WriteLine($"BuildSolution error: {ex.Message}")
+            ShowError("Build Solution Error", ex.Message)
+            pIsBuildingNow = False
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the "Build Solution" menu command and Ctrl+Shift+B
+    ''' </summary>
+    Public Sub OnBuildSolution(vSender As Object, vArgs As EventArgs)
+        Try
+            Console.WriteLine("OnBuildSolution called (Ctrl+Shift+B - Build Solution)")
+            BuildSolution()
+        Catch ex As Exception
+            Console.WriteLine($"OnBuildSolution error: {ex.Message}")
+            ShowError("Build Error", ex.Message)
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Try to increment version before build if enabled
