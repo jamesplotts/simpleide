@@ -1,7 +1,8 @@
 ' Widgets/ReferenceManagerTab.vb - Reference management UI, opened as a notebook tab
-' rather than a dialog. Manages Assembly/NuGet/Project references for exactly ONE project -
-' see the header label this tab always shows, so which project is being edited is never
-' ambiguous even when several of these tabs (one per project) are open at once in a solution
+' rather than a dialog. Manages Assembly/NuGet/Project references for one project at a
+' time - when a solution is loaded, a "Project:" picker (matching Object Explorer's own
+' project picker) lets the user switch which project is being edited, rather than which
+' project it's showing ever being ambiguous or requiring a separate tab per project
 Imports Gtk
 Imports System.IO
 Imports System.Collections.Generic
@@ -14,16 +15,19 @@ Imports SimpleIDE.Managers
 Namespace Widgets
 
     ''' <summary>
-    ''' Manages Assembly/NuGet Package/Project references for a single project. Deliberately
-    ''' does NOT implement IEditor, following the same pattern as PreferencesTab/
+    ''' Manages Assembly/NuGet Package/Project references for a single project at a time,
+    ''' with a project picker to switch when a solution is loaded. Deliberately does NOT
+    ''' implement IEditor, following the same pattern as PreferencesTab/
     ''' AssemblySettingsEditor/SolutionSettingsTab - a settings view, not a text editor
     ''' </summary>
     ''' <remarks>
     ''' Converted from the former Dialogs/ReferenceManagerDialog.vb (modal Dialog) at James'
-    ''' request. One tab per project (MainWindow keys pOpenTabs by project name), each with
-    ''' its own "References for: X" header, so opening this for a different project in a
-    ''' loaded solution never overwrites or gets confused with another project's tab - the
-    ''' ambiguity a single shared modal dialog had no way to make visible.
+    ''' request. Originally shipped as one tab per project, keyed by project name - James
+    ''' found that confusing/limiting (easy to only ever reach the startup project's tab)
+    ''' and asked for a single tab with a project-switcher dropdown instead, the same pattern
+    ''' Object Explorer already uses (CustomDrawObjectExplorer.Toolbar.vb's project picker).
+    ''' MainWindow now keeps exactly one of these tabs open and calls SwitchToProject on it
+    ''' rather than opening a new tab per project.
     ''' </remarks>
     Public Class ReferenceManagerTab
         Inherits Box
@@ -31,10 +35,13 @@ Namespace Widgets
         ' ===== Private Fields =====
         Private pNotebook As CustomDrawNotebook
         Private pThemeManager As ThemeManager
+        Private pSolutionManager As SolutionManager
         Private pProjectFile As String
         Private pNuGetClient As NuGetClient
         Private pSettingsManager As SettingsManager
         Private pProjectManager As ProjectManager
+        Private pTitleLabel As Label
+        Private pProjectCombo As CustomDrawComboBox
 
         ' Assembly tab components
         Private pAssemblyTreeView As TreeView
@@ -96,15 +103,21 @@ Namespace Widgets
         ' ===== Constructor =====
 
         ''' <summary>
-        ''' Creates a new Reference Manager tab for a single project
+        ''' Creates a new Reference Manager tab, initially showing one project
         ''' </summary>
-        ''' <param name="vProjectManager">The project to manage references for</param>
+        ''' <param name="vProjectManager">The project to manage references for initially</param>
+        ''' <param name="vSolutionManager">
+        ''' The loaded solution, if any - when it has more than one project, a "Project:"
+        ''' picker is shown letting the user switch which project this tab edits; Nothing
+        ''' (or a single-project solution) shows a plain, non-interactive title instead
+        ''' </param>
         ''' <param name="vThemeManager">Optional ThemeManager for CustomDraw widget theming</param>
-        Public Sub New(vProjectManager As ProjectManager, Optional vThemeManager As ThemeManager = Nothing)
+        Public Sub New(vProjectManager As ProjectManager, Optional vSolutionManager As SolutionManager = Nothing, Optional vThemeManager As ThemeManager = Nothing)
             MyBase.New(Orientation.Vertical, 5)
             Try
                 pProjectManager = vProjectManager
                 pProjectFile = vProjectManager.CurrentProjectPath
+                pSolutionManager = vSolutionManager
                 pThemeManager = vThemeManager
 
                 BuildUI()
@@ -119,10 +132,30 @@ Namespace Widgets
             Try
                 BorderWidth = 10
 
-                Dim lTitleLabel As New Label()
-                lTitleLabel.Markup = $"<b>References for: {GLib.Markup.EscapeText(pProjectManager.CurrentProjectName)}</b>"
-                lTitleLabel.Halign = Align.Start
-                PackStart(lTitleLabel, False, False, 0)
+                If pSolutionManager IsNot Nothing AndAlso pSolutionManager.AllProjects.Count > 1 Then
+                    Dim lHeaderBox As New Box(Orientation.Horizontal, 6)
+
+                    Dim lProjectLabel As New Label("Project:")
+                    lHeaderBox.PackStart(lProjectLabel, False, False, 0)
+
+                    pProjectCombo = New CustomDrawComboBox()
+                    pProjectCombo.ThemeManager = pThemeManager
+                    pProjectCombo.WidthRequest = 200
+                    for each lProj in pSolutionManager.AllProjects
+                        pProjectCombo.AppendText(lProj.CurrentProjectName)
+                    Next
+                    Dim lActiveIndex As Integer = pProjectCombo.IndexOf(pProjectManager.CurrentProjectName)
+                    pProjectCombo.Active = If(lActiveIndex >= 0, lActiveIndex, 0)
+                    AddHandler pProjectCombo.Changed, AddressOf OnProjectComboChanged
+                    lHeaderBox.PackStart(pProjectCombo, False, False, 0)
+
+                    PackStart(lHeaderBox, False, False, 0)
+                Else
+                    pTitleLabel = New Label()
+                    pTitleLabel.Markup = $"<b>References for: {GLib.Markup.EscapeText(pProjectManager.CurrentProjectName)}</b>"
+                    pTitleLabel.Halign = Align.Start
+                    PackStart(pTitleLabel, False, False, 0)
+                End If
 
                 pNotebook = New CustomDrawNotebook(pThemeManager)
 
@@ -392,6 +425,55 @@ Namespace Widgets
 
             Return lVBox
         End Function
+
+        ''' <summary>
+        ''' Handles the project picker's selection changing - switches every sub-tab
+        ''' (Assemblies/NuGet/Projects) to show the newly-selected project's own references
+        ''' </summary>
+        Private Sub OnProjectComboChanged(vSender As Object, vArgs As EventArgs)
+            Try
+                If pSolutionManager Is Nothing OrElse pProjectCombo.Active < 0 Then Return
+                Dim lProjects As IReadOnlyList(Of ProjectManager) = pSolutionManager.AllProjects
+                If pProjectCombo.Active >= lProjects.Count Then Return
+
+                SwitchToProject(lProjects(pProjectCombo.Active))
+
+            Catch ex As Exception
+                Console.WriteLine($"ReferenceManagerTab.OnProjectComboChanged error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Switches this tab to show and edit a different project's references - updates the
+        ''' picker's own selection (without re-triggering Changed) if called externally (e.g.
+        ''' MainWindow re-requesting this tab for a different project's References node)
+        ''' </summary>
+        ''' <param name="vProjectManager">The project to switch to</param>
+        Public Sub SwitchToProject(vProjectManager As ProjectManager)
+            Try
+                If vProjectManager Is Nothing Then Return
+
+                pProjectManager = vProjectManager
+                pProjectFile = vProjectManager.CurrentProjectPath
+
+                If pProjectCombo IsNot Nothing Then
+                    Dim lIndex As Integer = pProjectCombo.IndexOf(vProjectManager.CurrentProjectName)
+                    If lIndex >= 0 AndAlso pProjectCombo.Active <> lIndex Then
+                        RemoveHandler pProjectCombo.Changed, AddressOf OnProjectComboChanged
+                        pProjectCombo.Active = lIndex
+                        AddHandler pProjectCombo.Changed, AddressOf OnProjectComboChanged
+                    End If
+                ElseIf pTitleLabel IsNot Nothing Then
+                    pTitleLabel.Markup = $"<b>References for: {GLib.Markup.EscapeText(vProjectManager.CurrentProjectName)}</b>"
+                End If
+
+                LoadCurrentReferences()
+                LoadInstalledPackages()
+
+            Catch ex As Exception
+                Console.WriteLine($"ReferenceManagerTab.SwitchToProject error: {ex.Message}")
+            End Try
+        End Sub
 
         ''' <summary>
         ''' Load current references from project through ProjectManager

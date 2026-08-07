@@ -72,11 +72,15 @@ Partial Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Opens (or switches to) the Reference Manager tab for a specific project - one tab per
-    ''' project (keyed by project name), so managing references for several projects in a
-    ''' loaded solution never collides or leaves it ambiguous which project is being edited;
-    ''' each tab's own "References for: X" header (ReferenceManagerTab.vb) makes it visually
-    ''' unambiguous too
+    ''' Reference Manager tab key - a single shared tab, not one per project (James found
+    ''' one-per-project confusing/limiting; ReferenceManagerTab.vb's own "Project:" picker
+    ''' now handles switching which project is being edited)
+    ''' </summary>
+    Private Const REFERENCES_TAB_KEY As String = "References"
+
+    ''' <summary>
+    ''' Opens the Reference Manager tab for a specific project, or - if it's already open -
+    ''' switches its existing project picker to that project instead of opening a second one
     ''' </summary>
     ''' <remarks>
     ''' Follows the same pattern as OpenSolutionSettingsTab/OpenAssemblySettingsEditor - a
@@ -86,16 +90,15 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OpenReferencesTab(vProjectManager As ProjectManager, Optional vInitialTab As Integer = 0)
         Try
-            Dim lTabKey As String = $"References: {vProjectManager.CurrentProjectName}"
+            Dim lExistingTabInfo As TabInfo = Nothing
+            If pOpenTabs.TryGetValue(REFERENCES_TAB_KEY, lExistingTabInfo) Then
+                Dim lExistingRefTab As ReferenceManagerTab = TryCast(lExistingTabInfo.EditorContainer, ReferenceManagerTab)
+                lExistingRefTab?.SwitchToProject(vProjectManager)
+                SwitchToTab(REFERENCES_TAB_KEY)
+                Return
+            End If
 
-            for each lTabEntry in pOpenTabs
-                If lTabEntry.Key = lTabKey Then
-                    SwitchToTab(lTabEntry.Key)
-                    Return
-                End If
-            Next
-
-            Dim lRefTab As New ReferenceManagerTab(vProjectManager, pThemeManager)
+            Dim lRefTab As New ReferenceManagerTab(vProjectManager, pSolutionManager, pThemeManager)
             AddHandler lRefTab.ReferencesChanged, AddressOf OnReferencesChanged
 
             If vInitialTab >= 0 AndAlso vInitialTab < lRefTab.Notebook.NPages Then
@@ -103,18 +106,18 @@ Partial Public Class MainWindow
             End If
 
             Dim lTabInfo As New TabInfo() With {
-                .FilePath = lTabKey,
+                .FilePath = REFERENCES_TAB_KEY,
                 .Editor = Nothing,
                 .EditorContainer = lRefTab,
                 .Modified = False,
                 .IsSpecialTab = True
             }
 
-            Dim lPageIndex As Integer = pNotebook.AppendPage(lRefTab, lTabKey)
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lRefTab, "References")
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
 
-            pOpenTabs(lTabKey) = lTabInfo
+            pOpenTabs(REFERENCES_TAB_KEY) = lTabInfo
             UpdateStatusBar($"Opened references for {vProjectManager.CurrentProjectName}")
 
         Catch ex As Exception
