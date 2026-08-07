@@ -298,12 +298,16 @@ Partial Public Class MainWindow
                 If Me.IsRealized AndAlso Me.Visible Then
                     Console.WriteLine($"MainWindow(project) Timeout: Window ready, loading project")
                     
-                    ' Load the project asynchronously
-                    If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso 
+                    ' Load the project (or solution) asynchronously
+                    If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso
                        File.Exists(pPendingProjectFile) AndAlso
                        String.IsNullOrEmpty(pCurrentProject) Then
-                        
-                        LoadProjectEnhanced(pPendingProjectFile)
+
+                        If System.IO.Path.GetExtension(pPendingProjectFile).Equals(".sln", StringComparison.OrdinalIgnoreCase) Then
+                            LoadSolutionEnhanced(pPendingProjectFile)
+                        Else
+                            LoadProjectEnhanced(pPendingProjectFile)
+                        End If
                         pPendingProjectFile = Nothing
                     End If
                     

@@ -535,8 +535,8 @@ Module Program
                             ' Check if it's a project file
                             Dim lExtension As String = Path.GetExtension(lFullPath).ToLower()
                             
-                            If lExtension = ".vbproj" OrElse lExtension = ".csproj" Then
-                                ' It's a project file - only load the first one
+                            If lExtension = ".vbproj" OrElse lExtension = ".csproj" OrElse lExtension = ".sln" Then
+                                ' It's a project or solution file - only load the first one
                                 If lProjectToLoad Is Nothing Then
                                     lProjectToLoad = lFullPath
                                     Console.WriteLine($"Will load project: {lFullPath}")
@@ -834,8 +834,9 @@ Module Program
         Console.WriteLine("      --output FILE       Write output to file instead of console")
         Console.WriteLine()
         Console.WriteLine("Examples:")
-        Console.WriteLine("  VbIDE                           # Auto-detect project in current directory")
+        Console.WriteLine("  VbIDE                           # Auto-detect project/solution in current directory")
         Console.WriteLine("  VbIDE MyProject.vbproj          # Open specific project")
+        Console.WriteLine("  VbIDE MySolution.sln            # Open specific solution (all member projects)")
         Console.WriteLine("  VbIDE Program.vb Module1.vb     # Open files without project")
         Console.WriteLine("  VbIDE -n MyApp -t Console       # Create new console application")
         Console.WriteLine("  VbIDE -p ~/projects/App.vbproj  # Open project from specific path")
@@ -845,8 +846,8 @@ Module Program
         Console.WriteLine("  VBIDE_THEME            Set color theme (Dark|Light|System)")
         Console.WriteLine("  VBIDE_DEBUG            Enable debug logging (1|true)")
         Console.WriteLine()
-        Console.WriteLine("When launched without arguments in a directory containing a .vbproj file,")
-        Console.WriteLine("the IDE will automatically load that project.")
+        Console.WriteLine("When launched without arguments in a directory containing a .sln or .vbproj")
+        Console.WriteLine("file, the IDE will automatically load it (a .sln takes priority).")
     End Sub
     
     ''' <summary>
@@ -924,7 +925,25 @@ Module Program
     ''' </summary>
     Private Function AutoDetectProject(vDirectory As String) As String
         Console.WriteLine($"Searching for project in: {vDirectory}")
-        
+
+        ' A solution is a superset of a single project - if a .sln is sitting right here
+        ' (e.g. launched from a multi-project solution folder), prefer it over any lone
+        ' .vbproj in the same directory
+        Dim lSolutionFiles As String() = Directory.GetFiles(vDirectory, "*.sln", SearchOption.TopDirectoryOnly)
+        If lSolutionFiles.Length > 0 Then
+            Dim lSolutionToLoad As String = lSolutionFiles(0)
+            Console.WriteLine($"Found solution file: {lSolutionToLoad}")
+
+            If lSolutionFiles.Length > 1 Then
+                Console.WriteLine($"Warning: Multiple solution files found. Using: {Path.GetFileName(lSolutionToLoad)}")
+                for i As Integer = 1 To lSolutionFiles.Length - 1
+                    Console.WriteLine($"  Ignoring: {Path.GetFileName(lSolutionFiles(i))}")
+                Next
+            End If
+
+            Return lSolutionToLoad
+        End If
+
         ' Search for *.vbproj files in current directory
         Dim lProjectFiles As String() = Directory.GetFiles(vDirectory, "*.vbproj", SearchOption.TopDirectoryOnly)
         
