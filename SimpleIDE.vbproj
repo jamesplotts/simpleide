@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1264.0</AssemblyVersion>
-    <FileVersion>1.1.1264.0</FileVersion>
+    <AssemblyVersion>1.1.1267.0</AssemblyVersion>
+    <FileVersion>1.1.1267.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1264</Version>
+    <Version>1.1.1267</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -289,6 +289,7 @@
     <Compile Include="Widgets/TODOPanel.vb" />
     <Compile Include="Widgets/ScratchpadPanel.vb" />
     <Compile Include="Widgets/SolutionSettingsTab.vb" />
+    <Compile Include="Widgets/ReferenceManagerTab.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Animation.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Compatibility.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Drawing.vb" />
@@ -300,7 +301,6 @@
     <!-- Dialogs -->
     <Compile Include="Dialogs/BuildConfigurationDialog.vb" />
     <Compile Include="Dialogs/NewProjectDialog.vb" />
-    <Compile Include="Dialogs/ReferenceManagerDialog.vb" />
     <Compile Include="Dialogs/GitCommitDialog.vb" />
     <Compile Include="Dialogs/GitBranchDialog.vb" />
     <Compile Include="Dialogs/DefinitionPickerDialog.vb" />

@@ -88,6 +88,13 @@ Namespace Widgets
         ''' Raised when "Solution Settings..." is chosen from the solution root's context menu
         ''' </summary>
         Public Event SolutionSettingsRequested()
+
+        ''' <summary>
+        ''' Raised when the Reference Manager should be opened for a specific project -
+        ''' vProjectManager is already resolved to the project that actually owns whichever
+        ''' node triggered this (e.g. the References node that was double-clicked)
+        ''' </summary>
+        Public Event ReferencesTabRequested(vProjectManager As ProjectManager)
         
         ''' <summary>
         ''' Raised when a node is double-clicked

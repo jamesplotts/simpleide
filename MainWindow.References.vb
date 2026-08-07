@@ -5,70 +5,121 @@ Imports System.IO
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports SimpleIDE.Managers
-Imports SimpleIDE.Dialogs
+Imports SimpleIDE.Widgets
 
 Partial Public Class MainWindow
-    
+
     ' ===== Reference Management Integration =====
 
     ''' <summary>
-    ''' Show the Reference Manager dialog with ProjectManager integration
+    ''' Show the Reference Manager for the active project (resolved via the current editor's
+    ''' owning project, falling back to the startup project)
     ''' </summary>
     Public Sub ShowReferenceManager()
         Try
-            If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+            Dim lProjectManager As ProjectManager = ResolveProjectManagerForRequester(GetCurrentEditor())
+            If lProjectManager Is Nothing OrElse Not lProjectManager.IsProjectOpen Then
                 ShowError("No Project", "Please open a project first")
                 Return
             End If
-            
-            ' Create dialog with ProjectManager
-            Dim lDialog As New ReferenceManagerDialog(Me, pProjectManager.CurrentProjectPath, pProjectManager, pThemeManager)
-            
-            ' Handle references changed event
-            AddHandler lDialog.ReferencesChanged, Sub()
-                OnReferencesChanged()
-            End Sub
-            
-            ' Show the dialog
-            lDialog.Run()
-            lDialog.Destroy()
-            
+
+            OpenReferencesTab(lProjectManager)
+
         Catch ex As Exception
             Console.WriteLine($"ShowReferenceManager error: {ex.Message}")
             ShowError("Reference Manager Error", ex.Message)
         End Try
     End Sub
-    
-    ' Show the Reference Manager dialog
+
+    ''' <summary>
+    ''' Handles the "References..." Project menu command
+    ''' </summary>
+    ''' <remarks>
+    ''' Resolves WHICH project via ResolveProjectManagerForRequester(GetCurrentEditor()) -
+    ''' the same cross-project resolution used for Go to Definition/Find All References -
+    ''' rather than the single "current project" field, since a menu click carries no node
+    ''' context of its own to resolve from the way a Project Explorer context-menu action
+    ''' does. Falls back to the startup project when no editor tab is focused.
+    ''' </remarks>
     Public Sub OnManageReferences(vSender As Object, vArgs As EventArgs, Optional vInitialTab As Integer = 0)
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
+            Dim lProjectManager As ProjectManager = ResolveProjectManagerForRequester(GetCurrentEditor())
+            If lProjectManager Is Nothing OrElse Not lProjectManager.IsProjectOpen Then
                 ShowError("No project", "Please open a project before managing References.")
                 Return
             End If
-            
-            ' Create and show the reference manager dialog
-            Dim lDialog As New ReferenceManagerDialog(Me, pCurrentProject, pProjectManager, pThemeManager)
-            
-            ' Select initial tab if specified
-            If vInitialTab >= 0 AndAlso vInitialTab < lDialog.Notebook.NPages Then
-                lDialog.Notebook.SetCurrentTab(vInitialTab, True)
-            End If
-            
-            ' Handle references changed event
-            AddHandler lDialog.ReferencesChanged, AddressOf OnReferencesChanged
-            
-            ' Show dialog
-            If lDialog.Run() = CInt(ResponseType.Ok) Then
-                ' References were modified
-                RefreshProjectExplorer()
-            End If
-            
-            lDialog.Destroy()
-            
+
+            OpenReferencesTab(lProjectManager, vInitialTab)
+
         Catch ex As Exception
             Console.WriteLine($"OnManageReferences error: {ex.Message}")
             ShowError("Reference Manager error", ex.Message)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the "References..." request from Project Explorer's References node
+    ''' (double-click) or context menu - vProjectManager is already resolved to the correct
+    ''' owning project by the caller (GetOwningProjectManager), so this never has to guess
+    ''' </summary>
+    Private Sub OnReferencesTabRequested(vProjectManager As ProjectManager)
+        Try
+            If vProjectManager Is Nothing Then Return
+            OpenReferencesTab(vProjectManager)
+        Catch ex As Exception
+            Console.WriteLine($"OnReferencesTabRequested error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Opens (or switches to) the Reference Manager tab for a specific project - one tab per
+    ''' project (keyed by project name), so managing references for several projects in a
+    ''' loaded solution never collides or leaves it ambiguous which project is being edited;
+    ''' each tab's own "References for: X" header (ReferenceManagerTab.vb) makes it visually
+    ''' unambiguous too
+    ''' </summary>
+    ''' <remarks>
+    ''' Follows the same pattern as OpenSolutionSettingsTab/OpenAssemblySettingsEditor - a
+    ''' settings view, not a text editor, so it deliberately does NOT implement IEditor;
+    ''' registered in pOpenTabs with Editor = Nothing and IsSpecialTab = True purely so it
+    ''' participates in normal tab close/dispose handling
+    ''' </remarks>
+    Private Sub OpenReferencesTab(vProjectManager As ProjectManager, Optional vInitialTab As Integer = 0)
+        Try
+            Dim lTabKey As String = $"References: {vProjectManager.CurrentProjectName}"
+
+            for each lTabEntry in pOpenTabs
+                If lTabEntry.Key = lTabKey Then
+                    SwitchToTab(lTabEntry.Key)
+                    Return
+                End If
+            Next
+
+            Dim lRefTab As New ReferenceManagerTab(vProjectManager, pThemeManager)
+            AddHandler lRefTab.ReferencesChanged, AddressOf OnReferencesChanged
+
+            If vInitialTab >= 0 AndAlso vInitialTab < lRefTab.Notebook.NPages Then
+                lRefTab.Notebook.SetCurrentTab(vInitialTab, True)
+            End If
+
+            Dim lTabInfo As New TabInfo() With {
+                .FilePath = lTabKey,
+                .Editor = Nothing,
+                .EditorContainer = lRefTab,
+                .Modified = False,
+                .IsSpecialTab = True
+            }
+
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lRefTab, lTabKey)
+            pNotebook.ShowAll()
+            pNotebook.CurrentPage = lPageIndex
+
+            pOpenTabs(lTabKey) = lTabInfo
+            UpdateStatusBar($"Opened references for {vProjectManager.CurrentProjectName}")
+
+        Catch ex As Exception
+            Console.WriteLine($"OpenReferencesTab error: {ex.Message}")
+            ShowError("Reference Manager Error", ex.Message)
         End Try
     End Sub
     

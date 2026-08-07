@@ -396,21 +396,19 @@ Namespace Widgets
         End Function
 
         ''' <summary>
-        ''' Shows the Reference Manager dialog and refreshes the References node
-        ''' with whatever changes the user made
+        ''' Requests that MainWindow open the Reference Manager tab for the given project -
+        ''' vProjectManager is resolved by the caller (GetOwningProjectManager) to the node
+        ''' that was actually double-clicked/selected, not just whichever project
+        ''' pProjectManager currently happens to point to
         ''' </summary>
-        Private Sub ShowReferenceManagerDialog()
+        ''' <param name="vProjectManager">The project the References node belongs to</param>
+        Private Sub RequestReferencesTab(vProjectManager As ProjectManager)
             Try
-                If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then Return
-
-                Dim lDialog As New ReferenceManagerDialog(GetTopLevelWindow(), pProjectManager.CurrentProjectPath, pProjectManager, pThemeManager)
-                AddHandler lDialog.ReferencesChanged, AddressOf RefreshReferences
-
-                lDialog.Run()
-                lDialog.Destroy()
+                If vProjectManager Is Nothing OrElse Not vProjectManager.IsProjectOpen Then Return
+                RaiseEvent ReferencesTabRequested(vProjectManager)
 
             Catch ex As Exception
-                Console.WriteLine($"ShowReferenceManagerDialog error: {ex.Message}")
+                Console.WriteLine($"RequestReferencesTab error: {ex.Message}")
             End Try
         End Sub
         

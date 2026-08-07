@@ -403,9 +403,13 @@ Namespace Widgets
                         RaiseEvent ManifestSelected()
                     End If
                 ElseIf vNode.Node.NodeType = ProjectNodeType.eReferences Then
-                    ' Open the Reference Manager rather than trying to expand/collapse -
-                    ' the node's children are just a read-only mirror of the project file
-                    ShowReferenceManagerDialog()
+                    ' Open the Reference Manager rather than trying to expand/collapse - the
+                    ' node's children are just a read-only mirror of the project file. Resolve
+                    ' the References node's own owning project (GetOwningProjectManager walks
+                    ' up to the nearest OwningProjectPath-bearing ancestor) rather than
+                    ' whichever project pProjectManager currently happens to point to - this
+                    ' double-click path doesn't go through ShowContextMenu's own resolution
+                    RequestReferencesTab(GetOwningProjectManager(vNode.Node))
                 Else
                     ' Toggle folder expansion
                     ToggleNodeExpansion(vNode)

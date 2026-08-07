@@ -398,6 +398,7 @@ Partial Public Class MainWindow
             AddHandler pProjectExplorer.ReferencesChanged, AddressOf OnReferencesChanged
             AddHandler pProjectExplorer.ManifestSelected, AddressOf OnManifestSelected
             AddHandler pProjectExplorer.SolutionSettingsRequested, AddressOf OnSolutionSettingsRequested
+            AddHandler pProjectExplorer.ReferencesTabRequested, AddressOf OnReferencesTabRequested
             
             ' Create center vertical paned for editor and bottom panel
             pCenterVPaned = New Paned(Orientation.Vertical)
