@@ -31,7 +31,26 @@ Namespace Widgets
                 pToolbar = New Toolbar()
                 pToolbar.ToolbarStyle = ToolbarStyle.Icons
                 pToolbar.IconSize = IconSize.SmallToolbar
-                
+
+                ' A click that lands on the toolbar's own background - or on a plain Label
+                ' like "Scale:", which doesn't consume button events itself - is otherwise
+                ' never claimed by any child widget, so GTK delivers it to the nearest
+                ' ancestor that owns an input window, which ends up being the main window
+                ' itself. A double-click there is then apparently interpreted as equivalent
+                ' to double-clicking the titlebar (toggling maximize/restore) by this
+                ' desktop's window manager. Explicitly marking the event handled here stops
+                ' it from ever reaching that point.
+                AddHandler pToolbar.ButtonPressEvent, AddressOf OnToolbarBackgroundButtonPress
+
+                ' Swallowing the press alone stopped the double-click-to-maximize behavior,
+                ' but click-and-drag on the same background still moves the window like a
+                ' titlebar - that's very likely the window manager's own X11-level drag
+                ' tracking off the raw pointer motion (independent of whether GTK marked the
+                ' press "handled"), so also swallow motion here in case it IS GTK-level.
+                ' Widgets don't receive motion events by default unless they request the mask.
+                pToolbar.Events = pToolbar.Events Or Gdk.EventMask.PointerMotionMask
+                AddHandler pToolbar.MotionNotifyEvent, AddressOf OnToolbarBackgroundMotion
+
                 ' Create toolbar items
                 CreateRefreshButton()
                 pToolbar.Add(New SeparatorToolItem())
@@ -46,9 +65,35 @@ Namespace Widgets
                 pToolbar.Add(lExpandingSeparator)
                 
                 'CreateCloseButton()
-                
+
+                ' Wrap in a Gtk.EventBox - a Gtk.ToolItem (the wrapper GTK creates around
+                ' each item added to a Toolbar, for its own drag-reorder support) realizes
+                ' its own separate input window, so the ButtonPressEvent/MotionNotifyEvent
+                ' handlers wired directly on pToolbar above only ever catch truly bare
+                ' Toolbar canvas outside every ToolItem (e.g. the trailing gap past the
+                ' expanding separator) - anything landing within a ToolItem's own bounds but
+                ' not claimed by a deeper interactive child (a button's own padding, the
+                ' plain "Scale:" Label) never reaches them. EventBox exists specifically to
+                ' give an area a real window so it can reliably claim events like this;
+                ' wrapping the whole toolbar in one guarantees the same swallow-handlers
+                ' actually see everything not already claimed by a button/combo's own
+                ' window, without interfering with those - GTK still delivers directly to
+                ' the most specific windowed widget under the cursor first.
+                '
+                ' KNOWN LIMITATION - see the matching comment in MainWindow.vb's own
+                ' EventBox wrap: this fixed double-click-to-maximize but not click-and-drag
+                ' still moving the window like a titlebar, believed to be a KDE/KWin-level
+                ' behavior below what these handlers can intercept. Accepted as a known
+                ' desktop-environment quirk, not something to re-attempt without new
+                ' information.
+                Dim lToolbarEventBox As New EventBox()
+                lToolbarEventBox.Events = Gdk.EventMask.ButtonPressMask Or Gdk.EventMask.PointerMotionMask
+                AddHandler lToolbarEventBox.ButtonPressEvent, AddressOf OnToolbarBackgroundButtonPress
+                AddHandler lToolbarEventBox.MotionNotifyEvent, AddressOf OnToolbarBackgroundMotion
+                lToolbarEventBox.Add(pToolbar)
+
                 ' Add toolbar to container
-                PackStart(pToolbar, False, False, 0)
+                PackStart(lToolbarEventBox, False, False, 0)
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeToolbar error: {ex.Message}")
@@ -120,8 +165,15 @@ Namespace Widgets
                 Dim lScaleItem As New ToolItem()
                 Dim lScaleBox As New Box(Orientation.Horizontal, 4)
                 
-                ' Create label
+                ' Create label - a plain Gtk.Label requests/handles no events of its own by
+                ' default, so an unclaimed click-and-drag on it was bubbling up and being
+                ' interpreted by the window manager as dragging the window, the same root
+                ' cause as CustomDrawButton's identical fix. Reuses this file's own
+                ' toolbar-background swallow handlers since the behavior needed is identical.
                 pScaleLabel = New Label("Scale:")
+                pScaleLabel.Events = Gdk.EventMask.ButtonPressMask Or Gdk.EventMask.PointerMotionMask
+                AddHandler pScaleLabel.ButtonPressEvent, AddressOf OnToolbarBackgroundButtonPress
+                AddHandler pScaleLabel.MotionNotifyEvent, AddressOf OnToolbarBackgroundMotion
                 lScaleBox.PackStart(pScaleLabel, False, False, 0)
                 
                 ' Create combo box with preset scales - CustomDrawComboBox has no built-in
@@ -338,7 +390,32 @@ Namespace Widgets
                 Console.WriteLine($"UpdateScaleDisplay error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Swallows a button press that lands on the toolbar's own background (not on any
+        ''' button/control) so it can never propagate further - see the AddHandler site in
+        ''' InitializeToolbar for why this exists
+        ''' </summary>
+        Private Sub OnToolbarBackgroundButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
+            Try
+                vArgs.RetVal = True
+            Catch ex As Exception
+                Console.WriteLine($"OnToolbarBackgroundButtonPress error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Swallows pointer motion over the toolbar's own background - see the AddHandler
+        ''' site in InitializeToolbar for why this exists
+        ''' </summary>
+        Private Sub OnToolbarBackgroundMotion(vSender As Object, vArgs As MotionNotifyEventArgs)
+            Try
+                vArgs.RetVal = True
+            Catch ex As Exception
+                Console.WriteLine($"OnToolbarBackgroundMotion error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
     
 End Namespace

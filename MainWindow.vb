@@ -341,7 +341,38 @@ Partial Public Class MainWindow
             ' Apply initial toolbar settings
             ApplyToolbarSettings()
 
-            pMainVBox.PackStart(pToolbar, False, False, 0)
+            ' Wrap in a Gtk.EventBox - a Gtk.ToolItem (the wrapper GTK creates around each
+            ' item added to a Toolbar, for its own drag-reorder support) realizes its own
+            ' separate input window, so a plain ButtonPressEvent/MotionNotifyEvent handler on
+            ' pToolbar itself only ever catches truly bare Toolbar canvas outside every
+            ' ToolItem (e.g. the gap after the last item) - anything landing within a
+            ' ToolItem's own bounds but not claimed by a deeper interactive child (button
+            ' padding, a plain Label) never reaches it. EventBox exists specifically to give
+            ' an area a real window so it can reliably claim events like this; wrapping the
+            ' whole toolbar in one guarantees the swallow-handlers below actually see
+            ' everything not already claimed by a button/control's own window, without
+            ' interfering with those - GTK still delivers directly to the most specific
+            ' windowed widget under the cursor first.
+            '
+            ' KNOWN LIMITATION (2026-08-06): this, together with the matching fixes in
+            ' CustomDrawButton/CustomDrawComboBox (SimpleIDE.Widgets) and the identical
+            ' EventBox wrap in CustomDrawProjectExplorer.Toolbar.vb/
+            ' CustomDrawObjectExplorer.Toolbar.vb, DID fix double-click-on-toolbar-background
+            ' toggling window maximize/restore. It did NOT fully fix click-and-drag on a
+            ' toolbar still moving the window like a titlebar - confirmed still reproducible
+            ' by James after this round of fixes. Believed to be a KDE/KWin (or GTK3
+            ' interactive-move) behavior operating below the level these GTK signal handlers
+            ' can intercept, rather than anything wrong in this app's own widget code. James
+            ' has accepted this as a known desktop-environment quirk rather than something
+            ' worth further investigation - don't re-attempt fixing the drag specifically
+            ' without new information.
+            Dim lToolbarEventBox As New EventBox()
+            lToolbarEventBox.Events = Gdk.EventMask.ButtonPressMask Or Gdk.EventMask.PointerMotionMask
+            AddHandler lToolbarEventBox.ButtonPressEvent, AddressOf OnToolbarBackgroundButtonPress
+            AddHandler lToolbarEventBox.MotionNotifyEvent, AddressOf OnToolbarBackgroundMotion
+            lToolbarEventBox.Add(pToolbar)
+
+            pMainVBox.PackStart(lToolbarEventBox, False, False, 0)
             
             ' Create main horizontal paned for project explorer and center
             pMainHPaned = New Paned(Orientation.Horizontal)

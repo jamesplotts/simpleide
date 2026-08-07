@@ -55,6 +55,27 @@ Partial Public Class MainWindow
     Private Sub CreateToolbar()
         Try
             pToolbar = New Toolbar()
+
+            ' A click that lands on the toolbar's own background (not on any button/control -
+            ' e.g. the gap after the last item) is otherwise never claimed by any child widget,
+            ' so GTK delivers it to the nearest ancestor that owns an input window - which ends
+            ' up being this window itself. A double-click there is then apparently interpreted
+            ' as equivalent to double-clicking the titlebar (toggling maximize/restore) by this
+            ' desktop's window manager. Explicitly marking the event handled here stops it from
+            ' ever reaching that point - individual toolbar buttons/controls have their own
+            ' input windows and are unaffected, since GTK only delivers here when nothing more
+            ' specific already claimed the click.
+            AddHandler pToolbar.ButtonPressEvent, AddressOf OnToolbarBackgroundButtonPress
+
+            ' Swallowing the press alone stopped the double-click-to-maximize behavior, but
+            ' James found click-and-drag on the same background still moves the window like
+            ' a titlebar - that's very likely the window manager's own X11-level drag
+            ' tracking off the raw pointer motion (independent of whether GTK marked the
+            ' press "handled"), so also swallow motion here in case it IS GTK-level. Widgets
+            ' don't receive motion events by default unless they request the mask.
+            pToolbar.Events = pToolbar.Events Or Gdk.EventMask.PointerMotionMask
+            AddHandler pToolbar.MotionNotifyEvent, AddressOf OnToolbarBackgroundMotion
+
             pToolbarIconSpecs = New List(Of ToolbarIconSpec)
 
             Dim lPixelSize As Integer = GetToolbarIconPixelSize()
@@ -527,6 +548,31 @@ Partial Public Class MainWindow
     ''' <summary>
     ''' Creates a toolbar button for quick find using clipboard content with F2 shortcut
     ''' </summary>
+    ''' <summary>
+    ''' Swallows a button press that lands on the toolbar's own background (not on any
+    ''' button/control) so it can never propagate further - see the AddHandler site in
+    ''' CreateToolbar for why this exists
+    ''' </summary>
+    Private Sub OnToolbarBackgroundButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
+        Try
+            vArgs.RetVal = True
+        Catch ex As Exception
+            Console.WriteLine($"OnToolbarBackgroundButtonPress error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Swallows pointer motion over the toolbar's own background - see the AddHandler site
+    ''' in CreateToolbar for why this exists
+    ''' </summary>
+    Private Sub OnToolbarBackgroundMotion(vSender As Object, vArgs As MotionNotifyEventArgs)
+        Try
+            vArgs.RetVal = True
+        Catch ex As Exception
+            Console.WriteLine($"OnToolbarBackgroundMotion error: {ex.Message}")
+        End Try
+    End Sub
+
     Private Sub CreateQuickFindFromClipboardButton(vPixelSize As Integer, vShowLabel As Boolean)
         Try
             pToolbar.Insert(New SeparatorToolItem(), -1)
