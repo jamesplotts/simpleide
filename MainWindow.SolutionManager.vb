@@ -13,6 +13,18 @@ Partial Public Class MainWindow
     Private pSolutionManager As SolutionManager
 
     ''' <summary>
+    ''' One-shot flag consumed by OnProjectFileListLoaded (MainWindow.ProjectManager.vb) - set
+    ''' just before the startup project's own LoadProjectEnhanced call inside
+    ''' LoadSolutionEnhanced, so that handler can skip populating Project Explorer with the
+    ''' startup project's single-project tree (which would otherwise be visible for the ~1
+    ''' second before OnStartupProjectAllFilesParsed replaces it with the real multi-root
+    ''' solution tree - a visible "loads the project, then the solution" flash). Consumed
+    ''' (reset to False) the moment it's checked, so any LATER plain single-project open
+    ''' (even after a solution was previously loaded) is unaffected
+    ''' </summary>
+    Private pSolutionStartupLoadPending As Boolean = False
+
+    ''' <summary>
     ''' Handles the "Open Solution..." menu command
     ''' </summary>
     Public Sub OnOpenSolution(vSender As Object, vArgs As EventArgs)
@@ -93,6 +105,7 @@ Partial Public Class MainWindow
                 ' multi-root solution tree, so the override always lands last regardless of
                 ' background-task timing
                 AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
+                pSolutionStartupLoadPending = True
                 LoadProjectEnhanced(lStartupPath)
             End If
 

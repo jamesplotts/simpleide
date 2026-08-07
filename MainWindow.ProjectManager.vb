@@ -431,7 +431,20 @@ Partial Public Class MainWindow
             Application.Invoke(Sub()
                 Try
                     SetProjectRoot(vProjectPath)
-                    pProjectExplorer?.LoadProjectFromManager()
+
+                    ' Skip populating Project Explorer with the startup project's own
+                    ' single-project tree when this file-list-loaded event is part of a
+                    ' solution load (LoadSolutionEnhanced) - OnStartupProjectAllFilesParsed
+                    ' will replace it with the full multi-root solution tree once every
+                    ' project has parsed, so populating the single-project tree here first
+                    ' would just be a visible flash ("loads the project, then the solution")
+                    ' for no benefit. One-shot: consumed here so a later plain single-project
+                    ' open is unaffected.
+                    If pSolutionStartupLoadPending Then
+                        pSolutionStartupLoadPending = False
+                    Else
+                        pProjectExplorer?.LoadProjectFromManager()
+                    End If
                 Catch ex As Exception
                     Console.WriteLine($"OnProjectFileListLoaded Application.Invoke error: {ex.Message}")
                 End Try
