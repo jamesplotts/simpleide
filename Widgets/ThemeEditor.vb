@@ -651,12 +651,31 @@ Namespace Widgets
                 If lDialog.Run() = CInt(ResponseType.Accept) AndAlso Not String.IsNullOrWhiteSpace(lEntry.Text) Then
                     Dim lNewThemeName As String = lEntry.Text.Trim()
                     Dim lBaseThemeName As String = lCombo.ActiveText
-                    
-                    ' Create new theme based on selected base
-                    Dim lNewTheme As EditorTheme = pThemeManager.CreateCustomTheme(lBaseThemeName, lNewThemeName)
-                    If lNewTheme IsNot Nothing Then
-                        LoadThemes()
-                        SelectTheme(lNewThemeName)
+
+                    ' CreateCustomTheme silently overwrites any existing theme with the same
+                    ' name (both in memory and its saved .json file) - confirm with the user
+                    ' first rather than losing an existing theme without warning
+                    Dim lProceed As Boolean = True
+                    If pThemeManager.GetAvailableThemes().Contains(lNewThemeName) Then
+                        Dim lOverwriteDialog As New MessageDialog(
+                            Me.Toplevel,
+                            DialogFlags.Modal,
+                            MessageType.Warning,
+                            ButtonsType.YesNo,
+                            $"A theme named '{lNewThemeName}' already exists. Overwrite it?")
+                        lProceed = (lOverwriteDialog.Run() = CInt(ResponseType.Yes))
+                        lOverwriteDialog.Destroy()
+                    End If
+
+                    If lProceed Then
+                        ' Create new theme based on selected base
+                        Dim lNewTheme As EditorTheme = pThemeManager.CreateCustomTheme(lBaseThemeName, lNewThemeName)
+                        If lNewTheme IsNot Nothing Then
+                            LoadThemes()
+                            SelectTheme(lNewThemeName)
+                        Else
+                            ShowError("New Theme", $"Failed to create theme '{lNewThemeName}'.")
+                        End If
                     End If
                 End If
                 
