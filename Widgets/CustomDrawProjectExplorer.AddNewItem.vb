@@ -634,7 +634,35 @@ Namespace Widgets
                 Return ""
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Same selection resolution as GetSelectedFolderPath, but returns the actual
+        ''' ProjectNode to attach a new child under instead of a path string
+        ''' </summary>
+        ''' <returns>The ProjectNode a new item/folder should be added under (defaults to
+        ''' pRootNode when nothing is selected)</returns>
+        Private Function GetSelectedFolderNode() As ProjectNode
+            Try
+                If pSelectedNode Is Nothing OrElse pSelectedNode.Node Is Nothing Then
+                    Return pRootNode
+                End If
+
+                Dim lNode As ProjectNode = pSelectedNode.Node
+
+                ' If a file is selected, its parent folder is the target
+                If lNode.IsFile Then
+                    Return If(lNode.Parent, pRootNode)
+                End If
+
+                ' A folder (or the project root itself) is selected
+                Return lNode
+
+            Catch ex As Exception
+                Console.WriteLine($"GetSelectedFolderNode error: {ex.Message}")
+                Return pRootNode
+            End Try
+        End Function
+
         ''' <summary>
         ''' Gets relative path from project root
         ''' </summary>
@@ -886,34 +914,64 @@ Namespace Widgets
         ''' Creates a new folder in the project
         ''' </summary>
         ''' <param name="vName">Folder name</param>
+        ''' <summary>
+        ''' Creates a new, empty folder in the project
+        ''' </summary>
+        ''' <remarks>
+        ''' Inserts the new folder node directly into the live tree instead of reloading the
+        ''' project. An empty folder has no source files in it, so RefreshProject() /
+        ''' BuildTreeFromFileList (which only creates folder nodes implicitly from files'
+        ''' directory paths) can never discover it on their own - this used to be worked
+        ''' around by calling ProjectManager.LoadProject(pProjectFile), but that closes and
+        ''' fully re-parses the ENTIRE project (every source file) just to create one empty
+        ''' folder, and even that heavyweight reload never actually refreshed the visible
+        ''' tree afterward, so the new folder still didn't appear without some other refresh
+        ''' happening to fire later.
+        ''' </remarks>
+        ''' <param name="vName">Folder name</param>
         Private Sub CreateNewFolder(vName As String)
             Try
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
                     ShowErrorDialog("No project is currently open")
                     Return
                 End If
-                
+
                 ' Get selected folder path
                 Dim lParentPath As String = GetSelectedFolderPath()
                 Dim lFullPath As String = System.IO.Path.Combine(pProjectManager.CurrentProjectDirectory, lParentPath, vName)
-                
+
                 ' Check if folder already exists
                 If System.IO.Directory.Exists(lFullPath) Then
                     ShowErrorDialog($"A folder named '{vName}' already exists in this location")
                     Return
                 End If
-                
+
                 ' Create folder
                 System.IO.Directory.CreateDirectory(lFullPath)
-                
+
                 Console.WriteLine($"Created New folder: {lFullPath}")
-                
-                ' Refresh project explorer
-                pProjectManager.LoadProject(pProjectFile)
-                
+
+                ' Insert the new node directly under whichever folder (or the project root)
+                ' was selected, then rebuild just the visual/viewport-culled representation -
+                ' no ProjectManager involvement needed since nothing about its source file
+                ' list changed
+                Dim lParentNode As ProjectNode = GetSelectedFolderNode()
+                If lParentNode IsNot Nothing Then
+                    Dim lNewFolderNode As New ProjectNode() With {
+                        .Name = vName,
+                        .Path = lFullPath,
+                        .NodeType = GetFolderType(vName),
+                        .IsFile = False
+                    }
+                    lParentNode.AddChild(lNewFolderNode)
+                    lParentNode.SortChildren()
+                    RebuildVisualTree()
+                    pDrawingArea?.QueueDraw()
+                End If
+
                 ' Raise project modified event
                 RaiseEvent ProjectModified()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CreateNewFolder error: {ex.Message}")
                 ShowErrorDialog($"Failed To create folder: {ex.Message}")
