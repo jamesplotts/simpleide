@@ -294,10 +294,25 @@ Namespace Widgets
         ''' <summary>
         ''' Shows dialog for adding a new folder
         ''' </summary>
+        ''' <remarks>
+        ''' With a multi-project solution loaded, "nothing selected" (or the solution root
+        ''' itself selected) is ambiguous - there's no single project directory to create the
+        ''' folder under. Rather than guessing (the previous behavior silently attached the
+        ''' new folder node under the solution root while creating it on disk under whichever
+        ''' project pProjectManager happened to be pointing at - a placement mismatch), just
+        ''' tell the dev to pick a project or folder first.
+        ''' </remarks>
         Private Sub ShowAddNewFolderDialog()
             Try
+                If pSolutionManager IsNot Nothing AndAlso
+                   (pSelectedNode Is Nothing OrElse pSelectedNode.Node Is Nothing OrElse
+                    pSelectedNode.Node.NodeType = ProjectNodeType.eSolution) Then
+                    ShowErrorDialog("No project is selected. Please select a project or folder in the Project Explorer before adding a new folder.")
+                    Return
+                End If
+
                 ' Create dialog
-                Dim lDialog As New Dialog("Add New Folder", 
+                Dim lDialog As New Dialog("Add New Folder",
                                         GetTopLevelWindow(), 
                                         DialogFlags.Modal Or DialogFlags.DestroyWithParent)
                 
