@@ -401,9 +401,11 @@ Namespace Widgets
         Private Sub OnContextMenuExclude(vSender As Object, vArgs As EventArgs)
             Try
                 ' TODO: Implement exclude from project
+                ' Not raising ProjectModified here - this handler doesn't actually change
+                ' anything yet, so it shouldn't mark the project dirty (that previously made
+                ' the title bar/tab show unsaved changes for an action that did nothing)
                 Console.WriteLine("Exclude from project Not yet implemented")
-                RaiseEvent ProjectModified()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuExclude error: {ex.Message}")
             End Try
