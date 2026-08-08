@@ -355,7 +355,20 @@ Partial Public Class MainWindow
                         End If
                 End Select
             End If
-            
+
+            ' ===== Handle Escape =====
+            ' HandleEscapeKey's own priority chain (close CodeSense, close Find/Replace
+            ' panel, close bottom panel, clear selection) previously had no caller anywhere
+            ' - CustomDrawingEditor's own Escape handling always consumed the key itself
+            ' when the editor had focus (the common case), so this never ran. The editor
+            ' now only consumes Escape when it actually cleared a selection/CodeSense popup,
+            ' letting it bubble up here otherwise.
+            If lKeyString = "Escape" AndAlso lCleanModifiers = ModifierType.None Then
+                HandleEscapeKey()
+                vArgs.RetVal = True
+                Return
+            End If
+
             ' Let unhandled keys pass through to focused widget
             vArgs.RetVal = False
             

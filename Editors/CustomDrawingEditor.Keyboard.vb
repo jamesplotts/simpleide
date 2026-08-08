@@ -280,13 +280,25 @@ Namespace Editors
                         Return True
                         
                     Case Gdk.Key.Escape
-                        ' Clear selection and Cancel CodeSense
+                        ' Only consume Escape here if there was actually a selection or an
+                        ' open CodeSense popup to clear. Otherwise let it bubble up to
+                        ' MainWindow's OnWindowKeyPress/HandleEscapeKey, which handles the
+                        ' next priorities (closing the Find/Replace panel, closing the
+                        ' bottom panel) - this editor has no knowledge of those, and always
+                        ' consuming Escape unconditionally previously made HandleEscapeKey
+                        ' unreachable whenever the editor had focus, the common case.
+                        Dim lHadSomethingToClear As Boolean = pHasSelection OrElse pSelectionActive OrElse pCodeSenseActive
                         ClearSelection()
                         CancelCodeSense()
-                        vArgs.RetVal = True
-                        Return True
+                        If lHadSomethingToClear Then
+                            vArgs.RetVal = True
+                            Return True
+                        End If
+                        ' Nothing to clear - let this Escape bubble up to MainWindow's handler
+                        vArgs.RetVal = False
+                        Return False
 
-                        
+
                     Case Gdk.Key.Insert
                         ' Toggle insert/overwrite mode
                         pInsertMode = Not pInsertMode
