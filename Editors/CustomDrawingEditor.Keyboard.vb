@@ -331,8 +331,20 @@ Namespace Editors
                             Return True
                         End If
                         
-                        ' Handle regular printable characters
-                        If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 Then
+                        ' Handle regular printable characters - explicitly excludes Ctrl+anything.
+                        ' The Ctrl-modifier block above only Case-matches the specific combos the
+                        ' editor itself handles (Ctrl+Z/R/X/C/V/A/Y/F/G/S/space/+/-/0 and
+                        ' Ctrl+Arrow); any OTHER Ctrl+key (Ctrl+B, Ctrl+E, Ctrl+H, Ctrl+N, Ctrl+O,
+                        ' Ctrl+W, Ctrl+Shift+B, ...) used to fall all the way through to here with
+                        ' nothing checking for the Ctrl modifier, so a KeyValue in the printable
+                        ' ASCII range (which every Ctrl+letter still has) got typed into the
+                        ' document as that literal character instead of being ignored or reaching
+                        ' MainWindow's own shortcut handling. Confirmed live: Ctrl+B/Ctrl+E/Ctrl+H
+                        ' inserted "b"/"e"/"h" into the file. Excluding Ctrl here sends any
+                        ' unhandled Ctrl+key to the Else branch below, which already correctly
+                        ' lets it bubble up (RetVal=False) instead of consuming it.
+                        If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 AndAlso
+                           (lModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
                             
                             Dim lReplacedSelection As Boolean = pHasSelection
