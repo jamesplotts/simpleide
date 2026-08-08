@@ -70,6 +70,14 @@ Partial Public Class MainWindow
     Private pIsBuildingNow As Boolean
 
     ''' <summary>
+    ''' Name of the operation currently running against pBuildManager ("Build", "Rebuild",
+    ''' or "Clean") - set immediately before each Task.Run(...) kicks off so the shared
+    ''' OnBuildCompleted handler can report the right verb instead of always saying "Build",
+    ''' since CleanProject reuses the same BuildManager.BuildCompleted event as an actual build.
+    ''' </summary>
+    Private pCurrentBuildOperation As String = "Build"
+
+    ''' <summary>
     ''' True if a build/rebuild/clean is currently running via either BuildManager instance
     ''' this class uses - the single-project pBuildManager (shared by BuildProject/
     ''' RebuildProject/CleanProject) or the separate pSolutionBuildManager (used only by
@@ -111,7 +119,8 @@ Partial Public Class MainWindow
 
             ' Set flag immediately
             pIsBuildingNow = True
-            
+            pCurrentBuildOperation = "Build"
+
             ' DEBUG: Simple console output to verify method is called
             Console.WriteLine("===============================================")
             Console.WriteLine("BUILD PROJECT CALLED!")
@@ -555,6 +564,7 @@ Partial Public Class MainWindow
 
             ' Start the rebuild
             pIsBuildingNow = True
+            pCurrentBuildOperation = "Rebuild"
             SetBuildButtonsEnabled(False)
             UpdateStatusBar("Rebuilding project...")
             
@@ -597,6 +607,7 @@ Partial Public Class MainWindow
 
             ' Start the clean
             pIsBuildingNow = True
+            pCurrentBuildOperation = "Clean"
             SetBuildButtonsEnabled(False)
             UpdateStatusBar("Cleaning project...")
 
@@ -716,16 +727,16 @@ Partial Public Class MainWindow
                         End If
                         
                         If vArgs.Result.Success Then
-                            UpdateStatusBar("Build succeeded")
+                            UpdateStatusBar($"{pCurrentBuildOperation} succeeded")
                             ' Only append the summary line, not the full output
-                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build succeeded =========={Environment.NewLine}")
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== {pCurrentBuildOperation} succeeded =========={Environment.NewLine}")
                         Else
                             Dim lErrorText As String = If(vArgs.Result.Errors.Count = 1, "error", "errors")
                             Dim lWarningText As String = If(vArgs.Result.Warnings.Count = 1, "warning", "warnings")
-                            
-                            UpdateStatusBar($"Build failed with {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText}")
+
+                            UpdateStatusBar($"{pCurrentBuildOperation} failed with {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText}")
                             ' Only append the summary line, not the full output
-                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== Build failed: {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText} =========={Environment.NewLine}")
+                            pBuildOutputPanel?.AppendOutput($"{Environment.NewLine}========== {pCurrentBuildOperation} failed: {vArgs.Result.Errors.Count} {lErrorText}, {vArgs.Result.Warnings.Count} {lWarningText} =========={Environment.NewLine}")
                             
                             ' Switch to errors tab if there are errors
                             If vArgs.Result.Errors.Count > 0 AndAlso pBuildOutputPanel IsNot Nothing Then
