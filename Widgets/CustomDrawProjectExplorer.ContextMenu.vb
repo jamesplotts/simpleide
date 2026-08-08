@@ -385,14 +385,16 @@ Namespace Widgets
 
                         ' Raise the project modified event
                         RaiseEvent ProjectModified()
+                    Else
+                        ShowErrorDialog($"'{pSelectedNode.Node.Name}' Could Not be deleted - it was Not found on disk.")
                     End If
                 End If
-                
+
                 lDialog.Destroy()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuDelete error: {ex.Message}")
-                Console.Writeline("Delete error", $"Failed To delete: {ex.Message}")
+                ShowErrorDialog($"Failed To delete: {ex.Message}")
             End Try
         End Sub
         
