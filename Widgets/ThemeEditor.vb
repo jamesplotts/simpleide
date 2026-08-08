@@ -289,8 +289,11 @@ Namespace Widgets
                 ' Subscribe to theme manager events
                 AddHandler pThemeManager.ThemeChanged, AddressOf OnThemeManagerThemeChanged
                 AddHandler pThemeManager.ThemeApplied, AddressOf OnThemeManagerThemeApplied
-                AddHandler pThemeListBox.SelectionChanged, AddressOf OnThemeListBoxSelectionChanged
-                
+                ' Note: pThemeListBox.SelectionChanged is already wired to OnThemeSelected above -
+                ' this was a second, duplicate AddHandler that fired the same theme-load/preview
+                ' logic twice per selection (see removed OnThemeListBoxSelectionChanged, which was
+                ' just a pass-through wrapper calling OnThemeSelected again)
+
                 ' CRITICAL: Add the main paned to this widget
                 PackStart(lHPaned, True, True, 0)
                 
@@ -1716,17 +1719,6 @@ Namespace Widgets
         ''' </summary>
         ''' <param name="vIndex">The index of the selected item</param>
         ''' <param name="vItem">The selected ListBoxItem</param>
-        Private Sub OnThemeListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)
-            Try
-                ' Call the existing OnThemeSelected method which contains all the logic
-                ' for updating the preview and loading theme properties
-                OnThemeSelected(vIndex, vItem)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnThemeListBoxSelectionChanged error: {ex.Message}")
-            End Try
-        End Sub
-
         Private Sub OnPropertyListBoxSelectionChanged(vIndex As Integer, vItem As ListBoxItem)
 
 
