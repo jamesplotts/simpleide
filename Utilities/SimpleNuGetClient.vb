@@ -64,7 +64,17 @@ Namespace Utilities
                         Dim lTypeElement As JsonElement = Nothing
                         Dim lIdElement As JsonElement = Nothing
                         
-                        If lResource.TryGetProperty("@Type", lTypeElement) AndAlso lResource.TryGetProperty("@Id", lIdElement) Then
+                        ' NuGet's real v3 service index JSON uses lowercase "@type"/"@id" -
+                        ' JsonElement.TryGetProperty is case-sensitive (System.Text.Json has
+                        ' no case-insensitive mode for raw element traversal, only for
+                        ' JsonSerializer deserialization), so the "@Type"/"@Id" this used to
+                        ' query never matched anything and every resource lookup silently
+                        ' failed. Harmless here specifically only because pSearchUrl's
+                        ' hardcoded fallback default already happened to match the real
+                        ' primary search endpoint by coincidence - PackageVersions/
+                        ' PackageBaseAddress overrides were silently skipped too, but their
+                        ' hardcoded defaults also happened to still work.
+                        If lResource.TryGetProperty("@type", lTypeElement) AndAlso lResource.TryGetProperty("@id", lIdElement) Then
                             Dim lType As String = lTypeElement.GetString()
                             Dim lId As String = lIdElement.GetString()
                             
@@ -108,45 +118,54 @@ Namespace Utilities
                 Using lDoc As JsonDocument = JsonDocument.Parse(lResponse)
                     Dim lRoot As JsonElement = lDoc.RootElement
                     
-                    ' Get total hits
+                    ' Get total hits - property names below are lowercase/camelCase to match
+                    ' NuGet's actual v3 search response ("totalHits", "data", "id",
+                    ' "version", "description", "projectUrl", "licenseUrl",
+                    ' "totalDownloads", "authors", "versions") - JsonElement.TryGetProperty
+                    ' is case-sensitive, so the PascalCase names this used to query
+                    ' ("TotalHits", "Data", "Id", ...) never matched anything. Every search
+                    ' silently returned 0 hits and an empty package list (confirmed live:
+                    ' status bar showed "Found 0 Packages" for a query - "Serilog" - that
+                    ' the real API returns 2262 hits for), which is why Install/Update
+                    ' always looked permanently disabled: there was never anything to select.
                     Dim lTotalHitsElement As JsonElement = Nothing
-                    If lRoot.TryGetProperty("TotalHits", lTotalHitsElement) Then
+                    If lRoot.TryGetProperty("totalHits", lTotalHitsElement) Then
                         lResult.TotalHits = lTotalHitsElement.GetInt32()
                     End If
-                    
+
                     ' Parse packages
                     Dim lData As JsonElement = Nothing
-                    If lRoot.TryGetProperty("Data", lData) Then
+                    If lRoot.TryGetProperty("data", lData) Then
                         For Each lPackageData In lData.EnumerateArray()
                             Dim lPackage As New PackageInfo()
-                            
+
                             ' Parse basic properties
                             Dim lElement As JsonElement = Nothing
-                            If lPackageData.TryGetProperty("Id", lElement) Then lPackage.Id = lElement.GetString()
-                            If lPackageData.TryGetProperty("Version", lElement) Then lPackage.Version = lElement.GetString()
-                            If lPackageData.TryGetProperty("Description", lElement) Then lPackage.Description = lElement.GetString()
-                            If lPackageData.TryGetProperty("ProjectUrl", lElement) Then lPackage.ProjectUrl = lElement.GetString()
-                            If lPackageData.TryGetProperty("LicenseUrl", lElement) Then lPackage.LicenseUrl = lElement.GetString()
-                            
+                            If lPackageData.TryGetProperty("id", lElement) Then lPackage.Id = lElement.GetString()
+                            If lPackageData.TryGetProperty("version", lElement) Then lPackage.Version = lElement.GetString()
+                            If lPackageData.TryGetProperty("description", lElement) Then lPackage.Description = lElement.GetString()
+                            If lPackageData.TryGetProperty("projectUrl", lElement) Then lPackage.ProjectUrl = lElement.GetString()
+                            If lPackageData.TryGetProperty("licenseUrl", lElement) Then lPackage.LicenseUrl = lElement.GetString()
+
                             ' Parse downloads
-                            If lPackageData.TryGetProperty("TotalDownloads", lElement) Then
+                            If lPackageData.TryGetProperty("totalDownloads", lElement) Then
                                 lPackage.TotalDownloads = lElement.GetInt64()
                             End If
-                            
+
                             ' Parse authors
                             lPackage.Authors = New List(Of String)()
-                            If lPackageData.TryGetProperty("Authors", lElement) Then
+                            If lPackageData.TryGetProperty("authors", lElement) Then
                                 For Each lAuthor In lElement.EnumerateArray()
                                     lPackage.Authors.Add(lAuthor.GetString())
                                 Next
                             End If
-                            
+
                             ' Parse versions
                             lPackage.Versions = New List(Of String)()
-                            If lPackageData.TryGetProperty("Versions", lElement) Then
+                            If lPackageData.TryGetProperty("versions", lElement) Then
                                 For Each lVersion In lElement.EnumerateArray()
                                     Dim lVersionElement As JsonElement = Nothing
-                                    If lVersion.TryGetProperty("Version", lVersionElement) Then
+                                    If lVersion.TryGetProperty("version", lVersionElement) Then
                                         lPackage.Versions.Add(lVersionElement.GetString())
                                     End If
                                 Next
@@ -182,8 +201,10 @@ Namespace Utilities
                 
                 ' Parse JSON
                 Using lDoc As JsonDocument = JsonDocument.Parse(lResponse)
+                    ' "versions" (lowercase) matches the real flat-container index.json -
+                    ' same case-sensitivity issue as SearchPackagesAsync above
                     Dim lVersionsElement As JsonElement
-                    If lDoc.RootElement.TryGetProperty("Versions", lVersionsElement) Then
+                    If lDoc.RootElement.TryGetProperty("versions", lVersionsElement) Then
                         For Each lVersion In lVersionsElement.EnumerateArray()
                             lVersions.Add(lVersion.GetString())
                         Next
