@@ -228,7 +228,7 @@ Partial Public Class MainWindow
             
             ' Replace
             Dim lReplace As MenuItem = CreateMenuItemWithIcon("R_eplace...", "edit-find-replace")
-            ' TODO: AddHandler lReplace.Activated, AddressOf OnReplace
+            AddHandler lReplace.Activated, AddressOf OnReplace
             lEditMenu.Append(lReplace)
             
            
