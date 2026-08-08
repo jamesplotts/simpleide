@@ -64,7 +64,7 @@ Namespace Widgets
                 lExpandingSeparator.Expand = True
                 pToolbar.Add(lExpandingSeparator)
                 
-                'CreateCloseButton()
+                CreateCloseButton()
 
                 ' Wrap in a Gtk.EventBox - a Gtk.ToolItem (the wrapper GTK creates around
                 ' each item added to a Toolbar, for its own drag-reorder support) realizes
