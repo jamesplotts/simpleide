@@ -721,8 +721,10 @@ Namespace Widgets
                     lDialog.Title = "Theme Saved"
                     lDialog.Run()
                     lDialog.Destroy()
+                Else
+                    ShowError("Save error", $"Failed to save theme '{pCurrentThemeName}'.")
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.OnSaveTheme error: {ex.Message}")
                 ShowError("Save error", ex.Message)
