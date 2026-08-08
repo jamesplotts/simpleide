@@ -24,9 +24,10 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"OnIndent error: {ex.Message}")
+            ShowError("Indent failed", ex.Message)
         End Try
     End Sub
-    
+
     ' Handle Outdent menu item
     Public Sub OnOutdent(vSender As Object, vArgs As EventArgs)
         Try
@@ -34,9 +35,10 @@ Partial Public Class MainWindow
             If lCurrentEditor IsNot Nothing Then
                 lCurrentEditor.OutdentSelection()
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnOutdent error: {ex.Message}")
+            ShowError("Outdent failed", ex.Message)
         End Try
     End Sub
     

@@ -215,9 +215,10 @@ Partial Public Class MainWindow
             ToggleProjectExplorer()
         Catch ex As Exception
             Console.WriteLine($"OnToggleProjectExplorer error: {ex.Message}")
+            ShowError("Toggle Project Explorer failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnToggleBottomPanel(vSender As Object, vArgs As EventArgs)
         Try
             pBottomPanelVisible = Not pBottomPanelVisible
@@ -225,6 +226,7 @@ Partial Public Class MainWindow
             UpdatePanelVisibility()
         Catch ex As Exception
             Console.WriteLine($"OnToggleBottomPanel error: {ex.Message}")
+            ShowError("Toggle Bottom Panel failed", ex.Message)
         End Try
     End Sub
     
@@ -552,6 +554,7 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnToggleFullScreen error: {ex.Message}")
+            ShowError("Toggle Full Screen failed", ex.Message)
         End Try
     End Sub
 

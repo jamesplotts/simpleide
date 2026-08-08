@@ -119,6 +119,7 @@ Partial Public Class MainWindow
             
         Catch ex As Exception
             Console.WriteLine($"ShowFindPanel error: {ex.Message}")
+            ShowError("Find failed", ex.Message)
         End Try
     End Sub
     

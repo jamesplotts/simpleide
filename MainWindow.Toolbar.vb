@@ -486,6 +486,7 @@ Partial Public Class MainWindow
 
         Catch ex As Exception
             Console.WriteLine($"OnToggleToolbar error: {ex.Message}")
+            ShowError("Toggle Toolbar failed", ex.Message)
         End Try
     End Sub
 
@@ -499,6 +500,7 @@ Partial Public Class MainWindow
 
         Catch ex As Exception
             Console.WriteLine($"OnToggleToolbarLabels error: {ex.Message}")
+            ShowError("Toggle Toolbar Labels failed", ex.Message)
         End Try
     End Sub
 
@@ -512,6 +514,7 @@ Partial Public Class MainWindow
 
         Catch ex As Exception
             Console.WriteLine($"OnToolbarLargeButtons error: {ex.Message}")
+            ShowError("Set Large Toolbar Buttons failed", ex.Message)
         End Try
     End Sub
 
@@ -525,6 +528,7 @@ Partial Public Class MainWindow
 
         Catch ex As Exception
             Console.WriteLine($"OnToolbarSmallButtons error: {ex.Message}")
+            ShowError("Set Small Toolbar Buttons failed", ex.Message)
         End Try
     End Sub
 
