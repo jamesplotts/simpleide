@@ -51,9 +51,13 @@ Namespace Widgets
         Private pAssemblyRemoveButton As CustomDrawButton
         Private pBrowseAssemblyButton As CustomDrawButton
 
-        ' NuGet tab components
-        Private pNuGetTreeView As TreeView
-        Private pNuGetListStore As ListStore
+        ' NuGet tab components - split into an "Installed" list (top) and a searchable
+        ' "Available" list (bottom), so browsing/searching the full NuGet index never hides
+        ' what's already referenced by the project.
+        Private pNuGetInstalledTreeView As TreeView
+        Private pNuGetInstalledListStore As ListStore
+        Private pNuGetSearchTreeView As TreeView
+        Private pNuGetSearchListStore As ListStore
         Private pNuGetSearchEntry As CustomDrawTextBox
         Private pNuGetSearchButton As CustomDrawButton
         Private pNuGetAddButton As CustomDrawButton
@@ -63,6 +67,13 @@ Namespace Widgets
         Private pNuGetSpinner As Spinner
         Private pNuGetStatusLabel As Label
         Private pCurrentSearchTask As Task(Of NuGetClient.SearchResult)
+
+        ' Tracks whichever of the two NuGet lists currently owns the "active" selection, so
+        ' the single shared button bar (Install/Update/Uninstall) knows what to act on.
+        Private pNuGetSelectedPackage As NuGetClient.PackageInfo
+        Private pNuGetSelectedIter As TreeIter
+        Private pNuGetSelectedFromInstalled As Boolean
+        Private pNuGetSyncingSelection As Boolean = False
 
         ' Project tab components
         Private pProjectTreeView As TreeView
@@ -294,7 +305,38 @@ Namespace Widgets
             Dim lVBox As New Box(Orientation.Vertical, 5)
             lVBox.BorderWidth = 10
 
-            ' Search box
+            ' Vertical paned splitter: installed packages on top, searchable available
+            ' packages on the bottom. Resizable by the user via the paned's grip.
+            Dim lPaned As New Paned(Orientation.Vertical)
+
+            ' ----- Top half: installed packages -----
+            Dim lInstalledBox As New Box(Orientation.Vertical, 5)
+
+            Dim lInstalledLabel As New Label()
+            lInstalledLabel.Markup = "<b>Installed Packages</b>"
+            lInstalledLabel.Halign = Align.Start
+            lInstalledBox.PackStart(lInstalledLabel, False, False, 0)
+
+            Dim lInstalledScrolled As New ScrolledWindow()
+            lInstalledScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
+            lInstalledScrolled.ShadowType = ShadowType.in
+
+            pNuGetInstalledListStore = New ListStore(GetType(String), GetType(String), GetType(String), GetType(Long), GetType(Boolean), GetType(String), GetType(Object))
+
+            pNuGetInstalledTreeView = New TreeView(pNuGetInstalledListStore)
+            pNuGetInstalledTreeView.HeadersVisible = True
+            pNuGetInstalledTreeView.AppendColumn("Package", New CellRendererText(), "text", 0)
+            pNuGetInstalledTreeView.AppendColumn("Installed Version", New CellRendererText(), "text", 5)
+            AddHandler pNuGetInstalledTreeView.Selection.Changed, AddressOf OnNuGetInstalledSelectionChanged
+
+            lInstalledScrolled.Add(pNuGetInstalledTreeView)
+            lInstalledBox.PackStart(lInstalledScrolled, True, True, 0)
+
+            lPaned.Pack1(lInstalledBox, True, False)
+
+            ' ----- Bottom half: search box + available packages -----
+            Dim lAvailableBox As New Box(Orientation.Vertical, 5)
+
             Dim lSearchBox As New Box(Orientation.Horizontal, 5)
             lSearchBox.PackStart(New Label("Search:"), False, False, 0)
 
@@ -308,41 +350,48 @@ Namespace Widgets
             AddHandler pNuGetSearchButton.Clicked, AddressOf OnNuGetSearch
             lSearchBox.PackStart(pNuGetSearchButton, False, False, 0)
 
-            lVBox.PackStart(lSearchBox, False, False, 0)
+            lAvailableBox.PackStart(lSearchBox, False, False, 0)
 
-            ' TreeView
+            Dim lAvailableLabel As New Label()
+            lAvailableLabel.Markup = "<b>Available Packages</b>"
+            lAvailableLabel.Halign = Align.Start
+            lAvailableBox.PackStart(lAvailableLabel, False, False, 0)
+
             Dim lScrolled As New ScrolledWindow()
             lScrolled.SetPolicy(PolicyType.Automatic, PolicyType.Automatic)
             lScrolled.ShadowType = ShadowType.in
 
-            ' Create list store
-            pNuGetListStore = New ListStore(GetType(String), GetType(String), GetType(String), GetType(Long), GetType(Boolean), GetType(String), GetType(Object))
+            pNuGetSearchListStore = New ListStore(GetType(String), GetType(String), GetType(String), GetType(Long), GetType(Boolean), GetType(String), GetType(Object))
 
-            pNuGetTreeView = New TreeView(pNuGetListStore)
-            pNuGetTreeView.HeadersVisible = True
+            pNuGetSearchTreeView = New TreeView(pNuGetSearchListStore)
+            pNuGetSearchTreeView.HeadersVisible = True
 
             ' Columns
-            pNuGetTreeView.AppendColumn("Package", New CellRendererText(), "text", 0)
-            pNuGetTreeView.AppendColumn("Version", New CellRendererText(), "text", 1)
+            pNuGetSearchTreeView.AppendColumn("Package", New CellRendererText(), "text", 0)
+            pNuGetSearchTreeView.AppendColumn("Version", New CellRendererText(), "text", 1)
 
             ' Description with wrapping
             Dim lDescRenderer As New CellRendererText()
             lDescRenderer.WrapMode = Pango.WrapMode.Word
             lDescRenderer.WrapWidth = 300
-            pNuGetTreeView.AppendColumn("Description", lDescRenderer, "text", 2)
+            pNuGetSearchTreeView.AppendColumn("Description", lDescRenderer, "text", 2)
 
-            pNuGetTreeView.AppendColumn("Downloads", New CellRendererText(), "text", 3)
+            pNuGetSearchTreeView.AppendColumn("Downloads", New CellRendererText(), "text", 3)
 
             ' Installed indicator
             Dim lInstalledRenderer As New CellRendererText()
             lInstalledRenderer.Weight = 700 ' Bold
-            pNuGetTreeView.AppendColumn("Installed", lInstalledRenderer, "Text", 5)
+            pNuGetSearchTreeView.AppendColumn("Installed", lInstalledRenderer, "Text", 5)
 
             ' Selection handler
-            AddHandler pNuGetTreeView.Selection.Changed, AddressOf OnNuGetSelectionChanged
+            AddHandler pNuGetSearchTreeView.Selection.Changed, AddressOf OnNuGetSearchSelectionChanged
 
-            lScrolled.Add(pNuGetTreeView)
-            lVBox.PackStart(lScrolled, True, True, 0)
+            lScrolled.Add(pNuGetSearchTreeView)
+            lAvailableBox.PackStart(lScrolled, True, True, 0)
+
+            lPaned.Pack2(lAvailableBox, True, False)
+
+            lVBox.PackStart(lPaned, True, True, 0)
 
             ' Version selection box
             Dim lVersionBox As New Box(Orientation.Horizontal, 5)
@@ -536,6 +585,11 @@ Namespace Widgets
                 UpdateAssemblyList()
                 UpdateProjectList()
                 LoadInstalledPackages()
+
+                ' Available-list search results and the active selection both belong to
+                ' whichever project was previously showing - stale once the project changes.
+                pNuGetSearchListStore.Clear()
+                ClearNuGetSelectionState()
 
             Catch ex As Exception
                 Console.WriteLine($"Error loading References: {ex.Message}")
@@ -743,7 +797,8 @@ Namespace Widgets
             End Try
         End Sub
 
-        ' NuGet search
+        ' NuGet search - narrows the bottom "Available Packages" list only; the top
+        ' "Installed Packages" list is unaffected by search.
         Private Sub OnNuGetSearch(vSender As Object, vE As EventArgs)
             Try
                 Dim lQuery As String = pNuGetSearchEntry.Text.Trim()
@@ -760,7 +815,7 @@ Namespace Widgets
                 pNuGetSearchButton.Sensitive = False
 
                 ' Clear current results
-                pNuGetListStore.Clear()
+                pNuGetSearchListStore.Clear()
 
                 ' Start async search
                 pCurrentSearchTask = Task.Run(Async Function() Await pNuGetClient.SearchPackagesAsync(lQuery, 0, 50))
@@ -794,7 +849,7 @@ Namespace Widgets
                     lPackage.IsInstalled = pNuGetClient.IsPackageInstalled(pProjectFile, lPackage.Id, lInstalledVersion)
                     lPackage.InstalledVersion = lInstalledVersion
 
-                    Dim lIter As TreeIter = pNuGetListStore.AppendValues(
+                    Dim lIter As TreeIter = pNuGetSearchListStore.AppendValues(
                         lPackage.Id,
                         lPackage.Version,
                         lPackage.Description,
@@ -812,38 +867,100 @@ Namespace Widgets
             Return False
         End Function
 
-        ' NuGet selection changed
-        Private Sub OnNuGetSelectionChanged(vSender As Object, vE As EventArgs)
+        ''' <summary>
+        ''' Clears whatever package is currently tracked as the "active" NuGet selection and
+        ''' disables the shared Install/Update/Uninstall button bar.
+        ''' </summary>
+        Private Sub ClearNuGetSelectionState()
+            pNuGetSelectedPackage = Nothing
+            pNuGetAddButton.Sensitive = False
+            pNuGetRemoveButton.Sensitive = False
+            pNuGetUpdateButton.Sensitive = False
+            pNuGetVersionCombo.RemoveAll()
+            pNuGetVersionCombo.Sensitive = False
+        End Sub
+
+        ' Installed-list selection changed (top half). Selecting here is how a dev manages
+        ' an already-referenced package: Uninstall is always available, Update once a newer
+        ' version is found.
+        Private Sub OnNuGetInstalledSelectionChanged(vSender As Object, vE As EventArgs)
+            If pNuGetSyncingSelection Then Return
             Try
-                Dim lSelection As TreeSelection = pNuGetTreeView.Selection
+                Dim lSelection As TreeSelection = pNuGetInstalledTreeView.Selection
                 Dim lIter As TreeIter
 
                 If lSelection.GetSelected(lIter) Then
-                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
+                    pNuGetSyncingSelection = True
+                    pNuGetSearchTreeView.Selection.UnselectAll()
+                    pNuGetSyncingSelection = False
 
-                    ' Update buttons
-                    pNuGetAddButton.Sensitive = Not lPackage.IsInstalled
-                    pNuGetRemoveButton.Sensitive = lPackage.IsInstalled
+                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetInstalledListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
+                    pNuGetSelectedPackage = lPackage
+                    pNuGetSelectedIter = lIter
+                    pNuGetSelectedFromInstalled = True
+
+                    pNuGetAddButton.Sensitive = False
+                    pNuGetRemoveButton.Sensitive = True
                     pNuGetUpdateButton.Sensitive = False ' Will check for updates
 
-                    ' Clear version combo
                     pNuGetVersionCombo.RemoveAll()
                     pNuGetVersionCombo.Sensitive = False
 
-                    ' Load versions async
                     Task.Run(Async Function() Await pNuGetClient.GetPackageVersionsAsync(lPackage.Id)).ContinueWith(
                         Sub(t) GLib.Idle.Add(Function() OnPackageVersionsLoaded(t, lPackage))
                     )
                 Else
-                    ' No selection
-                    pNuGetAddButton.Sensitive = False
-                    pNuGetRemoveButton.Sensitive = False
-                    pNuGetUpdateButton.Sensitive = False
-                    pNuGetVersionCombo.Sensitive = False
+                    ' No installed-list selection - only clear the shared buttons if the
+                    ' search list doesn't have an active selection of its own.
+                    Dim lSearchIter As TreeIter
+                    If Not pNuGetSearchTreeView.Selection.GetSelected(lSearchIter) Then
+                        ClearNuGetSelectionState()
+                    End If
                 End If
 
             Catch ex As Exception
-                Console.WriteLine($"error handling NuGet selection: {ex.Message}")
+                Console.WriteLine($"error handling installed Package selection: {ex.Message}")
+            End Try
+        End Sub
+
+        ' Available/search-list selection changed (bottom half). Selecting here is how a
+        ' dev installs something new; already-installed packages are managed from the top
+        ' list instead, so Install is the only button this can enable.
+        Private Sub OnNuGetSearchSelectionChanged(vSender As Object, vE As EventArgs)
+            If pNuGetSyncingSelection Then Return
+            Try
+                Dim lSelection As TreeSelection = pNuGetSearchTreeView.Selection
+                Dim lIter As TreeIter
+
+                If lSelection.GetSelected(lIter) Then
+                    pNuGetSyncingSelection = True
+                    pNuGetInstalledTreeView.Selection.UnselectAll()
+                    pNuGetSyncingSelection = False
+
+                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetSearchListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
+                    pNuGetSelectedPackage = lPackage
+                    pNuGetSelectedIter = lIter
+                    pNuGetSelectedFromInstalled = False
+
+                    pNuGetAddButton.Sensitive = Not lPackage.IsInstalled
+                    pNuGetRemoveButton.Sensitive = False
+                    pNuGetUpdateButton.Sensitive = False
+
+                    pNuGetVersionCombo.RemoveAll()
+                    pNuGetVersionCombo.Sensitive = False
+
+                    Task.Run(Async Function() Await pNuGetClient.GetPackageVersionsAsync(lPackage.Id)).ContinueWith(
+                        Sub(t) GLib.Idle.Add(Function() OnPackageVersionsLoaded(t, lPackage))
+                    )
+                Else
+                    Dim lInstalledIter As TreeIter
+                    If Not pNuGetInstalledTreeView.Selection.GetSelected(lInstalledIter) Then
+                        ClearNuGetSelectionState()
+                    End If
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"error handling NuGet search selection: {ex.Message}")
             End Try
         End Sub
 
@@ -883,35 +1000,58 @@ Namespace Widgets
             Return False
         End Function
 
-        ' Install package
+        ''' <summary>
+        ''' If the given package also appears as a row in the "Available Packages" search
+        ''' list, refreshes that row's Installed columns to match. Keeps the two lists
+        ''' consistent without re-running the search after an install/uninstall/update.
+        ''' </summary>
+        Private Sub RefreshSearchRowInstalledState(vPackageId As String, vInstalled As Boolean, vInstalledVersion As String)
+            Dim lIter As TreeIter
+            If Not pNuGetSearchListStore.GetIterFirst(lIter) Then Return
+
+            Do
+                Dim lRowPackage As NuGetClient.PackageInfo = CType(pNuGetSearchListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
+                If lRowPackage IsNot Nothing AndAlso lRowPackage.Id.Equals(vPackageId, StringComparison.OrdinalIgnoreCase) Then
+                    lRowPackage.IsInstalled = vInstalled
+                    lRowPackage.InstalledVersion = vInstalledVersion
+                    pNuGetSearchListStore.SetValue(lIter, 4, vInstalled)
+                    pNuGetSearchListStore.SetValue(lIter, 5, If(vInstalled, vInstalledVersion, ""))
+                    Return
+                End If
+            Loop While pNuGetSearchListStore.IterNext(lIter)
+        End Sub
+
+        ' Install package - only ever acted on from the "Available Packages" (search) list;
+        ' already-installed packages are managed from the "Installed Packages" list instead.
         Private Sub OnInstallPackage(vSender As Object, vE As EventArgs)
             Try
-                Dim lSelection As TreeSelection = pNuGetTreeView.Selection
-                Dim lIter As TreeIter
+                If pNuGetSelectedPackage Is Nothing OrElse pNuGetSelectedFromInstalled Then Return
 
-                If lSelection.GetSelected(lIter) Then
-                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
-                    Dim lVersion As String = pNuGetVersionCombo.ActiveText
+                Dim lPackage As NuGetClient.PackageInfo = pNuGetSelectedPackage
+                Dim lIter As TreeIter = pNuGetSelectedIter
+                Dim lVersion As String = pNuGetVersionCombo.ActiveText
 
-                    If String.IsNullOrEmpty(lVersion) Then
-                        lVersion = lPackage.Version
-                    End If
+                If String.IsNullOrEmpty(lVersion) Then
+                    lVersion = lPackage.Version
+                End If
 
-                    ' Add package reference
-                    If pReferenceManager.AddPackageReference(pProjectFile, lPackage.Id, lVersion) Then
-                        ShowInfo($"Installed {lPackage.Id} {lVersion}")
-                        RaiseEvent ReferencesChanged()
+                ' Add package reference
+                If pReferenceManager.AddPackageReference(pProjectFile, lPackage.Id, lVersion) Then
+                    ShowInfo($"Installed {lPackage.Id} {lVersion}")
+                    RaiseEvent ReferencesChanged()
 
-                        ' Update UI
-                        lPackage.IsInstalled = True
-                        lPackage.InstalledVersion = lVersion
-                        pNuGetListStore.SetValue(lIter, 4, True)
-                        pNuGetListStore.SetValue(lIter, 5, lVersion)
+                    ' Update UI
+                    lPackage.IsInstalled = True
+                    lPackage.InstalledVersion = lVersion
+                    pNuGetSearchListStore.SetValue(lIter, 4, True)
+                    pNuGetSearchListStore.SetValue(lIter, 5, lVersion)
 
-                        ' Update buttons
-                        pNuGetAddButton.Sensitive = False
-                        pNuGetRemoveButton.Sensitive = True
-                    End If
+                    ' Update buttons
+                    pNuGetAddButton.Sensitive = False
+                    pNuGetRemoveButton.Sensitive = False
+
+                    ' Refresh the top list so the newly-installed package shows up there
+                    LoadInstalledPackages()
                 End If
 
             Catch ex As Exception
@@ -920,28 +1060,29 @@ Namespace Widgets
             End Try
         End Sub
 
-        ' Update package
+        ' Update package - only ever acted on from the "Installed Packages" list.
         Private Sub OnUpdatePackage(vSender As Object, vE As EventArgs)
             Try
-                Dim lSelection As TreeSelection = pNuGetTreeView.Selection
-                Dim lIter As TreeIter
+                If pNuGetSelectedPackage Is Nothing OrElse Not pNuGetSelectedFromInstalled Then Return
 
-                If lSelection.GetSelected(lIter) Then
-                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
-                    Dim lVersion As String = pNuGetVersionCombo.ActiveText
+                Dim lPackage As NuGetClient.PackageInfo = pNuGetSelectedPackage
+                Dim lIter As TreeIter = pNuGetSelectedIter
+                Dim lVersion As String = pNuGetVersionCombo.ActiveText
 
-                    If String.IsNullOrEmpty(lVersion) Then Return
+                If String.IsNullOrEmpty(lVersion) Then Return
 
-                    ' Update package reference
-                    If pReferenceManager.UpdatePackageReference(pProjectFile, lPackage.Id, lVersion) Then
-                        ShowInfo($"updated {lPackage.Id} to {lVersion}")
-                        RaiseEvent ReferencesChanged()
+                ' Update package reference
+                If pReferenceManager.UpdatePackageReference(pProjectFile, lPackage.Id, lVersion) Then
+                    ShowInfo($"updated {lPackage.Id} to {lVersion}")
+                    RaiseEvent ReferencesChanged()
 
-                        ' Update UI
-                        lPackage.InstalledVersion = lVersion
-                        pNuGetListStore.SetValue(lIter, 5, lVersion)
-                        pNuGetUpdateButton.Sensitive = False
-                    End If
+                    ' Update UI
+                    lPackage.InstalledVersion = lVersion
+                    pNuGetInstalledListStore.SetValue(lIter, 1, lVersion)
+                    pNuGetInstalledListStore.SetValue(lIter, 5, lVersion)
+                    pNuGetUpdateButton.Sensitive = False
+
+                    RefreshSearchRowInstalledState(lPackage.Id, True, lVersion)
                 End If
 
             Catch ex As Exception
@@ -950,31 +1091,23 @@ Namespace Widgets
             End Try
         End Sub
 
-        ' Uninstall package
+        ' Uninstall package - only ever acted on from the "Installed Packages" list.
         Private Sub OnUninstallPackage(vSender As Object, vE As EventArgs)
             Try
-                Dim lSelection As TreeSelection = pNuGetTreeView.Selection
-                Dim lIter As TreeIter
+                If pNuGetSelectedPackage Is Nothing OrElse Not pNuGetSelectedFromInstalled Then Return
 
-                If lSelection.GetSelected(lIter) Then
-                    Dim lPackage As NuGetClient.PackageInfo = CType(pNuGetListStore.GetValue(lIter, 6), NuGetClient.PackageInfo)
+                Dim lPackage As NuGetClient.PackageInfo = pNuGetSelectedPackage
 
-                    ' Remove package reference
-                    If pReferenceManager.RemoveReference(pProjectFile, lPackage.Id, ReferenceManager.ReferenceType.ePackage) Then
-                        ShowInfo($"Uninstalled {lPackage.Id}")
-                        RaiseEvent ReferencesChanged()
+                ' Remove package reference
+                If pReferenceManager.RemoveReference(pProjectFile, lPackage.Id, ReferenceManager.ReferenceType.ePackage) Then
+                    ShowInfo($"Uninstalled {lPackage.Id}")
+                    RaiseEvent ReferencesChanged()
 
-                        ' Update UI
-                        lPackage.IsInstalled = False
-                        lPackage.InstalledVersion = ""
-                        pNuGetListStore.SetValue(lIter, 4, False)
-                        pNuGetListStore.SetValue(lIter, 5, "")
+                    RefreshSearchRowInstalledState(lPackage.Id, False, "")
 
-                        ' Update buttons
-                        pNuGetAddButton.Sensitive = True
-                        pNuGetRemoveButton.Sensitive = False
-                        pNuGetUpdateButton.Sensitive = False
-                    End If
+                    ' Refresh the top list (removes this row) and reset the button bar
+                    LoadInstalledPackages()
+                    ClearNuGetSelectionState()
                 End If
 
             Catch ex As Exception
@@ -983,10 +1116,10 @@ Namespace Widgets
             End Try
         End Sub
 
-        ' Load installed packages
+        ' Load installed packages (top list)
         Private Sub LoadInstalledPackages()
             Try
-                pNuGetListStore.Clear()
+                pNuGetInstalledListStore.Clear()
 
                 ' Get package references
                 Dim lPackageRefs As List(Of ReferenceManager.ReferenceInfo) = pCurrentReferences.Where(
@@ -1001,7 +1134,7 @@ Namespace Widgets
                     lPackage.IsInstalled = True
                     lPackage.Description = "Installed Package"
 
-                    Dim lIter As TreeIter = pNuGetListStore.AppendValues(
+                    Dim lIter As TreeIter = pNuGetInstalledListStore.AppendValues(
                         lPackage.Id,
                         lPackage.Version,
                         lPackage.Description,
