@@ -137,7 +137,9 @@ Namespace Interfaces
         Function Find(vSearchText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) As IEnumerable(Of EditorPosition)
         Sub FindNext()
         Sub FindPrevious()
-        Sub Replace(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean)
+        ''' <returns>True if a match at the current selection was actually replaced; False if
+        ''' there was no matching selection and this call only advanced to the next match</returns>
+        Function Replace(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) As Boolean
         Sub ReplaceAll(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean)
 
         ''' <summary>

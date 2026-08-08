@@ -247,9 +247,13 @@ Namespace Widgets
                     Return
                 End If
 
-                lTab.Editor.Replace(pFindEntry.Text, pReplaceEntry.Text,
+                Dim lReplaced As Boolean = lTab.Editor.Replace(pFindEntry.Text, pReplaceEntry.Text,
                                     pCaseSensitiveCheck.Active, pWholeWordCheck.Active, pRegexCheck.Active)
-                UpdateStatus("Replaced")
+                If lReplaced Then
+                    UpdateStatus("Replaced")
+                Else
+                    UpdateStatus("No match at cursor - moved to next occurrence")
+                End If
 
             Catch ex As Exception
                 Console.WriteLine($"OnReplace error: {ex.Message}")

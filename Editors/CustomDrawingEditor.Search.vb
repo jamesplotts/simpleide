@@ -250,31 +250,31 @@ Namespace Editors
         
         ' ===== Replace Implementation =====
         
-        Public Sub Replace(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) Implements IEditor.Replace
+        Public Function Replace(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) As Boolean Implements IEditor.Replace
             Try
                 ' Check if we have a selection that matches the search text
                 If Not pHasSelection Then
                     ' Find next occurrence
                     Dim lMatchesList As List(Of EditorPosition) = New List(Of EditorPosition)(
                         Find(vSearchText, vCaseSensitive, vWholeWord, vRegex))
-                    
+
                     If lMatchesList.Count > 0 Then
                         FindNext()
                     End If
-                    Return
+                    Return False
                 End If
-                
+
                 ' Get selected text
                 Dim lSelectedText As String = GetSelectedText()
                 Dim lMatchesSelection As Boolean = False
-                
+
                 ' Check if selection matches search criteria
                 If vRegex Then
                     Try
                         Dim lRegex As New Regex(vSearchText, If(vCaseSensitive, RegexOptions.None, RegexOptions.IgnoreCase))
                         lMatchesSelection = lRegex.IsMatch(lSelectedText) AndAlso lRegex.Match(lSelectedText).Value = lSelectedText
                     Catch
-                        Return
+                        Return False
                     End Try
                 ElseIf vWholeWord Then
                     ' For whole word, the selection should be exactly the search text
@@ -291,23 +291,26 @@ Namespace Editors
                         lMatchesSelection = String.Equals(lSelectedText, vSearchText, StringComparison.OrdinalIgnoreCase)
                     End If
                 End If
-                
+
                 If lMatchesSelection Then
                     ' Replace the selection
                     ReplaceSelection(vReplaceText)
-                    
+
                     ' Clear search results as text has changed
                     pLastSearchResults = Nothing
                     pCurrentSearchIndex = -1
                 End If
-                
+
                 ' Find next occurrence
                 FindNext()
-                
+
+                Return lMatchesSelection
+
             Catch ex As Exception
                 Console.WriteLine($"Replace error: {ex.Message}")
+                Return False
             End Try
-        End Sub
+        End Function
         
         Public Sub ReplaceAll(vSearchText As String, vReplaceText As String, vCaseSensitive As Boolean, vWholeWord As Boolean, vRegex As Boolean) Implements IEditor.ReplaceAll
             Try
