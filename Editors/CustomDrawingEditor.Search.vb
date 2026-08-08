@@ -301,7 +301,12 @@ Namespace Editors
                     pCurrentSearchIndex = -1
                 End If
 
-                ' Find next occurrence
+                ' Refresh search results for the current search text before advancing -
+                ' FindNext() only ever moves through pLastSearchResults, which stays empty
+                ' if no Find has run yet this session (e.g. the user typed straight into the
+                ' Replace field and clicked Replace without Find first) - previously made
+                ' Replace a silent no-op whenever an unrelated selection happened to exist.
+                Find(vSearchText, vCaseSensitive, vWholeWord, vRegex)
                 FindNext()
 
                 Return lMatchesSelection
