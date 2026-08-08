@@ -236,7 +236,7 @@ Partial Public Class MainWindow
             
             ' Go to Line
             Dim lGoToLine As New MenuItem("_Go to Line...")
-            ' TODO: AddHandler lGoToLine.Activated, AddressOf OnGoToLine
+            AddHandler lGoToLine.Activated, AddressOf OnGoToLine
             lEditMenu.Append(lGoToLine)
             
             lEditMenu.Append(New SeparatorMenuItem())
@@ -356,17 +356,17 @@ Partial Public Class MainWindow
             
             ' Zoom In
             Dim lZoomIn As MenuItem = CreateMenuItemWithIcon("Zoom _In", "zoom-in")
-            ' TODO: AddHandler lZoomIn.Activated, AddressOf OnZoomIn
+            AddHandler lZoomIn.Activated, AddressOf OnZoomIn
             lViewMenu.Append(lZoomIn)
-            
+
             ' Zoom Out
             Dim lZoomOut As MenuItem = CreateMenuItemWithIcon("Zoom _Out", "zoom-out")
-            ' TODO: AddHandler lZoomOut.Activated, AddressOf OnZoomOut
+            AddHandler lZoomOut.Activated, AddressOf OnZoomOut
             lViewMenu.Append(lZoomOut)
-            
+
             ' Reset Zoom
             Dim lZoomReset As New MenuItem("_Reset Zoom")
-            ' TODO: AddHandler lZoomReset.Activated, AddressOf OnZoomReset
+            AddHandler lZoomReset.Activated, AddressOf OnZoomReset
             lViewMenu.Append(lZoomReset)
             
         Catch ex As Exception
