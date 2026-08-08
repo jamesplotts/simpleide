@@ -247,8 +247,11 @@ Partial Public Class MainWindow
                (lCleanModifiers and ModifierType.ShiftMask) <> ModifierType.ShiftMask Then
                 Select Case lKeyString
                     Case "F5"
-                        ' Ctrl+F5 - Run without debugging
-                        ' TODO: OnRunWithoutDebugger(Nothing, Nothing)
+                        ' Ctrl+F5 - Run without building. Menu label advertises this shortcut
+                        ' (MainWindow.Menu.vb's "Run Without Building" item) but this handler
+                        ' was a bare TODO stub that just swallowed the key - the real method to
+                        ' call already existed under a different name.
+                        OnRunWithoutBuilding(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
                         
