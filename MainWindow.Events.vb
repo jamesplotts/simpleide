@@ -51,10 +51,14 @@ Partial Public Class MainWindow
     
     Public Sub OnSaveAll(vSender As Object, vArgs As EventArgs)
         Try
-            SaveAllFiles()
-            ShowInfo("Save All", "All files have been saved.")
+            If SaveAllFiles() Then
+                ShowInfo("Save All", "All files have been saved.")
+            Else
+                ShowError("Save All", "One or more files could not be saved.")
+            End If
         Catch ex As Exception
             Console.WriteLine($"OnSaveAll error: {ex.Message}")
+            ShowError("Save All failed", ex.Message)
         End Try
     End Sub
     
