@@ -457,6 +457,7 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"ShowAddExistingItemDialog error: {ex.Message}")
+                ShowErrorDialog($"Failed to add existing item: {ex.Message}")
             End Try
         End Sub
         
