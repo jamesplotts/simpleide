@@ -403,6 +403,9 @@ Partial Public Class MainWindow
             pCutButton.Sensitive = lHasCurrentEditor
             pCopyButton.Sensitive = lHasCurrentEditor
             pPasteButton.Sensitive = lHasCurrentEditor
+            pOutdentToolButton.Sensitive = lHasCurrentEditor
+            pIndentToolButton.Sensitive = lHasCurrentEditor
+            pToggleCommentButton.Sensitive = lHasCurrentEditor
 
             ' Find
             pFindButton.Sensitive = True ' Always enabled
