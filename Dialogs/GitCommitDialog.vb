@@ -1,6 +1,7 @@
 ' Dialogs/GitCommitDialog.vb - Git commit message dialog
 Imports Gtk
 Imports System
+Imports System.Threading.Tasks
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Widgets
@@ -186,18 +187,53 @@ Namespace Dialogs
         
         Private Sub LoadStagedFiles()
             Try
-                ' Clear existing
                 pStagedFilesStore.Clear()
-                
-                ' TODO: Get staged files from git
-                ' For now, add placeholder
-                pStagedFilesStore.AppendValues("M", "MainWindow.vb")
-                pStagedFilesStore.AppendValues("A", "NewFile.vb")
-                
+
+                If pGitManager Is Nothing Then Return
+
+                Task.Run(Async Function() Await pGitManager.GetFileStatus()).ContinueWith(
+                    Sub(t)
+                        GLib.Idle.Add(Function()
+                            Try
+                                If t.IsFaulted Then
+                                    Console.WriteLine($"LoadStagedFiles error: {t.Exception?.GetBaseException()?.Message}")
+                                    Return False
+                                End If
+
+                                pStagedFilesStore.Clear()
+                                for each lFile in t.Result
+                                    If lFile.IsStaged Then
+                                        pStagedFilesStore.AppendValues(GetStatusCode(lFile.Status), lFile.Path)
+                                    End If
+                                Next
+                            Catch exUpdate As Exception
+                                Console.WriteLine($"LoadStagedFiles UI update error: {exUpdate.Message}")
+                            End Try
+                            Return False
+                        End Function)
+                    End Sub)
+
             Catch ex As Exception
                 Console.WriteLine($"LoadStagedFiles error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Maps a GitManager.FileStatus to the short letter code git's own porcelain output
+        ''' uses (M/A/D/R/C/U), for display in the staged-files list
+        ''' </summary>
+        Private Shared Function GetStatusCode(vStatus As GitManager.FileStatus) As String
+            Select Case vStatus
+                Case GitManager.FileStatus.eModified : Return "M"
+                Case GitManager.FileStatus.eAdded : Return "A"
+                Case GitManager.FileStatus.eDeleted : Return "D"
+                Case GitManager.FileStatus.eRenamed : Return "R"
+                Case GitManager.FileStatus.eCopied : Return "C"
+                Case GitManager.FileStatus.eConflicted : Return "U"
+                Case GitManager.FileStatus.eUntracked : Return "?"
+                Case Else : Return " "
+            End Select
+        End Function
         
         Private Sub ConnectEvents()
             Try
@@ -228,13 +264,35 @@ Namespace Dialogs
         Private Sub OnAmendToggled(vSender As Object, vArgs As EventArgs)
             Try
                 If pAmendCheck.Active Then
-                    ' TODO: Load previous commit message
-                    ' For now, just add placeholder
-                    pMessageBuffer.Text = "[Previous Commit Message would appear here]"
+                    pMessageBuffer.Text = ""
+                    If pGitManager Is Nothing Then Return
+
+                    Task.Run(Async Function() Await pGitManager.GetCommitHistory(1)).ContinueWith(
+                        Sub(t)
+                            GLib.Idle.Add(Function()
+                                Try
+                                    ' The checkbox may have been unchecked again while this was
+                                    ' loading - don't stomp the message box if so
+                                    If Not pAmendCheck.Active Then Return False
+
+                                    If t.IsFaulted Then
+                                        Console.WriteLine($"OnAmendToggled error: {t.Exception?.GetBaseException()?.Message}")
+                                        Return False
+                                    End If
+
+                                    If t.Result IsNot Nothing AndAlso t.Result.Count > 0 Then
+                                        pMessageBuffer.Text = t.Result(0).Message
+                                    End If
+                                Catch exUpdate As Exception
+                                    Console.WriteLine($"OnAmendToggled UI update error: {exUpdate.Message}")
+                                End Try
+                                Return False
+                            End Function)
+                        End Sub)
                 Else
                     pMessageBuffer.Text = ""
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnAmendToggled error: {ex.Message}")
             End Try

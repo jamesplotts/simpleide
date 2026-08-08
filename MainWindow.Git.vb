@@ -173,11 +173,15 @@ Partial Public Class MainWindow
                     
                     If lDialog.Run() = CInt(ResponseType.Ok) Then
                         Dim lMessage As String = lDialog.CommitMessage
-                        
+
                         If Not String.IsNullOrWhiteSpace(lMessage) Then
-                            ' Perform commit
+                            ' Perform commit - Amend/Sign-off checkboxes previously had zero
+                            ' effect on the actual git invocation; now threaded through as the
+                            ' real --amend/--signoff flags
                             Dim lCommand As String = $"commit -m ""{lMessage.Replace("""", """""")}"""
-                            
+                            If lDialog.AmendCommit Then lCommand &= " --amend"
+                            If lDialog.SignOff Then lCommand &= " --signoff"
+
                             ExecuteGitCommand(lCommand, lProjectDir, Sub(commitOutput, commitExitCode)
                                 Application.Invoke(Sub()
                                     If commitExitCode = 0 Then
@@ -656,7 +660,15 @@ Partial Public Class MainWindow
             If pGitManager Is Nothing Then
                 pGitManager = New GitManager()
             End If
-            
+
+            ' ShowGitBranchDialog set this explicitly itself right after calling this method
+            ' - ShowGitCommitDialog called this same method expecting the same thing but never
+            ' set it, so GitCommitDialog's GitManager had no RepositoryPath at all. Setting it
+            ' here covers every caller in one place.
+            If Not String.IsNullOrEmpty(pCurrentProject) Then
+                pGitManager.RepositoryPath = System.IO.Path.GetDirectoryName(pCurrentProject)
+            End If
+
         Catch ex As Exception
             Console.WriteLine($"InitializeGitManager error: {ex.Message}")
         End Try
