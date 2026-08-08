@@ -411,6 +411,7 @@ Namespace Widgets
                 Case EditorTheme.Tags.eAccentColor : Return "Accent Color"
                 Case EditorTheme.Tags.eBevelLightColor : Return "Bevel Light Edge"
                 Case EditorTheme.Tags.eBevelDarkColor : Return "Bevel Dark Edge"
+                Case EditorTheme.Tags.eDisabledForegroundColor : Return "Disabled Control Text"
                 Case EditorTheme.Tags.eKeywordText : Return "Keyword Color"
                 Case EditorTheme.Tags.eTypeText : Return "Type Color"
                 Case EditorTheme.Tags.eStringText : Return "String Color"
@@ -518,6 +519,8 @@ Namespace Widgets
                         pCurrentTheme.BevelLightColor = vColorHex
                     Case EditorTheme.Tags.eBevelDarkColor
                         pCurrentTheme.BevelDarkColor = vColorHex
+                    Case EditorTheme.Tags.eDisabledForegroundColor
+                        pCurrentTheme.DisabledForegroundColor = vColorHex
                     Case EditorTheme.Tags.eErrorColor
                         pCurrentTheme.ErrorColor = vColorHex
                     Case EditorTheme.Tags.eWarningColor
@@ -1394,6 +1397,8 @@ Namespace Widgets
                         Return If(String.IsNullOrEmpty(pCurrentTheme.BevelLightColor), pCurrentTheme.BackgroundColor, pCurrentTheme.BevelLightColor)
                     Case EditorTheme.Tags.eBevelDarkColor
                         Return If(String.IsNullOrEmpty(pCurrentTheme.BevelDarkColor), pCurrentTheme.BackgroundColor, pCurrentTheme.BevelDarkColor)
+                    Case EditorTheme.Tags.eDisabledForegroundColor
+                        Return pCurrentTheme.GetColor(EditorTheme.Tags.eDisabledForegroundColor)
 
                     Case EditorTheme.Tags.eErrorColor
                         Return pCurrentTheme.ErrorColor
