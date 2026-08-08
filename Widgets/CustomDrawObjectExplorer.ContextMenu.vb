@@ -223,12 +223,28 @@ Namespace Widgets
         ''' Creates the context menu for node operations
         ''' </summary>
         ''' <remarks>
-        ''' Sets up the right-click context menu with various node operations
+        ''' Sets up the right-click context menu with various node operations. Rebuilt fresh
+        ''' on every right-click (see ShowContextMenu) rather than cached, since which items
+        ''' even APPEAR - not just their Sensitive state - depends on the currently selected
+        ''' node: "Navigate to Definition" only for non-namespaces, Expand/Collapse/Expand
+        ''' All/Collapse All only for nodes with children, "Show"/"Hide Private Members"
+        ''' depends on current visibility state. This used to build a local Menu and pop it
+        ''' up directly via its own PopupAtPointer(Nothing) call, but never actually assigned
+        ''' it to the pContextMenu field - so ShowContextMenu's own use of pContextMenu
+        ''' (reading .Children to patch sensitivity, then calling .PopupAtPointer itself) was
+        ''' hitting a Nothing reference and silently throwing on every single call, caught by
+        ''' its own Try/Catch. In practice this meant whatever CreateContextMenu happened to
+        ''' pop up itself (using PopupAtPointer(Nothing), not the real click position) was the
+        ''' only menu the user ever saw, correct for that first click but built fresh with
+        ''' Nothing selected the very first time the constructor pre-warmed it (a no-op, since
+        ''' the guard above returns immediately with no selection).
         ''' </remarks>
         Private Sub CreateContextMenu()
             Try
                 If pSelectedNode Is Nothing OrElse pSelectedNode.Node Is Nothing Then Return
-                
+
+                pContextMenu?.Destroy()
+
                 Dim lMenu As New Menu()
                 Dim lNode As SyntaxNode = pSelectedNode.Node
                 Dim lVisualNode As VisualNode = pSelectedNode
@@ -304,10 +320,9 @@ Namespace Widgets
                 AddHandler lSortTypeItem.Activated, Sub(s, e) SetSortMode(ObjectExplorerSortMode.eByType)
                 lMenu.Append(lSortTypeItem)
                 
-                ' Show all and popup
                 lMenu.ShowAll()
-                lMenu.PopupAtPointer(Nothing)
-                
+                pContextMenu = lMenu
+
             Catch ex As Exception
                 Console.WriteLine($"CreateContextMenu error: {ex.Message}")
             End Try
@@ -319,37 +334,19 @@ Namespace Widgets
         ''' <param name="vNode">The node that was right-clicked</param>
         ''' <param name="vEventButton">The button event containing position information</param>
         ''' <remarks>
-        ''' Displays the context menu and updates menu items based on the selected node
+        ''' Always rebuilds the menu via CreateContextMenu (see its remarks) rather than
+        ''' reusing a cached one, since CreateContextMenu already builds Expand vs. Collapse
+        ''' (mutually exclusive, not both-with-toggled-Sensitive) correctly for whichever node
+        ''' is currently selected - the sensitivity-patching loop this used to do here on a
+        ''' stale/Nothing menu is no longer needed.
         ''' </remarks>
         Private Sub ShowContextMenu(vNode As VisualNode, vEventButton As EventButton)
             Try
-                If pContextMenu Is Nothing Then
-                    CreateContextMenu()
-                End If
-                
-                ' Update menu items based on selected node
-                If vNode IsNot Nothing Then
-                    ' Enable/disable expand/collapse based on whether node has children
-                    Dim lHasChildren As Boolean = vNode.HasChildren
-                    Dim lIsExpanded As Boolean = vNode.IsExpanded
-                    
-                    ' Find and update menu items
-                    For Each lItem As Widget In pContextMenu.Children
-                        If TypeOf lItem Is MenuItem Then
-                            Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
-                            Select Case lMenuItem.Label
-                                Case "Expand"
-                                    lMenuItem.Sensitive = lHasChildren AndAlso Not lIsExpanded
-                                Case "Collapse"
-                                    lMenuItem.Sensitive = lHasChildren AndAlso lIsExpanded
-                            End Select
-                        End If
-                    Next
-                End If
-                
-                ' Show the context menu
+                CreateContextMenu()
+                If pContextMenu Is Nothing Then Return
+
                 pContextMenu.PopupAtPointer(vEventButton)
-                
+
             Catch ex As Exception
                 Console.WriteLine($"ShowContextMenu error: {ex.Message}")
             End Try
