@@ -257,23 +257,11 @@ Namespace Widgets
                 AddHandler pSearchEntry.Changed, AddressOf OnSearchTextChangedEnhanced
                 AddHandler pSearchEntry.Activated, AddressOf OnSearchActivated
 
-                ' Handle arrow keys for search navigation
-                AddHandler pSearchEntry.InnerEntry.KeyPressEvent, Sub(sender As Object, e As KeyPressEventArgs)
-                    Try
-                        If e.Event.Key = Gdk.Key.Down Then
-                            NavigateToNextSearchResult()
-                            e.RetVal = True
-                        ElseIf e.Event.Key = Gdk.Key.Up Then
-                            NavigateToPreviousSearchResult()
-                            e.RetVal = True
-                        ElseIf e.Event.Key = Gdk.Key.Escape Then
-                            ClearSearch()
-                            e.RetVal = True
-                        End If
-                    Catch ex As Exception
-                        Console.WriteLine($"Search key handling error: {ex.Message}")
-                    End Try
-                End Sub
+                ' Handle Up/Down/Escape/F3/Shift+F3 for search navigation. Routed through the
+                ' dedicated OnSearchKeyPress handler (previously left unwired, with an inline
+                ' lambda duplicating only its Down/Up/Escape subset here) so F3/Shift+F3 find-
+                ' next/previous actually work.
+                AddHandler pSearchEntry.InnerEntry.KeyPressEvent, AddressOf OnSearchKeyPress
                 
                 ' Create tool item to hold search entry
                 pSearchItem = New ToolItem()
@@ -627,36 +615,36 @@ Namespace Widgets
         ''' <summary>
         ''' Enhanced key press handler for search entry with direct navigation
         ''' </summary>
+        ''' <remarks>
+        ''' Enter is deliberately NOT handled here - pSearchEntry.Activated (wired separately
+        ''' to OnSearchActivated in CreateSearchControls) already covers it via the native
+        ''' Entry activate signal, so handling Return/KP_Enter here too would risk firing
+        ''' OnSearchActivated twice per Enter press.
+        ''' </remarks>
         Private Sub OnSearchKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
             Try
                 Select Case vArgs.Event.Key
-                    Case Gdk.Key.Return, Gdk.Key.KP_Enter
-                        ' Enter key - navigate to current/first result and activate it
-                        OnSearchActivated(vSender, EventArgs.Empty)
-                        vArgs.RetVal = True ' Mark as handled
-                        
                     Case Gdk.Key.Down
                         ' Down arrow - move to next search result
                         NavigateToNextSearchResult()
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.Up
                         ' Up arrow - move to previous search result
                         NavigateToPreviousSearchResult()
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.Escape
                         ' Escape - clear search
                         ClearSearch()
                         vArgs.RetVal = True
-                        
+
                     Case Gdk.Key.F3
-                        ' F3 - find next
-                        NavigateToNextSearchResult()
-                        vArgs.RetVal = True
-                        
-                    Case Gdk.Key.F3
-                        ' F3 - find next (or Shift+F3 for previous)
+                        ' F3 - find next (or Shift+F3 for previous). This used to be two
+                        ' separate "Case Gdk.Key.F3" blocks - the first (unconditional
+                        ' NavigateToNextSearchResult) always matched first, making this
+                        ' Shift-aware block permanently unreachable, so Shift+F3 always
+                        ' behaved like plain F3.
                         If (vArgs.Event.State and Gdk.ModifierType.ShiftMask) = Gdk.ModifierType.ShiftMask Then
                             ' Shift+F3 - find previous
                             NavigateToPreviousSearchResult()
@@ -666,7 +654,7 @@ Namespace Widgets
                         End If
                         vArgs.RetVal = True
                 End Select
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnSearchKeyPress error: {ex.Message}")
             End Try
