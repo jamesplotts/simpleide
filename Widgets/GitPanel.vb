@@ -857,7 +857,10 @@ Namespace Widgets
             Set(Value As String)
                 pProjectRoot = Value
                 pGitManager.RepositoryPath = Value
-                If Not String.IsNullOrEmpty(Value) AndAlso Directory.Exists(System.IO.Path.Combine(Value, ".git")) Then
+                ' IsGitRepository walks up through parent directories rather than only
+                ' checking Value itself, so a project living in its own subfolder under a
+                ' shared repo root is correctly recognized as being in a repository
+                If Not String.IsNullOrEmpty(Value) AndAlso pGitManager.IsGitRepository(Value) Then
                     RefreshGitStatus()
                 Else
                     pStatusGrid.ClearRows()

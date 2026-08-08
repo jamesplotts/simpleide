@@ -45,9 +45,13 @@ Partial Public Class MainWindow
             End If
             
             Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            
-            ' Check if already a git repository
-            If Directory.Exists(System.IO.Path.Combine(lProjectDir, ".git")) Then
+
+            ' Check if already a git repository - walks up through parent directories, not
+            ' just lProjectDir itself, so a project living in its own subfolder under a
+            ' shared repo root (the standard multi-project layout) is correctly recognized
+            ' as already being in a repository instead of prompting to create a nested one
+            If pGitManager Is Nothing Then pGitManager = New GitManager()
+            If pGitManager.IsGitRepository(lProjectDir) Then
                 ShowInfo("git Repository", "this project is already a git repository.")
                 Return
             End If
@@ -395,8 +399,9 @@ Partial Public Class MainWindow
             End If
             
             Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            
-            If Not Directory.Exists(System.IO.Path.Combine(lProjectDir, ".git")) Then
+
+            If pGitManager Is Nothing Then pGitManager = New GitManager()
+            If Not pGitManager.IsGitRepository(lProjectDir) Then
                 Dim lResponse As Integer = ShowQuestion(
                     "Not a git Repository",
                     "this project is not a git repository. Initialize one?"

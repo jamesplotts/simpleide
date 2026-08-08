@@ -85,17 +85,43 @@ Namespace Managers
             pRepositoryPath = vRepositoryPath
         End Sub
 
-        ' Check if directory is a git repository
+        ''' <summary>
+        ''' Checks whether vPath is inside a git repository - walks up through every parent
+        ''' directory looking for a .git folder, not just vPath itself.
+        ''' </summary>
+        ''' <remarks>
+        ''' The previous version only checked vPath directly, which reports "not a repository"
+        ''' for the standard multi-project layout (each project in its own subfolder under one
+        ''' shared repo root) even though the project genuinely is inside a repo. Confirmed
+        ''' live this caused "Initialize Repository" to create a nested/shadow .git inside the
+        ''' project subfolder when the user accepted the (wrongly-shown) prompt.
+        ''' </remarks>
         Public Function IsGitRepository(vPath As String) As Boolean
-            Try
-                If String.IsNullOrEmpty(vPath) Then Return False
+            Return Not String.IsNullOrEmpty(FindRepositoryRoot(vPath))
+        End Function
 
-                Dim lGitDir As String = System.IO.Path.Combine(vPath, ".git")
-                Return Directory.Exists(lGitDir)
+        ''' <summary>
+        ''' Walks up from vPath through every parent directory looking for one containing a
+        ''' .git folder, and returns that directory - the actual repository root - or an empty
+        ''' string if vPath isn't inside a git repository at all.
+        ''' </summary>
+        Public Function FindRepositoryRoot(vPath As String) As String
+            Try
+                If String.IsNullOrEmpty(vPath) Then Return ""
+
+                Dim lCurrent As DirectoryInfo = New DirectoryInfo(vPath)
+                Do While lCurrent IsNot Nothing
+                    If Directory.Exists(System.IO.Path.Combine(lCurrent.FullName, ".git")) Then
+                        Return lCurrent.FullName
+                    End If
+                    lCurrent = lCurrent.Parent
+                Loop
+
+                Return ""
 
             Catch ex As Exception
-                Console.WriteLine($"IsGitRepository error: {ex.Message}")
-                Return False
+                Console.WriteLine($"FindRepositoryRoot error: {ex.Message}")
+                Return ""
             End Try
         End Function
 
