@@ -956,15 +956,26 @@ Namespace Widgets
                             lEditor.ReplaceAll(pFindEntry.Text, pReplaceEntry.Text,
                                                pCaseSensitiveCheck.Active, pWholeWordCheck.Active, pRegexCheck.Active)
 
-                        ElseIf pProjectManager IsNot Nothing Then
-                            Dim lSourceFile As SourceFileInfo = pProjectManager.GetSourceFileInfo(lFilePath)
-                            If lSourceFile IsNot Nothing AndAlso lSourceFile.TextLines IsNot Nothing Then
-                                lReplaced = ReplaceAllInSourceFileInfo(lSourceFile, lFilePath, lFailedSaves)
+                        Else
+                            ' Resolve the file's actual owning project when a multi-project
+                            ' solution is loaded, rather than always assuming pProjectManager
+                            ' (the startup project) owns it - see SetSolutionManager
+                            Dim lOwningProjectManager As ProjectManager = Nothing
+                            If pSolutionManager IsNot Nothing AndAlso pSolutionManager.AllProjects.Count > 1 Then
+                                lOwningProjectManager = pSolutionManager.FindOwningProject(lFilePath)
+                            End If
+                            If lOwningProjectManager Is Nothing Then lOwningProjectManager = pProjectManager
+
+                            If lOwningProjectManager IsNot Nothing Then
+                                Dim lSourceFile As SourceFileInfo = lOwningProjectManager.GetSourceFileInfo(lFilePath)
+                                If lSourceFile IsNot Nothing AndAlso lSourceFile.TextLines IsNot Nothing Then
+                                    lReplaced = ReplaceAllInSourceFileInfo(lSourceFile, lFilePath, lFailedSaves)
+                                Else
+                                    lReplaced = ReplaceInFileOnDisk(lFilePath)
+                                End If
                             Else
                                 lReplaced = ReplaceInFileOnDisk(lFilePath)
                             End If
-                        Else
-                            lReplaced = ReplaceInFileOnDisk(lFilePath)
                         End If
 
                         If lReplaced > 0 Then

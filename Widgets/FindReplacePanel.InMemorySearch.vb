@@ -18,16 +18,17 @@ Namespace Widgets
         
         ' New fields for in-memory search
         Private pProjectManager As ProjectManager
+        Private pSolutionManager As SolutionManager
         Private pSearchCancellation As CancellationTokenSource
-        
+
         ' Event to request ProjectManager from MainWindow
         Public Event OnRequestProjectManager As EventHandler(Of ProjectManagerEventArgs)
-        
+
         Public Class ProjectManagerEventArgs
             Inherits EventArgs
             Public Property ProjectManager As ProjectManager
         End Class
-        
+
         ''' <summary>
         ''' Sets the ProjectManager for in-memory searching
         ''' </summary>
@@ -35,6 +36,16 @@ Namespace Widgets
         Public Sub SetProjectManager(vProjectManager As ProjectManager)
             pProjectManager = vProjectManager
             Console.WriteLine($"FindReplacePanel: ProjectManager set - {If(pProjectManager IsNot Nothing, "Success", "Nothing")}")
+        End Sub
+
+        ''' <summary>
+        ''' Sets the loaded solution (or Nothing when only a single project is open) so
+        ''' "entire project" search/replace can span every project in the solution instead
+        ''' of only the startup project
+        ''' </summary>
+        ''' <param name="vSolutionManager">The loaded solution, or Nothing for a single-project session</param>
+        Public Sub SetSolutionManager(vSolutionManager As SolutionManager)
+            pSolutionManager = vSolutionManager
         End Sub
         
         ''' <summary>
@@ -62,36 +73,56 @@ Namespace Widgets
                     Return
                 End If
 
-                ' Check if we have source files loaded
-                Dim lSourceFiles As Dictionary(Of String, SourceFileInfo) = pProjectManager.SourceFiles
-                If lSourceFiles Is Nothing OrElse lSourceFiles.Count = 0 Then
+                ' Gather every source file to search: every loaded solution project's files
+                ' when a multi-project solution is open, otherwise just pProjectManager's -
+                ' see SolutionManager.AllProjects remarks for why each ProjectManager instance
+                ' is queried independently rather than merged into one dictionary
+                Dim lSourceFiles As New Dictionary(Of String, SourceFileInfo)(StringComparer.OrdinalIgnoreCase)
+                If pSolutionManager IsNot Nothing AndAlso pSolutionManager.AllProjects.Count > 1 Then
+                    for each lProject In pSolutionManager.AllProjects
+                        Dim lProjectFiles As Dictionary(Of String, SourceFileInfo) = lProject.SourceFiles
+                        If lProjectFiles Is Nothing Then Continue for
+                        for each lEntry In lProjectFiles
+                            lSourceFiles(lEntry.Key) = lEntry.Value
+                        Next
+                    Next
+                Else
+                    Dim lProjectFiles As Dictionary(Of String, SourceFileInfo) = pProjectManager.SourceFiles
+                    If lProjectFiles IsNot Nothing Then
+                        for each lEntry In lProjectFiles
+                            lSourceFiles(lEntry.Key) = lEntry.Value
+                        Next
+                    End If
+                End If
+
+                If lSourceFiles.Count = 0 Then
                     pStatusLabel.Text = "No project files loaded"
                     vOnComplete?.Invoke()
                     Return
                 End If
-                
+
                 ' Show progress
                 pProgressBar.Visible = True
                 pCancelButton.Visible = True
                 pIsSearching = True
-                
+
                 ' Create cancellation token
                 pSearchCancellation = New CancellationTokenSource()
                 Dim lCancellationToken As CancellationToken = pSearchCancellation.Token
-                
+
                 ' Concurrent collection for results
                 Dim lConcurrentResults As New ConcurrentBag(Of FindResult)()
                 Dim lTotalMatches As Integer = 0
                 Dim lFilesSearched As Integer = 0
                 Dim lTotalFiles As Integer = lSourceFiles.Count
-                
+
                 ' Create search tasks for each file
                 Dim lSearchTasks As New List(Of Task)()
-                
+
                 For Each lFileEntry In lSourceFiles
                     Dim lSourceFile As SourceFileInfo = lFileEntry.Value
                     Dim lFilePath As String = lFileEntry.Key
-                    
+
                     ' Skip files that aren't loaded or don't have text lines
                     If Not lSourceFile.IsLoaded OrElse lSourceFile.TextLines Is Nothing Then
                         Continue For
