@@ -932,6 +932,7 @@ Namespace Widgets
 
                 Dim lTotalReplaced As Integer = 0
                 Dim lFilesModified As Integer = 0
+                Dim lFailedSaves As New List(Of String)
 
                 pProgressBar.Visible = True
                 pIsSearching = True
@@ -958,7 +959,7 @@ Namespace Widgets
                         ElseIf pProjectManager IsNot Nothing Then
                             Dim lSourceFile As SourceFileInfo = pProjectManager.GetSourceFileInfo(lFilePath)
                             If lSourceFile IsNot Nothing AndAlso lSourceFile.TextLines IsNot Nothing Then
-                                lReplaced = ReplaceAllInSourceFileInfo(lSourceFile, lFilePath)
+                                lReplaced = ReplaceAllInSourceFileInfo(lSourceFile, lFilePath, lFailedSaves)
                             Else
                                 lReplaced = ReplaceInFileOnDisk(lFilePath)
                             End If
@@ -978,6 +979,18 @@ Namespace Widgets
 
                 pStatusLabel.Text = $"Replaced {lTotalReplaced} occurrence(s) in {lFilesModified} file(s)"
 
+                If lFailedSaves.Count > 0 Then
+                    Dim lFailedList As String = String.Join(Environment.NewLine, lFailedSaves.Select(Function(p) System.IO.Path.GetFileName(p)))
+                    Dim lErrorDialog As New MessageDialog(
+                        CType(Toplevel, Window),
+                        DialogFlags.Modal,
+                        MessageType.Error,
+                        ButtonsType.Ok,
+                        $"{lFailedSaves.Count} file(s) were replaced in memory but could not be saved to disk:{Environment.NewLine}{lFailedList}")
+                    lErrorDialog.Run()
+                    lErrorDialog.Destroy()
+                End If
+
                 ' Refresh results to reflect the post-replace state
                 ExecuteSearch()
 
@@ -995,7 +1008,7 @@ Namespace Widgets
         ''' immediately, since an unopened file has no other save path
         ''' </summary>
         ''' <returns>Number of occurrences replaced</returns>
-        Private Function ReplaceAllInSourceFileInfo(vSourceFile As SourceFileInfo, vFilePath As String) As Integer
+        Private Function ReplaceAllInSourceFileInfo(vSourceFile As SourceFileInfo, vFilePath As String, vFailedSaves As List(Of String)) As Integer
             Try
                 Dim lOriginalContent As String = String.Join(Environment.NewLine, vSourceFile.TextLines)
                 Dim lReplaceCount As Integer = 0
@@ -1011,6 +1024,7 @@ Namespace Widgets
 
                 If Not vSourceFile.SaveContent() Then
                     Console.WriteLine($"ReplaceAllInSourceFileInfo: failed To save {vFilePath}")
+                    vFailedSaves.Add(vFilePath)
                 End If
 
                 Return lReplaceCount
