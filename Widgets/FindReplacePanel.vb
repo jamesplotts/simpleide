@@ -1068,7 +1068,14 @@ Namespace Widgets
                         If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
                     vReplaceCount = lRegex.Matches(vContent).Count
                     If vReplaceCount > 0 Then
-                        lContent = lRegex.Replace(vContent, vReplaceText)
+                        ' Whole Word is a plain-text search modifier, not regex mode - the
+                        ' MatchEvaluator overload (not the replacement-PATTERN string overload)
+                        ' inserts vReplaceText literally. Regex.Replace(input, pattern,
+                        ' replacementString) treats $ in the replacement as a substitution
+                        ' token ($0/$$/etc), which silently mangled any replacement text
+                        ' containing a literal $ (confirmed: replacing with "cost=$0 total"
+                        ' produced "cost=<match> total" instead of the literal text).
+                        lContent = lRegex.Replace(vContent, Function(m) vReplaceText)
                     End If
 
                 Else
@@ -1089,7 +1096,9 @@ Namespace Widgets
                             lContent = vContent.Replace(vOptions.SearchText, vReplaceText)
                         Else
                             Dim lRegex As New Regex(Regex.Escape(vOptions.SearchText), RegexOptions.IgnoreCase)
-                            lContent = lRegex.Replace(vContent, vReplaceText)
+                            ' Same literal-replacement fix as the WholeWord branch above - this
+                            ' is still plain-text (case-insensitive) mode, not regex mode
+                            lContent = lRegex.Replace(vContent, Function(m) vReplaceText)
                         End If
                     End If
                 End If
