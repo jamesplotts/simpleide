@@ -219,26 +219,23 @@ Partial Public Class MainWindow
                         Return
                     End If
                     
-                    ' Get current branch
-                    ExecuteGitCommand("branch --show-current", lProjectDir, Sub(branchOutput, branchExitCode)
-                        If branchExitCode = 0 Then
-                            Dim lBranch As String = branchOutput.Trim()
+                    UpdateStatusBar("Pushing to remote...")
 
-                            UpdateStatusBar("Pushing to remote...")
-
-                            ' Push to remote
-                            ExecuteGitCommand($"push origin {lBranch}", lProjectDir, Sub(pushOutput, pushExitCode)
-                                Application.Invoke(Sub()
-                                    If pushExitCode = 0 Then
-                                        ShowInfo("git", "Successfully pushed to remote.")
-                                        RefreshGitStatus()
-                                    Else
-                                        ShowError("git error", $"Push failed: {pushOutput}")
-                                    End If
-                                    UpdateStatusBar("Ready")
-                                End Sub)
-                            End Sub)
-                        End If
+                    ' Bare "git push" - relies on the current branch's own configured
+                    ' upstream instead of assuming a remote named "origin" exists, matching
+                    ' the same fix already applied to GitManager.Push (cd3e9b5). This is a
+                    ' separate, ad-hoc git invocation path from GitManager's, so it needed
+                    ' the same fix applied here independently.
+                    ExecuteGitCommand("push", lProjectDir, Sub(pushOutput, pushExitCode)
+                        Application.Invoke(Sub()
+                            If pushExitCode = 0 Then
+                                ShowInfo("git", "Successfully pushed to remote.")
+                                RefreshGitStatus()
+                            Else
+                                ShowError("git error", $"Push failed: {pushOutput}")
+                            End If
+                            UpdateStatusBar("Ready")
+                        End Sub)
                     End Sub)
                 End Sub)
             End Sub)
