@@ -426,20 +426,44 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Terminal emulators to try, in order, when opening a directory. Each is launched
+        ''' with no arguments and ProcessStartInfo.WorkingDirectory set to the target path -
+        ''' this avoids needing to know each emulator's own (differing) working-directory
+        ''' flag syntax. Previously hardcoded to "gnome-terminal" alone, which threw
+        ''' (Win32Exception, "No such file or directory") and failed silently on any desktop
+        ''' that doesn't ship it, e.g. a plain KDE/KWin install with only konsole.
+        ''' </summary>
+        Private Shared ReadOnly kTerminalEmulators() As String = {"konsole", "gnome-terminal", "xfce4-terminal", "xterm"}
+
         Private Sub OnContextMenuOpenInTerminal(vSender As Object, vArgs As EventArgs)
             Try
                 If pSelectedNode?.Node Is Nothing Then Return
-                
+
                 Dim lPath As String = If(pSelectedNode.Node.IsFile,
                                         System.IO.Path.GetDirectoryName(pSelectedNode.Node.Path),
                                         pSelectedNode.Node.Path)
-                
-                If Directory.Exists(lPath) Then
-                    System.Diagnostics.Process.Start("gnome-terminal", $"--working-directory=""{lPath}""")
-                End If
-                
+
+                If Not Directory.Exists(lPath) Then Return
+
+                For Each lTerminal In kTerminalEmulators
+                    Try
+                        Dim lStartInfo As New System.Diagnostics.ProcessStartInfo(lTerminal) With {
+                            .WorkingDirectory = lPath,
+                            .UseShellExecute = False
+                        }
+                        System.Diagnostics.Process.Start(lStartInfo)
+                        Return
+                    Catch
+                        ' Try the next terminal emulator
+                    End Try
+                Next
+
+                ShowErrorDialog($"Could not find a terminal emulator to launch. Tried: {String.Join(", ", kTerminalEmulators)}.")
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuOpenInTerminal error: {ex.Message}")
+                ShowErrorDialog($"Failed to open terminal: {ex.Message}")
             End Try
         End Sub
         
