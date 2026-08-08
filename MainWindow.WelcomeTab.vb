@@ -146,15 +146,11 @@ Partial Public Class MainWindow
     ''' <param name="vWelcomeWidget">The welcome widget to apply theme to</param>
     Private Sub ApplyWelcomeTheme(vWelcomeWidget As WelcomeTabWidget)
         Try
-            ' Read the theme's own IsDarkTheme property directly instead of guessing from
-            ' its name - the previous name-substring heuristic ("dark"/"monokai"/"dracula")
-            ' happened to work for every built-in theme's name but would silently
-            ' misclassify any theme (custom or future) whose name doesn't happen to
-            ' contain one of those words, regardless of its actual IsDarkTheme value
-            Dim lIsDarkTheme As Boolean = pThemeManager?.GetCurrentThemeObject()?.IsDarkTheme = True
-
-            ' Apply the theme using the existing UpdateTheme method
-            vWelcomeWidget.UpdateTheme(lIsDarkTheme)
+            ' Pass the actual EditorTheme object (not just IsDarkTheme) so the welcome tab's
+            ' chrome renders with that specific theme's real colors - two themes of the same
+            ' brightness (e.g. Solarized Dark vs. Dracula) now look different, matching the
+            ' rest of the IDE, instead of both collapsing to the same generic dark palette
+            vWelcomeWidget.UpdateTheme(pThemeManager?.GetCurrentThemeObject())
 
         Catch ex As Exception
             Console.WriteLine($"ApplyWelcomeTheme error: {ex.Message}")
