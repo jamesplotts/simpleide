@@ -97,12 +97,15 @@ Namespace Utilities
             End Try
         End Function
         
-        ' Search for packages
-        Public Async Function SearchPackagesAsync(vQuery As String, vSkip As Integer, vTake As Integer) As Task(Of SearchResult)
+        ' Search for packages. An empty vQuery is valid - NuGet's real v3 search API treats
+        ' a blank "q=" as "browse everything", sorted by relevance/popularity, not an error
+        ' (confirmed live: q="" against azuresearch-usnc.nuget.org returns 470k+ hits) - this
+        ' is how the "Available Packages" list shows something before the dev types anything.
+        Public Async Function SearchPackagesAsync(vQuery As String, vSkip As Integer, vTake As Integer, Optional vBypassCache As Boolean = False) As Task(Of SearchResult)
             Try
                 ' Check cache first
                 Dim lCacheKey As String = $"{vQuery}_{vSkip}_{vTake}"
-                If pCache.ContainsKey(lCacheKey) AndAlso (DateTime.Now - pLastCacheTime) < pCacheTimeout Then
+                If Not vBypassCache AndAlso pCache.ContainsKey(lCacheKey) AndAlso (DateTime.Now - pLastCacheTime) < pCacheTimeout Then
                     Return pCache(lCacheKey)
                 End If
                 

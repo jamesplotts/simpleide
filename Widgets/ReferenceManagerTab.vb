@@ -60,6 +60,7 @@ Namespace Widgets
         Private pNuGetSearchListStore As ListStore
         Private pNuGetSearchEntry As CustomDrawTextBox
         Private pNuGetSearchButton As CustomDrawButton
+        Private pNuGetRefreshButton As CustomDrawButton
         Private pNuGetAddButton As CustomDrawButton
         Private pNuGetRemoveButton As CustomDrawButton
         Private pNuGetUpdateButton As CustomDrawButton
@@ -350,6 +351,11 @@ Namespace Widgets
             AddHandler pNuGetSearchButton.Clicked, AddressOf OnNuGetSearch
             lSearchBox.PackStart(pNuGetSearchButton, False, False, 0)
 
+            pNuGetRefreshButton = New CustomDrawButton("Refresh")
+            pNuGetRefreshButton.ThemeManager = pThemeManager
+            AddHandler pNuGetRefreshButton.Clicked, AddressOf OnNuGetRefresh
+            lSearchBox.PackStart(pNuGetRefreshButton, False, False, 0)
+
             lAvailableBox.PackStart(lSearchBox, False, False, 0)
 
             Dim lAvailableLabel As New Label()
@@ -588,8 +594,12 @@ Namespace Widgets
 
                 ' Available-list search results and the active selection both belong to
                 ' whichever project was previously showing - stale once the project changes.
-                pNuGetSearchListStore.Clear()
+                ' Re-running the search (blank box = browse all) refreshes the list against
+                ' the newly-current project's IsInstalled state instead of just clearing it;
+                ' this also fires on first tab open, so the Available list is never empty
+                ' before the dev has typed anything.
                 ClearNuGetSelectionState()
+                RunNuGetSearch(vBypassCache:=False)
 
             Catch ex As Exception
                 Console.WriteLine($"Error loading References: {ex.Message}")
@@ -798,11 +808,23 @@ Namespace Widgets
         End Sub
 
         ' NuGet search - narrows the bottom "Available Packages" list only; the top
-        ' "Installed Packages" list is unaffected by search.
+        ' "Installed Packages" list is unaffected by search. An empty search box is valid -
+        ' it browses everything NuGet returns for a blank query (sorted by popularity),
+        ' rather than leaving the Available list empty until the dev types something.
         Private Sub OnNuGetSearch(vSender As Object, vE As EventArgs)
+            RunNuGetSearch(vBypassCache:=False)
+        End Sub
+
+        ' Refresh button - forces a fresh fetch of whatever's currently in the search box
+        ' (including a blank box, which re-fetches the "browse all" list), bypassing the
+        ' NuGetClient's 5-minute result cache.
+        Private Sub OnNuGetRefresh(vSender As Object, vE As EventArgs)
+            RunNuGetSearch(vBypassCache:=True)
+        End Sub
+
+        Private Sub RunNuGetSearch(vBypassCache As Boolean)
             Try
                 Dim lQuery As String = pNuGetSearchEntry.Text.Trim()
-                If String.IsNullOrEmpty(lQuery) Then Return
 
                 ' Cancel previous search if running
                 If pCurrentSearchTask IsNot Nothing AndAlso Not pCurrentSearchTask.IsCompleted Then
@@ -811,14 +833,15 @@ Namespace Widgets
 
                 ' Start search
                 pNuGetSpinner.Start()
-                pNuGetStatusLabel.Text = "Searching..."
+                pNuGetStatusLabel.Text = If(String.IsNullOrEmpty(lQuery), "Loading Available Packages...", "Searching...")
                 pNuGetSearchButton.Sensitive = False
+                pNuGetRefreshButton.Sensitive = False
 
                 ' Clear current results
                 pNuGetSearchListStore.Clear()
 
                 ' Start async search
-                pCurrentSearchTask = Task.Run(Async Function() Await pNuGetClient.SearchPackagesAsync(lQuery, 0, 50))
+                pCurrentSearchTask = Task.Run(Async Function() Await pNuGetClient.SearchPackagesAsync(lQuery, 0, 50, vBypassCache))
                 pCurrentSearchTask.ContinueWith(Sub(t) GLib.Idle.Add(Function() OnNuGetSearchComplete(t)))
 
             Catch ex As Exception
@@ -832,6 +855,7 @@ Namespace Widgets
             Try
                 pNuGetSpinner.Stop()
                 pNuGetSearchButton.Sensitive = True
+                pNuGetRefreshButton.Sensitive = True
 
                 If vTask.IsFaulted Then
                     pNuGetStatusLabel.Text = "Search failed"
