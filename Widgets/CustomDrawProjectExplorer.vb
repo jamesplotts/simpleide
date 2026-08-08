@@ -719,11 +719,29 @@ Namespace Widgets
         ''' <summary>
         ''' Refreshes the current project display
         ''' </summary>
+        ''' <remarks>
+        ''' Must route through LoadSolutionFromManager when a solution is loaded (pSolutionManager
+        ''' IsNot Nothing), not the single-project LoadProjectFromManager - the latter rebuilds
+        ''' pRootNode from scratch as a plain ProjectNodeType.eProject for whichever project
+        ''' pProjectManager currently points to (the startup project), discarding the synthetic
+        ''' eSolution root and every other member project's subtree. Confirmed this was exactly
+        ''' what "really messed up the project explorer" after Project -> Add New Item: that
+        ''' menu command's handler (MainWindow.Project.vb's OnAddNewItem) calls RefreshProject()
+        ''' unconditionally, so on a multi-project solution the whole tree collapsed down to one
+        ''' project's files with no solution node, even though the other projects were still
+        ''' loaded internally - same bug the two RefreshProject() calls in MainWindow.Git.vb are
+        ''' exposed to after a checkout/pull that touches a solution's files.
+        ''' </remarks>
         Public Sub RefreshProject()
             Try
-                Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshProject")
-                LoadProjectFromManager
-                
+                If pSolutionManager IsNot Nothing Then
+                    Console.WriteLine($"Calling pProjectExplorer.LoadSolutionFromManager from CustomDrawProjectExplorer.RefreshProject")
+                    LoadSolutionFromManager(pSolutionManager)
+                Else
+                    Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshProject")
+                    LoadProjectFromManager
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"RefreshProject error: {ex.Message}")
             End Try
@@ -774,11 +792,20 @@ Namespace Widgets
         ''' <summary>
         ''' Refreshes the entire project tree
         ''' </summary>
+        ''' <remarks>
+        ''' Same solution-vs-single-project routing as RefreshProject() - see its remarks for
+        ''' why this can't unconditionally call LoadProjectFromManager.
+        ''' </remarks>
         Public Sub RefreshTree()
             Try
-                Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshTree")
-                LoadProjectFromManager
-                
+                If pSolutionManager IsNot Nothing Then
+                    Console.WriteLine($"Calling pProjectExplorer.LoadSolutionFromManager from CustomDrawProjectExplorer.RefreshTree")
+                    LoadSolutionFromManager(pSolutionManager)
+                Else
+                    Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshTree")
+                    LoadProjectFromManager
+                End If
+
             Catch ex As Exception
                 Console.WriteLine($"RefreshTree error: {ex.Message}")
             End Try

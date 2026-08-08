@@ -377,15 +377,12 @@ Namespace Widgets
                     End If
                     
                     If lSuccess Then
-                        ' Refresh project explorer from ProjectManager
-                        If pProjectManager IsNot Nothing Then
-                            ' Reload the project explorer from the updated ProjectManager state
-                            LoadProjectFromManager()
-                        Else
-                            ' Fallback to old refresh method if no ProjectManager
-                            RefreshProject()
-                        End If
-                        
+                        ' Refresh project explorer - RefreshProject() is solution-aware (routes
+                        ' to LoadSolutionFromManager when a .sln is loaded); calling
+                        ' LoadProjectFromManager directly here would silently collapse a
+                        ' multi-project solution tree down to just the startup project
+                        RefreshProject()
+
                         ' Raise the project modified event
                         RaiseEvent ProjectModified()
                     End If
@@ -573,15 +570,11 @@ Namespace Widgets
                             ' The ProjectManager's FileSystemWatcher will detect this rename
                             ' and fire the FileRenamed event automatically (see OnFileRenamed in ProjectManager)
                             
-                            ' Refresh project explorer from ProjectManager
-                            If pProjectManager IsNot Nothing Then
-                                ' Reload from the updated ProjectManager state
-                                LoadProjectFromManager()
-                            Else
-                                ' Fallback to old refresh method
-                                RefreshProject()
-                            End If
-                            
+                            ' Refresh project explorer - RefreshProject() is solution-aware (see
+                            ' the Delete handler above for why calling LoadProjectFromManager
+                            ' directly here would corrupt a multi-project solution tree)
+                            RefreshProject()
+
                             ' Raise project modified event
                             RaiseEvent ProjectModified()
                             

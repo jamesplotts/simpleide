@@ -159,66 +159,32 @@ Partial Public Class MainWindow
     End Function
     
     ' ===== Project Management =====
+
+    ''' <summary>
+    ''' Handles the "Project -> Add New Item..." menu command
+    ''' </summary>
+    ''' <remarks>
+    ''' Delegates to CustomDrawProjectExplorer.OnContextMenuAddNewItem (the same handler its
+    ''' own right-click "Add New Item" context-menu entry uses) instead of maintaining a
+    ''' separate implementation here. The old standalone implementation wrote the file
+    ''' directly with File.WriteAllText and never called ProjectManager.AddFileToProject, so
+    ''' the new file was never registered as a project source file; it then called
+    ''' RefreshProject(), which - before that method was made solution-aware - unconditionally
+    ''' rebuilt the tree via the single-project LoadProjectFromManager, discarding the
+    ''' synthetic solution root and every sibling project's subtree whenever a .sln was
+    ''' loaded (James: "It really messed up the project explorer"). The delegated-to
+    ''' implementation avoids both problems and additionally offers the full item-type
+    ''' selector (Class/Module/Interface/Form/etc.) instead of always creating a bare class.
+    ''' </remarks>
     Public Sub OnAddNewItem(vSender As Object, vArgs As EventArgs)
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
+            If pProjectExplorer Is Nothing OrElse String.IsNullOrEmpty(pCurrentProject) Then
                 ShowInfo("No project", "Please open a project first.")
                 Return
             End If
-            
-            ' Simple input dialog for new item name
-            Dim lInputDialog As New InputDialog(Me, "Add New Item", "Enter item Name:", "NewClass.vb", pThemeManager)
-            
-            If lInputDialog.Run() = CInt(ResponseType.Ok) Then
-                Dim lItemName As String = lInputDialog.Text.Trim()
-                
-                If String.IsNullOrEmpty(lItemName) Then
-                    ShowError("Invalid Name", "Please enter a valid item Name.")
-                    Return
-                End If
-                
-                ' Ensure .vb extension
-                If Not lItemName.EndsWith(".vb", StringComparison.OrdinalIgnoreCase) Then
-                    lItemName &= ".vb"
-                End If
-                
-                Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-                Dim lItemPath As String = System.IO.Path.Combine(lProjectDir, lItemName)
-                
-                ' Check if file already exists
-                If File.Exists(lItemPath) Then
-                    ShowError("File Exists", "A file with that Name already exists.")
-                    Return
-                End If
-                
-                ' Create basic class template
-                Dim lClassName As String = System.IO.Path.GetFileNameWithoutExtension(lItemName)
-                Dim lContent As String = $"' {lClassName}" & Environment.NewLine &
-                                       $"' Created: {DateTime.Now:yyyy-MM-dd HH:mm:ss}" & Environment.NewLine &
-                                       Environment.NewLine &
-                                       $"Public Class {lClassName}" & Environment.NewLine &
-                                       Environment.NewLine &
-                                       "    ' Constructor" & Environment.NewLine &
-                                       "    Public Sub New()" & Environment.NewLine &
-                                       "        ' TODO: Initialize class" & Environment.NewLine &
-                                       "    End Sub" & Environment.NewLine &
-                                       Environment.NewLine &
-                                       "End Class"
-                
-                ' Write the file
-                File.WriteAllText(lItemPath, lContent)
-                
-                ' Refresh project explorer
-                pProjectExplorer.RefreshProject()
-                
-                ' Open the new file in editor
-                OpenFileInEditor(lItemPath)
-                
-                ShowInfo("Item Added", $"Added {lItemName} to project.")
-            End If
-            
-            lInputDialog.Destroy()
-            
+
+            pProjectExplorer.OnContextMenuAddNewItem(vSender, vArgs)
+
         Catch ex As Exception
             Console.WriteLine($"OnAddNewItem error: {ex.Message}")
             ShowError("Add item error", ex.Message)

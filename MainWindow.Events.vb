@@ -499,36 +499,19 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Handles the "Project -> Add Existing Item..." menu command
+    ''' </summary>
+    ''' <remarks>
+    ''' Delegates to CustomDrawProjectExplorer.OnContextMenuAddExistingItem instead of
+    ''' maintaining a separate implementation here - the old standalone implementation called
+    ''' pProjectExplorer.LoadProjectFromManager directly, which (same bug as OnAddNewItem in
+    ''' MainWindow.Project.vb) discards the multi-project solution tree whenever a .sln is
+    ''' loaded, since it never checks whether a SolutionManager is active.
+    ''' </remarks>
     Private Sub OnAddExistingItem(vSender As Object, vArgs As EventArgs)
         Try
-            Using lDialog As New FileChooserDialog("Add Existing Item", Me, 
-                                                  FileChooserAction.Open,
-                                                  "Cancel", ResponseType.Cancel,
-                                                  "Add", ResponseType.Accept)
-                
-                ' Add file filters
-                Dim lVbFilter As New FileFilter()
-                lVbFilter.Name = "VB.NET Files"
-                lVbFilter.AddPattern("*.vb")
-                lDialog.AddFilter(lVbFilter)
-                
-                Dim lAllFilter As New FileFilter()
-                lAllFilter.Name = "All Files"
-                lAllFilter.AddPattern("*")
-                lDialog.AddFilter(lAllFilter)
-                
-                If lDialog.Run() = CInt(ResponseType.Accept) Then
-                    ' Add file to project
-                    If pProjectManager IsNot Nothing Then
-                        pProjectManager.AddFileToProject(lDialog.Filename)
-                        ' Refresh project explorer
-                        Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.OnAddExistingItem")
-                        pProjectExplorer?.LoadProjectFromManager
-                    End If
-                End If
-                
-                lDialog.Destroy()
-            End Using
+            pProjectExplorer?.OnContextMenuAddExistingItem(vSender, vArgs)
         Catch ex As Exception
             Console.WriteLine($"OnAddExistingItem error: {ex.Message}")
         End Try

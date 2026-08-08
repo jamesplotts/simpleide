@@ -113,24 +113,43 @@ Namespace Widgets
         ''' </summary>
         ''' <param name="vSender">Event sender</param>
         ''' <param name="vArgs">Event arguments</param>
-        Private Sub OnContextMenuAddExistingItem(vSender As Object, vArgs As EventArgs)
+        ''' <remarks>
+        ''' Public so MainWindow's Project menu "Add Existing Item..." command can delegate
+        ''' straight to this instead of maintaining its own separate implementation -
+        ''' MainWindow.Events.vb's old OnAddExistingItem called pProjectExplorer.
+        ''' LoadProjectFromManager directly, which (like the Add New Item bug below) discards
+        ''' the multi-project solution tree whenever a solution is loaded
+        ''' </remarks>
+        Public Sub OnContextMenuAddExistingItem(vSender As Object, vArgs As EventArgs)
             Try
                 ShowAddExistingItemDialog()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuAddExistingItem error: {ex.Message}")
             End Try
         End Sub
-        
+
         ''' <summary>
         ''' Handles the generic Add New Item menu
         ''' </summary>
         ''' <param name="vSender">Event sender</param>
         ''' <param name="vArgs">Event arguments</param>
-        Private Sub OnContextMenuAddNewItem(vSender As Object, vArgs As EventArgs)
+        ''' <remarks>
+        ''' Public so MainWindow's Project menu "Add New Item..." command can delegate straight
+        ''' to this instead of maintaining its own separate implementation. That old
+        ''' implementation (MainWindow.Project.vb's OnAddNewItem) wrote the file directly with
+        ''' File.WriteAllText and never called ProjectManager.AddFileToProject, so the new file
+        ''' never entered the project's SourceFiles list; it then called RefreshProject(), which
+        ''' - before that method was also fixed to be solution-aware - unconditionally rebuilt
+        ''' the tree via the single-project LoadProjectFromManager, discarding the synthetic
+        ''' solution root and every sibling project's subtree whenever a .sln was loaded. This
+        ''' method (via CreateNewItem) does both correctly: registers the file with
+        ''' ProjectManager before refreshing, and refreshing itself is solution-aware.
+        ''' </remarks>
+        Public Sub OnContextMenuAddNewItem(vSender As Object, vArgs As EventArgs)
             Try
                 ShowAddNewItemSelector()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuAddNewItem error: {ex.Message}")
             End Try
@@ -779,11 +798,12 @@ Namespace Widgets
                 ' Check if successfully added
                 If lDocModel IsNot Nothing Then
                     Console.WriteLine($"Added new {lActualName}{vExtension} to project at {lFinalPath}")
-                    
-                    ' Refresh project explorer by calling LoadProjectFromManager
-                    ' This will reload the tree from the ProjectManager's current state
-                    LoadProjectFromManager()
-                    
+
+                    ' Refresh project explorer - RefreshProject() is solution-aware (routes to
+                    ' LoadSolutionFromManager when a .sln is loaded); LoadProjectFromManager
+                    ' directly would collapse a multi-project solution tree to one project
+                    RefreshProject()
+
                     ' Raise event to open the new file
                     RaiseEvent FileSelected(lFullPath)
                 Else
@@ -922,11 +942,12 @@ Namespace Widgets
                 ' Check if successfully added
                 If lDocModel IsNot Nothing Then
                     Console.WriteLine($"Added existing file To project: {vFilePath}")
-                    
-                    ' Refresh project explorer by calling LoadProjectFromManager
-                    ' This will reload the tree from the ProjectManager's current state
-                    LoadProjectFromManager()
-                    
+
+                    ' Refresh project explorer - RefreshProject() is solution-aware (see
+                    ' CreateNewItem's comment above for why LoadProjectFromManager directly
+                    ' would corrupt a multi-project solution tree)
+                    RefreshProject()
+
                     ' Raise project modified event
                     RaiseEvent ProjectModified()
                     
@@ -1734,9 +1755,11 @@ Namespace Widgets
                 Dim lDocModel As DocumentModel = pProjectManager.AddFileToProject(lFullPath)
                 
                 If lDocModel IsNot Nothing Then
-                    ' Refresh tree by reloading from ProjectManager
-                    LoadProjectFromManager()
-                    
+                    ' Refresh project explorer - RefreshProject() is solution-aware (see
+                    ' CreateNewItem's comment for why LoadProjectFromManager directly would
+                    ' corrupt a multi-project solution tree)
+                    RefreshProject()
+
                     ' Raise event to open the file
                     RaiseEvent FileSelected(lFullPath)
                     
