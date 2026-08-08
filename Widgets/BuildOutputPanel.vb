@@ -834,16 +834,21 @@ Namespace Widgets
         ''' <summary>
         ''' Handles selection change in warning grid
         ''' </summary>
+        ''' <remarks>
+        ''' Was casting vRow.Tag to BuildError (copy-pasted from OnErrorSelectionChanged and
+        ''' never updated) - warning rows actually hold a BuildWarning, an unrelated class, so
+        ''' the cast always returned Nothing and selecting a warning silently did nothing.
+        ''' </remarks>
         Private Sub OnWarningSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer, vRow As DataGridRow)
             Try
                 If vRow?.Tag IsNot Nothing Then
-                    Dim lError As BuildError = TryCast(vRow.Tag, BuildError)
-                    If lError IsNot Nothing Then
-                        RaiseEvent ErrorSelected(lError.FilePath, lError.Line, lError.Column)
+                    Dim lWarning As BuildWarning = TryCast(vRow.Tag, BuildWarning)
+                    If lWarning IsNot Nothing Then
+                        RaiseEvent WarningSelected(lWarning.FilePath, lWarning.Line, lWarning.Column)
                     End If
                 End If
             Catch ex As Exception
-                Console.WriteLine($"OnErrorRowDoubleClicked error: {ex.Message}")
+                Console.WriteLine($"OnWarningSelectionChanged error: {ex.Message}")
             End Try
         End Sub
         
