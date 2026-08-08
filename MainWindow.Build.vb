@@ -70,6 +70,31 @@ Partial Public Class MainWindow
     Private pIsBuildingNow As Boolean
 
     ''' <summary>
+    ''' True if a build/rebuild/clean is currently running via either BuildManager instance
+    ''' this class uses - the single-project pBuildManager (shared by BuildProject/
+    ''' RebuildProject/CleanProject) or the separate pSolutionBuildManager (used only by
+    ''' BuildSolution, kept as its own instance deliberately - see pSolutionBuildManager's
+    ''' doc comment - specifically so its per-project BuildStarted/BuildCompleted don't fire
+    ''' pBuildManager's single-project handlers).
+    ''' </summary>
+    ''' <remarks>
+    ''' Each of the four build entry points used to guard reentrancy with only its own
+    ''' flag/manager: BuildSolution checked only pIsBuildingNow (never pBuildManager.
+    ''' IsBuilding), while RebuildProject/CleanProject checked only pBuildManager.IsBuilding
+    ''' (never pIsBuildingNow, and never pSolutionBuildManager.IsBuilding either, since that
+    ''' manager didn't exist yet from their point of view). Net effect: Build Solution could
+    ''' start while a Rebuild or Clean was already running, and a Rebuild or Clean could start
+    ''' while a Build Solution was already running - two builds running concurrently against
+    ''' overlapping project directories, with real risk of file-lock errors or corrupted
+    ''' obj/bin state. All four entry points now check this single, complete condition.
+    ''' </remarks>
+    Private Function IsAnyBuildInProgress() As Boolean
+        Return pIsBuildingNow OrElse
+               (pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding) OrElse
+               (pSolutionBuildManager IsNot Nothing AndAlso pSolutionBuildManager.IsBuilding)
+    End Function
+
+    ''' <summary>
     ''' Build the current project - Main entry point for F6 and build operations
     ''' </summary>
     ''' <remarks>
@@ -77,18 +102,13 @@ Partial Public Class MainWindow
     ''' </remarks>
     Public Sub BuildProject()
         Try
-            ' Check if already building
-            If pIsBuildingNow = True Then
+            ' Check if already building - see IsAnyBuildInProgress's remarks for why this
+            ' needs to check more than just this method's own flag
+            If IsAnyBuildInProgress() Then
                 Console.WriteLine("BuildProject: Already building (early exit)")
                 Return
             End If
-            
-            ' Also check BuildManager's state
-            If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
-                Console.WriteLine("BuildProject: BuildManager reports build in progress")
-                Return
-            End If
-            
+
             ' Set flag immediately
             pIsBuildingNow = True
             
@@ -233,7 +253,7 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub BuildSolution()
         Try
-            If pIsBuildingNow Then
+            If IsAnyBuildInProgress() Then
                 Console.WriteLine("BuildSolution: Already building (early exit)")
                 Return
             End If
@@ -520,16 +540,21 @@ Partial Public Class MainWindow
             If pBuildManager Is Nothing Then
                 InitializeBuildSystem()
             End If
-            
-            If pBuildManager.IsBuilding Then
+
+            ' See IsAnyBuildInProgress's remarks - this used to check only pBuildManager.
+            ' IsBuilding, which stays False during a Build Solution (that uses a separate
+            ' BuildManager instance), so a Rebuild could start concurrently with an
+            ' already-running Build Solution
+            If IsAnyBuildInProgress() Then
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If
-            
+
             ' Auto-increment version for rebuild too
             TryIncrementVersionBeforeBuild()
-            
+
             ' Start the rebuild
+            pIsBuildingNow = True
             SetBuildButtonsEnabled(False)
             UpdateStatusBar("Rebuilding project...")
             
@@ -544,10 +569,11 @@ Partial Public Class MainWindow
         Catch ex As Exception
             Console.WriteLine($"RebuildProject error: {ex.Message}")
             ShowError("Rebuild error", ex.Message)
+            pIsBuildingNow = False
             SetBuildButtonsEnabled(True)
         End Try
     End Sub
-    
+
     ' Clean the current project
     Public Sub CleanProject()
         Try
@@ -555,28 +581,34 @@ Partial Public Class MainWindow
                 ShowError("No project", "Please open a project before cleaning.")
                 Return
             End If
-            
+
             If pBuildManager Is Nothing Then
                 InitializeBuildSystem()
             End If
-            
-            If pBuildManager.IsBuilding Then
+
+            ' See IsAnyBuildInProgress's remarks - this used to check only pBuildManager.
+            ' IsBuilding, which stays False during a Build Solution (that uses a separate
+            ' BuildManager instance), so a Clean could start concurrently with an
+            ' already-running Build Solution
+            If IsAnyBuildInProgress() Then
                 ShowInfo("Build in Progress", "Please wait for the current build to finish.")
                 Return
             End If
-            
+
             ' Start the clean
+            pIsBuildingNow = True
             SetBuildButtonsEnabled(False)
             UpdateStatusBar("Cleaning project...")
-            
+
             ' Start async clean
             pBuildManager.ProjectPath = pCurrentProject
             pBuildManager.Configuration = pBuildConfiguration
             Task.Run(Async Function() Await pBuildManager.CleanProjectAsync())
-            
+
         Catch ex As Exception
             Console.WriteLine($"CleanProject error: {ex.Message}")
             ShowError("Clean error", ex.Message)
+            pIsBuildingNow = False
             SetBuildButtonsEnabled(True)
         End Try
     End Sub
