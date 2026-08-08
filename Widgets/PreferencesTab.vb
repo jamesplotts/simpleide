@@ -1153,7 +1153,7 @@ Namespace Widgets
                 pHighlightCurrentLineCheck.Active = pSettingsManager.HighlightCurrentLine
                 pWordWrapCheck.Active = pSettingsManager.WordWrap
                 pAutoIndentCheck.Active = pSettingsManager.AutoIndent
-                pShowWhitespaceCheck.Active = pSettingsManager.GetBoolean("Editor.ShowWhitespace", False)
+                pShowWhitespaceCheck.Active = pSettingsManager.ShowWhitespace
                 pShowEndOfLineCheck.Active = pSettingsManager.GetBoolean("Editor.ShowEndOfLine", False)
                 
                 ' Build
@@ -1315,7 +1315,7 @@ Namespace Widgets
                 pSettingsManager.HighlightCurrentLine = pHighlightCurrentLineCheck.Active
                 pSettingsManager.WordWrap = pWordWrapCheck.Active
                 pSettingsManager.AutoIndent = pAutoIndentCheck.Active
-                pSettingsManager.SetBoolean("Editor.ShowWhitespace", pShowWhitespaceCheck.Active)
+                pSettingsManager.ShowWhitespace = pShowWhitespaceCheck.Active
                 pSettingsManager.SetBoolean("Editor.ShowEndOfLine", pShowEndOfLineCheck.Active)
                 
                 ' Build
