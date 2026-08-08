@@ -217,6 +217,7 @@ Partial Public Class MainWindow
             If lCurrentTab IsNot Nothing Then SaveFile(lCurrentTab)
         Catch ex As Exception
             Console.WriteLine($"OnSave error: {ex.Message}")
+            ShowError("Save failed", ex.Message)
         End Try
     End Sub
     
@@ -229,6 +230,7 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnQuit error: {ex.Message}")
+            ShowError("Quit failed", ex.Message)
         End Try
     End Sub
 

@@ -101,9 +101,10 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnUndo error: {ex.Message}")
+            ShowError("Undo failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnRedo(vSender As Object, vArgs As EventArgs)
         Try
             Dim lCurrentEditor As IEditor = GetCurrentEditor()
@@ -112,9 +113,10 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnRedo error: {ex.Message}")
+            ShowError("Redo failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnCut(vSender As Object, vArgs As EventArgs)
         Try
             Dim lCurrentEditor As IEditor = GetCurrentEditor()
@@ -123,9 +125,10 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnCut error: {ex.Message}")
+            ShowError("Cut failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnCopy(vSender As Object, vArgs As EventArgs)
         Try
             Dim lCurrentEditor As IEditor = GetCurrentEditor()
@@ -134,9 +137,10 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnCopy error: {ex.Message}")
+            ShowError("Copy failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnPaste(vSender As Object, vArgs As EventArgs)
         Try
             Dim lCurrentEditor As IEditor = GetCurrentEditor()
@@ -145,9 +149,10 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnPaste error: {ex.Message}")
+            ShowError("Paste failed", ex.Message)
         End Try
     End Sub
-    
+
     Public Sub OnSelectAll(vSender As Object, vArgs As EventArgs)
         Try
             Dim lCurrentEditor As IEditor = GetCurrentEditor()
@@ -156,6 +161,7 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnSelectAll error: {ex.Message}")
+            ShowError("Select All failed", ex.Message)
         End Try
     End Sub
     
