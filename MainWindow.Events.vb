@@ -203,11 +203,16 @@ Partial Public Class MainWindow
     End Sub
     
     ' ===== View Menu Events =====
+    ''' <summary>
+    ''' Delegates to ToggleProjectExplorer (MainWindow.Keyboard.vb) - see its doc comment.
+    ''' Previously toggled pProjectExplorer.Visible directly here, which only blanked the
+    ''' current notebook page rather than reclaiming the panel's width, and tracked state
+    ''' independently of Ctrl+E's implementation, so the two could disagree about whether
+    ''' the panel was actually shown.
+    ''' </summary>
     Public Sub OnToggleProjectExplorer(vSender As Object, vArgs As EventArgs)
         Try
-            pLeftPanelVisible = Not pLeftPanelVisible
-            pSettingsManager.ShowProjectExplorer = pLeftPanelVisible
-            UpdatePanelVisibility()
+            ToggleProjectExplorer()
         Catch ex As Exception
             Console.WriteLine($"OnToggleProjectExplorer error: {ex.Message}")
         End Try

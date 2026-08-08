@@ -487,19 +487,30 @@ Partial Public Class MainWindow
         ' TODO: Implement quick open/command palette
     End Sub
     
+    ''' <summary>
+    ''' Toggles the left panel (Project/Object Explorer notebook) by collapsing/restoring
+    ''' pMainHPaned's split position - the only mechanism that actually reclaims the panel's
+    ''' width (unlike toggling pProjectExplorer.Visible alone, which only blanks the current
+    ''' notebook page and leaves the panel's width and tab strip in place). This is now the
+    ''' single implementation for both Ctrl+E and the View menu's "Project Explorer" item -
+    ''' OnToggleProjectExplorer (MainWindow.Events.vb) delegates here instead of maintaining
+    ''' its own pProjectExplorer.Visible-based toggle, which had fallen out of sync with this
+    ''' one (the two could disagree about whether the panel was shown).
+    ''' </summary>
     Private Sub ToggleProjectExplorer()
         Try
             ' Toggle left panel visibility
             If pMainHPaned.Position > 0 Then
                 ' Save current position and hide
                 pLastLeftPanelWidth = pMainHPaned.Position
-                
+
                 ' Temporarily remove size request to allow position = 0
                 If pLeftNotebook IsNot Nothing Then
                     pLeftNotebook.SetSizeRequest(-1, -1)
                 End If
-                
+
                 pMainHPaned.Position = 0
+                pLeftPanelVisible = False
                 Console.WriteLine($"Hidden left panel, saved width: {pLastLeftPanelWidth}")
             Else
                 ' Restore size request FIRST
@@ -507,18 +518,24 @@ Partial Public Class MainWindow
                     pLeftNotebook.SetSizeRequest(LEFT_PANEL_MINIMUM_WIDTH, -1)
                     pLeftNotebook.ShowAll() ' Ensure it's visible
                 End If
-                
+
                 ' Then restore position
                 Dim lRestoreWidth As Integer = If(pLastLeftPanelWidth > 0, pLastLeftPanelWidth, LEFT_PANEL_MINIMUM_WIDTH)
-                
+
                 ' Ensure it meets minimum
                 If lRestoreWidth < LEFT_PANEL_MINIMUM_WIDTH Then
                     lRestoreWidth = LEFT_PANEL_MINIMUM_WIDTH
                 End If
-                
+
                 pMainHPaned.Position = lRestoreWidth
+                pLeftPanelVisible = True
                 Console.WriteLine($"Shown left panel at width: {lRestoreWidth}")
             End If
+
+            If pSettingsManager IsNot Nothing Then
+                pSettingsManager.ShowProjectExplorer = pLeftPanelVisible
+            End If
+            UpdateMenuStates()
         Catch ex As Exception
             Console.WriteLine($"ToggleProjectExplorer error: {ex.Message}")
         End Try
