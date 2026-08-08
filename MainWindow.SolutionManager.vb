@@ -201,6 +201,7 @@ Partial Public Class MainWindow
                         pProjectExplorer?.LoadSolutionFromManager(lSolutionManager)
                         pObjectExplorer?.SetSolutionManager(lSolutionManager)
                         pFindPanel?.SetSolutionManager(lSolutionManager)
+                        pGitPanel?.SetSolutionManager(lSolutionManager)
                         UpdateStatusBar($"Solution ready: {lSolutionManager.AllProjects.Count} project(s) loaded")
                     Catch ex As Exception
                         Console.WriteLine($"OnStartupProjectAllFilesParsed (settled apply) error: {ex.Message}")

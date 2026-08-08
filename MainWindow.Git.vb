@@ -39,12 +39,11 @@ Partial Public Class MainWindow
     ' Initialize Git repository for current project
     Public Sub GitInitRepository()
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
+            If String.IsNullOrEmpty(lProjectDir) Then
                 ShowError("No project", "Please open a project before initializing git.")
                 Return
             End If
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
 
             ' Check if already a git repository - walks up through parent directories, not
             ' just lProjectDir itself, so a project living in its own subfolder under a
@@ -132,8 +131,8 @@ Partial Public Class MainWindow
     Public Sub GitAddAll()
         Try
             If Not EnsureGitRepository() Then Return
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
             
             ExecuteGitCommand("add .", lProjectDir, Sub(output, ExitCode)
                 Application.Invoke(Sub()
@@ -158,7 +157,7 @@ Partial Public Class MainWindow
             If Not EnsureGitRepository() Then Return
 
             InitializeGitManager() ' GitCommitDialog takes a GitManager - never populated otherwise, since nothing else called this
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
             
             ' Check if there are changes to commit
             ExecuteGitCommand("status --porcelain", lProjectDir, Sub(output, ExitCode)
@@ -209,9 +208,9 @@ Partial Public Class MainWindow
     Public Sub GitPush()
         Try
             If Not EnsureGitRepository() Then Return
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            
+
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
+
             ' Check if remote is configured
             ExecuteGitCommand("remote -v", lProjectDir, Sub(remoteOutput, remoteExitCode)
                 Application.Invoke(Sub()
@@ -256,9 +255,9 @@ Partial Public Class MainWindow
     Public Sub GitPull()
         Try
             If Not EnsureGitRepository() Then Return
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            
+
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
+
             UpdateStatusBar("Pulling from remote...")
             
             ExecuteGitCommand("pull", lProjectDir, Sub(output, exitCode)
@@ -294,9 +293,9 @@ Partial Public Class MainWindow
     Public Sub GitCheckout(vBranch As String)
         Try
             If Not EnsureGitRepository() Then Return
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
-            
+
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
+
             ' Check for uncommitted changes first
             ExecuteGitCommand("status --porcelain", lProjectDir, Sub(statusOutput, statusExitCode)
                 Application.Invoke(Sub()
@@ -349,7 +348,6 @@ Partial Public Class MainWindow
             If Not EnsureGitRepository() Then Return
 
             InitializeGitManager()
-            pGitManager.RepositoryPath = System.IO.Path.GetDirectoryName(pCurrentProject)
 
             Using lDialog As New GitBranchDialog(Me, pGitManager, pThemeManager)
                 If lDialog.Run() = CInt(ResponseType.Ok) AndAlso Not String.IsNullOrEmpty(lDialog.SelectedBranch) Then
@@ -393,16 +391,37 @@ Partial Public Class MainWindow
     End Sub
     
     ' ===== Helper Methods =====
-    
+
+    ''' <summary>
+    ''' Returns the directory the Git menu commands below should operate on - the repo
+    ''' GitPanel is currently showing (whatever the user picked via its repo picker, when
+    ''' a multi-repo solution is loaded) if available, otherwise the startup project's own
+    ''' directory
+    ''' </summary>
+    ''' <remarks>
+    ''' Before this, every command here (GitPush, GitPull, GitAddAll, ShowGitCommitDialog,
+    ''' GitInitRepository, GitCheckout, ShowGitBranchDialog) derived its working directory
+    ''' straight from pCurrentProject - the startup project - regardless of which repo
+    ''' GitPanel itself was showing. For this exact repo (SimpleIDE / SimpleIDE.Widgets /
+    ''' SimpleIDE.WebKitGtk are three separate git repositories joined by one .sln), that
+    ''' meant every Git menu command was silently only ever able to touch SimpleIDE's own
+    ''' repo, with no way to push/pull/commit/branch the other two projects' repos at all.
+    ''' </remarks>
+    Private Function GetActiveGitRepositoryDirectory() As String
+        If pGitPanel IsNot Nothing AndAlso Not String.IsNullOrEmpty(pGitPanel.ProjectRoot) Then
+            Return pGitPanel.ProjectRoot
+        End If
+        Return If(String.IsNullOrEmpty(pCurrentProject), "", System.IO.Path.GetDirectoryName(pCurrentProject))
+    End Function
+
     ' Ensure project is a Git repository
     Private Function EnsureGitRepository() As Boolean
         Try
-            If String.IsNullOrEmpty(pCurrentProject) Then
+            Dim lProjectDir As String = GetActiveGitRepositoryDirectory()
+            If String.IsNullOrEmpty(lProjectDir) Then
                 ShowError("No project", "Please open a project first.")
                 Return False
             End If
-            
-            Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
 
             If pGitManager Is Nothing Then pGitManager = New GitManager()
             If Not pGitManager.IsGitRepository(lProjectDir) Then
@@ -664,9 +683,12 @@ Partial Public Class MainWindow
             ' ShowGitBranchDialog set this explicitly itself right after calling this method
             ' - ShowGitCommitDialog called this same method expecting the same thing but never
             ' set it, so GitCommitDialog's GitManager had no RepositoryPath at all. Setting it
-            ' here covers every caller in one place.
-            If Not String.IsNullOrEmpty(pCurrentProject) Then
-                pGitManager.RepositoryPath = System.IO.Path.GetDirectoryName(pCurrentProject)
+            ' here covers every caller in one place - via GetActiveGitRepositoryDirectory so
+            ' it follows whichever repo GitPanel is currently showing, not always the
+            ' startup project's
+            Dim lActiveDir As String = GetActiveGitRepositoryDirectory()
+            If Not String.IsNullOrEmpty(lActiveDir) Then
+                pGitManager.RepositoryPath = lActiveDir
             End If
 
         Catch ex As Exception

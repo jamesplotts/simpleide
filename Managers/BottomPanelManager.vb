@@ -589,7 +589,14 @@ Namespace Managers
                 If Not String.IsNullOrEmpty(vProjectRoot) Then
                     pProjectRoot = vProjectRoot
                     Dim lProjectDirectory As String = System.IO.Path.GetDirectoryName(vProjectRoot)
-                    pGitPanel.ProjectRoot = lProjectDirectory
+                    ' Once GitPanel's repo picker has found more than one distinct repo across
+                    ' a loaded solution, leave it alone here - it's already showing whichever
+                    ' repo the user picked, and this method (re-)called from things like the
+                    ' status-bar Git indicator would otherwise silently snap it back to the
+                    ' startup project's repo every time
+                    If pGitPanel IsNot Nothing AndAlso Not pGitPanel.HasMultipleRepositories Then
+                        pGitPanel.ProjectRoot = lProjectDirectory
+                    End If
                     pFindPanel?.SetProjectRoot(lProjectDirectory)
                     pTodoPanel?.SetProjectRoot(lProjectDirectory)
                 End If

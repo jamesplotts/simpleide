@@ -31,6 +31,13 @@ Namespace Widgets
         Private pUnstageAllButton As CustomDrawButton
         Private pSelectedFile As String = ""
 
+        ' Repository picker - only shown once a loaded solution's projects resolve to more
+        ' than one distinct git repository root (e.g. this exact repo's own SimpleIDE /
+        ' SimpleIDE.Widgets / SimpleIDE.WebKitGtk split). pRepoRoots(i) is the repo root
+        ' path corresponding to pRepoCombo item i.
+        Private pRepoCombo As CustomDrawComboBox
+        Private ReadOnly pRepoRoots As New List(Of String)
+
         ' pCommitMessageEntry is the one editable widget in this panel (a real Gtk.TextView -
         ' there's no multi-line editable CustomDraw widget in the project yet; CustomDrawTextBox
         ' only wraps a single-line Gtk.Entry). It also isn't fought by ThemeManager's
@@ -129,6 +136,15 @@ Namespace Widgets
             pPushButton.TooltipText = "Push to remote"
             lToolbarBox.PackStart(pPushButton, False, False, 0)
 
+            ' Repository picker - hidden (NoShowAll) until SetSolutionManager finds more than
+            ' one distinct git repo across the loaded solution's projects
+            pRepoCombo = New CustomDrawComboBox()
+            pRepoCombo.WidthRequest = 140
+            pRepoCombo.TooltipText = "Which repository this panel shows"
+            pRepoCombo.NoShowAll = True
+            pRepoCombo.Visible = False
+            lToolbarBox.PackStart(pRepoCombo, False, False, 0)
+
             ' Branch label
             Dim lBranchBox As New Box(Orientation.Horizontal, 6)
             lBranchBox.PackStart(New Label("Branch:"), False, False, 0)
@@ -173,6 +189,7 @@ Namespace Widgets
                 End If
 
                 pNotebook.SetThemeManager(vThemeManager)
+                If pRepoCombo IsNot Nothing Then pRepoCombo.ThemeManager = vThemeManager
                 If pRefreshButton IsNot Nothing Then pRefreshButton.ThemeManager = vThemeManager
                 If pPullButton IsNot Nothing Then pPullButton.ThemeManager = vThemeManager
                 If pPushButton IsNot Nothing Then pPushButton.ThemeManager = vThemeManager
@@ -438,6 +455,7 @@ Namespace Widgets
             AddHandler pRefreshButton.Clicked, AddressOf OnRefresh
             AddHandler pPullButton.Clicked, AddressOf OnPull
             AddHandler pPushButton.Clicked, AddressOf OnPush
+            AddHandler pRepoCombo.Changed, AddressOf OnRepoComboChanged
 
             ' Stage/Unstage buttons
             AddHandler pStageAllButton.Clicked, AddressOf OnStageAll
@@ -847,6 +865,97 @@ Namespace Widgets
         Private Sub ShowError(vMessage As String)
             Console.WriteLine($"git error: {vMessage}")
             ' TODO: Show error dialog
+        End Sub
+
+        ''' <summary>
+        ''' True once SetSolutionManager has found more than one distinct git repository
+        ''' root across the loaded solution's projects - callers that otherwise default
+        ''' this panel back to the startup project's directory (e.g. re-showing the panel)
+        ''' should skip doing so while this is True, so they don't stomp the user's repo
+        ''' picker selection
+        ''' </summary>
+        Public ReadOnly Property HasMultipleRepositories As Boolean
+            Get
+                Return pRepoRoots.Count > 1
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Populates the repository picker from every distinct git repo root found across
+        ''' a loaded solution's projects, and switches this panel to show the startup
+        ''' project's own repo. Hides the picker (and leaves ProjectRoot/repo selection
+        ''' untouched) when the solution resolves to zero or one distinct repo, which is
+        ''' the common case (every project sharing one repo root).
+        ''' </summary>
+        ''' <param name="vSolutionManager">The loaded solution, or Nothing for a single-project session</param>
+        ''' <remarks>
+        ''' Each solution project's own directory is walked up independently via
+        ''' GitManager.FindRepositoryRoot rather than assumed to share the startup
+        ''' project's repo - this exact repo is itself a real example of the multi-repo
+        ''' case (SimpleIDE, SimpleIDE.Widgets, and SimpleIDE.WebKitGtk are three separate
+        ''' git repositories joined by one .sln), which Git operations were previously
+        ''' completely blind to for the two non-startup projects.
+        ''' </remarks>
+        Public Sub SetSolutionManager(vSolutionManager As SolutionManager)
+            Try
+                pRepoCombo.RemoveAll()
+                pRepoRoots.Clear()
+
+                If vSolutionManager Is Nothing OrElse vSolutionManager.AllProjects.Count <= 1 Then
+                    pRepoCombo.Visible = False
+                    Return
+                End If
+
+                Dim lStartupRoot As String = ""
+                for each lProject In vSolutionManager.AllProjects
+                    Dim lRoot As String = pGitManager.FindRepositoryRoot(lProject.CurrentProjectDirectory)
+                    If String.IsNullOrEmpty(lRoot) Then Continue for
+                    If FindRootIndex(lRoot) < 0 Then
+                        pRepoRoots.Add(lRoot)
+                        pRepoCombo.AppendText(System.IO.Path.GetFileName(lRoot.TrimEnd(System.IO.Path.DirectorySeparatorChar)))
+                    End If
+                    If lProject Is vSolutionManager.StartupProject Then lStartupRoot = lRoot
+                Next
+
+                If pRepoRoots.Count <= 1 Then
+                    pRepoCombo.Visible = False
+                    Return
+                End If
+
+                pRepoCombo.Visible = True
+                Dim lStartupIndex As Integer = If(String.IsNullOrEmpty(lStartupRoot), 0, Math.Max(0, FindRootIndex(lStartupRoot)))
+                pRepoCombo.Active = lStartupIndex
+                ' Active's setter only raises Changed when the index actually differs from
+                ' its current value (already 0 from the first AppendText call) - explicitly
+                ' apply the selected repo here so the startup case (index 0) still takes effect
+                ProjectRoot = pRepoRoots(lStartupIndex)
+
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.SetSolutionManager error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Returns the index of vRoot within pRepoRoots (case-insensitive path compare), or
+        ''' -1 if not present
+        ''' </summary>
+        Private Function FindRootIndex(vRoot As String) As Integer
+            for i As Integer = 0 To pRepoRoots.Count - 1
+                If String.Equals(pRepoRoots(i), vRoot, StringComparison.OrdinalIgnoreCase) Then Return i
+            Next
+            Return -1
+        End Function
+
+        ''' <summary>
+        ''' Switches this panel to show whichever repository the user picked
+        ''' </summary>
+        Private Sub OnRepoComboChanged(vSender As Object, vE As EventArgs)
+            Try
+                If pRepoCombo.Active < 0 OrElse pRepoCombo.Active >= pRepoRoots.Count Then Return
+                ProjectRoot = pRepoRoots(pRepoCombo.Active)
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.OnRepoComboChanged error: {ex.Message}")
+            End Try
         End Sub
 
         ' Public properties and methods
