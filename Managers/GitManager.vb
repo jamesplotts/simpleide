@@ -424,12 +424,21 @@ Namespace Managers
             End Try
         End Function
 
-        ' Push to remote
-        Public Async Function Push(Optional vRemote As String = "origin", Optional vBranch As String = "") As Task(Of Boolean)
+        ''' <summary>
+        ''' Pushes to a remote. When vRemote is empty (the default), runs a bare "git push"
+        ''' with no remote/branch named, so git falls back to the current branch's own
+        ''' configured upstream instead of assuming a remote named "origin" exists - this
+        ''' previously always pushed to "origin" even for repos where that remote doesn't
+        ''' exist (e.g. renamed, or a fork set up with a differently-named remote).
+        ''' </summary>
+        Public Async Function Push(Optional vRemote As String = "", Optional vBranch As String = "") As Task(Of Boolean)
             Try
-                Dim lCommand As String = $"push {vRemote}"
-                If Not String.IsNullOrEmpty(vBranch) Then
-                    lCommand &= $" {vBranch}"
+                Dim lCommand As String = "push"
+                If Not String.IsNullOrEmpty(vRemote) Then
+                    lCommand &= $" {vRemote}"
+                    If Not String.IsNullOrEmpty(vBranch) Then
+                        lCommand &= $" {vBranch}"
+                    End If
                 End If
 
                 Dim lResult As GitCommandResult = Await ExecuteGitCommandAsync(lCommand)
@@ -441,12 +450,18 @@ Namespace Managers
             End Try
         End Function
 
-        ' Pull from remote
-        Public Async Function Pull(Optional vRemote As String = "origin", Optional vBranch As String = "") As Task(Of Boolean)
+        ''' <summary>
+        ''' Pulls from a remote. See Push's remarks - an empty vRemote runs a bare "git pull"
+        ''' relying on the branch's configured upstream rather than assuming "origin".
+        ''' </summary>
+        Public Async Function Pull(Optional vRemote As String = "", Optional vBranch As String = "") As Task(Of Boolean)
             Try
-                Dim lCommand As String = $"pull {vRemote}"
-                If Not String.IsNullOrEmpty(vBranch) Then
-                    lCommand &= $" {vBranch}"
+                Dim lCommand As String = "pull"
+                If Not String.IsNullOrEmpty(vRemote) Then
+                    lCommand &= $" {vRemote}"
+                    If Not String.IsNullOrEmpty(vBranch) Then
+                        lCommand &= $" {vBranch}"
+                    End If
                 End If
 
                 Dim lResult As GitCommandResult = Await ExecuteGitCommandAsync(lCommand)
