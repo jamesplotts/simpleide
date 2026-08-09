@@ -25,6 +25,19 @@ Partial Public Class MainWindow
             ' Create CodeSense engine
             pCodeSenseEngine = New CodeSenseEngine()
 
+            ' CodeSenseEngine.GetProjectManager() (Syntax/CodeSenseEngine.vb) raises this same-
+            ' named-but-distinct event to get a ProjectManager without a hard reference/circular
+            ' dependency - unlike CustomDrawingEditor's identically-shaped ProjectManagerRequested
+            ' event (wired in WireUpEditorProjectManagerRequest below), nothing was ever
+            ' subscribing to the ENGINE's own event, so GetProjectManager() always returned
+            ' Nothing there - silently breaking every call site that relies on it (e.g.
+            ' AddProjectTypeSuggestions's project-defined-type suggestions for "As <Type>"
+            ' completion, which fell back to showing only keywords/framework namespaces/locals
+            ' with no project types at all). Reuses OnEditorProjectManagerRequested - its
+            ' TryCast(vRequester, IEditor) simply misses for a non-editor sender like the engine
+            ' and falls back to pProjectManager, exactly the behavior wanted here.
+            AddHandler pCodeSenseEngine.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
+
             ' Update references when project changes
             AddHandler pProjectManager.ProjectChanged, AddressOf OnProjectChangedForCodeSense
 
