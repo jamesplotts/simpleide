@@ -49,6 +49,19 @@ Namespace Editors
                     Return
                 End If
 
+                ' Inside a Sub/Function/Property/Event's OWN parameter list (declaring it, not
+                ' calling it) - e.g. while typing "Public Sub stuff(vData" the enclosing "("
+                ' found above is stuff's own, and looking "stuff" up as a callee would find its
+                ' own (possibly stale/mid-edit, since parsing is async) declaration and show a
+                ' nonsense signature-help tooltip for the very line being typed. See
+                ' IsTypingParameterName/IsDeclarationParameterListOpenParen (CustomDrawingEditor.
+                ' CodeSenseTrigger.vb) - same underlying distinction, applied here too.
+                If IsDeclarationParameterListOpenParen(lOpenLine, lOpenColumn) Then
+                    HideParameterHint()
+                    ExitEnumParameterSlotIfNeeded()
+                    Return
+                End If
+
                 Dim lCalleeName As String = GetIdentifierBeforeColumn(lOpenLine, lOpenColumn)
                 If String.IsNullOrEmpty(lCalleeName) Then
                     HideParameterHint()

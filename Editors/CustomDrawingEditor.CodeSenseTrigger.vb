@@ -212,25 +212,44 @@ Namespace Editors
                 End While
                 If lNameStart = lNameEnd Then Return False ' nothing identifier-shaped before "("
 
+                ' Every word from line-start up to (not including) the identifier must be
+                ' either a modifier or the declaration keyword itself, with the keyword being
+                ' the LAST word immediately before the identifier - not just the first
+                ' non-modifier word anywhere earlier on the line. Without this "last word"
+                ' requirement, a nested call inside a default-value expression on the SAME
+                ' declaration line (e.g. "Public Sub stuff(vData As Integer = Foo(") would
+                ' wrongly inherit the outer "Sub" and treat Foo's own "(" as a declaration's
+                ' parameter list too, when Foo is actually being called
                 Dim lWords As String() = lLineText.Substring(0, lNameStart).Split(New Char() {" "c, ControlChars.Tab}, StringSplitOptions.RemoveEmptyEntries)
+                If lWords.Length = 0 Then Return False
+
                 Dim lIdx As Integer = 0
                 While lIdx < lWords.Length AndAlso AutoEndModifierKeywords.Contains(lWords(lIdx))
                     lIdx += 1
                 End While
                 If lIdx >= lWords.Length Then Return False
 
-                If String.Equals(lWords(lIdx), "Declare", StringComparison.OrdinalIgnoreCase) Then Return True
+                Dim lLastWordIndex As Integer = lWords.Length - 1
+                Dim lKeyword As String = lWords(lIdx)
 
-                If String.Equals(lWords(lIdx), "Delegate", StringComparison.OrdinalIgnoreCase) Then
-                    lIdx += 1
-                    If lIdx >= lWords.Length Then Return False
+                If String.Equals(lKeyword, "Declare", StringComparison.OrdinalIgnoreCase) Then
+                    Return lIdx = lLastWordIndex
                 End If
 
-                Dim lKeyword As String = lWords(lIdx)
-                Return String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase) OrElse
-                       String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase) OrElse
-                       String.Equals(lKeyword, "Property", StringComparison.OrdinalIgnoreCase) OrElse
-                       String.Equals(lKeyword, "Event", StringComparison.OrdinalIgnoreCase)
+                If String.Equals(lKeyword, "Delegate", StringComparison.OrdinalIgnoreCase) Then
+                    lIdx += 1
+                    If lIdx >= lWords.Length Then Return False
+                    lKeyword = lWords(lIdx)
+                    Return lIdx = lLastWordIndex AndAlso
+                           (String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase) OrElse
+                            String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase))
+                End If
+
+                Return lIdx = lLastWordIndex AndAlso
+                       (String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase) OrElse
+                        String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase) OrElse
+                        String.Equals(lKeyword, "Property", StringComparison.OrdinalIgnoreCase) OrElse
+                        String.Equals(lKeyword, "Event", StringComparison.OrdinalIgnoreCase))
 
             Catch ex As Exception
                 Console.WriteLine($"IsDeclarationParameterListOpenParen error: {ex.Message}")
