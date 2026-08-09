@@ -449,6 +449,39 @@ Namespace Editors
         End Sub
 
         ''' <summary>
+        ''' True if the currently-highlighted suggestion is actually a valid completion of
+        ''' the identifier at the cursor
+        ''' </summary>
+        ''' <remarks>
+        ''' TriggerCodeSenseForCompletion (CustomDrawingEditor.CodeSenseTrigger.vb) shows the
+        ''' full unfiltered suggestion list and relies on SelectCodeSenseSuggestionBestMatch to
+        ''' move the highlight onto whatever's been typed. When nothing in the list starts with
+        ''' it - typing a brand-new identifier CodeSense doesn't know about yet, e.g. a Sub name
+        ''' or parameter name just created moments ago - that best-match search finds nothing and
+        ''' leaves the highlight sitting wherever it was (item 0 of the freshly-sorted list).
+        ''' The auto-commit key handlers below (space/./(/operators) must not blindly accept that
+        ''' leftover highlight, or they silently replace the word being typed with an unrelated
+        ''' suggestion (e.g. typing "Stuff(" or "vToken " turning into "AddHandler(" / "AddHandler ")
+        ''' </remarks>
+        Private Function CodeSenseSelectionMatchesTypedWord() As Boolean
+            Try
+                If pCodeSenseSuggestions Is Nothing OrElse pCodeSenseSelectedIndex < 0 OrElse pCodeSenseSelectedIndex >= pCodeSenseSuggestions.Count Then
+                    Return False
+                End If
+
+                Dim lTypedWord As String = GetCurrentWord()
+                If String.IsNullOrEmpty(lTypedWord) Then Return True
+
+                Dim lText As String = pCodeSenseSuggestions(pCodeSenseSelectedIndex).Text
+                Return lText IsNot Nothing AndAlso lText.StartsWith(lTypedWord, StringComparison.OrdinalIgnoreCase)
+
+            Catch ex As Exception
+                Console.WriteLine($"CodeSenseSelectionMatchesTypedWord error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Replaces the word at the cursor with the currently-selected suggestion's text
         ''' </summary>
         Private Sub CommitCodeSenseSelection()
@@ -530,8 +563,17 @@ Namespace Editors
                         ' below (so "Str" + space completes to "String " and "Str" + "."
                         ' completes to "String." and immediately opens member-list for it, and
                         ' "CodeSense" + "(" completes to "CodeSenseEngine(" instead of leaving
-                        ' the word unfinished and inserting "(" into the middle of it)
-                        CommitCodeSenseSelection()
+                        ' the word unfinished and inserting "(" into the middle of it).
+                        ' Only commit if the highlight actually matches what was typed - see
+                        ' CodeSenseSelectionMatchesTypedWord - otherwise just dismiss the popup
+                        ' and let the character insert normally, so an unmatched brand-new
+                        ' identifier (e.g. a Sub/parameter name CodeSense doesn't know yet)
+                        ' isn't clobbered by an unrelated leftover suggestion
+                        If CodeSenseSelectionMatchesTypedWord() Then
+                            CommitCodeSenseSelection()
+                        Else
+                            HideCodeSensePopup()
+                        End If
                         Return False
 
                     Case Gdk.Key.equal, Gdk.Key.plus, Gdk.Key.minus, Gdk.Key.asterisk, Gdk.Key.slash,
@@ -540,7 +582,14 @@ Namespace Editors
                         ' insert a leading space and the operator ourselves rather than letting it
                         ' fall through to normal character handling like the space/period/"("
                         ' commit characters above, so completing "Boolean" here produces
-                        ' "Boolean =" instead of "Boolean="
+                        ' "Boolean =" instead of "Boolean=". Same unmatched-highlight guard as
+                        ' the space/period/"(" case above - if it doesn't commit, fall through to
+                        ' normal character handling instead of forcing the operator insert
+                        If Not CodeSenseSelectionMatchesTypedWord() Then
+                            HideCodeSensePopup()
+                            Return False
+                        End If
+
                         CommitCodeSenseSelection()
 
                         Dim lOperatorChar As String
