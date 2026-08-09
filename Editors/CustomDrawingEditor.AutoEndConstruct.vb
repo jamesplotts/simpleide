@@ -74,44 +74,44 @@ Namespace Editors
                     Case String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase)
                         If IsInsideInterfaceBlock(vCompletedLineIndex, lIndent) Then Return False
                         If LineAlreadyClosesBlock(lCode, "End") Then Return False
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Sub") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Sub")
                         Return True
 
                     Case String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase)
                         If IsInsideInterfaceBlock(vCompletedLineIndex, lIndent) Then Return False
                         If LineAlreadyClosesBlock(lCode, "End") Then Return False
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Function") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Function")
                         Return True
 
                     Case String.Equals(lKeyword, "Class", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Class") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSpacedBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Class")
                         Return True
 
                     Case String.Equals(lKeyword, "Module", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Module") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSpacedBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Module")
                         Return True
 
                     Case String.Equals(lKeyword, "Namespace", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Namespace") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSpacedBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Namespace")
                         Return True
 
                     Case String.Equals(lKeyword, "Structure", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Structure") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Structure")
                         Return True
 
                     Case String.Equals(lKeyword, "Interface", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Interface") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Interface")
                         Return True
 
                     Case String.Equals(lKeyword, "Enum", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Enum") Then Return False
+                        If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Enum")
                         Return True
 
@@ -131,7 +131,7 @@ Namespace Editors
                             If lEnumNode IsNot Nothing Then
                                 InsertSelectCaseEnumBody(lIndent, lBodyIndent, lEnumNode)
                             Else
-                                If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Select") Then Return False
+                                If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                                 InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Select")
                             End If
                             Return True
@@ -142,7 +142,7 @@ Namespace Editors
                         ' Only the multi-line form ("If x Then" with nothing after Then) needs
                         ' "End If" - "If x Then y" is a complete single-line statement
                         If String.Equals(lWords(lWords.Length - 1), "Then", StringComparison.OrdinalIgnoreCase) Then
-                            If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End If") Then Return False
+                            If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                             InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End If")
                             Return True
                         End If
@@ -150,28 +150,28 @@ Namespace Editors
 
                     Case String.Equals(lKeyword, "For", StringComparison.OrdinalIgnoreCase)
                         If LineAlreadyClosesBlock(lCode, "Next") Then Return False
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "Next") Then Return False
+                        If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "Next")
                         Return True
 
                     Case String.Equals(lKeyword, "Do", StringComparison.OrdinalIgnoreCase)
                         If LineAlreadyClosesBlock(lCode, "Loop") Then Return False
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "Loop") Then Return False
+                        If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "Loop")
                         Return True
 
                     Case String.Equals(lKeyword, "While", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End While") Then Return False
+                        If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End While")
                         Return True
 
                     Case String.Equals(lKeyword, "Try", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End Try") Then Return False
+                        If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Try")
                         Return True
 
                     Case String.Equals(lKeyword, "With", StringComparison.OrdinalIgnoreCase)
-                        If NextLineAlreadyClosesBlock(vCompletedLineIndex, "End With") Then Return False
+                        If ScanForCloser(vCompletedLineIndex) >= 0 Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End With")
                         Return True
 
@@ -376,29 +376,37 @@ Namespace Editors
         End Function
 
         ''' <summary>
-        ''' True if the next non-blank line below the block-opening line is already that
-        ''' block's own closing statement
+        ''' True if the declaration (Class/Module/Namespace/Structure/Interface/Enum/Sub/
+        ''' Function/Property) whose header line is vCompletedLineIndex already has a matching
+        ''' closing statement somewhere below it, per the live parsed syntax tree
         ''' </summary>
         ''' <remarks>
         ''' TryAutoCompleteBlockStatement previously only checked LineAlreadyClosesBlock (the
-        ''' single-line inline form, e.g. "Sub Foo() : End Sub"). It never checked whether a
-        ''' body already exists below the declaration, so pressing Enter a second time at the
-        ''' end of a signature line that already has its "End Sub"/"End Function"/etc. - e.g.
-        ''' after re-editing the signature - inserted a duplicate closing statement
+        ''' single-line inline form, e.g. "Sub Foo() : End Sub") and, briefly, whether the
+        ''' IMMEDIATELY NEXT line closed the block - which missed the common case of an
+        ''' existing declaration that already has real body content between its header and its
+        ''' End statement (e.g. pressing Enter at the end of an existing Sub's signature line
+        ''' to insert a blank line above its body still inserted a second "End Sub"). Reuses
+        ''' the same StartLine/EndLine tree data CustomDrawingEditor.KeywordPairHighlight.vb's
+        ''' FindDeclarationNodeAtLine already relies on for exactly this kind of block-pair
+        ''' lookup, rather than a text-only scan that can't see past a real body.
         ''' </remarks>
         ''' <param name="vCompletedLineIndex">0-based index of the line Enter just completed</param>
-        ''' <param name="vClosingText">The closing line text to look for (e.g. "End Sub", "Next")</param>
-        Private Function NextLineAlreadyClosesBlock(vCompletedLineIndex As Integer, vClosingText As String) As Boolean
+        ''' <returns>True if a parsed declaration node starts on this line and its parsed
+        ''' EndLine is further down - False (including when the tree doesn't know about this
+        ''' declaration yet, e.g. it was just typed) so a genuinely new declaration still gets
+        ''' its End auto-inserted as before</returns>
+        Private Function DeclarationAlreadyHasClosingStatement(vCompletedLineIndex As Integer) As Boolean
             Try
-                for lLine As Integer = vCompletedLineIndex + 1 To pLineCount - 1
-                    Dim lTrimmed As String = StripLineComment(TextLines(lLine)).Trim()
-                    If lTrimmed.Length = 0 Then Continue for
-                    Return lTrimmed.StartsWith(vClosingText, StringComparison.OrdinalIgnoreCase)
-                Next
-                Return False
+                If pRootNode Is Nothing Then Return False
+
+                Dim lNode As SyntaxNode = FindDeclarationNodeAtLine(pRootNode, vCompletedLineIndex)
+                If lNode Is Nothing Then Return False
+
+                Return lNode.StartLine = vCompletedLineIndex AndAlso lNode.EndLine > vCompletedLineIndex
 
             Catch ex As Exception
-                Console.WriteLine($"NextLineAlreadyClosesBlock error: {ex.Message}")
+                Console.WriteLine($"DeclarationAlreadyHasClosingStatement error: {ex.Message}")
                 Return False
             End Try
         End Function
