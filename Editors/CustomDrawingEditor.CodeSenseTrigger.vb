@@ -52,6 +52,15 @@ Namespace Editors
             RegexOptions.IgnoreCase)
 
         ''' <summary>
+        ''' Matches a parameter-list segment (the text since the enclosing "(" or the last
+        ''' top-level "," before the word being typed) that contains nothing but whitespace
+        ''' and/or ByVal/ByRef/Optional/ParamArray modifiers - i.e. a fresh parameter-NAME
+        ''' slot, not already past "As" (the declared type) or "=" (a default value)
+        ''' </summary>
+        Private Shared ReadOnly ParameterNameContextPattern As New Regex(
+            "^(?:\s*(?:ByVal|ByRef|Optional|ParamArray)\b)*\s*$", RegexOptions.IgnoreCase)
+
+        ''' <summary>
         ''' True if the cursor is currently positioned where a NEW name is being typed as part
         ''' of a declaration (Dim/field/Sub/Function/Property/Event/type/For-loop-variable),
         ''' rather than referencing something that already exists
@@ -116,6 +125,115 @@ Namespace Editors
 
             Catch ex As Exception
                 Console.WriteLine($"IsTypingAsKeyword error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' True if the cursor is positioned right after "(" or ", " inside a Sub/Function/
+        ''' Property/Event/Delegate/Declare's own declared parameter list - i.e. where a
+        ''' brand-new parameter NAME is being typed, not a reference to anything that already
+        ''' exists
+        ''' </summary>
+        ''' <remarks>
+        ''' Deliberately does NOT fire once past "As" (typing the parameter's declared TYPE) or
+        ''' "=" (typing its default value) - both genuinely reference something that already
+        ''' exists and should still get CodeSense. Also does not fire inside a method CALL's
+        ''' argument list ("Stuff(v" where Stuff is being invoked, not declared) - see
+        ''' IsDeclarationParameterListOpenParen. Reuses FindEnclosingCallOpenParen
+        ''' (CustomDrawingEditor.ParameterHint.vb) to locate the enclosing "(" and
+        ''' AutoEndModifierKeywords (CustomDrawingEditor.AutoEndConstruct.vb) to skip
+        ''' modifiers when checking what keyword precedes it. Only handles the common
+        ''' same-line parameter list case.
+        ''' </remarks>
+        Private Function IsTypingParameterName() As Boolean
+            Try
+                If pSourceFileInfo Is Nothing OrElse pCursorLine >= pSourceFileInfo.TextLines.Count Then Return False
+
+                Dim lOpenLine As Integer
+                Dim lOpenColumn As Integer
+                Dim lParamIndex As Integer
+                If Not FindEnclosingCallOpenParen(pCursorLine, pCursorColumn, lOpenLine, lOpenColumn, lParamIndex) Then Return False
+                If lOpenLine <> pCursorLine Then Return False ' multi-line parameter lists not handled
+
+                If Not IsDeclarationParameterListOpenParen(lOpenLine, lOpenColumn) Then Return False
+
+                Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                Dim lWordStart As Integer = pCursorColumn
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+
+                ' Find the last top-level "," between the open paren and the word, if any -
+                ' that's where the CURRENT parameter's own text starts; otherwise it starts
+                ' right after "(" (the first parameter)
+                Dim lSegmentStart As Integer = lOpenColumn + 1
+                Dim lDepth As Integer = 0
+                for i As Integer = lOpenColumn + 1 To lWordStart - 1
+                    Select Case lLine(i)
+                        Case "("c
+                            lDepth += 1
+                        Case ")"c
+                            lDepth -= 1
+                        Case ","c
+                            If lDepth = 0 Then lSegmentStart = i + 1
+                    End Select
+                Next
+
+                If lWordStart < lSegmentStart Then Return False
+                Dim lBetween As String = lLine.Substring(lSegmentStart, lWordStart - lSegmentStart)
+
+                Return ParameterNameContextPattern.IsMatch(lBetween)
+
+            Catch ex As Exception
+                Console.WriteLine($"IsTypingParameterName error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' True if the "(" at (vLine, vColumn) opens a Sub/Function/Property/Event/Delegate
+        ''' Sub/Delegate Function/Declare's own declared parameter list, rather than a method
+        ''' call's argument list
+        ''' </summary>
+        Private Function IsDeclarationParameterListOpenParen(vLine As Integer, vColumn As Integer) As Boolean
+            Try
+                Dim lLineText As String = TextLines(vLine)
+
+                ' Text immediately before "(" up to (not including) the identifier it's
+                ' attached to (the method/property/event's own name)
+                Dim lNameEnd As Integer = vColumn
+                While lNameEnd > 0 AndAlso Char.IsWhiteSpace(lLineText(lNameEnd - 1))
+                    lNameEnd -= 1
+                End While
+                Dim lNameStart As Integer = lNameEnd
+                While lNameStart > 0 AndAlso (Char.IsLetterOrDigit(lLineText(lNameStart - 1)) OrElse lLineText(lNameStart - 1) = "_"c)
+                    lNameStart -= 1
+                End While
+                If lNameStart = lNameEnd Then Return False ' nothing identifier-shaped before "("
+
+                Dim lWords As String() = lLineText.Substring(0, lNameStart).Split(New Char() {" "c, ControlChars.Tab}, StringSplitOptions.RemoveEmptyEntries)
+                Dim lIdx As Integer = 0
+                While lIdx < lWords.Length AndAlso AutoEndModifierKeywords.Contains(lWords(lIdx))
+                    lIdx += 1
+                End While
+                If lIdx >= lWords.Length Then Return False
+
+                If String.Equals(lWords(lIdx), "Declare", StringComparison.OrdinalIgnoreCase) Then Return True
+
+                If String.Equals(lWords(lIdx), "Delegate", StringComparison.OrdinalIgnoreCase) Then
+                    lIdx += 1
+                    If lIdx >= lWords.Length Then Return False
+                End If
+
+                Dim lKeyword As String = lWords(lIdx)
+                Return String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase) OrElse
+                       String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase) OrElse
+                       String.Equals(lKeyword, "Property", StringComparison.OrdinalIgnoreCase) OrElse
+                       String.Equals(lKeyword, "Event", StringComparison.OrdinalIgnoreCase)
+
+            Catch ex As Exception
+                Console.WriteLine($"IsDeclarationParameterListOpenParen error: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -208,10 +326,15 @@ Namespace Editors
                     Case Else
                         ' Regular characters update the suggestion list immediately - but not
                         ' while typing a brand-new declaration name (nothing yet to complete
-                        ' against) or the "As" keyword itself (the only grammatically valid
-                        ' token there - a popup would just be noise; InsertCharacter's
-                        ' CorrectKeywordEndingAt call still capitalizes it once typed)
-                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso Not IsTypingDeclarationName() AndAlso Not IsTypingAsKeyword() Then
+                        ' against), a brand-new parameter name in a Sub/Function/Property/
+                        ' Event's own parameter list (same reasoning - must be unique, not a
+                        ' reference to anything existing), or the "As" keyword itself (the
+                        ' only grammatically valid token there - a popup would just be noise;
+                        ' InsertCharacter's CorrectKeywordEndingAt call still capitalizes it
+                        ' once typed)
+                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso
+                           Not IsTypingDeclarationName() AndAlso Not IsTypingAsKeyword() AndAlso
+                           Not IsTypingParameterName() Then
                             TriggerCodeSenseForCurrentWord()
                         End If
                 End Select
