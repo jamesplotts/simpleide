@@ -5,6 +5,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Models
+Imports SimpleIDE.Interfaces
 
 Partial Public Class MainWindow
     
@@ -12,6 +13,19 @@ Partial Public Class MainWindow
     Private pThemeMenu As Menu
     Private pThemeRadioGroup As RadioMenuItem
     Private pProjectExplorerMenuItem As CheckMenuItem
+
+    ' Edit/File menu items whose Sensitive state UpdateMenuStates keeps in sync with the
+    ' current editor/tab context - previously local Dim variables inside CreateFileMenu/
+    ' CreateEditMenu, promoted to fields so UpdateMenuStates (a no-op before this) can
+    ' actually reach them
+    Private pSaveMenuItem As MenuItem
+    Private pSaveAllMenuItem As MenuItem
+    Private pCloseMenuItem As MenuItem
+    Private pCloseAllMenuItem As MenuItem
+    Private pUndoMenuItem As MenuItem
+    Private pRedoMenuItem As MenuItem
+    Private pCutMenuItem As MenuItem
+    Private pCopyMenuItem As MenuItem
     
     ' ===== Menu Creation =====
     Private Sub CreateMenuBar()
@@ -136,19 +150,19 @@ Partial Public Class MainWindow
             lFileMenu.Append(New SeparatorMenuItem())
             
             ' Save
-            Dim lSave As MenuItem = CreateMenuItemWithIcon("_Save", "document-save")
-            AddHandler lSave.Activated, AddressOf OnSave
-            lFileMenu.Append(lSave)
-            
+            pSaveMenuItem = CreateMenuItemWithIcon("_Save", "document-save")
+            AddHandler pSaveMenuItem.Activated, AddressOf OnSave
+            lFileMenu.Append(pSaveMenuItem)
+
             ' Save As
             Dim lSaveAs As MenuItem = CreateMenuItemWithIcon("Save _As...", "document-save-as")
             AddHandler lSaveAs.Activated, AddressOf OnSaveAs
             lFileMenu.Append(lSaveAs)
-            
+
             ' Save All
-            Dim lSaveAll As New MenuItem("Save A_ll")
-            AddHandler lSaveAll.Activated, AddressOf OnSaveAll
-            lFileMenu.Append(lSaveAll)
+            pSaveAllMenuItem = New MenuItem("Save A_ll")
+            AddHandler pSaveAllMenuItem.Activated, AddressOf OnSaveAll
+            lFileMenu.Append(pSaveAllMenuItem)
 
             ' Revert to Saved
             AddRevertToSavedMenuItem(lFileMenu)
@@ -156,14 +170,14 @@ Partial Public Class MainWindow
             lFileMenu.Append(New SeparatorMenuItem())
 
             ' Close File
-            Dim lClose As New MenuItem("_Close")
-            AddHandler lClose.Activated, AddressOf OnCloseFile
-            lFileMenu.Append(lClose)
-            
+            pCloseMenuItem = New MenuItem("_Close")
+            AddHandler pCloseMenuItem.Activated, AddressOf OnCloseFile
+            lFileMenu.Append(pCloseMenuItem)
+
             ' Close All
-            Dim lCloseAll As New MenuItem("Close _All")
-            AddHandler lCloseAll.Activated, AddressOf OnCloseAll
-            lFileMenu.Append(lCloseAll)
+            pCloseAllMenuItem = New MenuItem("Close _All")
+            AddHandler pCloseAllMenuItem.Activated, AddressOf OnCloseAll
+            lFileMenu.Append(pCloseAllMenuItem)
             
             lFileMenu.Append(New SeparatorMenuItem())
             
@@ -185,26 +199,26 @@ Partial Public Class MainWindow
             pMenuBar.Append(lEditMenuItem)
             
             ' Undo
-            Dim lUndo As MenuItem = CreateMenuItemWithIcon("_Undo", "edit-undo")
-            AddHandler lUndo.Activated, AddressOf OnUndo
-            lEditMenu.Append(lUndo)
-            
+            pUndoMenuItem = CreateMenuItemWithIcon("_Undo", "edit-undo")
+            AddHandler pUndoMenuItem.Activated, AddressOf OnUndo
+            lEditMenu.Append(pUndoMenuItem)
+
             ' Redo
-            Dim lRedo As MenuItem = CreateMenuItemWithIcon("_Redo", "edit-redo")
-            AddHandler lRedo.Activated, AddressOf OnRedo
-            lEditMenu.Append(lRedo)
-            
+            pRedoMenuItem = CreateMenuItemWithIcon("_Redo", "edit-redo")
+            AddHandler pRedoMenuItem.Activated, AddressOf OnRedo
+            lEditMenu.Append(pRedoMenuItem)
+
             lEditMenu.Append(New SeparatorMenuItem())
-            
+
             ' Cut
-            Dim lCut As MenuItem = CreateMenuItemWithIcon("Cu_t", "edit-cut")
-            AddHandler lCut.Activated, AddressOf OnCut
-            lEditMenu.Append(lCut)
-            
+            pCutMenuItem = CreateMenuItemWithIcon("Cu_t", "edit-cut")
+            AddHandler pCutMenuItem.Activated, AddressOf OnCut
+            lEditMenu.Append(pCutMenuItem)
+
             ' Copy
-            Dim lCopy As MenuItem = CreateMenuItemWithIcon("_Copy", "edit-copy")
-            AddHandler lCopy.Activated, AddressOf OnCopy
-            lEditMenu.Append(lCopy)
+            pCopyMenuItem = CreateMenuItemWithIcon("_Copy", "edit-copy")
+            AddHandler pCopyMenuItem.Activated, AddressOf OnCopy
+            lEditMenu.Append(pCopyMenuItem)
             
             ' Paste
             Dim lPaste As MenuItem = CreateMenuItemWithIcon("_Paste", "edit-paste")
@@ -268,8 +282,42 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Keeps Undo/Redo/Save/Save All/Cut/Copy/Close/Close All's Sensitive state in sync
+    ''' with the current editor/tab context - previously a complete no-op, called once at
+    ''' startup and never again. Mirrors UpdateToolbarButtons' own signals (CanUndo/CanRedo/
+    ''' HasSelection/Modified are already exposed by IEditor/TabInfo, nothing new to build)
+    ''' rather than inventing new detection logic. Paste is deliberately left alone -
+    ''' reliable cross-platform clipboard-content detection isn't cheaply available here,
+    ''' so it stays unconditionally enabled as it always has been.
+    ''' </summary>
     Private Sub UpdateMenuStates()
-        ' TODO: Implement UpdateMenuStates
+        Try
+            Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
+            Dim lCurrentEditor As IEditor = GetCurrentEditor()
+            Dim lHasOpenTabs As Boolean = pOpenTabs.Count > 0
+
+            Dim lAnyModified As Boolean = False
+            for each lTab in pOpenTabs.Values
+                If lTab.Modified Then
+                    lAnyModified = True
+                    Exit for
+                End If
+            Next
+
+            If pSaveMenuItem IsNot Nothing Then pSaveMenuItem.Sensitive = lCurrentTab IsNot Nothing AndAlso lCurrentTab.Modified
+            If pSaveAllMenuItem IsNot Nothing Then pSaveAllMenuItem.Sensitive = lAnyModified
+            If pCloseMenuItem IsNot Nothing Then pCloseMenuItem.Sensitive = lHasOpenTabs
+            If pCloseAllMenuItem IsNot Nothing Then pCloseAllMenuItem.Sensitive = lHasOpenTabs
+
+            If pUndoMenuItem IsNot Nothing Then pUndoMenuItem.Sensitive = lCurrentEditor IsNot Nothing AndAlso lCurrentEditor.CanUndo
+            If pRedoMenuItem IsNot Nothing Then pRedoMenuItem.Sensitive = lCurrentEditor IsNot Nothing AndAlso lCurrentEditor.CanRedo
+            If pCutMenuItem IsNot Nothing Then pCutMenuItem.Sensitive = lCurrentEditor IsNot Nothing AndAlso lCurrentEditor.HasSelection
+            If pCopyMenuItem IsNot Nothing Then pCopyMenuItem.Sensitive = lCurrentEditor IsNot Nothing AndAlso lCurrentEditor.HasSelection
+
+        Catch ex As Exception
+            Console.WriteLine($"UpdateMenuStates error: {ex.Message}")
+        End Try
     End Sub
     
     Private Sub CreateViewMenu()

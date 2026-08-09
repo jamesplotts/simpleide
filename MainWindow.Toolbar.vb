@@ -422,6 +422,12 @@ Partial Public Class MainWindow
             pAIButton.Sensitive = True
             pHelpButton.Sensitive = True
 
+            ' Keep the Edit/File menu's Sensitive states in sync with the same context -
+            ' UpdateMenuStates was previously a no-op with no caller of its own; every
+            ' existing trigger point for toolbar state (tab switch, text changed, selection
+            ' changed, etc.) already calls this method, so it covers menu state too for free
+            UpdateMenuStates()
+
         Catch ex As Exception
             Console.WriteLine($"UpdateToolbarButtons error: {ex.Message}")
         End Try
