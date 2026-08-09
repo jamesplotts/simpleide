@@ -12,10 +12,10 @@ You are assisting with the development of **SimpleIDE** - a lightweight, profess
 - Line numbers with click-to-select and drag-to-select functionality
 - Settings window with theme support and persistence
 - Enhanced status bar with cursor position, language mode, and encoding
-- Keyboard shortcuts (Ctrl+S, Ctrl+Y, Ctrl+G, Ctrl+A, F6, Shift+F6, Ctrl+Shift+B)
+- Keyboard shortcuts (Ctrl+S, Ctrl+Y, Ctrl+G, Ctrl+A, F6, Ctrl+Shift+B)
 - Welcome splash screen with scaled icon when no files are open
 - **Undo/Redo system** (Ctrl+Z, Ctrl+R) with per-character tracking
-- API integration for Claude.AI, providing implementation for multiple chats, and Claude projects
+- Multi-provider AI integration (Anthropic Claude API, Claude Code CLI, OpenRouter, or any OpenAI-compatible local LLM server), single in-memory conversation per session
 - Integrated Help System
 
 ## Mandatory Coding Conventions (FOLLOW STRICTLY)
