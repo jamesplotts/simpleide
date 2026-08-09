@@ -100,10 +100,7 @@ Namespace Syntax
                 
                 ' Load basic assemblies
                 LoadCoreAssemblies()
-                
-                ' Subscribe to ProjectManager parse events if available
-                SubscribeToProjectParseEvents()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CodeSenseEngine constructor error: {ex.Message}")
             End Try
@@ -735,59 +732,6 @@ Namespace Syntax
                 Return Nothing
             End Try
         End Function
-        
-        ''' <summary>
-        ''' Subscribe to ProjectManager parse events
-        ''' </summary>
-        Private Sub SubscribeToProjectParseEvents()
-            Try
-                Dim lProjectManager = GetProjectManager()
-                If lProjectManager IsNot Nothing Then
-                    ' Subscribe to ParseCompleted event
-                    RemoveHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
-                    AddHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
-                    
-                    ' Subscribe to ProjectStructureLoaded event
-                    RemoveHandler lProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
-                    AddHandler lProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
-                    
-                    Console.WriteLine("CodeSenseEngine subscribed to ProjectManager parse events")
-                Else
-                    Console.WriteLine("CodeSenseEngine: No ProjectManager available to subscribe to")
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"SubscribeToProjectParseEvents error: {ex.Message}")
-            End Try
-        End Sub
-
-        ''' <summary>
-        ''' Handle project structure loaded from ProjectManager
-        ''' </summary>
-        Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
-            Try
-                ' Update with the full project tree
-                UpdateFromSyntaxTree(vRootNode, True)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handle parse completion from ProjectManager
-        ''' </summary>
-        Private Sub OnProjectParseCompleted(vFile As SourceFileInfo, vResult As Object)
-            Try
-                ' Update from the parse result
-                UpdateFromParseResult(vFile, vResult)
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnProjectParseCompleted error: {ex.Message}")
-            End Try
-        End Sub
-        
-
         
         ''' <summary>
         ''' Initialize keyword suggestions
@@ -2203,13 +2147,6 @@ Namespace Syntax
         Public Sub Dispose() Implements IDisposable.Dispose
             Try
                 If Not pDisposed Then
-                    ' Unsubscribe from events
-                    Dim lProjectManager = GetProjectManager()
-                    If lProjectManager IsNot Nothing Then
-                        RemoveHandler lProjectManager.ParseCompleted, AddressOf OnProjectParseCompleted
-                        RemoveHandler lProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
-                    End If
-                    
                     ' Clear collections
                     pProjectReferences?.Clear()
                     pTypeCache?.Clear()
