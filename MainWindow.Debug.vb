@@ -11,15 +11,16 @@ Imports SimpleIDE.Dialogs
 
 Partial Public Class MainWindow
 
-    Public Sub StopDebugging()
-        ' TODO: Imp lement
-    End Sub
-
     ''' <summary>
     ''' Stops the running/debugging process (Shift+F5)
     ''' </summary>
     Private Sub OnStopDebugging(vSender As Object, vArgs As EventArgs)
-        StopProject()
+        Try
+            StopProject()
+        Catch ex As Exception
+            Console.WriteLine($"OnStopDebugging error: {ex.Message}")
+            ShowError("Stop error", ex.Message)
+        End Try
     End Sub
 
     ' Helper method to update debug button states
