@@ -561,10 +561,8 @@ Namespace Widgets
                             Case "Empty VB File"
                                 ' Get the selected folder path
                                 Dim lSelectedPath As String = GetSelectedFolderPath()
-                                ' Close this dialog first
-                                lDialog.Destroy()
                                 ShowAddEmptyVBFileDialog(lSelectedPath)
-                                Return ' Exit to avoid destroying dialog twice
+                                Return
                                 
                             Case "Class"
                                 ShowAddNewItemDialog("Class", ".vb", AddressOf GenerateClassCode)
@@ -576,10 +574,10 @@ Namespace Widgets
                                 ShowAddNewItemDialog("Interface", ".vb", AddressOf GenerateInterfaceCode)
                                 
                             Case "Form"
-                                ShowAddNewItemDialog("Form", ".vb", AddressOf GenerateFormCode)
-                                
+                                ShowAddNewItemDialog("Windows Form", ".vb", AddressOf GenerateFormCode)
+
                             Case "User Control"
-                                ShowAddNewItemDialog("UserControl", ".vb", AddressOf GenerateUserControlCode)
+                                ShowAddNewItemDialog("User Control", ".vb", AddressOf GenerateUserControlCode)
                                 
                             Case "Component"
                                 ShowAddNewItemDialog("Component", ".vb", AddressOf GenerateComponentCode)
