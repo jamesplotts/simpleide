@@ -289,15 +289,18 @@ Namespace Widgets
                 pNotebook = New Notebook()
                 pNotebook.BorderWidth = 10
                 
-                ' Add category tabs
-                pNotebook.AppendPage(CreateGeneralTab(), New Label("General"))
-                pNotebook.AppendPage(CreateEditorTab(), New Label("Editor"))
-                pNotebook.AppendPage(CreateBuildTab(), New Label("Build"))
-                pNotebook.AppendPage(CreateGitTab(), New Label("Git"))
-                pNotebook.AppendPage(CreateAITab(), New Label("AI"))
-                pNotebook.AppendPage(CreateAdvancedTab(), New Label("Advanced"))
-                pNotebook.AppendPage(CreateExcludedDirectoriesTab(), New Label("Excluded Directories"))
-                pNotebook.AppendPage(CreateVersionTab(), New Label("Project Version"))
+                ' Add category tabs - each wrapped in a vertically-scrolling ScrolledWindow so a
+                ' tab taller than the available window height (a shorter screen, or just a tab
+                ' that's grown over time, like AI has) stays reachable instead of clipping its
+                ' bottom controls with no way to get to them
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateGeneralTab()), New Label("General"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateEditorTab()), New Label("Editor"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateBuildTab()), New Label("Build"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateGitTab()), New Label("Git"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateAITab()), New Label("AI"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateAdvancedTab()), New Label("Advanced"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateExcludedDirectoriesTab()), New Label("Excluded Directories"))
+                pNotebook.AppendPage(WrapInScrolledWindow(CreateVersionTab()), New Label("Project Version"))
                 
                 PackStart(pNotebook, True, True, 0)
                 
@@ -308,8 +311,41 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Wraps a Preferences tab's content in a vertically-scrolling ScrolledWindow, so the
+        ''' page stays fully reachable when its content is taller than the available window
+        ''' height instead of silently clipping whatever falls below the fold
+        ''' </summary>
+        ''' <param name="vContent">The tab content widget returned by a CreateXxxTab method</param>
+        Private Function WrapInScrolledWindow(vContent As Widget) As Widget
+            Dim lScrolled As New ScrolledWindow()
+            lScrolled.SetPolicy(PolicyType.Never, PolicyType.Automatic)
+            lScrolled.Add(vContent)
+            Return lScrolled
+        End Function
+
+        ''' <summary>
+        ''' Unwraps a notebook page back to the Box a CreateXxxTab method originally returned -
+        ''' GetNthPage() now returns the ScrolledWindow WrapInScrolledWindow put around it (with
+        ''' GTK3 auto-inserting a Viewport in between for a non-Gtk.IScrollable child), not the
+        ''' Box directly, so any code that walks a tab's widget tree needs this instead of
+        ''' assuming GetNthPage()'s result IS the Box
+        ''' </summary>
+        ''' <param name="vPageWidget">The widget returned by pNotebook.GetNthPage()</param>
+        ''' <returns>The tab's content Box, or Nothing if the page isn't shaped as expected</returns>
+        Private Function GetTabContentBox(vPageWidget As Widget) As Box
+            Dim lChild As Widget = vPageWidget
+            If TypeOf lChild Is ScrolledWindow Then
+                lChild = CType(lChild, ScrolledWindow).Child
+            End If
+            If TypeOf lChild Is Viewport Then
+                lChild = CType(lChild, Viewport).Child
+            End If
+            Return TryCast(lChild, Box)
+        End Function
+
         ' ===== Tab Creation Methods =====
-        
+
         ''' <summary>
         ''' Create the IDE Version settings tab (simplified - auto-increment only)
         ''' </summary>
@@ -1741,10 +1777,9 @@ Namespace Widgets
                 
                 ' Find the security label in the Git tab
                 ' It should be the last label added to the credentials box
-                Dim lGitTabWidget As Widget = pNotebook.GetNthPage(3)  ' Git is the 4th tab (0-indexed)
-                If lGitTabWidget IsNot Nothing AndAlso TypeOf lGitTabWidget Is Box Then
+                Dim lBox As Box = GetTabContentBox(pNotebook.GetNthPage(3))  ' Git is the 4th tab (0-indexed)
+                If lBox IsNot Nothing Then
                     ' Search through the box hierarchy to find the security label
-                    Dim lBox As Box = CType(lGitTabWidget, Box)
                     for each lChild in lBox.Children
                         If TypeOf lChild Is Frame Then
                             Dim lFrame As Frame = CType(lChild, Frame)
