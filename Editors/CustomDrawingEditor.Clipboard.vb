@@ -54,13 +54,39 @@ Namespace Editors
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Gets the document-order start of the current selection
+        ''' </summary>
+        ''' <remarks>
+        ''' pSelectionStartLine/Column is the drag ANCHOR, not necessarily the earlier
+        ''' position - selecting backward (e.g. clicking at the end of a block and dragging
+        ''' up to its start) leaves the anchor after the active end in document order. Every
+        ''' caller of GetSelectionStart/GetSelectionEnd (Cut, DeleteSelection, ReplaceSelection,
+        ''' etc.) needs the earlier/later positions, not raw anchor/active, so both normalize
+        ''' here - the single place selection bounds are read for editing operations - rather
+        ''' than requiring each of the ~13 call sites to remember to normalize itself. Without
+        ''' this, a backward selection passed its reversed (Start > End) bounds straight to
+        ''' DeleteText and RecordDeleteText, corrupting the buffer and recording an undo action
+        ''' that reinserted the cut text at the wrong position entirely on Ctrl+Z
+        ''' </remarks>
         Private Function GetSelectionStart() As EditorPosition
-            Return New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+            Dim lStart As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+            If Not pSelectionActive Then Return lStart
+            Dim lEnd As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+            NormalizeSelection(lStart, lEnd)
+            Return lStart
         End Function
 
+        ''' <summary>
+        ''' Gets the document-order end of the current selection - see GetSelectionStart's
+        ''' remarks
+        ''' </summary>
         Private Function GetSelectionEnd() As EditorPosition
-            If pSelectionActive Then Return New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
-            Return GetSelectionStart()
+            If Not pSelectionActive Then Return GetSelectionStart()
+            Dim lStart As New EditorPosition(pSelectionStartLine, pSelectionStartColumn)
+            Dim lEnd As New EditorPosition(pSelectionEndLine, pSelectionEndColumn)
+            NormalizeSelection(lStart, lEnd)
+            Return lEnd
         End Function
 
         
