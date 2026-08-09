@@ -84,7 +84,10 @@ Partial Public Class MainWindow
             ApplyUISettings()
             
             ' ===== Apply Build Settings =====
-            ' Build settings are typically used at build time, no immediate action needed
+            ' Re-reads pBuildConfiguration from settings (Configuration/Platform/Verbosity/
+            ' ParallelBuild/RestorePackages) so a change just saved in Preferences' Build tab
+            ' takes effect on the very next build, without restarting the IDE
+            LoadBuildConfiguration()
             
             ' ===== Apply Git Settings =====
             ApplyGitSettings()
@@ -214,12 +217,16 @@ Partial Public Class MainWindow
                 ' Disable Git features
                 StopGitAutoFetchTimer()
             End If
-            
+
+            ' Re-apply the configured PAT/OAuth credential (if any) so a change made just now
+            ' in the Git Credentials tab takes effect immediately, without restarting the IDE
+            ApplyGitCredentials()
+
             ' Update Git panel if visible
             If pGitPanel IsNot Nothing Then
                 pGitPanel.RefreshGitStatus()
             End If
-            
+
             Console.WriteLine("Git settings applied")
             
         Catch ex As Exception

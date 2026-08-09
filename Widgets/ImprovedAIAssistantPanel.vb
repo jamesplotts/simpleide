@@ -48,7 +48,7 @@ Namespace Widgets
         Private pClearButton As ToolButton
         
         ' State
-        Private pApiClient As EnhancedClaudeApiClient
+        Private pApiClient As AIChatClient
         Private pMainWindow As SimpleIDE.MainWindow
         Private pCurrentEditor As IEditor
         Private pProjectRoot As String
@@ -93,7 +93,7 @@ Namespace Widgets
         Public Sub New(vApiKey As String, vMainWindow As SimpleIDE.MainWindow)
             MyBase.New(Orientation.Vertical, 0)
             
-            pApiClient = New EnhancedClaudeApiClient(vApiKey)
+            pApiClient = New AIChatClient(New AnthropicProvider(vApiKey))
             pMainWindow = vMainWindow
             pBuildErrors = New List(Of BuildError)()
             
@@ -368,7 +368,7 @@ What would you like to work on?")
                 
                 ' Send to API
                 UpdateStatus("Thinking...")
-                Dim lResponse As EnhancedClaudeApiClient.ClaudeResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
+                Dim lResponse As AIChatClient.ClaudeResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
                 
                 ' Process response
                 ProcessAIResponse(lResponse)
@@ -384,7 +384,7 @@ What would you like to work on?")
         
         ' ===== Private Helper Methods =====
         
-        Private Sub ProcessAIResponse(vResponse As EnhancedClaudeApiClient.ClaudeResponse)
+        Private Sub ProcessAIResponse(vResponse As AIChatClient.ClaudeResponse)
             Try
                 ' Add assistant message
                 AddMessage("assistant", vResponse.Content)
@@ -401,7 +401,7 @@ What would you like to work on?")
             End Try
         End Sub
         
-        Private Sub CreateArtifact(vArtifact As EnhancedClaudeApiClient.ClaudeArtifact)
+        Private Sub CreateArtifact(vArtifact As AIChatClient.ClaudeArtifact)
             Try
                 ' Determine target file path based on context
                 Dim lTargetPath As String = ""
@@ -424,7 +424,7 @@ What would you like to work on?")
             End Try
         End Sub
         
-        Private Sub AddArtifactLink(vArtifact As EnhancedClaudeApiClient.ClaudeArtifact)
+        Private Sub AddArtifactLink(vArtifact As AIChatClient.ClaudeArtifact)
             Try
                 Dim lIter As TextIter = pChatBuffer.EndIter
                 pChatBuffer.InsertAtCursor(Environment.NewLine & "📄 ")

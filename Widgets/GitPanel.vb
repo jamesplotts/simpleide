@@ -178,6 +178,17 @@ Namespace Widgets
         End Function
 
         ''' <summary>
+        ''' Applies the Git HTTP credential (PAT/OAuth token) configured in Preferences to this
+        ''' panel's own GitManager instance, so its Push/Pull buttons authenticate the same way
+        ''' as the main Git menu's commands
+        ''' </summary>
+        ''' <param name="vToken">Personal access token or OAuth token, or empty to clear</param>
+        ''' <param name="vCredentialType">"PAT" or "OAuth"</param>
+        Public Sub SetCredential(vToken As String, vCredentialType As String)
+            pGitManager?.SetCredential(vToken, vCredentialType)
+        End Sub
+
+        ''' <summary>
         ''' Applies the app's color theme to this panel's CustomDraw controls (status/history
         ''' grids, diff view) - each self-themes via its own SetThemeManager - and to the
         ''' commit-message TextView's background/foreground colors via CSS, since that's the

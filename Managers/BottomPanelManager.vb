@@ -5,6 +5,7 @@ Imports SimpleIDE.Widgets
 Imports SimpleIDE.Models
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.AI
 
 Namespace Managers
     Public Class BottomPanelManager
@@ -527,10 +528,10 @@ Namespace Managers
         ''' </summary>
         Private Sub CreateAIAssistantTab()
             Try
-                Dim lApiKey As String = If(pSettingsManager IsNot Nothing, 
-                    pSettingsManager.GetString("AI.ApiKey", ""), "")
-                    
-                pAIAssistantPanel = New AIAssistantPanel(lApiKey)
+                Dim lProvider As IAIProvider = If(pSettingsManager IsNot Nothing,
+                    AIProviderFactory.CreateProvider(pSettingsManager), Nothing)
+
+                pAIAssistantPanel = New AIAssistantPanel(lProvider)
 
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "chat")

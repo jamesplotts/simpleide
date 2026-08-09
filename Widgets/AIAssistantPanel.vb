@@ -11,6 +11,7 @@ Imports SimpleIDE.Utilities
 Imports SimpleIDE.Models
 Imports SimpleIDE.Editors
 Imports SimpleIDE.Managers
+Imports SimpleIDE.Interfaces
 
 Namespace Widgets
     Public Class AIAssistantPanel
@@ -25,7 +26,7 @@ Namespace Widgets
         Private pActionButtons As New Dictionary(Of String, CustomDrawButton)
         Private pProjectRoot As String
         Private pCurrentTab As TabInfo
-        Private pApiClient As EnhancedClaudeApiClient
+        Private pApiClient As AIChatClient
         Private pFileSystemBridge As AIFileSystemBridge
         Private pIsProcessing As Boolean = False
         Private pConversationHistory As New List(Of ImprovedAIAssistantPanel.ChatMessage)
@@ -77,23 +78,30 @@ Namespace Widgets
             Public Property Executed As Boolean = False
         End Class
         
-        Public Sub New(vApiKey As String)
+        Public Sub New(vProvider As IAIProvider)
             MyBase.New(Orientation.Vertical, 0)
-            
-            ' Initialize API client
-            pApiClient = New EnhancedClaudeApiClient(vApiKey)
+
+            ' Initialize API client - vProvider may be Nothing if AI isn't configured yet
+            ' (no key set for the selected provider); SendMessage below surfaces that as an
+            ' error rather than failing to construct the panel at all
+            pApiClient = New AIChatClient(vProvider)
             pFileSystemBridge = New AIFileSystemBridge()
-            
+
             BuildUI()
             ConnectEvents()
-            
+
             ' Add welcome message
             AddAssistantMessage("Hello! i'm your AI coding assistant. i can help you create projects, write code, fix Errors, and more. What would you like to work on today?")
         End Sub
 
-        Public Sub Initialize(vApiKey As String)
-            ' Initialize API client
-            pApiClient = New EnhancedClaudeApiClient(vApiKey)
+        ''' <summary>
+        ''' (Re)configures which AI backend this panel talks to - called from
+        ''' MainWindow.InitializeAI() both at startup and whenever Preferences' AI settings
+        ''' are saved
+        ''' </summary>
+        ''' <param name="vProvider">The configured AI backend, or Nothing if none is usable yet</param>
+        Public Sub Initialize(vProvider As IAIProvider)
+            pApiClient = New AIChatClient(vProvider)
             pFileSystemBridge = New AIFileSystemBridge()
         End Sub
 
@@ -424,26 +432,12 @@ Namespace Widgets
                 Dim lContext As String = BuildContextPrompt()
                 Dim lFullPrompt As String = lContext & Environment.NewLine & Environment.NewLine & vPrompt
                 
-                ' Call Claude API
-                Dim lResponse As EnhancedClaudeApiClient.ClaudeResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
-                
+                ' Call the AI provider
+                Dim lResponse As AIChatClient.ClaudeResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
+
                 ' Parse response for actions
                 Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
-                
-                ' WITH:
-                Dim lConvertedHistory As New List(Of ImprovedAIAssistantPanel.ChatMessage)
-                For Each lMsg In pConversationHistory
-                    Dim lNewMsg As New ImprovedAIAssistantPanel.ChatMessage("", "")
-                    lNewMsg.Role = lMsg.Role
-                    lNewMsg.Content = lMsg.Content
-                    lNewMsg.Timestamp = lMsg.Timestamp
-                    lConvertedHistory.Add(lNewMsg)
-                Next
-                
-                lResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, lConvertedHistory)
-                
-                ' Parse response for actions
-                lActions = ParseAIResponse(lResponse.Content)                
+
                 ' Execute actions if any
                 If lActions.Count > 0 Then
                     Await ExecuteAIActions(lActions)

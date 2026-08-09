@@ -75,9 +75,16 @@ Namespace Widgets
         Private pShowArtifactsCheck As CheckButton
         Private pAutoContextCheck As CheckButton
         Private pMem0EnabledCheck As CheckButton
+        Private pAIProviderCombo As CustomDrawComboBox
+        Private pAIProviderHelpLabel As Label
+        Private pApiKeyLabel As Label
         Private pApiKeyEntry As CustomDrawTextBox
         Private pApiKeyVisibleCheck As CheckButton
-        Private pAIModelCombo As CustomDrawComboBox
+        Private pAIBaseUrlLabel As Label
+        Private pAIBaseUrlEntry As CustomDrawTextBox
+        Private pClaudeCodePathLabel As Label
+        Private pClaudeCodePathEntry As CustomDrawTextBox
+        Private pAIModelEntry As CustomDrawTextBox
         Private pMaxTokensSpin As SpinButton
         Private pTemperatureSpin As SpinButton
         Private pStreamResponsesCheck As CheckButton
@@ -809,13 +816,31 @@ Namespace Widgets
             lBox.PackStart(lConfigFrame, False, False, 0)
 
             ' API Configuration - was a separate modal AISettingsDialog opened via a
-            ' "Configure AI Connection..." button; consolidated directly into this tab
-            Dim lApiFrame As New Frame("API Configuration")
+            ' "Configure AI Connection..." button; consolidated directly into this tab.
+            ' Supports four backends (see AI.AIProviderFactory): Anthropic's Claude API, the
+            ' locally-installed Claude Code CLI, OpenRouter, or a local LLM server (Ollama, LM
+            ' Studio, etc.) - each needs a different subset of the fields below, so
+            ' OnAIProviderChanged grays out whichever don't apply to the current selection
+            Dim lApiFrame As New Frame("Provider Configuration")
             Dim lApiBox As New Box(Orientation.Vertical, 5)
             lApiBox.BorderWidth = 10
 
+            Dim lProviderBox As New Box(Orientation.Horizontal, 10)
+            lProviderBox.PackStart(New Label("Provider:"), False, False, 0)
+            pAIProviderCombo = New CustomDrawComboBox()
+            pAIProviderCombo.ThemeManager = pThemeManager
+            pAIProviderCombo.AppendText("Claude API")
+            pAIProviderCombo.AppendText("Claude Code CLI")
+            pAIProviderCombo.AppendText("OpenRouter")
+            pAIProviderCombo.AppendText("Local LLM (OpenAI-compatible)")
+            pAIProviderCombo.Active = 0
+            AddHandler pAIProviderCombo.Changed, AddressOf OnAIProviderChanged
+            lProviderBox.PackStart(pAIProviderCombo, True, True, 0)
+            lApiBox.PackStart(lProviderBox, False, False, 0)
+
             Dim lApiKeyBox As New Box(Orientation.Horizontal, 10)
-            lApiKeyBox.PackStart(New Label("API key:"), False, False, 0)
+            pApiKeyLabel = New Label("API key:")
+            lApiKeyBox.PackStart(pApiKeyLabel, False, False, 0)
             pApiKeyEntry = New CustomDrawTextBox()
             pApiKeyEntry.ThemeManager = pThemeManager
             pApiKeyEntry.InnerEntry.Visibility = False ' Hide API key by default
@@ -828,23 +853,40 @@ Namespace Widgets
             lApiKeyBox.PackStart(pApiKeyVisibleCheck, False, False, 0)
             lApiBox.PackStart(lApiKeyBox, False, False, 0)
 
+            Dim lBaseUrlBox As New Box(Orientation.Horizontal, 10)
+            pAIBaseUrlLabel = New Label("Base URL:")
+            lBaseUrlBox.PackStart(pAIBaseUrlLabel, False, False, 0)
+            pAIBaseUrlEntry = New CustomDrawTextBox()
+            pAIBaseUrlEntry.ThemeManager = pThemeManager
+            pAIBaseUrlEntry.TooltipText = "OpenAI-compatible base URL, e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1"
+            AddHandler pAIBaseUrlEntry.Changed, AddressOf OnSettingChanged
+            lBaseUrlBox.PackStart(pAIBaseUrlEntry, True, True, 0)
+            lApiBox.PackStart(lBaseUrlBox, False, False, 0)
+
+            Dim lCliPathBox As New Box(Orientation.Horizontal, 10)
+            pClaudeCodePathLabel = New Label("CLI path:")
+            lCliPathBox.PackStart(pClaudeCodePathLabel, False, False, 0)
+            pClaudeCodePathEntry = New CustomDrawTextBox()
+            pClaudeCodePathEntry.ThemeManager = pThemeManager
+            pClaudeCodePathEntry.TooltipText = "Path to the claude executable, or just ""claude"" to resolve it via PATH"
+            AddHandler pClaudeCodePathEntry.Changed, AddressOf OnSettingChanged
+            lCliPathBox.PackStart(pClaudeCodePathEntry, True, True, 0)
+            lApiBox.PackStart(lCliPathBox, False, False, 0)
+
             Dim lModelBox As New Box(Orientation.Horizontal, 10)
             lModelBox.PackStart(New Label("Model:"), False, False, 0)
-            pAIModelCombo = New CustomDrawComboBox()
-            pAIModelCombo.ThemeManager = pThemeManager
-            pAIModelCombo.AppendText("claude-3-opus-20240229")
-            pAIModelCombo.AppendText("claude-3-sonnet-20240229")
-            pAIModelCombo.AppendText("claude-3-haiku-20240307")
-            pAIModelCombo.AppendText("claude-2.1")
-            pAIModelCombo.AppendText("claude-2.0")
-            AddHandler pAIModelCombo.Changed, AddressOf OnSettingChanged
-            lModelBox.PackStart(pAIModelCombo, True, True, 0)
+            pAIModelEntry = New CustomDrawTextBox()
+            pAIModelEntry.ThemeManager = pThemeManager
+            AddHandler pAIModelEntry.Changed, AddressOf OnSettingChanged
+            lModelBox.PackStart(pAIModelEntry, True, True, 0)
             lApiBox.PackStart(lModelBox, False, False, 0)
 
             Dim lApiHelpLabel As New Label()
-            lApiHelpLabel.Markup = "<small>Get your API key from <a href='https://console.anthropic.com/'>Anthropic Console</a></small>"
+            lApiHelpLabel.UseMarkup = True
             lApiHelpLabel.Xalign = 0
             lApiBox.PackStart(lApiHelpLabel, False, False, 0)
+            UpdateAIProviderHelpLabel(lApiHelpLabel)
+            pAIProviderHelpLabel = lApiHelpLabel
 
             lApiFrame.Add(lApiBox)
             lBox.PackStart(lApiFrame, False, False, 0)
@@ -1156,11 +1198,14 @@ Namespace Widgets
                 pShowWhitespaceCheck.Active = pSettingsManager.ShowWhitespace
                 pShowEndOfLineCheck.Active = pSettingsManager.GetBoolean("Editor.ShowEndOfLine", False)
                 
-                ' Build
-                pDefaultConfigCombo.Active = If(pSettingsManager.GetString("Build.DefaultConfiguration", "Debug") = "Release", 1, 0)
-                
-                Dim lPlatform As String = pSettingsManager.GetString("Build.DefaultPlatform", "Any CPU")
-                Select Case lPlatform
+                ' Build - Configuration/Platform read from the same typed settings the toolbar's
+                ' configuration dropdown and the Configure Build dialog already use (previously
+                ' this combo read/wrote separate "Build.Default*" keys that nothing else ever
+                ' read, so it had no effect regardless of what was selected here)
+                pDefaultConfigCombo.Active = If(pSettingsManager.BuildConfiguration = "Release", 1, 0)
+
+                Dim lPlatform As String = pSettingsManager.BuildPlatform
+                Select Case lPlatform.ToLower()
                     Case "x86"
                         pDefaultPlatformCombo.Active = 1
                     Case "x64"
@@ -1168,7 +1213,7 @@ Namespace Widgets
                     Case Else
                         pDefaultPlatformCombo.Active = 0
                 End Select
-                
+
                 Dim lVerbosity As String = pSettingsManager.GetString("Build.Verbosity", "Normal")
                 Select Case lVerbosity
                     Case "Quiet"
@@ -1182,11 +1227,16 @@ Namespace Widgets
                     Case Else
                         pVerbosityCombo.Active = 2  ' Normal
                 End Select
-                
+
                 pParallelBuildCheck.Active = pSettingsManager.GetBoolean("Build.ParallelBuild", True)
                 pRestorePackagesCheck.Active = pSettingsManager.GetBoolean("Build.RestorePackages", True)
-                pShowOutputCheck.Active = pSettingsManager.GetBoolean("Build.ShowOutput", True)
-                pClearOutputCheck.Active = pSettingsManager.GetBoolean("Build.ClearOutput", True)
+
+                ' Show/Clear output bind to the same typed settings MainWindow.Build.vb/
+                ' MainWindow.Run.vb already read (ShowBuildOutput/ClearOutputOnBuild) -
+                ' previously this pair wrote separate "Build.Show/ClearOutput" keys nobody read,
+                ' while the real settings that actually governed this behavior had no UI at all
+                pShowOutputCheck.Active = pSettingsManager.ShowBuildOutput
+                pClearOutputCheck.Active = pSettingsManager.ClearOutputOnBuild
                 
                 ' Git
                 pGitEnabledCheck.Active = pSettingsManager.GetBoolean("Git.Enabled", False)
@@ -1208,15 +1258,10 @@ Namespace Widgets
                         pGitCredentialTypeCombo.Active = 0
                 End Select
                 
-                ' Try to decrypt stored token
-                Dim lEncryptedToken As String = pSettingsManager.GetString("Git.Token", "")
-                If Not String.IsNullOrEmpty(lEncryptedToken) Then
-                    Try
-                        Dim lBytes() As Byte = Convert.FromBase64String(lEncryptedToken)
-                        pGitTokenEntry.Text = System.Text.Encoding.UTF8.GetString(lBytes)
-                    Catch
-                        pGitTokenEntry.Text = ""
-                    End Try
+                ' Token is stored securely via CredentialManager (OS keyring, or the encrypted-
+                ' file fallback) under the selected storage method above - never in plain settings
+                If pCredentialManager IsNot Nothing Then
+                    pGitTokenEntry.Text = pCredentialManager.RetrieveCredential("SimpleIDE-Git", "token")
                 End If
                 
                 ' AI
@@ -1225,11 +1270,30 @@ Namespace Widgets
                 pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", False)
                 pMem0EnabledCheck.Active = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
 
-                pApiKeyEntry.Text = pSettingsManager.GetString("AI.ApiKey", "")
+                Dim lProviderName As String = pSettingsManager.GetString("AI.Provider", "ClaudeAPI")
+                Select Case lProviderName
+                    Case "ClaudeCodeCLI"
+                        pAIProviderCombo.Active = 1
+                    Case "OpenRouter"
+                        pAIProviderCombo.Active = 2
+                    Case "LocalLLM"
+                        pAIProviderCombo.Active = 3
+                    Case Else
+                        pAIProviderCombo.Active = 0
+                End Select
 
-                Dim lModel As String = pSettingsManager.GetString("AI.Model", "claude-3-sonnet-20240229")
-                Dim lModelIndex As Integer = pAIModelCombo.IndexOf(lModel)
-                pAIModelCombo.Active = If(lModelIndex >= 0, lModelIndex, 0)
+                ' API keys are stored securely via CredentialManager (OS keyring, or the
+                ' encrypted-file fallback), one per provider account so switching providers
+                ' doesn't require re-entering a key already saved for another - never in plain
+                ' settings, which is where AI.ApiKey used to live
+                If pCredentialManager IsNot Nothing Then
+                    Dim lKeyAccount As String = If(pAIProviderCombo.Active = 2, "OpenRouter", "ClaudeAPI")
+                    pApiKeyEntry.Text = pCredentialManager.RetrieveCredential("SimpleIDE-AI", lKeyAccount)
+                End If
+
+                pAIBaseUrlEntry.Text = pSettingsManager.GetString("AI.BaseUrl", "")
+                pClaudeCodePathEntry.Text = pSettingsManager.GetString("AI.ClaudeCodePath", "claude")
+                pAIModelEntry.Text = pSettingsManager.GetString("AI.Model", "")
 
                 pMaxTokensSpin.Value = pSettingsManager.GetInteger("AI.MaxTokens", 4096)
                 pTemperatureSpin.Value = pSettingsManager.GetDouble("AI.Temperature", 0.7)
@@ -1243,9 +1307,8 @@ Namespace Widgets
                 pShowArtifactsCheck.Sensitive = lAIEnabled
                 pAutoContextCheck.Sensitive = lAIEnabled
                 pMem0EnabledCheck.Sensitive = lAIEnabled
-                pApiKeyEntry.Sensitive = lAIEnabled
-                pApiKeyVisibleCheck.Sensitive = lAIEnabled
-                pAIModelCombo.Sensitive = lAIEnabled
+                pAIProviderCombo.Sensitive = lAIEnabled
+                pAIModelEntry.Sensitive = lAIEnabled
                 pMaxTokensSpin.Sensitive = lAIEnabled
                 pTemperatureSpin.Sensitive = lAIEnabled
                 pStreamResponsesCheck.Sensitive = lAIEnabled
@@ -1318,14 +1381,15 @@ Namespace Widgets
                 pSettingsManager.ShowWhitespace = pShowWhitespaceCheck.Active
                 pSettingsManager.SetBoolean("Editor.ShowEndOfLine", pShowEndOfLineCheck.Active)
                 
-                ' Build
-                pSettingsManager.SetString("Build.DefaultConfiguration", If(pDefaultConfigCombo.Active = 1, "Release", "Debug"))
-                pSettingsManager.SetString("Build.DefaultPlatform", pDefaultPlatformCombo.ActiveText)
+                ' Build - Configuration/Platform and Show/Clear output write the same typed
+                ' settings the rest of the IDE already reads (see LoadSettings' remarks above)
+                pSettingsManager.BuildConfiguration = If(pDefaultConfigCombo.Active = 1, "Release", "Debug")
+                pSettingsManager.BuildPlatform = pDefaultPlatformCombo.ActiveText
                 pSettingsManager.SetString("Build.Verbosity", pVerbosityCombo.ActiveText)
                 pSettingsManager.SetBoolean("Build.ParallelBuild", pParallelBuildCheck.Active)
                 pSettingsManager.SetBoolean("Build.RestorePackages", pRestorePackagesCheck.Active)
-                pSettingsManager.SetBoolean("Build.ShowOutput", pShowOutputCheck.Active)
-                pSettingsManager.SetBoolean("Build.ClearOutput", pClearOutputCheck.Active)
+                pSettingsManager.ShowBuildOutput = pShowOutputCheck.Active
+                pSettingsManager.ClearOutputOnBuild = pClearOutputCheck.Active
                 
                 ' Git
                 pSettingsManager.SetBoolean("Git.Enabled", pGitEnabledCheck.Active)
@@ -1348,18 +1412,14 @@ Namespace Widgets
                         pSettingsManager.SetString("Git.CredentialType", "OAuth")
                 End Select
                 
-                ' Encrypt and save token if provided
-                If Not String.IsNullOrEmpty(pGitTokenEntry.Text) AndAlso pGitCredentialTypeCombo.Active > 0 Then
-                    Try
-                        ' Simple Base64 encoding for now (should use proper encryption)
-                        Dim lBytes() As Byte = System.Text.Encoding.UTF8.GetBytes(pGitTokenEntry.Text)
-                        Dim lEncrypted As String = Convert.ToBase64String(lBytes)
-                        pSettingsManager.SetString("Git.Token", lEncrypted)
-                    Catch
-                        pSettingsManager.SetString("Git.Token", "")
-                    End Try
-                Else
-                    pSettingsManager.SetString("Git.Token", "")
+                ' Store the token securely via CredentialManager (OS keyring, or the encrypted-
+                ' file fallback) under the selected storage method, rather than in plain settings
+                If pCredentialManager IsNot Nothing Then
+                    If Not String.IsNullOrEmpty(pGitTokenEntry.Text) AndAlso pGitCredentialTypeCombo.Active > 0 Then
+                        pCredentialManager.StoreCredential("SimpleIDE-Git", "token", pGitTokenEntry.Text)
+                    Else
+                        pCredentialManager.DeleteCredential("SimpleIDE-Git", "token")
+                    End If
                 End If
                 
                 ' AI
@@ -1367,10 +1427,45 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("AI.ShowArtifacts", pShowArtifactsCheck.Active)
                 pSettingsManager.SetBoolean("AI.AutoContext", pAutoContextCheck.Active)
                 pSettingsManager.SetBoolean("AI.Mem0.Enabled", pMem0EnabledCheck.Active)
-                pSettingsManager.SetString("AI.ApiKey", pApiKeyEntry.Text.Trim())
-                If pAIModelCombo.ActiveText IsNot Nothing Then
-                    pSettingsManager.SetString("AI.Model", pAIModelCombo.ActiveText)
+
+                Dim lProviderName As String
+                Select Case pAIProviderCombo.Active
+                    Case 1
+                        lProviderName = "ClaudeCodeCLI"
+                    Case 2
+                        lProviderName = "OpenRouter"
+                    Case 3
+                        lProviderName = "LocalLLM"
+                    Case Else
+                        lProviderName = "ClaudeAPI"
+                End Select
+                pSettingsManager.SetString("AI.Provider", lProviderName)
+
+                ' Store the key securely via CredentialManager under the account for whichever
+                ' provider is currently selected - other providers' previously-saved keys are
+                ' left untouched, so switching providers doesn't lose them
+                If pCredentialManager IsNot Nothing AndAlso (pAIProviderCombo.Active = 0 OrElse pAIProviderCombo.Active = 2) Then
+                    Dim lKeyAccount As String = If(pAIProviderCombo.Active = 2, "OpenRouter", "ClaudeAPI")
+                    Dim lApiKey As String = pApiKeyEntry.Text.Trim()
+                    If Not String.IsNullOrEmpty(lApiKey) Then
+                        pCredentialManager.StoreCredential("SimpleIDE-AI", lKeyAccount, lApiKey)
+                    Else
+                        pCredentialManager.DeleteCredential("SimpleIDE-AI", lKeyAccount)
+                    End If
                 End If
+
+                ' Base URL - fall back to a sensible per-provider default if left blank, so a
+                ' blank field doesn't get persisted as an explicit empty override that would
+                ' otherwise shadow AIProviderFactory's own fallback default forever
+                Dim lBaseUrl As String = pAIBaseUrlEntry.Text.Trim()
+                If String.IsNullOrEmpty(lBaseUrl) Then
+                    lBaseUrl = If(pAIProviderCombo.Active = 3, "http://localhost:11434/v1", "https://openrouter.ai/api/v1")
+                End If
+                pSettingsManager.SetString("AI.BaseUrl", lBaseUrl)
+
+                pSettingsManager.SetString("AI.ClaudeCodePath", If(String.IsNullOrWhiteSpace(pClaudeCodePathEntry.Text), "claude", pClaudeCodePathEntry.Text.Trim()))
+                pSettingsManager.SetString("AI.Model", pAIModelEntry.Text.Trim())
+
                 pSettingsManager.SetInteger("AI.MaxTokens", CInt(pMaxTokensSpin.Value))
                 pSettingsManager.SetDouble("AI.Temperature", pTemperatureSpin.Value)
                 pSettingsManager.SetBoolean("AI.StreamResponses", pStreamResponsesCheck.Active)
@@ -1517,16 +1612,77 @@ Namespace Widgets
             pShowArtifactsCheck.Sensitive = lEnabled
             pAutoContextCheck.Sensitive = lEnabled
             pMem0EnabledCheck.Sensitive = lEnabled
-            pApiKeyEntry.Sensitive = lEnabled
-            pApiKeyVisibleCheck.Sensitive = lEnabled
-            pAIModelCombo.Sensitive = lEnabled
+            pAIProviderCombo.Sensitive = lEnabled
+            pAIModelEntry.Sensitive = lEnabled
             pMaxTokensSpin.Sensitive = lEnabled
             pTemperatureSpin.Sensitive = lEnabled
             pStreamResponsesCheck.Sensitive = lEnabled
             pAutoSuggestCheck.Sensitive = lEnabled
             pSaveHistoryCheck.Sensitive = lEnabled
             pHistoryLimitSpin.Sensitive = lEnabled AndAlso pSaveHistoryCheck.Active
+            OnAIProviderChanged(vSender, vArgs)
+        End Sub
+
+        ''' <summary>
+        ''' Handles AI provider selection change - grays out whichever of API key/Base URL/CLI
+        ''' path don't apply to the newly-selected provider, and updates the model field's
+        ''' placeholder and the help link underneath
+        ''' </summary>
+        Private Sub OnAIProviderChanged(vSender As Object, vArgs As EventArgs)
+            Dim lEnabled As Boolean = pAIEnabledCheck.Active
+            Dim lProviderIndex As Integer = pAIProviderCombo.Active
+
+            ' 0=Claude API, 1=Claude Code CLI, 2=OpenRouter, 3=Local LLM
+            Dim lNeedsApiKey As Boolean = (lProviderIndex = 0 OrElse lProviderIndex = 2)
+            Dim lNeedsBaseUrl As Boolean = (lProviderIndex = 2 OrElse lProviderIndex = 3)
+            Dim lNeedsCliPath As Boolean = (lProviderIndex = 1)
+
+            pApiKeyLabel.Sensitive = lEnabled AndAlso lNeedsApiKey
+            pApiKeyEntry.Sensitive = lEnabled AndAlso lNeedsApiKey
+            pApiKeyVisibleCheck.Sensitive = lEnabled AndAlso lNeedsApiKey
+
+            pAIBaseUrlLabel.Sensitive = lEnabled AndAlso lNeedsBaseUrl
+            pAIBaseUrlEntry.Sensitive = lEnabled AndAlso lNeedsBaseUrl
+
+            pClaudeCodePathLabel.Sensitive = lEnabled AndAlso lNeedsCliPath
+            pClaudeCodePathEntry.Sensitive = lEnabled AndAlso lNeedsCliPath
+
+            Select Case lProviderIndex
+                Case 0
+                    pApiKeyEntry.TooltipText = "Your Claude API key"
+                    pAIModelEntry.PlaceholderText = "e.g. claude-sonnet-4-5 (blank = current default)"
+                Case 1
+                    pAIModelEntry.PlaceholderText = "e.g. claude-sonnet-4-5 (blank = CLI's own default)"
+                Case 2
+                    pApiKeyEntry.TooltipText = "Your OpenRouter API key"
+                    pAIBaseUrlEntry.PlaceholderText = "https://openrouter.ai/api/v1"
+                    pAIModelEntry.PlaceholderText = "e.g. anthropic/claude-3.5-sonnet"
+                Case 3
+                    pAIBaseUrlEntry.PlaceholderText = "http://localhost:11434/v1"
+                    pAIModelEntry.PlaceholderText = "e.g. llama3.1:8b (must match a model loaded on your server)"
+            End Select
+
+            If pAIProviderHelpLabel IsNot Nothing Then UpdateAIProviderHelpLabel(pAIProviderHelpLabel)
+
             OnSettingChanged(vSender, vArgs)
+        End Sub
+
+        ''' <summary>
+        ''' Updates the small help link under the provider fields to match the selected provider
+        ''' </summary>
+        Private Sub UpdateAIProviderHelpLabel(vLabel As Label)
+            Select Case pAIProviderCombo.Active
+                Case 0
+                    vLabel.Markup = "<small>Get your API key from <a href='https://console.anthropic.com/'>Anthropic Console</a></small>"
+                Case 1
+                    vLabel.Markup = "<small>Uses the Claude Code CLI's own login - run ""claude"" once in a terminal to sign in. No API key needed here.</small>"
+                Case 2
+                    vLabel.Markup = "<small>Get your API key from <a href='https://openrouter.ai/keys'>OpenRouter</a></small>"
+                Case 3
+                    vLabel.Markup = "<small>Point this at any OpenAI-compatible local server (Ollama, LM Studio, etc.) - most don't need an API key.</small>"
+                Case Else
+                    vLabel.Markup = ""
+            End Select
         End Sub
         
         ''' <summary>

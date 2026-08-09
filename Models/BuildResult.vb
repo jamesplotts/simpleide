@@ -152,6 +152,7 @@ Namespace Models
         Public Property EnvironmentVariables As New Dictionary(Of String, String)
         Public Property WorkingDirectory As String = ""
         Public Property RestorePackages As Boolean = True
+        Public Property ParallelBuild As Boolean = True
         Public Property CleanFirst As Boolean = False
         Public Property CleanBeforeBuild As Boolean = False
         Public Property ProjectPath As String = ""
@@ -188,17 +189,21 @@ Namespace Models
             End If
             ' Verbosity
             lArgs.Add($"-v:{GetVerbosityString()}")
-            
+
             ' No restore if already done
             If Not RestorePackages Then
                 lArgs.Add("--no-restore")
             End If
-            
+
+            ' Parallel build (MSBuild multi-proc) - explicit either way so the Preferences
+            ' "Enable parallel build" checkbox has an observable effect in both directions
+            lArgs.Add(If(ParallelBuild, "-maxcpucount", "-maxcpucount:1"))
+
             ' Additional arguments
             If Not String.IsNullOrEmpty(AdditionalArguments) Then
                 lArgs.Add(AdditionalArguments)
             End If
-            
+
             Return String.Join(" ", lArgs)
         End Function
         
@@ -237,7 +242,10 @@ Namespace Models
                 If Not RestorePackages Then
                     lArgs.Add("--no-restore")
                 End If
-                
+
+                ' Parallel build (MSBuild multi-proc)
+                lArgs.Add(If(ParallelBuild, "-maxcpucount", "-maxcpucount:1"))
+
                 ' Additional arguments (split by spaces, respecting quotes)
                 If Not String.IsNullOrEmpty(AdditionalArguments) Then
                     Dim lAdditionalArgs As List(Of String) = ParseAdditionalArguments(AdditionalArguments)

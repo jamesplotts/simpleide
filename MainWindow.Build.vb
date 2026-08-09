@@ -831,6 +831,13 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Loads the active build configuration from settings - Configuration/Platform/
+    ''' BuildBeforeRun come from the toolbar/Configure Build dialog's own persisted state;
+    ''' Verbosity/ParallelBuild/RestorePackages come from Preferences' Build tab, which
+    ''' previously saved all three but nothing anywhere ever read them back, so they had zero
+    ''' effect on an actual build regardless of what the user configured
+    ''' </summary>
     Private Sub LoadBuildConfiguration()
         Try
             ' Load build configuration from settings
@@ -838,13 +845,20 @@ Partial Public Class MainWindow
                 pBuildConfiguration.Configuration = pSettingsManager.BuildConfiguration
                 pBuildConfiguration.Platform = pSettingsManager.BuildPlatform
                 pBuildConfiguration.BuildBeforeRun = pSettingsManager.BuildBeforeRun
+
+                Dim lVerbosity As BuildVerbosity
+                If [Enum].TryParse(Of BuildVerbosity)(pSettingsManager.GetString("Build.Verbosity", "Normal"), lVerbosity) Then
+                    pBuildConfiguration.Verbosity = lVerbosity
+                End If
+                pBuildConfiguration.ParallelBuild = pSettingsManager.GetBoolean("Build.ParallelBuild", True)
+                pBuildConfiguration.RestorePackages = pSettingsManager.GetBoolean("Build.RestorePackages", True)
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"LoadBuildConfiguration error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub SaveBuildConfiguration()
         Try
             ' Save build configuration to settings
@@ -852,8 +866,16 @@ Partial Public Class MainWindow
                 pSettingsManager.BuildConfiguration = pBuildConfiguration.Configuration
                 pSettingsManager.BuildPlatform = pBuildConfiguration.Platform
                 pSettingsManager.BuildBeforeRun = pBuildConfiguration.BuildBeforeRun
+
+                ' Also persist Verbosity/ParallelBuild/RestorePackages here, in addition to
+                ' Preferences saving them - so a change made via the Configure Build dialog
+                ' (which edits these same BuildConfiguration fields) survives a restart too,
+                ' under the same keys Preferences reads/writes
+                pSettingsManager.SetString("Build.Verbosity", pBuildConfiguration.Verbosity.ToString())
+                pSettingsManager.SetBoolean("Build.ParallelBuild", pBuildConfiguration.ParallelBuild)
+                pSettingsManager.SetBoolean("Build.RestorePackages", pBuildConfiguration.RestorePackages)
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"SaveBuildConfiguration error: {ex.Message}")
         End Try

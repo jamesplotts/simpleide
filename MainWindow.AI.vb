@@ -11,34 +11,34 @@ Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Models
 Imports SimpleIDE.Dialogs
 Imports SimpleIDE.Editors
+Imports SimpleIDE.AI
 
 Partial Public Class MainWindow
-    
+
     ' ===== Private Fields =====
-    Private pClaudeClient As ClaudeApiClient
     Private pAIFileSystemBridge As AIFileSystemBridge
     Private pIsAIProcessing As Boolean = False
-    
+
     ' ===== AI Integration Methods =====
-    
+
     ''' <summary>
-    ''' Initialize AI components with API key from settings
+    ''' Builds the AI provider configured in Preferences (Claude API, Claude Code CLI,
+    ''' OpenRouter, or a local LLM) and (re)wires it into the AI Assistant panel
     ''' </summary>
     Private Sub InitializeAI()
         Try
-            ' Get API key from settings
-            Dim lApiKey As String = pSettingsManager.GetString("AI.ApiKey", "")
-            
-            If Not String.IsNullOrEmpty(lApiKey) Then
-                pClaudeClient = New ClaudeApiClient(lApiKey)
-                pAIFileSystemBridge = New AIFileSystemBridge()
-                
-                ' Initialize AI Assistant panel if not already done
-                If pAIAssistantPanel IsNot Nothing Then
-                    pAIAssistantPanel.Initialize(lApiKey)
-                End If
+            Dim lProvider As IAIProvider = AIProviderFactory.CreateProvider(pSettingsManager)
+
+            pAIFileSystemBridge = New AIFileSystemBridge()
+
+            ' Initialize AI Assistant panel if not already done - Nothing is a valid provider
+            ' value here (nothing configured/usable yet), the panel surfaces that as a chat
+            ' error the first time the user tries to send a message rather than refusing to
+            ' initialize at all
+            If pAIAssistantPanel IsNot Nothing Then
+                pAIAssistantPanel.Initialize(lProvider)
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"InitializeAI error: {ex.Message}")
         End Try

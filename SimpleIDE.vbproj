@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1398.0</AssemblyVersion>
-    <FileVersion>1.1.1398.0</FileVersion>
+    <AssemblyVersion>1.1.1407.0</AssemblyVersion>
+    <FileVersion>1.1.1407.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1398</Version>
+    <Version>1.1.1407</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -173,8 +173,10 @@
     <!-- Interfaces -->
     <Compile Include="Interfaces/IEditor.vb" />
     <Compile Include="Interfaces/IObjectExplorer.vb" />
+    <Compile Include="Interfaces/IAIProvider.vb" />
     <!-- Models -->
     <Compile Include="Models/BuildResult.vb" />
+    <Compile Include="Models/AIChatMessage.vb" />
     <Compile Include="Models/CharacterColorInfo.vb" />
     <Compile Include="Models/Solution.vb" />
     <Compile Include="Models/CodeSenseContext.vb" />
@@ -230,7 +232,7 @@
     <Compile Include="Utilities/ApplicationVersionExtensions.vb" />
     <Compile Include="Utilities/AssemblyBrowser.vb" />
     <Compile Include="Utilities/BuildEventArgs.vb" />
-    <Compile Include="Utilities/EnhancedClaudeApiClient.vb" />
+    <Compile Include="Utilities/AIChatClient.vb" />
     <Compile Include="Utilities/FileOperations.vb" />
     <Compile Include="Utilities/FileSystemWatcher.vb" />
     <Compile Include="Utilities/FoldStateStore.vb" />
@@ -310,7 +312,10 @@
     <Compile Include="Syntax/SyntaxNode.vb" />
     <!-- AI Integration -->
     <Compile Include="AI/AIFileSystemBridge.vb" />
-    <Compile Include="AI/ClaudeAPIClient.vb" />
+    <Compile Include="AI/AnthropicProvider.vb" />
+    <Compile Include="AI/OpenAICompatibleProvider.vb" />
+    <Compile Include="AI/ClaudeCodeCliProvider.vb" />
+    <Compile Include="AI/AIProviderFactory.vb" />
     <Compile Include="AI/Mem0Client.vb" />
     <Compile Include="AI/MemoryManifest.vb" />
     <!-- My Project Files -->

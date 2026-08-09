@@ -391,6 +391,12 @@ Namespace Dialogs
             vDestination.AdditionalArguments = vSource.AdditionalArguments
             vDestination.RestorePackages = vSource.RestorePackages
             vDestination.CleanBeforeBuild = vSource.CleanBeforeBuild
+            ' This dialog has no UI for these two, but it clones vSource into a fresh
+            ' BuildConfiguration() (all defaults) before copying - without carrying them over
+            ' explicitly, clicking OK here would silently reset ParallelBuild/BuildBeforeRun
+            ' back to their defaults even though the user never touched either one
+            vDestination.ParallelBuild = vSource.ParallelBuild
+            vDestination.BuildBeforeRun = vSource.BuildBeforeRun
         End Sub
     End Class
 

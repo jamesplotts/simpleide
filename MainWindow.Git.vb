@@ -421,6 +421,7 @@ Partial Public Class MainWindow
             End If
 
             If pGitManager Is Nothing Then pGitManager = New GitManager()
+            ApplyGitCredentials()
             If Not pGitManager.IsGitRepository(lProjectDir) Then
                 Dim lResponse As Integer = ShowQuestion(
                     "Not a git Repository",
@@ -455,14 +456,22 @@ Partial Public Class MainWindow
                 lProcess.StartInfo.RedirectStandardOutput = True
                 lProcess.StartInfo.RedirectStandardError = True
                 lProcess.StartInfo.CreateNoWindow = True
-                
+
+                ' Apply the same configured PAT/OAuth credential (if any) that GitManager uses,
+                ' so this separate ad-hoc invocation path authenticates identically
+                If pGitManager IsNot Nothing Then
+                    for each lEnvVar in pGitManager.GetCredentialEnvironment()
+                        lProcess.StartInfo.Environment(lEnvVar.Key) = lEnvVar.Value
+                    Next
+                End If
+
                 lProcess.Start()
-                
+
                 Dim lOutput As String = lProcess.StandardOutput.ReadToEnd()
                 Dim lError As String = lProcess.StandardError.ReadToEnd()
-                
+
                 lProcess.WaitForExit()
-                
+
                 ' Combine output and error
                 Dim lFullOutput As String = lOutput
                 If Not String.IsNullOrEmpty(lError) Then
@@ -699,9 +708,51 @@ Partial Public Class MainWindow
                 pGitManager.RepositoryPath = lActiveDir
             End If
 
+            ApplyGitCredentials()
+
         Catch ex As Exception
             Console.WriteLine($"InitializeGitManager error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Applies the Git Credentials configured in Preferences (credential type + token, read
+    ''' securely via CredentialManager under whichever storage method was selected there) to
+    ''' pGitManager and pGitPanel's own GitManager instance, so push/pull/fetch authenticate
+    ''' against HTTPS remotes with the configured PAT/OAuth token
+    ''' </summary>
+    ''' <remarks>
+    ''' Before this, the entire "Git Credentials" frame in Preferences had zero effect on any
+    ''' actual git operation - GitManager never referenced CredentialManager at all, and the
+    ''' token itself was only ever Base64 "encoded" directly into the settings file rather than
+    ''' stored through CredentialManager's actual secure backends
+    ''' </remarks>
+    Private Sub ApplyGitCredentials()
+        Try
+            Dim lCredentialType As String = pSettingsManager.GetString("Git.CredentialType", "None")
+
+            If lCredentialType = "None" Then
+                pGitManager?.SetCredential("")
+                pGitPanel?.SetCredential("", "")
+                Return
+            End If
+
+            Dim lSavedMethod As String = pSettingsManager.GetString("Git.CredentialStorage", "")
+            Dim lCredentialManager As CredentialManager = Nothing
+            Dim lStorageMethod As CredentialManager.eStorageMethod
+            If Not String.IsNullOrEmpty(lSavedMethod) AndAlso [Enum].TryParse(Of CredentialManager.eStorageMethod)(lSavedMethod, lStorageMethod) Then
+                lCredentialManager = New CredentialManager(lStorageMethod)
+            Else
+                lCredentialManager = New CredentialManager()
+            End If
+
+            Dim lToken As String = lCredentialManager.RetrieveCredential("SimpleIDE-Git", "token")
+            pGitManager?.SetCredential(lToken, lCredentialType)
+            pGitPanel?.SetCredential(lToken, lCredentialType)
+
+        Catch ex As Exception
+            Console.WriteLine($"ApplyGitCredentials error: {ex.Message}")
+        End Try
+    End Sub
+
 End Class

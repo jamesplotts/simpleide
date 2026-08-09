@@ -4,6 +4,7 @@ Imports System.IO
 Imports System.Diagnostics
 Imports System.Collections.Generic
 Imports System.Threading.Tasks
+Imports System.Text
 
 Namespace Managers
 
@@ -70,6 +71,8 @@ Namespace Managers
 
         ' Properties
         Private pRepositoryPath As String
+        Private pCredentialToken As String = ""
+        Private pCredentialUsername As String = "x-access-token"
 
         Public Property RepositoryPath As String
             Get
@@ -84,6 +87,37 @@ Namespace Managers
         Public Sub New(Optional vRepositoryPath As String = "")
             pRepositoryPath = vRepositoryPath
         End Sub
+
+        ''' <summary>
+        ''' Configures an HTTP credential (Personal Access Token or OAuth token) to authenticate
+        ''' with when this instance's commands reach a remote over HTTPS - push/pull/fetch/clone.
+        ''' Passed via a per-process environment variable (GIT_CONFIG_*), never on the command
+        ''' line, so it doesn't leak through the process list. Passing an empty vToken clears any
+        ''' configured credential, falling back to git's own credential helper as before.
+        ''' </summary>
+        ''' <param name="vToken">Personal access token or OAuth token, or empty to clear</param>
+        ''' <param name="vCredentialType">"PAT" or "OAuth" - selects the conventional username sent alongside the token in the Basic auth header</param>
+        Public Sub SetCredential(vToken As String, Optional vCredentialType As String = "PAT")
+            pCredentialToken = If(vToken, "")
+            pCredentialUsername = If(vCredentialType = "OAuth", "oauth2", "x-access-token")
+        End Sub
+
+        ''' <summary>
+        ''' Builds the environment variables that inject the configured credential (if any) as
+        ''' an HTTP Basic auth header for git's HTTP(S) transport, using git's GIT_CONFIG_COUNT/
+        ''' KEY/VALUE mechanism so the token never appears as a command-line argument
+        ''' </summary>
+        ''' <returns>Environment variables to apply to the git process; empty if no credential is configured</returns>
+        Public Function GetCredentialEnvironment() As Dictionary(Of String, String)
+            Dim lEnv As New Dictionary(Of String, String)
+            If Not String.IsNullOrEmpty(pCredentialToken) Then
+                Dim lAuthBytes() As Byte = Encoding.UTF8.GetBytes($"{pCredentialUsername}:{pCredentialToken}")
+                lEnv("GIT_CONFIG_COUNT") = "1"
+                lEnv("GIT_CONFIG_KEY_0") = "http.extraheader"
+                lEnv("GIT_CONFIG_VALUE_0") = $"Authorization: Basic {Convert.ToBase64String(lAuthBytes)}"
+            End If
+            Return lEnv
+        End Function
 
         ''' <summary>
         ''' Checks whether vPath is inside a git repository - walks up through every parent
@@ -612,6 +646,10 @@ Namespace Managers
                 lProcess.StartInfo.RedirectStandardOutput = True
                 lProcess.StartInfo.RedirectStandardError = True
                 lProcess.StartInfo.CreateNoWindow = True
+
+                for each lEnvVar in GetCredentialEnvironment()
+                    lProcess.StartInfo.Environment(lEnvVar.Key) = lEnvVar.Value
+                Next
 
                 lProcess.Start()
 
