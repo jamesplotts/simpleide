@@ -80,6 +80,42 @@ Namespace Editors
         End Sub
 
         ''' <summary>
+        ''' True if (vLine, vColumn) sits between an adjacent opener/closer pair with nothing
+        ''' typed between them - e.g. cursor positioned between "(" and ")" in "(|)"
+        ''' </summary>
+        ''' <remarks>
+        ''' Stateless - doesn't track whether the pair was actually auto-inserted by
+        ''' HandleBracketAutoClose vs. typed/pasted manually, matching how other editors'
+        ''' "smart backspace over an empty pair" behavior works: any adjacent empty pair
+        ''' qualifies, not just ones this session's auto-close produced
+        ''' </remarks>
+        Private Function IsBetweenAdjacentBracketPair(vLine As Integer, vColumn As Integer) As Boolean
+            Try
+                If vLine < 0 OrElse vLine >= pLineCount Then Return False
+                If vColumn <= 0 Then Return False
+
+                Dim lLineText As String = TextLines(vLine)
+                If vColumn >= lLineText.Length Then Return False
+
+                Dim lOpener As Char = lLineText(vColumn - 1)
+                Dim lCloser As Char = lLineText(vColumn)
+
+                If lOpener = """"c Then Return lCloser = """"c
+
+                Dim lExpectedCloser As Char
+                If BracketPairs.TryGetValue(lOpener, lExpectedCloser) Then
+                    Return lCloser = lExpectedCloser
+                End If
+
+                Return False
+
+            Catch ex As Exception
+                Console.WriteLine($"IsBetweenAdjacentBracketPair error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
         ''' True if vColumn on vLine sits inside a string literal or past a line comment's
         ''' start, based on a simple quote-parity count over the comment-stripped line - not
         ''' fully token-aware, but sufficient to suppress bracket auto-pairing while typing

@@ -215,13 +215,31 @@ Namespace Editors
                 If pHasSelection Then
                     ' Delete selection
                     DeleteSelection()
+                ElseIf pCursorColumn > 0 AndAlso IsBetweenAdjacentBracketPair(pCursorLine, pCursorColumn) Then
+                    ' Smart pair backspace - deleting the opener of an adjacent empty pair
+                    ' (e.g. "(|)", "[|]", "{|}", "|"|") also removes its matching closer,
+                    ' instead of leaving an orphaned closer behind (see BracketAutoClose.vb,
+                    ' which is what typically creates these adjacent pairs in the first place)
+                    Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                    Dim lDeletedPair As String = lLine.Substring(pCursorColumn - 1, 2)
+
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                        Dim lEndPos As New EditorPosition(pCursorLine, pCursorColumn + 1)
+                        Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
+                        pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedPair, lCursorPos)
+                    End If
+
+                    pSourceFileInfo.DeleteText(pCursorLine, pCursorColumn - 1, pCursorLine, pCursorColumn + 1)
+                    SetCursorPosition(pCursorLine, pCursorColumn - 1)
+
                 ElseIf pCursorColumn > 0 Then
                     ' Delete character before cursor
-                    
+
                     ' Get the character being deleted for undo
                     Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
                     Dim lDeletedChar As Char = lLine(pCursorColumn - 1)
-                    
+
                     ' Record for undo
                     If pUndoRedoManager IsNot Nothing Then
                         Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
@@ -229,13 +247,13 @@ Namespace Editors
                         Dim lCursorPos As New EditorPosition(pCursorLine, pCursorColumn - 1)
                         pUndoRedoManager.RecordDeleteText(lStartPos, lEndPos, lDeletedChar.ToString(), lCursorPos)
                     End If
-                    
+
                     ' Use atomic DeleteCharacter
                     pSourceFileInfo.DeleteCharacter(pCursorLine, pCursorColumn - 1)
-                    
+
                     ' Move cursor back
                     SetCursorPosition(pCursorLine, pCursorColumn - 1)
-                    
+
                 ElseIf pCursorLine > 0 Then
                     ' Join with previous line
                     Dim lPrevLine As String = pSourceFileInfo.TextLines(pCursorLine - 1)
