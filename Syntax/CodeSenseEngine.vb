@@ -1576,6 +1576,34 @@ Namespace Syntax
                             vSuggestions.Add(lSuggestion)
                         End If
 
+                    Case CodeNodeType.eModule, CodeNodeType.eStructure
+                        ' CodeSenseSuggestionKind has no distinct Module/Structure kind - reuse
+                        ' eClass, matching AddNamespaceMemberSuggestions's existing convention
+                        If vSeenNames.Add(vNode.Name) Then
+                            Dim lSuggestion As New CodeSenseSuggestion()
+                            lSuggestion.Text = vNode.Name
+                            lSuggestion.Kind = CodeSenseSuggestionKind.eClass
+                            Dim lIsModule As Boolean = (vNode.NodeType = CodeNodeType.eModule)
+                            lSuggestion.Icon = If(lIsModule, "module", "structure")
+                            lSuggestion.Description = If(lIsModule, "Module ", "Structure ") & vNode.Name
+                            vSuggestions.Add(lSuggestion)
+                        End If
+
+                    Case CodeNodeType.eEnum
+                        ' Matches AddNamespaceMemberSuggestions's existing enum -> eSnippet
+                        ' convention - CodeSenseSuggestionKind has no distinct Enum kind.
+                        ' Without this case, project-defined Enums (e.g. TokenType in
+                        ' Syntax/Token.vb) never appeared in "As <Type>" suggestions, even
+                        ' though the tree-walk itself reaches them fine
+                        If vSeenNames.Add(vNode.Name) Then
+                            Dim lSuggestion As New CodeSenseSuggestion()
+                            lSuggestion.Text = vNode.Name
+                            lSuggestion.Kind = CodeSenseSuggestionKind.eSnippet
+                            lSuggestion.Icon = "enum"
+                            lSuggestion.Description = $"Enum {vNode.Name}"
+                            vSuggestions.Add(lSuggestion)
+                        End If
+
                     Case CodeNodeType.eNamespace
                         ' Includes the project's own root namespace (synthesized as an
                         ' eNamespace node by ProjectManager - see GetProjectSyntaxTree) as

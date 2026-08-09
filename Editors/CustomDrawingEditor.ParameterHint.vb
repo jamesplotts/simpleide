@@ -200,19 +200,50 @@ Namespace Editors
         ''' Best-effort, first-match lookup - like CodeSenseEngine.GetParameterHints, this
         ''' does not disambiguate between overloads of the same name
         ''' </remarks>
+        ''' <summary>
+        ''' Resolves vName to a callable node's parameters, trying the current file's own
+        ''' up-to-date SyntaxTree before falling back to the project-wide merged tree
+        ''' </summary>
+        ''' <remarks>
+        ''' ProjectManager.GetProjectSyntaxTree() returns a merged tree that is only built once
+        ''' (at project load, or lazily on first access) - see Managers/ProjectManager.
+        ''' Extension2.vb BuildProjectSyntaxTree and ProjectManager.vb's "deliberately NOT
+        ''' calling BuildProjectSyntaxTree() [on every edit]" note. Nothing re-merges it as
+        ''' files are edited afterward, so a method/Sub added to the file currently being
+        ''' edited (e.g. moments ago, in this same session) is invisible to it even though
+        ''' SourceFileInfo.SyntaxTree for that one file IS kept current on every keystroke via
+        ''' ParseFileAsync. Checking the current file's own tree first covers that common case
+        ''' (declaring then immediately calling a new method in the same file) without the cost
+        ''' of rebuilding/re-merging the whole project tree on every keystroke.
+        ''' </remarks>
         Private Function FindCallableMemberNode(vName As String) As SyntaxNode
+            If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.SyntaxTree IsNot Nothing Then
+                Dim lLocalResult As SyntaxNode = FindCallableMemberNodeInTree(pSourceFileInfo.SyntaxTree, vName)
+                If lLocalResult IsNot Nothing Then Return lLocalResult
+            End If
+
             If pProjectManager Is Nothing Then Return Nothing
             Dim lTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
             If lTree Is Nothing Then Return Nothing
 
-            Dim lClassNode As SyntaxNode = FindClassNodeByName(lTree, vName)
+            Return FindCallableMemberNodeInTree(lTree, vName)
+        End Function
+
+        ''' <summary>
+        ''' Searches a single syntax tree for vName's constructor (if vName is a type) or
+        ''' method/function (if vName is a callable) - the shared search logic
+        ''' FindCallableMemberNode runs against both the current file's tree and the
+        ''' project-wide tree
+        ''' </summary>
+        Private Function FindCallableMemberNodeInTree(vTree As SyntaxNode, vName As String) As SyntaxNode
+            Dim lClassNode As SyntaxNode = FindClassNodeByName(vTree, vName)
             If lClassNode IsNot Nothing AndAlso lClassNode.Children IsNot Nothing Then
                 for each lMember As SyntaxNode in lClassNode.Children
                     If lMember.NodeType = CodeNodeType.eConstructor Then Return lMember
                 Next
             End If
 
-            Return FindCallableNode(lTree, vName)
+            Return FindCallableNode(vTree, vName)
         End Function
 
         ''' <summary>

@@ -156,13 +156,29 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Recursively finds the first Enum node in the project tree named vName
+        ''' Recursively finds the first Enum node named vName, trying the current file's own
+        ''' up-to-date SyntaxTree before falling back to the project-wide merged tree
         ''' </summary>
+        ''' <remarks>
+        ''' Same staleness reasoning as FindCallableMemberNode in CustomDrawingEditor.
+        ''' ParameterHint.vb - ProjectManager.GetProjectSyntaxTree() is only merged once (at
+        ''' project load) and never reflects an Enum added to the file being edited during this
+        ''' session until the project is reloaded, whereas SourceFileInfo.SyntaxTree for the
+        ''' current file is kept current on every keystroke
+        ''' </remarks>
         Private Function FindEnumNodeByName(vName As String) As SyntaxNode
-            If String.IsNullOrEmpty(vName) OrElse pProjectManager Is Nothing Then Return Nothing
+            If String.IsNullOrEmpty(vName) Then Return Nothing
+            Dim lTrimmedName As String = vName.Trim()
+
+            If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.SyntaxTree IsNot Nothing Then
+                Dim lLocalResult As SyntaxNode = FindEnumNodeRecursive(pSourceFileInfo.SyntaxTree, lTrimmedName)
+                If lLocalResult IsNot Nothing Then Return lLocalResult
+            End If
+
+            If pProjectManager Is Nothing Then Return Nothing
             Dim lTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
             If lTree Is Nothing Then Return Nothing
-            Return FindEnumNodeRecursive(lTree, vName.Trim())
+            Return FindEnumNodeRecursive(lTree, lTrimmedName)
         End Function
 
         Private Function FindEnumNodeRecursive(vNode As SyntaxNode, vName As String) As SyntaxNode
