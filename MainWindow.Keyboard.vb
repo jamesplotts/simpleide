@@ -296,10 +296,19 @@ Partial Public Class MainWindow
                         ToggleProjectExplorer()
                         vArgs.RetVal = True
                         Return
-                        
+
+                    Case "/"
+                        ' Ctrl+/ - Toggle Comment. Calls the toolbar's own working
+                        ' OnToggleComment (MainWindow.Comment.vb) - NOT the separate,
+                        ' still-unimplemented ToggleComment() stub further down in this
+                        ' file, which is unrelated dead code
+                        OnToggleComment(Nothing, Nothing)
+                        vArgs.RetVal = True
+                        Return
+
                 End Select
             End If
-            
+
             ' ===== Handle Ctrl+Shift combinations =====
             If (lCleanModifiers and ModifierType.ControlMask) = ModifierType.ControlMask AndAlso
                (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
