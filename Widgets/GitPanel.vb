@@ -49,6 +49,12 @@ Namespace Widgets
         Public Event FileSelected(vFilePath As String)
         Public Event RefreshRequested()
 
+        ''' <summary>
+        ''' Raised for routine status messages (e.g. "Pull completed successfully") - a
+        ''' host window can subscribe and route this to its own status bar
+        ''' </summary>
+        Public Event StatusMessage(vMessage As String)
+
         Public Sub New()
             MyBase.New(Orientation.Vertical, 0)
 
@@ -858,13 +864,30 @@ Namespace Widgets
         End Sub
 
         Private Sub ShowMessage(vMessage As String)
-            Console.WriteLine($"git: {vMessage}")
-            ' TODO: Connect to status bar
+            Try
+                Console.WriteLine($"git: {vMessage}")
+                RaiseEvent StatusMessage(vMessage)
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.ShowMessage error: {ex.Message}")
+            End Try
         End Sub
 
         Private Sub ShowError(vMessage As String)
-            Console.WriteLine($"git error: {vMessage}")
-            ' TODO: Show error dialog
+            Try
+                Console.WriteLine($"git error: {vMessage}")
+                Dim lParent As Window = CType(Toplevel, Window)
+                Dim lDialog As New MessageDialog(
+                    lParent,
+                    DialogFlags.Modal,
+                    MessageType.Error,
+                    ButtonsType.Ok,
+                    vMessage)
+                lDialog.Title = "Git Error"
+                lDialog.Run()
+                lDialog.Destroy()
+            Catch ex As Exception
+                Console.WriteLine($"GitPanel.ShowError error: {ex.Message}")
+            End Try
         End Sub
 
         ''' <summary>

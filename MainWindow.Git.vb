@@ -654,6 +654,17 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Routes GitPanel's routine status messages to the main status bar
+    ''' </summary>
+    Private Sub OnGitPanelStatusMessage(vMessage As String)
+        Try
+            UpdateStatusBar(vMessage)
+        Catch ex As Exception
+            Console.WriteLine($"OnGitPanelStatusMessage error: {ex.Message}")
+        End Try
+    End Sub
+
     Private Sub OnGitPush(vSender As Object, vArgs As EventArgs)
         Try
             GitPush()

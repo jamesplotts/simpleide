@@ -455,7 +455,14 @@ Partial Public Class MainWindow
             InitializeFindPanelEvents()
 
             InitializeBottomPanel()
-            
+
+            ' Route GitPanel's routine status messages (e.g. after a successful Pull) to
+            ' the main status bar - it previously had nowhere to put them but the console
+            If pGitPanel IsNot Nothing Then
+                AddHandler pGitPanel.StatusMessage, AddressOf OnGitPanelStatusMessage
+            End If
+
+
             ' Add bottom panel to center paned. shrink:=True is critical here - with
             ' shrink:=False (the original setting), GTK permanently reserves the bottom
             ' panel's full natural minimum height in the paned's own size requisition the
