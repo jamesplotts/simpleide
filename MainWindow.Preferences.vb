@@ -2,6 +2,7 @@
 
 Imports Gtk
 Imports System
+Imports System.Threading.Tasks
 Imports SimpleIDE.Widgets
 Imports SimpleIDE.Managers
 Imports SimpleIDE.Models
@@ -366,19 +367,30 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub GitAutoFetchTimerCallback(vState As Object)
         Try
-            ' Use Idle.Add to execute on UI thread
-            GLib.Idle.Add(Function()
-                If pGitPanel IsNot Nothing Then
-                    ' Perform Git fetch
-                    ' pGitPanel.FetchRemote()
-                    Console.WriteLine("Git auto-fetch executed")
-                End If
-                Return False  ' Don't repeat
+            Dim lRepoDir As String = GetActiveGitRepositoryDirectory()
+            If String.IsNullOrEmpty(lRepoDir) Then Return
+
+            Dim lFetchManager As New GitManager(lRepoDir)
+            Task.Run(Async Function()
+                Try
+                    Dim lSuccess As Boolean = Await lFetchManager.Fetch()
+                    Gtk.Application.Invoke(Sub()
+                        If lSuccess Then
+                            UpdateStatusBar("Git auto-fetch completed")
+                            pGitPanel?.RefreshGitStatus()
+                        Else
+                            Console.WriteLine("Git auto-fetch failed")
+                        End If
+                    End Sub)
+                Catch ex As Exception
+                    Console.WriteLine($"GitAutoFetchTimerCallback (background) error: {ex.Message}")
+                End Try
+                Return Nothing
             End Function)
         Catch ex As Exception
             Console.WriteLine($"GitAutoFetchTimerCallback error: {ex.Message}")
         End Try
-    End Sub  
+    End Sub
   
 End Class
 

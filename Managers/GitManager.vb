@@ -473,6 +473,27 @@ Namespace Managers
             End Try
         End Function
 
+        ''' <summary>
+        ''' Fetches from a remote without merging. See Push's remarks - an empty vRemote
+        ''' runs a bare "git fetch" against the branch's configured upstream rather than
+        ''' assuming "origin".
+        ''' </summary>
+        Public Async Function Fetch(Optional vRemote As String = "") As Task(Of Boolean)
+            Try
+                Dim lCommand As String = "fetch"
+                If Not String.IsNullOrEmpty(vRemote) Then
+                    lCommand &= $" {vRemote}"
+                End If
+
+                Dim lResult As GitCommandResult = Await ExecuteGitCommandAsync(lCommand)
+                Return lResult.Success
+
+            Catch ex As Exception
+                Console.WriteLine($"Fetch error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
         ' Get diff for file
         Public Async Function GetFileDiff(vFilePath As String, Optional vStaged As Boolean = False) As Task(Of String)
             Try
