@@ -1031,6 +1031,16 @@ Namespace Syntax
                 ' Add local variables and parameters
                 AddLocalSuggestions(vContext, lSuggestions)
 
+                ' Add the enclosing class's own methods/properties/fields - callable/
+                ' referenceable unqualified from anywhere inside it, across every partial-class
+                ' file that declares it, not just the one currently open. Without this, a bare
+                ' call to one of the class's own methods (e.g. typing "InitializeBuildSystem"
+                ' from inside another method of the same MainWindow partial class) never
+                ' appeared in the suggestion list at all, leaving the popup selection stuck on
+                ' whatever it last had (see SelectCodeSenseSuggestionBestMatch's "no match"
+                ' fallback, which only moves the selection when something actually matches)
+                AddContainingClassMemberSuggestions(vContext, lSuggestions)
+
                 Return lSuggestions
 
             Catch ex As Exception
@@ -1038,6 +1048,46 @@ Namespace Syntax
                 Return New List(Of CodeSenseSuggestion)()
             End Try
         End Function
+
+        ''' <summary>
+        ''' Adds method/property/field suggestions from every partial-class declaration of the
+        ''' trigger position's containing class, so the class's own members are completable
+        ''' unqualified rather than only via an explicit "Me." member list
+        ''' </summary>
+        ''' <remarks>
+        ''' De-duplicates by name against both what's already in vSuggestions and across the
+        ''' declarations themselves - FindDefinitionNodesByName's bucket for a partial class can
+        ''' legitimately (or via reparse-timing quirks) yield more than one node for the same
+        ''' member, and AddNodeMemberSuggestions itself has no dedup of its own since its other
+        ''' caller (a single "Me."/object member list) only ever walks one node at a time
+        ''' </remarks>
+        Private Sub AddContainingClassMemberSuggestions(vContext As CodeSenseContext, vSuggestions As List(Of CodeSenseSuggestion))
+            Try
+                If String.IsNullOrEmpty(vContext.ContainingClass) Then Return
+
+                Dim lProjectManager As Managers.ProjectManager = GetProjectManager()
+                If lProjectManager Is Nothing Then Return
+
+                Dim lSeenNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                for each lExisting in vSuggestions
+                    If lExisting.Text IsNot Nothing Then lSeenNames.Add(lExisting.Text)
+                Next
+
+                Dim lDeclarations As List(Of SyntaxNode) = lProjectManager.FindDefinitionNodesByName(vContext.ContainingClass)
+                for each lClassNode In lDeclarations
+                    Dim lMemberSuggestions As New List(Of CodeSenseSuggestion)()
+                    AddNodeMemberSuggestions(lClassNode, lMemberSuggestions)
+                    for each lSuggestion in lMemberSuggestions
+                        If lSuggestion.Text IsNot Nothing AndAlso lSeenNames.Add(lSuggestion.Text) Then
+                            vSuggestions.Add(lSuggestion)
+                        End If
+                    Next
+                Next
+
+            Catch ex As Exception
+                Console.WriteLine($"AddContainingClassMemberSuggestions error: {ex.Message}")
+            End Try
+        End Sub
         
         ''' <summary>
         ''' Add suggestions from a SyntaxNode's members
