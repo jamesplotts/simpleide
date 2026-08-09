@@ -23,7 +23,8 @@ https://discordapp.com/channels/682603493386747904/1408457691734737007
 - **Undo/Redo system** (Ctrl+Z, Ctrl+R) with per-character tracking
 - **Code folding** for classes, methods, properties (including Get/Set), and regions
 - **Intelligent code completion** with hover tooltips and parameter hints
-- **Real-time syntax error detection** with squiggly underlines
+
+Syntax *errors* (as opposed to highlighting) are not flagged inline in the editor - there's no squiggly-underline diagnostics pass yet; error/warning navigation happens through the build output panel instead (see Build System below).
 
 ### Project Management
 - **Project Explorer** with .vbproj file parsing and management
@@ -35,29 +36,30 @@ https://discordapp.com/channels/682603493386747904/1408457691734737007
 ### Build System
 - **Integrated build system** using dotnet CLI
 - **Async build operations** with real-time output
-- **Dockable build output panel** with error/warning navigation
+- **Build output panel** (in the toggleable bottom panel) with error/warning navigation
 - **One-click build and run** (F5/F6)
 - **Support for Debug and Release configurations**
 - **Click-to-navigate** error and warning messages
 
 ### AI Integration
-- **Claude AI assistant** for code generation and refactoring
-- **Multiple chat conversations** with persistent history
-- **Claude Projects integration** for context-aware assistance
-- **Code explanation** and documentation generation
-- **Smart code suggestions** based on project context
+- **Choice of AI backend**: Anthropic's Claude API, the locally-installed Claude Code CLI (uses its own login, no API key needed), OpenRouter, or any local LLM server speaking the OpenAI-compatible chat completions API (Ollama, LM Studio, etc.) - configured in Preferences > AI
+- **Claude AI assistant panel** for code generation, refactoring, explaining code, and generating documentation, with a per-message prompt built from the current file's content
+- **Artifact extraction** - code/doc blocks in the AI's response are parsed out and can be applied to a file or opened in a diff view
+- API keys are stored via the OS keyring (or an encrypted-file fallback), never in plain settings
+
+Not yet implemented, despite having settings for them in Preferences: response streaming ("Stream responses" has no effect yet), saved/persistent conversation history across restarts (the "Save conversation" button is currently a no-op), and auto-suggestions while typing. Each conversation is a single in-memory session for now - there's no multi-conversation history browser.
 
 ### User Interface
-- **Dark and Light themes** with system theme detection
+- **Several built-in color themes** (Default Dark, Monokai, Solarized Dark/Light, Dracula, GitHub Dark, One Dark, and more), switched manually in Preferences - there's no OS/system dark-mode auto-detection yet
 - **Customizable toolbar** with common actions
 - **Enhanced status bar** showing cursor position, language mode, and encoding
 - **Welcome splash screen** with recent projects
-- **Dockable panels** for tools and output
-- **Integrated help system** with searchable documentation
+- **Toggleable bottom panel** (Build Output, Git, TODO List, Console, AI Assistant tabs) - show/hide as a whole, not independently floatable/rearrangeable
+- **Integrated help system** with searchable documentation (search delegates to a `learn.microsoft.com` search rendered in the embedded browser, not a local index)
 
 ### Developer Tools
-- **Git integration** for version control operations
-- **Find and Replace** with regex support (Ctrl+F)
+- **Git integration** for version control operations (stage/commit/push/pull/branch, from the Git panel or menu)
+- **Find and Replace** with regex support - Find is Ctrl+F, Replace is Ctrl+H (see Keyboard Shortcuts below)
 - **Go to line** navigation (Ctrl+G)
 - **Block commenting** (Ctrl+/)
 - **Settings persistence** across sessions
