@@ -50,7 +50,7 @@ Syntax *errors* (as opposed to highlighting) are not flagged inline in the edito
 Not yet implemented, despite having settings for them in Preferences: response streaming ("Stream responses" has no effect yet), saved/persistent conversation history across restarts (the "Save conversation" button is currently a no-op), and auto-suggestions while typing. Each conversation is a single in-memory session for now - there's no multi-conversation history browser.
 
 ### User Interface
-- **Several built-in color themes** (Default Dark, Monokai, Solarized Dark/Light, Dracula, GitHub Dark, One Dark, and more), switched manually in Preferences - there's no OS/system dark-mode auto-detection yet
+- **Several built-in color themes** (Default Dark, Monokai, Solarized Dark/Light, Dracula, GitHub Dark, One Dark, and more), plus a **System Colors** theme that follows the desktop/GTK theme's actual background, text, and accent colors (re-sampled each time it's selected, not just once at startup) - all switched manually from the Themes menu or Preferences
 - **Customizable toolbar** with common actions
 - **Enhanced status bar** showing cursor position, language mode, and encoding
 - **Welcome splash screen** with recent projects
