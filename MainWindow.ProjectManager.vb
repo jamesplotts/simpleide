@@ -55,7 +55,9 @@ Partial Public Class MainWindow
     
     Private Sub OnProjectManagerProjectModified()
         Try
+            #If DEBUG Then
             Console.WriteLine("Project structure modified")
+            #End If
             
             ' Update title bar to show modified state
             UpdateWindowTitle()
@@ -93,9 +95,13 @@ Partial Public Class MainWindow
 
             If lResolved IsNot Nothing Then
                 e.ProjectManager = lResolved
+                #If DEBUG Then
                 Console.WriteLine($"MainWindow provided ProjectManager to {sender.GetType().Name}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("MainWindow: ProjectManager not available for request")
+                #End If
             End If
 
         Catch ex As Exception
@@ -137,7 +143,9 @@ Partial Public Class MainWindow
             AddHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             AddHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
             
+            #If DEBUG Then
             Console.WriteLine("Wired up ProjectManagerRequested event for editor")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"WireUpEditorProjectManagerRequest error: {ex.Message}")
@@ -156,7 +164,9 @@ Partial Public Class MainWindow
             RemoveHandler vEditor.ProjectManagerRequested, AddressOf OnEditorProjectManagerRequested
             RemoveHandler vEditor.RequestGotoDefinition, AddressOf OnRequestGotoDefinition
             
+            #If DEBUG Then
             Console.WriteLine("Unwired ProjectManagerRequested event for editor")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"UnwireEditorProjectManagerRequest error: {ex.Message}")
@@ -462,11 +472,15 @@ Partial Public Class MainWindow
     ''' <param name="vProjectPath">Path to the project file</param>
     Private Sub LoadProjectEnhanced(vProjectPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"LoadProjectEnhanced: Loading project asynchronously: {vProjectPath}")
+            #End If
             
             ' CRITICAL FIX: Set the current project path!
             pCurrentProject = vProjectPath
+            #If DEBUG Then
             Console.WriteLine($"Set pCurrentProject = {pCurrentProject}")
+            #End If
             
             ' Show progress in status bar
             UpdateStatusBar("Loading project Structure...")
@@ -629,7 +643,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnAllFilesParseCompleted(vFileCount As Integer, vTotalMilliseconds As Double)
         Try
+            #If DEBUG Then
             Console.WriteLine($"All files parsed: {vFileCount} files in {vTotalMilliseconds:F0}ms")
+            #End If
             
             ' Update UI on main thread
             Gtk.Application.Invoke(Sub()
@@ -692,7 +708,9 @@ Partial Public Class MainWindow
             ' ENSURE pCurrentProject is set
             If Not String.IsNullOrEmpty(vProjectPath) Then
                 pCurrentProject = vProjectPath
+                #If DEBUG Then
                 Console.WriteLine($"SetProjectRoot: pCurrentProject = {pCurrentProject}")
+                #End If
             End If
             
             ' Set project root for bottom panel manager
@@ -811,7 +829,9 @@ Partial Public Class MainWindow
         Try
             ' Ensure Object Explorer is ready
             If pObjectExplorer Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("Warning: Object Explorer Not initialized for project integration")
+                #End If
                 Return
             End If
             
@@ -826,7 +846,9 @@ Partial Public Class MainWindow
                 End If
             Next
             
+            #If DEBUG Then
             Console.WriteLine("project integration initialized")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"InitializeProjectIntegration error: {ex.Message}")
@@ -847,15 +869,23 @@ Partial Public Class MainWindow
             
             ' Only output if there's a problem
             If lTreeViewStatus.Contains("NO ITEMS") OrElse lTreeViewStatus.Contains("Not visible") Then
+                #If DEBUG Then
                 Console.WriteLine("=== TreeView Issue Detected ===")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine(lTreeViewStatus)
+                #End If
                 
                 ' Try auto-fix
+                #If DEBUG Then
                 Console.WriteLine("Attempting auto-recovery...")
+                #End If
                 pObjectExplorer.ForceCompleteRefresh()
             Else
                 ' Everything looks good - just report item count
+                #If DEBUG Then
                 Console.WriteLine($"Object Explorer: {lTreeViewStatus}")
+                #End If
             End If
             
         Catch ex As Exception
@@ -874,21 +904,33 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
         Try
+            #If DEBUG Then
             Console.WriteLine($"=== OnProjectStructureLoaded START ===")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Project Structure loaded with root: {vRootNode?.Name} ({vRootNode?.NodeType})")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Root has {vRootNode?.Children.Count} children")
+            #End If
             ApplyThemeToAllEditors()
             ' List the children for debugging
             If vRootNode IsNot Nothing AndAlso vRootNode.Children.Count > 0 Then
+                #If DEBUG Then
                 Console.WriteLine("Root children:")
+                #End If
                 For Each lChild In vRootNode.Children
+                    #If DEBUG Then
                     Console.WriteLine($"  - {lChild.Name} ({lChild.NodeType}) with {lChild.Children.Count} children")
+                    #End If
                 Next
             End If
             
             ' Update Object Explorer with complete project structure
             If pObjectExplorer IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("Updating Object Explorer...")
+                #End If
                 
                 ' Load the complete project structure
                 pObjectExplorer.LoadProjectStructure(vRootNode)
@@ -904,7 +946,9 @@ Partial Public Class MainWindow
                             ' This collapses everything then expands just the root
                             lCustomExplorer.ExpandRootOnly()
                             
+                            #If DEBUG Then
                             Console.WriteLine("Applied initial expansion state (root only)")
+                            #End If
                         End If
 
                         ' NOTE: deliberately does NOT switch the left notebook to the Object
@@ -918,12 +962,18 @@ Partial Public Class MainWindow
                     End Try
                 End Sub)
                 
+                #If DEBUG Then
                 Console.WriteLine("Object Explorer update completed")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("WARNING: pObjectExplorer Is Nothing!")
+                #End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"=== OnProjectStructureLoaded End ===")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectStructureLoaded error: {ex.Message}")
@@ -939,7 +989,9 @@ Partial Public Class MainWindow
     Private Sub InitializeObjectExplorerWithProjectManager()
         Try
             If pObjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("Initializing Object Explorer with ProjectManager...")
+                #End If
                 
                 ' Initialize the Object Explorer with the project manager
                 pObjectExplorer.InitializeWithProjectManager(pProjectManager)
@@ -947,7 +999,9 @@ Partial Public Class MainWindow
                 ' Check if we already have a project loaded
                 Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
                 If lProjectTree IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Found existing project tree: {lProjectTree.Name}")
+                    #End If
                     OnProjectStructureLoaded(lProjectTree)
                 End If
             End If
@@ -969,7 +1023,9 @@ Partial Public Class MainWindow
                 RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
                 AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
 
+                #If DEBUG Then
                 Console.WriteLine("ProjectStructureLoaded Event handler connected")
+                #End If
             End If
 
         Catch ex As Exception
@@ -982,34 +1038,46 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub VerifyProjectStructure()
         Try
+            #If DEBUG Then
             Console.WriteLine("=== VERIFYING PROJECT Structure ===")
+            #End If
             
             ' Run verification on ProjectManager
             If pProjectManager IsNot Nothing Then
                 Dim lIsValid As Boolean = pProjectManager.VerifyNamespaceMerge()
                 
                 If Not lIsValid Then
+                    #If DEBUG Then
                     Console.WriteLine("Project Structure has duplicates - attempting rebuild...")
+                    #End If
                     pProjectManager.RebuildProjectTree()
                     
                     ' Verify again after rebuild
                     lIsValid = pProjectManager.VerifyNamespaceMerge()
                     If lIsValid Then
+                        #If DEBUG Then
                         Console.WriteLine("Rebuild successful - Structure Is now valid")
+                        #End If
                         
                         ' Refresh Object Explorer
                         If pObjectExplorer IsNot Nothing Then
                             pObjectExplorer.LoadProjectStructure(pProjectManager.GetProjectSyntaxTree())
                         End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Rebuild failed - duplicates still present")
+                        #End If
                     End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("Project Structure Is valid - no duplicates found")
+                    #End If
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("=== End VERIFICATION ===")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"VerifyProjectStructure error: {ex.Message}")
@@ -1046,7 +1114,9 @@ Partial Public Class MainWindow
             AddHandler pProjectManager.ReferenceAdded, AddressOf OnProjectManagerReferenceAdded
             AddHandler pProjectManager.ReferenceRemoved, AddressOf OnProjectManagerReferenceRemoved
             
+            #If DEBUG Then
             Console.WriteLine("ProjectManager reference events initialized")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"InitializeProjectManagerReferences error: {ex.Message}")
@@ -1058,7 +1128,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnProjectManagerReferencesChanged(vReferences As List(Of ReferenceManager.ReferenceInfo))
         Try
+            #If DEBUG Then
             Console.WriteLine($"Project references changed: {vReferences.Count} references")
+            #End If
             
             ' Update UI if needed
             ' Could refresh project explorer or other UI elements here
@@ -1073,7 +1145,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnProjectManagerReferenceAdded(vReference As ReferenceManager.ReferenceInfo)
         Try
+            #If DEBUG Then
             Console.WriteLine($"Reference added: {vReference.Name} ({vReference.Type})")
+            #End If
             UpdateStatusBar($"Added reference: {vReference.Name}")
             
         Catch ex As Exception
@@ -1086,7 +1160,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnProjectManagerReferenceRemoved(vReferenceName As String, vReferenceType As ReferenceManager.ReferenceType)
         Try
+            #If DEBUG Then
             Console.WriteLine($"Reference removed: {vReferenceName} ({vReferenceType})")
+            #End If
             UpdateStatusBar($"Removed reference: {vReferenceName}")
             
         Catch ex As Exception
@@ -1100,7 +1176,9 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Path of added file</param>
     Private Sub OnProjectManagerFileAdded(vFilePath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"File added To project: {vFilePath}")
+            #End If
             
             ' Refresh the project explorer by reloading from ProjectManager
             If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
@@ -1127,7 +1205,9 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Path of removed file</param>
     Private Sub OnProjectManagerFileRemoved(vFilePath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"File removed from project: {vFilePath}")
+            #End If
             
             ' Refresh the project explorer by reloading from ProjectManager
             If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
@@ -1155,7 +1235,9 @@ Partial Public Class MainWindow
     ''' <param name="vNewPath">New file path</param>
     Private Sub OnProjectManagerFileRenamed(vOldPath As String, vNewPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"File renamed: {vOldPath} -> {vNewPath}")
+            #End If
             
             ' Refresh the project explorer by reloading from ProjectManager
             If pProjectExplorer IsNot Nothing AndAlso pProjectManager IsNot Nothing Then
@@ -1277,7 +1359,9 @@ Private Sub OnProjectManagerFileSaved(vFilePath As String)
             If lTabInfo.Modified Then
                 lTabInfo.Modified = False
                 UpdateTabLabel(lTabInfo)
+                #If DEBUG Then
                 Console.WriteLine($"OnProjectManagerFileSaved: Updated tab state for {vFilePath}")
+                #End If
             End If
             
             ' Also ensure the editor's IsModified is synced

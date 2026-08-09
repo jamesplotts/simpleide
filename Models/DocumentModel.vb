@@ -186,7 +186,9 @@ Namespace Models
                 pFilePath = vFilePath
                 
                 If Not File.Exists(vFilePath) Then
+                    #If DEBUG Then
                     Console.WriteLine($"DocumentModel.LoadFromFile: File not found: {vFilePath}")
+                    #End If
                     Return False
                 End If
                 
@@ -231,7 +233,9 @@ Namespace Models
                 SetModified(False)
                 pDocumentVersion = 1
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.LoadFromFile: loaded {pDocumentLines.Count} lines from {vFilePath}")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -250,7 +254,9 @@ Namespace Models
                 End If
                 
                 If String.IsNullOrEmpty(vFilePath) Then
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel.SaveToFile: No file Path specified")
+                    #End If
                     Return False
                 End If
                 
@@ -264,7 +270,9 @@ Namespace Models
                 pFilePath = vFilePath
                 SetModified(False)
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.SaveToFile: Saved to {vFilePath}")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -286,7 +294,9 @@ Namespace Models
                     pAttachedEditors.Add(vEditor)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.AttachEditor: Editor attached, total editors: {pAttachedEditors.Count}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.AttachEditor error: {ex.Message}")
@@ -302,7 +312,9 @@ Namespace Models
                 
                 pAttachedEditors.Remove(vEditor)
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.DetachEditor: Editor detached, remaining editors: {pAttachedEditors.Count}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.DetachEditor error: {ex.Message}")
@@ -815,7 +827,9 @@ Namespace Models
                     pDocumentLines(i).Tokens = lTokens
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.PreTokenizeAllLines: Tokenized {pDocumentLines.Count} lines")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.PreTokenizeAllLines error: {ex.Message}")
@@ -844,7 +858,9 @@ Namespace Models
                     End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel.BuildIndices: Indexed {pSymbolIndex.Count} symbols, {pDeclarationRegistry.Count} declarations")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.BuildIndices error: {ex.Message}")
@@ -899,20 +915,26 @@ Namespace Models
                 ' Request ProjectManager through event
                 Dim lProjectManager = GetProjectManager()
                 If lProjectManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel.ParseDocument: ProjectManager not available")
+                    #End If
                     Return
                 End If
                 
                 ' Use centralized ProjectParser to parse content
                 Dim lParserProperty = lProjectManager.GetType().GetProperty("Parser")
                 If lParserProperty Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel.ParseDocument: Parser property not found")
+                    #End If
                     Return
                 End If
                 
                 Dim lParser = lParserProperty.GetValue(lProjectManager)
                 If lParser Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel.ParseDocument: ProjectParser not available")
+                    #End If
                     Return
                 End If
                 
@@ -959,7 +981,9 @@ Namespace Models
                                 ' Raise parsed event
                                 RaiseEvent DocumentParsed(pRootNode)
                                 
+                                #If DEBUG Then
                                 Console.WriteLine($"DocumentModel.ParseDocument: Successfully parsed {pFilePath}")
+                                #End If
                             End If
                         End If
                         
@@ -969,13 +993,17 @@ Namespace Models
                             Dim lErrors = TryCast(lErrorsProperty.GetValue(lParseResult), IEnumerable)
                             If lErrors IsNot Nothing Then
                                 For Each lError In lErrors
+                                    #If DEBUG Then
                                     Console.WriteLine($"Parse error: {lError}")
+                                    #End If
                                 Next
                             End If
                         End If
                     End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel.ParseDocument: ParseContent method not found")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -1594,7 +1622,9 @@ Namespace Models
                     Return pCachedProjectManager
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("DocumentModel: No ProjectManager provided via event")
+                #End If
                 Return Nothing
                 
             Catch ex As Exception
@@ -1611,7 +1641,9 @@ Namespace Models
                 ' Request ProjectManager through event
                 Dim lProjectManager = GetProjectManager()
                 If lProjectManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("DocumentModel: ProjectManager not available for event subscription")
+                    #End If
                     Return
                 End If
                 
@@ -1629,7 +1661,9 @@ Namespace Models
                     lParseCompletedEvent.RemoveEventHandler(lProjectManager, lHandler)
                     lParseCompletedEvent.AddEventHandler(lProjectManager, lHandler)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"DocumentModel subscribed to ProjectManager.ParseCompleted for {pFilePath}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -1647,7 +1681,9 @@ Namespace Models
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel received ParseCompleted for {pFilePath}")
+                #End If
                 
                 ' Extract and convert the parse result
                 If vResult IsNot Nothing Then
@@ -1680,7 +1716,9 @@ Namespace Models
                             ' Raise parsed event
                             RaiseEvent DocumentParsed(pRootNode)
                             
+                            #If DEBUG Then
                             Console.WriteLine($"DocumentModel updated from ParseCompleted: {pFilePath}")
+                            #End If
                         End If
                     End If
                 End If
@@ -1738,7 +1776,9 @@ Namespace Models
                 ' Clear root node
                 pRootNode = Nothing
                 
+                #If DEBUG Then
                 Console.WriteLine($"DocumentModel disposed: {pFilePath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DocumentModel.Dispose error: {ex.Message}")
@@ -1769,7 +1809,9 @@ Namespace Models
                     
                     lParseCompletedEvent.RemoveEventHandler(lProjectManager, lHandler)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"DocumentModel unsubscribed from ProjectManager events for {pFilePath}")
+                    #End If
                 End If
                 
             Catch ex As Exception

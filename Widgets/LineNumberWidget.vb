@@ -69,7 +69,9 @@ Namespace Widgets
                 AddHandler Me.MotionNotifyEvent, AddressOf OnMotionNotify
                 AddHandler Me.ScrollEvent, AddressOf OnScroll
 
+                #If DEBUG Then
                 Console.WriteLine("LineNumberWidget: Initialized with double-click support (CanFocus=True)")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"LineNumberWidget constructor error: {ex.Message}")
@@ -103,14 +105,18 @@ Namespace Widgets
                     If lNewWidth <> pWidth Then
                         pWidth = lNewWidth
                         WidthRequest = pWidth
+                        #If DEBUG Then
                         Console.WriteLine($"LineNumberWidget.UpdateFont: Width updated to {pWidth}px")
+                        #End If
                     End If
                 End If
                 
                 ' Force redraw
                 QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"LineNumberWidget.UpdateFont: Updated with LineHeight={vLineHeight}, CharWidth={vCharWidth}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"LineNumberWidget.UpdateFont error: {ex.Message}")
@@ -368,10 +374,14 @@ Namespace Widgets
         ''' <param name="vArgs">Button press event arguments</param>
         Private Function OnButtonPress(vSender As Object, vArgs As ButtonPressEventArgs) As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine($"LineNumberWidget.OnButtonPress: Button={vArgs.Event.Button}, Type={vArgs.Event.Type}")
+                #End If
                 
                 If pEditor Is Nothing OrElse pLineHeight <= 0 Then 
+                    #If DEBUG Then
                     Console.WriteLine("LineNumberWidget.OnButtonPress: Editor is Nothing or invalid line height")
+                    #End If
                     Return False
                 End If
                 
@@ -384,7 +394,9 @@ Namespace Widgets
                 Dim lClickedVisualLine As Integer = CInt(Math.Floor(lY / pLineHeight)) + pEditor.FirstVisibleLine
                 Dim lClickedSourceLine As Integer = pEditor.VisualToSourceLine(lClickedVisualLine)
                 
+                #If DEBUG Then
                 Console.WriteLine($"LineNumberWidget.OnButtonPress: Clicked visual line {lClickedVisualLine}, source line {lClickedSourceLine}")
+                #End If
                 
                 ' Check for fold toggle click (far left of widget)
                 If vArgs.Event.X <= pFoldIconAreaWidth Then
@@ -400,19 +412,25 @@ Namespace Widgets
                     If vArgs.Event.Button = 1 Then
                         ' Check for multi-click events
                         If vArgs.Event.Type = EventType.ThreeButtonPress Then
+                            #If DEBUG Then
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: TRIPLE-CLICK detected on line {lClickedSourceLine}")
+                            #End If
                             ' Triple-click - select entire line (GTK standard behavior)
                             pEditor.SelectLine(lClickedSourceLine)
                             ' Grab focus for the drawing area after selection
                             pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.TwoButtonPress Then
+                            #If DEBUG Then
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: DOUBLE-CLICK detected on line {lClickedSourceLine}")
+                            #End If
                             ' Double-click - check if it's a method declaration and select entire method
                             HandleDoubleClick(lClickedSourceLine)
                             ' Grab focus for the drawing area after selection
                             pEditor.GrabFocus()
                         ElseIf vArgs.Event.Type = EventType.ButtonPress Then
+                            #If DEBUG Then
                             Console.WriteLine($"LineNumberWidget.OnButtonPress: Single-click on line {lClickedSourceLine}")
+                            #End If
                             ' Single click - select line (only if not double-click)
                             pEditor.SelectLine(lClickedSourceLine)
                             pEditor.StartLineNumberDrag(lClickedSourceLine)
@@ -420,7 +438,9 @@ Namespace Widgets
                             pEditor.GrabFocus()
                         End If
                     ElseIf vArgs.Event.Button = 3 Then
+                        #If DEBUG Then
                         Console.WriteLine($"LineNumberWidget.OnButtonPress: Right-click on line {lClickedSourceLine}")
+                        #End If
                         ' Right click - show context menu
                         pEditor.ShowLineNumberContextMenu(CInt(vArgs.Event.X), CInt(vArgs.Event.Y))
                         ' Also grab focus for context menu operations

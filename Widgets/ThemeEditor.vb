@@ -357,7 +357,9 @@ Namespace Widgets
                 
                 ' Add themes
                 for each lThemeName in pThemeManager.GetAvailableThemes()
+                    #If DEBUG Then
                     Console.WriteLine($"Adding Theme " + lThemeName)
+                    #End If
                     pThemeListBox.AddItem(lThemeName, pThemeManager.IsCustomTheme(lThemeName))
                 Next
                 
@@ -1264,7 +1266,9 @@ Namespace Widgets
         Private Sub UpdateStatusMessage(vMessage As String)
             Try
                 ' TODO: Connect to your main window's status bar
+                #If DEBUG Then
                 Console.WriteLine($"Status: {vMessage}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ThemeEditor.UpdateStatusMessage error: {ex.Message}")
@@ -1279,7 +1283,9 @@ Namespace Widgets
             Try
                 If vItem Is Nothing Then Return
                 Dim lThemeName As String = vItem.Text
+                #If DEBUG Then
                 Console.WriteLine($"OnThemeSelected Called: " + lThemeName )
+                #End If
                 
                 ' Store the actual theme name
                 pCurrentThemeName = lThemeName
@@ -1319,7 +1325,9 @@ Namespace Widgets
                     If pPreviewEditor IsNot Nothing Then
                         pPreviewEditor.SetThemeColors(pCurrentTheme)
                         pPreviewEditor.QueueDraw()
+                        #If DEBUG Then
                         Console.WriteLine($"pPreviewEditor SetThemeColors called in OnThemeSelected")
+                        #End If
                     End If
                     pPreviewTextBox?.ApplyExplicitTheme(pCurrentTheme)
                     pPreviewButton?.ApplyExplicitTheme(pCurrentTheme)

@@ -237,7 +237,9 @@ Partial Public Class MainWindow
             ' Write the file
             File.WriteAllText(lAssemblyInfoPath, lContent)
             
+            #If DEBUG Then
             Console.WriteLine($"Created AssemblyInfo.vb at: {lAssemblyInfoPath}")
+            #End If
             Return True
             
         Catch ex As Exception
@@ -300,7 +302,9 @@ Partial Public Class MainWindow
             
             File.WriteAllText(lManifestPath, lManifestContent)
             
+            #If DEBUG Then
             Console.WriteLine($"Created app.manifest at: {lManifestPath}")
+            #End If
             Return True
             
         Catch ex As Exception

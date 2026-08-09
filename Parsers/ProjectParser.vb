@@ -137,7 +137,9 @@ Namespace Managers
                 ' Call Initialize to set up Roslyn components
                 Initialize()
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectParser created with root namespace: {pRootNamespace}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser constructor error: {ex.Message}")
@@ -156,7 +158,9 @@ Namespace Managers
         ''' </summary>
         Private Sub Initialize()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ProjectParser: Initializing Roslyn components...")
+                #End If
                 
                 ' Create workspace
                 pWorkspace = New AdhocWorkspace()
@@ -207,7 +211,9 @@ Namespace Managers
                 }
                 
                 pIsInitialized = True
+                #If DEBUG Then
                 Console.WriteLine("ProjectParser: Initialization complete")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectParser.Initialize error: {ex.Message}")
@@ -227,7 +233,9 @@ Namespace Managers
                     Return ParseProject(pProjectManager.ProjectFile)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("ProjectParser.ParseProject: No project file available")
+                #End If
                 Return False
                 
             Catch ex As Exception
@@ -246,12 +254,16 @@ Namespace Managers
             Try
                 If Not pIsInitialized Then Initialize()
 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectParser: Parsing project {vProjectFilePath}")
+                #End If
                 pParseErrors.Clear()
 
                 ' Get all source files from project manager
                 Dim lSourceFiles = pProjectManager.GetProjectSourceFiles()
+                #If DEBUG Then
                 Console.WriteLine($"Found {lSourceFiles.Count} source files")
+                #End If
 
                 ' First pass: parse every file's Roslyn syntax tree once. Semantic analysis
                 ' (GetSemanticModel) requires the tree to already be part of the Compilation it's
@@ -326,7 +338,9 @@ Namespace Managers
 
                 pProjectTree.RootNode = lProjectTree
 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectParser: Successfully parsed {lSuccessCount}/{lSourceFiles.Count} files")
+                #End If
                 Return lSuccessCount > 0
 
             Catch ex As Exception
@@ -352,7 +366,9 @@ Namespace Managers
             Try
                 If vSourceFile Is Nothing Then Return Nothing
 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectParser: Parsing {vSourceFile.FileName}...")
+                #End If
 
                 ' Reuse the pre-parsed tree (already part of pCompilation) when provided so
                 ' GetSemanticModel below works; otherwise parse standalone (syntax only, no semantic model)
@@ -493,7 +509,9 @@ Namespace Managers
             Try
                 ' Add defensive check
                 If pParseOptions Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ParseContent: pParseOptions is null, initializing...")
+                    #End If
                     pParseOptions = VisualBasicParseOptions.Default.
                         WithLanguageVersion(LanguageVersion.VisualBasic15_5).
                         WithDocumentationMode(DocumentationMode.Parse)
@@ -501,7 +519,9 @@ Namespace Managers
 
                 ' Check for null converter
                 If pConverter Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ParseContent: pConverter is null, creating...")
+                    #End If
                     pConverter = New RoslynConverter()
                 End If
 

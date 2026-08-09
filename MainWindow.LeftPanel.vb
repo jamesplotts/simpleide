@@ -29,7 +29,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub InitializeLeftPanel()
         Try
+            #If DEBUG Then
             Console.WriteLine("InitializeLeftPanel: Starting initialization")
+            #End If
             
             ' Create the CustomDrawNotebook for the left panel
             pLeftNotebook = New CustomDrawNotebook(pThemeManager)
@@ -37,7 +39,9 @@ Partial Public Class MainWindow
             ' IMPORTANT: Set minimum width ONLY, not both parameters
             ' This ensures minimum width but allows GTK to manage visibility properly
             pLeftNotebook.SetSizeRequest(LEFT_PANEL_MINIMUM_WIDTH, -1)
+            #If DEBUG Then
             Console.WriteLine($"Set left notebook minimum width to {LEFT_PANEL_MINIMUM_WIDTH}")
+            #End If
             
             ' Configure the notebook
             Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pLeftNotebook, CustomDrawNotebook)
@@ -55,33 +59,47 @@ Partial Public Class MainWindow
             
             ' Add Project Explorer tab
             If pProjectExplorer IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("  Adding Project Explorer tab")
+                #End If
                 Dim lProjectIndex As Integer = lCustomNotebook.AppendPage(pProjectExplorer, "Project", "folder-open")
+                #If DEBUG Then
                 Console.WriteLine($"  Project Explorer added at index {lProjectIndex}")
+                #End If
             End If
             
             ' Create and add Object Explorer tab with ThemeManager
+            #If DEBUG Then
             Console.WriteLine("  Creating Object Explorer")
+            #End If
             pObjectExplorer = New CustomDrawObjectExplorer(pSettingsManager, pThemeManager)
             AddHandler pObjectExplorer.NodeDoubleClicked, AddressOf OnObjectExplorerNodeDoubleClicked
             AddHandler pObjectExplorer.CloseRequested, AddressOf OnObjectExplorerCloseRequested
             
             ' CRITICAL: Initialize Object Explorer with ProjectManager for parsing integration
             If pProjectManager IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("  Initializing Object Explorer with ProjectManager")
+                #End If
                 pObjectExplorer.InitializeWithProjectManager(pProjectManager)
             Else
+                #If DEBUG Then
                 Console.WriteLine("  WARNING: ProjectManager not available for Object Explorer")
+                #End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("  Adding Object Explorer tab")
+            #End If
             ' "file-code" is not a real icon name in most system icon themes (including the
             ' active KDE theme this was tested against), so it silently fell back to a
             ' generic blank-document icon - "view-list-tree" is a standard freedesktop icon
             ' name present in Breeze, Papirus, and other common themes, and fits a class/
             ' member hierarchy browser better anyway
             Dim lObjectIndex As Integer = lCustomNotebook.AppendPage(pObjectExplorer, "Objects", "view-list-tree")
+            #If DEBUG Then
             Console.WriteLine($"  Object Explorer added at index {lObjectIndex}")
+            #End If
             
             ' CRITICAL FIX: Pack the notebook with shrink:=False to prevent it from disappearing
             ' resize:=False means it won't grow when window grows (keeps its set width)
@@ -93,11 +111,15 @@ Partial Public Class MainWindow
             
             ' Set the first tab as active
             If lCustomNotebook.NPages > 0 Then
+                #If DEBUG Then
                 Console.WriteLine($"  Setting tab 0 as current (Project Explorer)")
+                #End If
                 lCustomNotebook.CurrentPage = 0
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"InitializeLeftPanel: Completed with {lCustomNotebook.NPages} tabs")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"InitializeLeftPanel error: {ex.Message}")
@@ -208,7 +230,9 @@ Partial Public Class MainWindow
     Private Sub OnLeftPanelHideRequested()
         Try
             'ToggleLeftPanel()
+            #If DEBUG Then
             Console.WriteLine("Left panel hide requested from CustomDrawNotebook")
+            #End If
         Catch ex As Exception
             Console.WriteLine($"OnLeftPanelHideRequested error: {ex.Message}")
         End Try
@@ -221,7 +245,9 @@ Partial Public Class MainWindow
     ''' <param name="vNewIndex">New tab index</param>
     Private Sub OnLeftNotebookPageChanged(vOldIndex As Integer, vNewIndex As Integer)
         Try
+            #If DEBUG Then
             Console.WriteLine($"Left notebook page changed from {vOldIndex} to {vNewIndex}")
+            #End If
             
             ' If switching to Object Explorer tab (index 1)
             If vNewIndex = 1 Then
@@ -247,7 +273,9 @@ Partial Public Class MainWindow
             End If
         
             pMainHPaned.Position = lSavedWidth
+            #If DEBUG Then
             Console.WriteLine($"EnsureLeftPanelWidth: Set position to {lSavedWidth}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"EnsureLeftPanelWidth error: {ex.Message}")
@@ -261,11 +289,15 @@ Partial Public Class MainWindow
         ''' </summary>
         Public Sub ForceShowLeftPanel()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ForceShowLeftPanel: Starting...")
+                #End If
                 
                 ' Check if notebook exists
                 If pLeftNotebook Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ERROR: Left notebook doesn't exist - attempting to recreate")
+                    #End If
                     InitializeLeftPanel()
                 End If
                 
@@ -277,21 +309,27 @@ Partial Public Class MainWindow
                     ' Set minimum size
                     pLeftNotebook.SetSizeRequest(LEFT_PANEL_MINIMUM_WIDTH, -1)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Left notebook forced visible with {pLeftNotebook.NPages} pages")
+                    #End If
                 End If
                 
                 ' Ensure HPaned position
                 If pMainHPaned IsNot Nothing Then
                     If pMainHPaned.Position < LEFT_PANEL_MINIMUM_WIDTH Then
                         pMainHPaned.Position = LEFT_PANEL_MINIMUM_WIDTH
+                        #If DEBUG Then
                         Console.WriteLine($"Set HPaned position To {LEFT_PANEL_MINIMUM_WIDTH}")
+                        #End If
                     End If
                     
                     ' Force redraw
                     pMainHPaned.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("ForceShowLeftPanel: Complete")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ForceShowLeftPanel error: {ex.Message}")

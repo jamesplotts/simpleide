@@ -24,7 +24,9 @@ Partial Public Class MainWindow
             UpdateObjectExplorerForActiveTab()
             
             ' If multiple files are opened, Object Explorer should show the active one
+            #If DEBUG Then
             Console.WriteLine("project loaded - Object Explorer updated")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectLoadedWithObjectExplorer error: {ex.Message}")
@@ -36,25 +38,43 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub DebugObjectExplorerIntegration()
         Try
+            #If DEBUG Then
             Console.WriteLine("=== Object Explorer Integration Debug ===")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Object Explorer initialized: {pObjectExplorer IsNot Nothing}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Open tabs Count: {pOpenTabs.Count}")
+            #End If
             
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"current Editor: {lCurrentTab.Editor.GetType().Name}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"current file: {lCurrentTab.FilePath}")
+                #End If
                 
                 Dim lStructure As SyntaxNode = lCurrentTab.Editor.GetDocumentStructure()
+                #If DEBUG Then
                 Console.WriteLine($"document structure available: {lStructure IsNot Nothing}")
+                #End If
                 If lStructure IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Structure Children Count: {lStructure.Children.Count}")
+                    #End If
                 End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("No active Editor")
+                #End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("==========================================")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"DebugObjectExplorerIntegration error: {ex.Message}")

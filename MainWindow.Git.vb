@@ -568,7 +568,9 @@ Partial Public Class MainWindow
             
             ' Automatically reload files without conflicts
             for each lTab in lFilesToReload
+                #If DEBUG Then
                 Console.WriteLine($"Auto-reloading {lTab.FilePath} after git operation")
+                #End If
                 ReloadFileAfterGitOperation(lTab, False) ' Don't prompt, just reload
             Next
             
@@ -617,7 +619,9 @@ Partial Public Class MainWindow
 
                     Case ResponseType.No
                         ' Keep local changes
+                        #If DEBUG Then
                         Console.WriteLine($"Keeping local changes for {lTab.FilePath}")
+                        #End If
                         ' File remains modified
 
                     Case ResponseType.Apply

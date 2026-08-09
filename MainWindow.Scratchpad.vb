@@ -228,7 +228,9 @@ Partial Public Class MainWindow
             UpdateToolbarButtons()
             UpdateScratchpadButtonTooltip(True)
             
+            #If DEBUG Then
             Console.WriteLine($"Opened scratchpad: {lTabId}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OpenScratchpad error: {ex.Message}")
@@ -291,7 +293,9 @@ Partial Public Class MainWindow
                 ShowWelcomeTab()
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"Closed scratchpad: {vTabId}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"CloseScratchpadTab error: {ex.Message}")

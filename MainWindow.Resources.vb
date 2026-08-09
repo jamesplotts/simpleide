@@ -467,7 +467,9 @@ Partial Public Class MainWindow
             End If
             
             ' Reload the project in the explorer
+            #If DEBUG Then
             Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.RefreshProjectExplorer")
+            #End If
             pProjectExplorer.LoadProjectFromManager
             
             ' Update status bar

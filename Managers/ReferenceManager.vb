@@ -54,7 +54,9 @@ Namespace Managers
                 ' Check if reference already exists
                 Dim lExisting = FindExistingReference(lDoc, lNsMgr, vAssemblyName, ReferenceType.eAssembly)
                 If lExisting IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Assembly Reference '{vAssemblyName}' already exists")
+                    #End If
                     Return False
                 End If
                 
@@ -99,7 +101,9 @@ Namespace Managers
                 ' Check if package already exists
                 Dim lExisting = FindExistingReference(lDoc, lNsMgr, vPackageName, ReferenceType.ePackage)
                 If lExisting IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Package Reference '{vPackageName}' already exists")
+                    #End If
                     Return False
                 End If
                 
@@ -142,7 +146,9 @@ Namespace Managers
                 ' Check if project reference already exists
                 Dim lExisting = FindExistingReference(lDoc, lNsMgr, lRelativePath, ReferenceType.eProject)
                 If lExisting IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"project Reference '{lRelativePath}' already exists")
+                    #End If
                     Return False
                 End If
                 
@@ -469,7 +475,9 @@ Namespace Managers
                     vDoc.Save(lWriter)
                 End Using
                 
+                #If DEBUG Then
                 Console.WriteLine($"ReferenceManager saved project file: {vProjectPath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ReferenceManager.SaveProjectFile error: {ex.Message}")

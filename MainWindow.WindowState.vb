@@ -25,7 +25,9 @@ Partial Public Class MainWindow
             If Not pWindowStateEventConnected Then
                 AddHandler WindowStateEvent, AddressOf OnWindowStateChanged
                 pWindowStateEventConnected = True
+                #If DEBUG Then
                 Console.WriteLine("Window state tracking initialized")
+                #End If
             End If
             
         Catch ex As Exception
@@ -49,7 +51,9 @@ Partial Public Class MainWindow
                 pIsMaximized = (lNewState and Gdk.WindowState.Maximized) = Gdk.WindowState.Maximized
                 
                 If pIsMaximized <> lWasMaximized Then
+                    #If DEBUG Then
                     Console.WriteLine($"Window maximized state changed: {pIsMaximized}")
+                    #End If
                     
                     If Not pIsMaximized Then
                         ' Window was unmaximized - restore to saved normal size
@@ -88,7 +92,9 @@ Partial Public Class MainWindow
                 If lWidth > 400 AndAlso lHeight > 300 Then
                     pLastNormalWidth = lWidth
                     pLastNormalHeight = lHeight
+                    #If DEBUG Then
                     Console.WriteLine($"Saved normal window size: {lWidth}x{lHeight}")
+                    #End If
                 End If
             End If
             
@@ -130,7 +136,9 @@ Partial Public Class MainWindow
             If lWidth < 800 Then lWidth = 800
             If lHeight < 600 Then lHeight = 600
             
+            #If DEBUG Then
             Console.WriteLine($"Restoring to normal size: {lWidth}x{lHeight}")
+            #End If
             
             ' Apply the size
             Resize(lWidth, lHeight)
@@ -157,7 +165,9 @@ Partial Public Class MainWindow
                 pIsMaximized = (lWindowState and Gdk.WindowState.Maximized) = Gdk.WindowState.Maximized
                 pSettingsManager.WindowMaximized = pIsMaximized
                 
+                #If DEBUG Then
                 Console.WriteLine($"Saving window state - Maximized: {pIsMaximized}")
+                #End If
             End If
             
             ' Only save dimensions if NOT maximized
@@ -178,9 +188,13 @@ Partial Public Class MainWindow
                             If lWidth < lWorkArea.Width - 50 AndAlso lHeight < lWorkArea.Height - 50 Then
                                 pSettingsManager.WindowWidth = lWidth
                                 pSettingsManager.WindowHeight = lHeight
+                                #If DEBUG Then
                                 Console.WriteLine($"Saved window dimensions: {lWidth}x{lHeight}")
+                                #End If
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine("Window dimensions too large, not saving")
+                                #End If
                             End If
                         End If
                     End If
@@ -190,7 +204,9 @@ Partial Public Class MainWindow
                 If pLastNormalWidth > 0 AndAlso pLastNormalHeight > 0 Then
                     pSettingsManager.WindowWidth = pLastNormalWidth
                     pSettingsManager.WindowHeight = pLastNormalHeight
+                    #If DEBUG Then
                     Console.WriteLine($"Saved last normal dimensions: {pLastNormalWidth}x{pLastNormalHeight}")
+                    #End If
                 End If
             End If
             
@@ -269,7 +285,9 @@ Partial Public Class MainWindow
                 Return False
             End Function)
             
+            #If DEBUG Then
             Console.WriteLine($"Maximized to work area: {lWorkArea.Width}x{lWorkArea.Height} at ({lWorkArea.X},{lWorkArea.Y})")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"MaximizeProper error: {ex.Message}")

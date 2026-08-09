@@ -126,7 +126,9 @@ Namespace Widgets
                 
                 ' Add errors to data grid
                 If vResult.Errors IsNot Nothing AndAlso pErrorsDataGrid IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Adding {vResult.Errors.Count} errors to data grid")
+                    #End If
                     
                     for each lError As BuildError in vResult.Errors
                         ' Add to internal list
@@ -157,7 +159,9 @@ Namespace Widgets
                 
                 ' Add warnings to data grid
                 If vResult.Warnings IsNot Nothing AndAlso pWarningsDataGrid IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Adding {vResult.Warnings.Count} warnings to data grid")
+                    #End If
                     
                     for each lWarning As BuildWarning in vResult.Warnings
                         ' Add to internal list
@@ -256,7 +260,9 @@ Namespace Widgets
                         RaiseEvent ErrorSelected(lError.FilePath, lError.Line, lError.Column)
                     End If
                 End If                
+                #If DEBUG Then
                 Console.WriteLine($"Error grid selection changed: Row {vRowIndex}, Column {vColumnIndex}")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"OnErrorGridSelectionChanged error: {ex.Message}")
             End Try
@@ -284,7 +290,9 @@ Namespace Widgets
         Private Sub OnWarningGridSelectionChanged(vRowIndex As Integer, vColumnIndex As Integer)
             Try
                 ' Optional: Handle selection change if needed
+                #If DEBUG Then
                 Console.WriteLine($"Warning grid selection changed: Row {vRowIndex}, Column {vColumnIndex}")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"OnWarningGridSelectionChanged error: {ex.Message}")
             End Try

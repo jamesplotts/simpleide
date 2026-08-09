@@ -83,7 +83,9 @@ Namespace Widgets
         ''' </remarks>
         Public Shadows Sub ShowAll()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawNotebook.ShowAll called with {pTabs.Count} tabs")
+                #End If
                 
                 ' CRITICAL: Call base ShowAll first to ensure the container and all structural
                 ' children (pTabBar, pContentArea, buttons) are shown
@@ -184,7 +186,9 @@ Namespace Widgets
                     If pTabs(i).Widget IsNot Nothing Then
                         If i = pCurrentTabIndex Then
                             ' Show current tab content
+                            #If DEBUG Then
                             Console.WriteLine($"  Showing tab {i}: '{pTabs(i).Label}'")
+                            #End If
                             pTabs(i).Widget.NoShowAll = False
                             pTabs(i).Widget.ShowAll()  ' Use ShowAll to ensure all children are shown
                             pTabs(i).Widget.NoShowAll = True ' Reset for next time
@@ -202,7 +206,9 @@ Namespace Widgets
                 
                 ' If no current tab is set and we have tabs, set the first one
                 If pCurrentTabIndex < 0 AndAlso pTabs.Count > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("  No current tab Set - selecting first tab")
+                    #End If
                     SetCurrentTab(0)
                 End If
                 
@@ -214,7 +220,9 @@ Namespace Widgets
                     pTabBar.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"  ShowAll completed: {pTabs.Count} tabs, current index: {pCurrentTabIndex}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ShowAll error: {ex.Message}")

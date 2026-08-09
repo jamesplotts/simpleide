@@ -25,7 +25,9 @@ Namespace Widgets
                 Select Case vArgs.Event.Key
                     Case Gdk.Key.Return, Gdk.Key.KP_Enter
                         ' Enter key - Execute Find All
+                        #If DEBUG Then
                         Console.WriteLine($"OnFindEntryKeyPress: Enter pressed - executing Find All!")
+                        #End If
                         
                         ' Call OnFind which uses ExecuteSearchOptimized for Find All
                         OnFind(Nothing, Nothing)
@@ -279,7 +281,9 @@ Namespace Widgets
         
         Private Sub UpdateStatus(vMessage As String)
             pStatusLabel.Text = vMessage
+            #If DEBUG Then
             Console.WriteLine($"Find/Replace: {vMessage}")
+            #End If
         End Sub
 
         ''' <summary>
@@ -287,7 +291,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnReplaceEntryActivated(vSender As Object, vArgs As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("OnReplaceEntryActivated: Enter pressed in Replace field!")
+                #End If
                 
                 ' Perform replace if button is enabled
                 If pReplaceButton.Sensitive Then

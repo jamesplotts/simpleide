@@ -445,7 +445,9 @@ Namespace Editors
         Public Sub SelectLine(vLine As Integer) Implements IEditor.SelectLine
             Try
                 If vLine < 0 OrElse vLine >= pLineCount Then Return
+                 #If DEBUG Then
                  Console.WriteLine($"SelectLine vLine: " + vLine.ToString())
+                 #End If
                 ' Clear any drag state to prevent interference
                 pIsDragging = False
                 pPotentialDrag = False

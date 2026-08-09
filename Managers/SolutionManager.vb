@@ -142,7 +142,9 @@ Namespace Managers
             Try
                 Dim lSolution As Solution = SolutionFileParser.ParseSolutionFile(vSolutionPath)
                 If lSolution Is Nothing OrElse lSolution.Projects.Count = 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"SolutionManager.LoadSolution: No projects found in {vSolutionPath}")
+                    #End If
                     Return False
                 End If
 
@@ -157,7 +159,9 @@ Namespace Managers
                 for each lEntry in lSolution.Projects
                     lIndex += 1
                     If Not File.Exists(lEntry.ProjectPath) Then
+                        #If DEBUG Then
                         Console.WriteLine($"SolutionManager.LoadSolution: Skipping missing project file {lEntry.ProjectPath}")
+                        #End If
                         Continue for
                     End If
 
@@ -174,7 +178,9 @@ Namespace Managers
                     ' ProjectManager would race. Passing vStartupProjectManager is only safe
                     ' when the caller isn't loading it through any other path at the same time.
                     If Not lProjectManager.LoadProject(lEntry.ProjectPath) Then
+                        #If DEBUG Then
                         Console.WriteLine($"SolutionManager.LoadSolution: Failed to load {lEntry.ProjectPath}")
+                        #End If
                         Continue for
                     End If
 
@@ -184,7 +190,9 @@ Namespace Managers
 
                 BuildDependencyOrder()
 
+                #If DEBUG Then
                 Console.WriteLine($"SolutionManager.LoadSolution: Loaded {lLoadedCount} of {lSolution.Projects.Count} project(s) from {vSolutionPath}")
+                #End If
                 Return lLoadedCount > 0
 
             Catch ex As Exception
@@ -271,7 +279,9 @@ Namespace Managers
                 ' Any project not yet ordered is part of a reference cycle - append in original
                 ' .sln order as a reasonable fallback rather than dropping them
                 If lOrdered.Count < pProjectManagers.Count Then
+                    #If DEBUG Then
                     Console.WriteLine("SolutionManager.BuildDependencyOrder: Circular project reference(s) detected; affected projects appended in .sln order")
+                    #End If
                     for each lEntry in pSolution.Projects
                         If pProjectManagers.ContainsKey(lEntry.ProjectPath) AndAlso Not lOrdered.Contains(lEntry.ProjectPath) Then
                             lOrdered.Add(lEntry.ProjectPath)

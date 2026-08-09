@@ -27,7 +27,9 @@ Partial Public Class MainWindow
             
             If Not String.IsNullOrEmpty(lApiKey) Then
                 pMem0Client = New Mem0Client(lApiKey)
+                #If DEBUG Then
                 Console.WriteLine("Mem0 client initialized")
+                #End If
             End If
             
         Catch ex As Exception
@@ -124,7 +126,9 @@ Partial Public Class MainWindow
             
             Await StoreMem0Memory(lKey, lValue, lContext)
             
+            #If DEBUG Then
             Console.WriteLine($"Stored project Context for {lKey}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"StoreProjectContext error: {ex.Message}")

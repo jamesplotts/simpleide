@@ -155,7 +155,9 @@ Partial Public Class MainWindow
                     pProjectExplorer.ApplyTheme()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("MainWindow.ApplyThemeToAllEditors: Project Explorer theme updated")
+                #End If
             End If
             
             ' Force refresh of all widgets by queuing draw

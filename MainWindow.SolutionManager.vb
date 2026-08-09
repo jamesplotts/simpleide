@@ -88,7 +88,9 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub LoadSolutionEnhanced(vSolutionPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"LoadSolutionEnhanced: Loading solution: {vSolutionPath}")
+            #End If
 
             Dim lSolutionName As String = System.IO.Path.GetFileNameWithoutExtension(vSolutionPath)
             UpdateStatusBar($"Opening solution '{lSolutionName}'...")
@@ -124,9 +126,13 @@ Partial Public Class MainWindow
 
                             pSolutionManager = lNewSolutionManager
 
+                            #If DEBUG Then
                             Console.WriteLine($"LoadSolutionEnhanced: Loaded {pSolutionManager.AllProjects.Count} project(s), dependency order:")
+                            #End If
                             for each lMember in pSolutionManager.AllProjects
+                                #If DEBUG Then
                                 Console.WriteLine($"  {lMember.CurrentProjectName} ({lMember.CurrentProjectPath})")
+                                #End If
                             Next
 
                             UpdateProgressBar(100)

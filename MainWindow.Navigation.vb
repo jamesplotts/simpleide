@@ -34,28 +34,38 @@ Partial Public Class MainWindow
             ' Get current tab info
             Dim lTabInfo As TabInfo = GetCurrentTabInfo()
             If lTabInfo Is Nothing Then 
+                #If DEBUG Then
                 Console.WriteLine("UpdateNavigationDropdowns: No current tab")
+                #End If
                 Return
             End If
             
             If lTabInfo.NavigationDropdowns Is Nothing Then 
+                #If DEBUG Then
                 Console.WriteLine("UpdateNavigationDropdowns: No navigation dropdowns in tab")
+                #End If
                 Return
             End If
             
             ' Get the editor
             Dim lEditor As IEditor = lTabInfo.Editor
             If lEditor Is Nothing Then 
+                #If DEBUG Then
                 Console.WriteLine("UpdateNavigationDropdowns: No editor in tab")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"UpdateNavigationDropdowns: Processing {lEditor.FilePath}")
+            #End If
             
             ' Get document structure
             Dim lRootNode As SyntaxNode = lEditor.GetDocumentStructure()
             If lRootNode Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("UpdateNavigationDropdowns: No document structure available")
+                #End If
                 
                 ' Try to trigger a parse if it's a CustomDrawingEditor
                 If TypeOf lEditor Is CustomDrawingEditor Then
@@ -67,7 +77,9 @@ Partial Public Class MainWindow
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"UpdateNavigationDropdowns: Found root node: {lRootNode.Name} with {lRootNode.Children.Count} children")
+            #End If
             
             ' Extract classes and members
             Dim lClasses As New List(Of CodeObject)()
@@ -80,14 +92,18 @@ Partial Public Class MainWindow
             ' only looking at lRootNode.Children directly
             CollectNavigationNodes(lRootNode, lClasses, lRootMembers)
 
+            #If DEBUG Then
             Console.WriteLine($"UpdateNavigationDropdowns: Found {lClasses.Count} classes and {lRootMembers.Count} root members")
+            #End If
             
             ' Update dropdowns
             lTabInfo.NavigationDropdowns.SetNavigationData(lClasses, lRootMembers)
             
             ' Update current position
             Dim lCurrentLine As Integer = lEditor.CurrentLine
+            #If DEBUG Then
             Console.WriteLine($"UpdateNavigationDropdowns: Updating position to line {lCurrentLine}")
+            #End If
             lTabInfo.NavigationDropdowns.UpdatePosition(lCurrentLine)
             
         Catch ex As Exception
@@ -108,14 +124,18 @@ Partial Public Class MainWindow
     Private Sub CollectNavigationNodes(vNode As SyntaxNode, vClasses As List(Of CodeObject), vRootMembers As List(Of CodeMember))
         Try
             For Each lNode In vNode.Children
+                #If DEBUG Then
                 Console.WriteLine($"  Processing node: {lNode.Name} (Type: {lNode.NodeType})")
+                #End If
 
                 Select Case lNode.NodeType
                     Case CodeNodeType.eClass, CodeNodeType.eModule,
                          CodeNodeType.eInterface, CodeNodeType.eStructure,
                          CodeNodeType.eEnum
                         Dim lClass As CodeObject = BuildClassObject(lNode)
+                        #If DEBUG Then
                         Console.WriteLine($"    Found class/module: {lClass.Name} (Lines {lClass.StartLine}-{lClass.EndLine})")
+                        #End If
                         vClasses.Add(lClass)
 
                         ' A Class/Module/Structure can itself declare nested types (e.g.
@@ -132,7 +152,9 @@ Partial Public Class MainWindow
                         ' Root-level members (not in a class)
                         If IsMemberNode(lNode.NodeType) Then
                             vRootMembers.Add(BuildMember(lNode))
+                            #If DEBUG Then
                             Console.WriteLine($"    Found root member: {lNode.Name}")
+                            #End If
                         End If
                 End Select
             Next
@@ -160,7 +182,9 @@ Partial Public Class MainWindow
                         Dim lNested As CodeObject = BuildClassObject(lChild)
                         lNested.Parent = vParent
                         lNested.NestingLevel = vParent.NestingLevel + 1
+                        #If DEBUG Then
                         Console.WriteLine($"    Found nested type: {lNested.Name} (Lines {lNested.StartLine}-{lNested.EndLine}, Level {lNested.NestingLevel})")
+                        #End If
                         vClasses.Add(lNested)
                         CollectNestedTypes(lChild, lNested, vClasses)
                 End Select
@@ -190,7 +214,9 @@ Partial Public Class MainWindow
             If IsMemberNode(lChild.NodeType) Then
                 Dim lMember As CodeMember = BuildMember(lChild)
                 lClass.Members.Add(lMember)
+                #If DEBUG Then
                 Console.WriteLine($"      Added member: {lMember.Name} (Lines {lMember.StartLine}-{lMember.EndLine})")
+                #End If
             End If
         Next
 
@@ -338,7 +364,9 @@ Partial Public Class MainWindow
         Try
             ' Check if notebook exists and has tabs
             If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                #If DEBUG Then
                 Console.WriteLine("SwitchToNextTab: No tabs available")
+                #End If
                 Return
             End If
             
@@ -351,7 +379,9 @@ Partial Public Class MainWindow
                 lNextPage = 0  ' Wrap to first tab
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"SwitchToNextTab: Switching from page {lCurrentPage} To {lNextPage}")
+            #End If
             
             ' Switch to next tab (this will trigger OnNotebookSwitchPage)
             pNotebook.CurrentPage = lNextPage
@@ -368,9 +398,13 @@ Partial Public Class MainWindow
                 Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
                 UpdateStatusBar($"Switched To {lFileName}")
                 
+                #If DEBUG Then
                 Console.WriteLine($"SwitchToNextTab: Successfully switched To {lFileName}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("SwitchToNextTab: Warning - could Not Get tab info for New page")
+                #End If
             End If
             
         Catch ex As Exception
@@ -388,7 +422,9 @@ Partial Public Class MainWindow
         Try
             ' Check if notebook exists and has tabs
             If pNotebook Is Nothing OrElse pNotebook.NPages = 0 Then
+                #If DEBUG Then
                 Console.WriteLine("SwitchToPreviousTab: No tabs available")
+                #End If
                 Return
             End If
             
@@ -401,7 +437,9 @@ Partial Public Class MainWindow
                 lPreviousPage = pNotebook.NPages - 1  ' Wrap to last tab
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"SwitchToPreviousTab: Switching from page {lCurrentPage} To {lPreviousPage}")
+            #End If
             
             ' Switch to previous tab (this will trigger OnNotebookSwitchPage)
             pNotebook.CurrentPage = lPreviousPage
@@ -418,9 +456,13 @@ Partial Public Class MainWindow
                 Dim lFileName As String = System.IO.Path.GetFileName(lTabInfo.FilePath)
                 UpdateStatusBar($"Switched To {lFileName}")
                 
+                #If DEBUG Then
                 Console.WriteLine($"SwitchToPreviousTab: Successfully switched To {lFileName}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("SwitchToPreviousTab: Warning - could Not Get tab info for New page")
+                #End If
             End If
             
         Catch ex As Exception
@@ -438,12 +480,16 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OnNavigationRequested(vLine As Integer)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnNavigationRequested: Navigating To line {vLine}")
+            #End If
             
             ' Get current tab
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnNavigationRequested: No active tab Or editor")
+                #End If
                 Return
             End If
             
@@ -460,7 +506,9 @@ Partial Public Class MainWindow
                 ' Give focus to the editor
                 lCustomEditor.GrabFocus()
 
+                #If DEBUG Then
                 Console.WriteLine($"OnNavigationRequested: Successfully navigated To line {vLine}")
+                #End If
             End If
             
         Catch ex As Exception

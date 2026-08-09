@@ -229,7 +229,9 @@ Namespace Widgets
                     SaveScaleSetting()
                     
                     ' Log the zoom change
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer ZoomIn: {pCurrentScale}% scale")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -259,7 +261,9 @@ Namespace Widgets
                     SaveScaleSetting()
                     
                     ' Log the zoom change
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer ZoomOut: {pCurrentScale}% scale")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -281,7 +285,9 @@ Namespace Widgets
                     SaveScaleSetting()
                     
                     ' Log the zoom reset
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer ZoomReset: {DEFAULT_SCALE}% scale")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -311,7 +317,9 @@ Namespace Widgets
             Try
                 ' Validate percentage
                 If vPercentage < MIN_SCALE OrElse vPercentage > MAX_SCALE Then
+                    #If DEBUG Then
                     Console.WriteLine($"SetZoomPercentage: Invalid percentage {vPercentage}%")
+                    #End If
                     Return
                 End If
                 
@@ -321,7 +329,9 @@ Namespace Widgets
                     SaveScaleSetting()
                     
                     ' Log the zoom change
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer SetZoom: {pCurrentScale}% scale")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -927,7 +937,9 @@ Namespace Widgets
                 
                 ' CRITICAL: pVisibleNodes should NEVER be Nothing since it's initialized with New
                 If pVisibleNodes Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ERROR: pVisibleNodes is Nothing! This should never happen!")
+                    #End If
                     pVisibleNodes = New List(Of VisualNode)()
                 End If
                 
@@ -965,7 +977,9 @@ Namespace Widgets
                             AttemptStructureRecovery()
                         End Sub)
                     Else 
+                        #If DEBUG Then
                         Console.WriteLine("OnDrawingAreaDraw: pRootNode is Nothing, pLastValidRootNode is " + Iif((pLastValidRootNode Is Nothing), "Nothing", "Set") + ", pIsProjectLoaded = " + pIsProjectLoaded.ToString)
+                        #End If
                     End If
                 Else
                     ' We have nodes - draw them

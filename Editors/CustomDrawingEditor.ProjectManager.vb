@@ -44,20 +44,30 @@ Namespace Editors
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawingEditor: ParseCompleted received for {pFilePath}")
+                #End If
                 
                 ' Update the root node from the parse result
                 If vResult IsNot Nothing Then
                     pRootNode = vResult
+                    #If DEBUG Then
                     Console.WriteLine($"CustomDrawingEditor: Updated pRootNode from parse result")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Root node type: {pRootNode.NodeType}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Child count: {If(pRootNode.Children?.Count, 0)}")
+                    #End If
                 End If
                 
                 ' The SourceFileInfo should now have updated LineMetadata and CharacterColors
                 ' Verify the updates
                 If pSourceFileInfo.LineMetadata IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"CustomDrawingEditor: LineMetadata updated with {pSourceFileInfo.LineMetadata.Length} lines")
+                    #End If
                     
                     ' Check if we have syntax tokens
                     Dim lTokenCount As Integer = 0
@@ -66,7 +76,9 @@ Namespace Editors
                             lTokenCount += lMetadata.SyntaxTokens.Count
                         End If
                     Next
+                    #If DEBUG Then
                     Console.WriteLine($"  Total syntax tokens: {lTokenCount}")
+                    #End If
                 End If
                 
                 ' Notify that parsing is complete (raises DocumentParsed event for Object Explorer)
@@ -83,7 +95,9 @@ Namespace Editors
                 ' Queue redraw to show the updated syntax highlighting
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawingEditor: Redraw queued for {pFilePath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnProjectManagerParseCompleted error: {ex.Message}")
@@ -112,7 +126,9 @@ Namespace Editors
                     Return True
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("EnsureProjectManager: No ProjectManager provided")
+                #End If
                 Return False
                 
             Catch ex As Exception
@@ -131,7 +147,9 @@ Namespace Editors
             Try
                 ' First ensure the editor has ProjectManager
                 If Not EnsureProjectManager() Then
+                    #If DEBUG Then
                     Console.WriteLine("InitializeProjectManagerConnection: Failed to get ProjectManager for editor")
+                    #End If
                     Return
                 End If
                 
@@ -140,13 +158,19 @@ Namespace Editors
                     ' Set the ProjectManager directly if we have it
                     If pProjectManager IsNot Nothing Then
                         pSourceFileInfo.ProjectManager = pProjectManager
+                        #If DEBUG Then
                         Console.WriteLine("InitializeProjectManagerConnection: Connected SourceFileInfo to ProjectManager")
+                        #End If
                     Else
                         ' Try through the event mechanism
                         If pSourceFileInfo.EnsureProjectManagerConnection() Then
+                            #If DEBUG Then
                             Console.WriteLine("InitializeProjectManagerConnection: SourceFileInfo connected via event")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine("InitializeProjectManagerConnection: Failed to connect SourceFileInfo to ProjectManager")
+                            #End If
                         End If
                     End If
                 End If

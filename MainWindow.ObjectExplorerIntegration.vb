@@ -44,7 +44,9 @@ Partial Public Class MainWindow
                 ' ADDED: Also update navigation dropdowns if this is the current tab
                 Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
                 If lCurrentTab IsNot Nothing AndAlso lCurrentTab.Editor Is vEditor Then
+                    #If DEBUG Then
                     Console.WriteLine("SetupObjectExplorerForEditor: Initial structure available, updating navigation dropdowns")
+                    #End If
                     UpdateNavigationDropdowns()
                 End If
             Else
@@ -69,7 +71,9 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OnEditorDocumentParsed(vRootNode As SyntaxNode)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnEditorDocumentParsed: Document parsed, root node = {If(vRootNode IsNot Nothing, vRootNode.Name, "Nothing")}")
+            #End If
             
             ' Update Object Explorer (existing functionality)
             UpdateObjectExplorerForActiveTab()
@@ -77,13 +81,17 @@ Partial Public Class MainWindow
             ' Update navigation dropdowns for current tab (new functionality)
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnEditorDocumentParsed: Updating navigation dropdowns for current tab")
+                #End If
                 UpdateNavigationDropdowns()
                 
                 ' Also update the position to reflect current cursor location
                 If lCurrentTab.NavigationDropdowns IsNot Nothing AndAlso lCurrentTab.Editor IsNot Nothing Then
                     Dim lLine As Integer = lCurrentTab.Editor.CurrentLine
+                    #If DEBUG Then
                     Console.WriteLine($"OnEditorDocumentParsed: Updating position to line {lLine}")
+                    #End If
                     lCurrentTab.NavigationDropdowns.UpdatePosition(lLine)
                 End If
             End If
@@ -129,13 +137,17 @@ Partial Public Class MainWindow
                 
                 If lProjectTree IsNot Nothing Then
                     pObjectExplorer.UpdateStructure(lProjectTree)
+                    #If DEBUG Then
                     Console.WriteLine("Object Explorer updated with project structure for active tab")
+                    #End If
                 Else
                     ' Fall back to file structure if project tree not available
                     Dim lStructure As SyntaxNode = lCurrentTab.Editor.GetDocumentStructure()
                     If lStructure IsNot Nothing Then
                         pObjectExplorer.UpdateStructure(lStructure)
+                        #If DEBUG Then
                         Console.WriteLine("Object Explorer updated with file structure (project tree unavailable)")
+                        #End If
                     End If
                 End If
             Else
@@ -143,7 +155,9 @@ Partial Public Class MainWindow
                 Dim lStructure As SyntaxNode = lCurrentTab.Editor.GetDocumentStructure()
                 If lStructure IsNot Nothing Then
                     pObjectExplorer.UpdateStructure(lStructure)
+                    #If DEBUG Then
                     Console.WriteLine("Object Explorer updated with file structure (no project)")
+                    #End If
                 End If
             End If
             
@@ -176,7 +190,9 @@ Partial Public Class MainWindow
     ' Replace: SimpleIDE.MainWindow.OnObjectExplorerNavigateToFile
     Private Sub OnObjectExplorerNavigateToFile(vFilePath As String, vPosition As EditorPosition)
         Try
+            #If DEBUG Then
             Console.WriteLine($"NavigateToFile: {vFilePath} at line {vPosition.Line + 1}")
+            #End If
             ' Suppress tree rebuild triggered by the tab switch we are about to make
             pIsObjectExplorerNavigating = True
             
@@ -251,7 +267,9 @@ Partial Public Class MainWindow
         Try
             If pObjectExplorer Is Nothing OrElse vEditor Is Nothing Then Return
             
+            #If DEBUG Then
             Console.WriteLine("File opened from Project Explorer")
+            #End If
             
             ' Set the current editor
             pObjectExplorer.SetCurrentEditor(vEditor)
@@ -266,7 +284,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub ParseProjectStructure(vProjectPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"ParseProjectStructure: {vProjectPath}")
+            #End If
 
             pProjectManager.LoadProjectWithParsing(vProjectPath)
             
@@ -274,14 +294,18 @@ Partial Public Class MainWindow
             Dim lProjectStructure As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
             
             If lProjectStructure IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"  Project has {lProjectStructure.Children.Count} top-level nodes")
+                #End If
                 
                 ' Update Object Explorer with complete project structure
                 If pObjectExplorer IsNot Nothing Then
                     pObjectExplorer.UpdateStructure(lProjectStructure)
                 End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("  No project structure available")
+                #End If
             End If
             
         Catch ex As Exception
@@ -300,7 +324,9 @@ Partial Public Class MainWindow
             If vNode Is Nothing Then Return
             
             ' Could highlight the node in editor or show info in status bar
+            #If DEBUG Then
             Console.WriteLine($"Object Explorer node selected: {vNode.Name}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnObjectExplorerNodeSelected error: {ex.Message}")

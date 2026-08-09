@@ -254,17 +254,23 @@ Namespace Managers
         ''' </summary>
         Public Function ParseProjectStructure() As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine("ProjectManager: Starting project structure parse...")
+                #End If
                 
                 ' Ensure we have a project loaded
                 If Not pIsProjectOpen OrElse pCurrentProjectInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project is currently loaded")
+                    #End If
                     Return False
                 End If
                 
                 ' Ensure all source files are loaded
                 If Not LoadAllSourceFiles() Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: Failed to load source files")
+                    #End If
                     Return False
                 End If
                 
@@ -292,22 +298,34 @@ Namespace Managers
            
                 ' Check if we actually got a valid tree
                 If pProjectSyntaxTree IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: ParseProject returned tree with root: {pProjectSyntaxTree.Name}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Root type: {pProjectSyntaxTree.NodeType}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Children count: {pProjectSyntaxTree.Children.Count}")
+                    #End If
                     
                     ' Log first level children
                     for each lChild in pProjectSyntaxTree.Children
+                        #If DEBUG Then
                         Console.WriteLine($"    - {lChild.Name} ({lChild.NodeType})")
+                        #End If
                     Next
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: ParseProject returned Nothing!")
+                    #End If
                 End If
                 
                 ' Raise events
                 If pProjectSyntaxTree IsNot Nothing Then
                     RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: Raised ProjectStructureLoaded event")
+                    #End If
                 End If
                 
                 If pParseErrors IsNot Nothing AndAlso pParseErrors.Count > 0 Then
@@ -316,9 +334,13 @@ Namespace Managers
                 
                 ' Log results
                 Dim lNodeCount As Integer = CountNodes(pProjectSyntaxTree)
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager: Parse complete. Total nodes: {lNodeCount}")
+                #End If
                 If pParseErrors IsNot Nothing AndAlso pParseErrors.Count > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: {pParseErrors.Count} parse errors encountered")
+                    #End If
                 End If
 
                 Return True
@@ -335,7 +357,9 @@ Namespace Managers
         ''' </summary>
         Public Sub RebuildProjectTree()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ProjectManager: Rebuilding project tree...")
+                #End If
                 ParseProjectStructure()
                 
             Catch ex As Exception
@@ -452,13 +476,17 @@ Namespace Managers
                 ' Get the SourceFileInfo
                 Dim lSourceFileInfo As SourceFileInfo = GetSourceFileInfo(vFilePath)
                 If lSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: File not found in project: {vFilePath}")
+                    #End If
                     Return False
                 End If
                 
                 ' Reload content
                 If Not lSourceFileInfo.LoadContent() Then
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: Failed to reload content for: {vFilePath}")
+                    #End If
                     Return False
                 End If
                 
@@ -487,19 +515,27 @@ Namespace Managers
 ''' </remarks>
 Private Function LoadAllSourceFiles() As Boolean
     Try
+        #If DEBUG Then
         Console.WriteLine("ProjectManager: Loading all source files...")
+        #End If
         
         If pCurrentProjectInfo Is Nothing Then
+            #If DEBUG Then
             Console.WriteLine("ProjectManager: No project info available")
+            #End If
             Return False
         End If
         
         ' Get list of source files
         Dim lSourceFilePaths As List(Of String) = pCurrentProjectInfo.SourceFiles
+        #If DEBUG Then
         Console.WriteLine($"ProjectManager: Found {lSourceFilePaths.Count} source files to load")
+        #End If
         
         If lSourceFilePaths.Count = 0 Then
+            #If DEBUG Then
             Console.WriteLine("ProjectManager: No source files in project")
+            #End If
             Return False
         End If
         
@@ -537,10 +573,14 @@ Private Function LoadAllSourceFiles() As Boolean
                 ' Load the file
                 If lSourceFile.LoadContent() Then
                     lSuccessCount += 1
+                    #If DEBUG Then
                     Console.WriteLine($"  Loaded: {Path.GetFileName(lFilePath)} ({lSourceFile.Content.Length} chars)")
+                    #End If
                 Else
                     lFailedFiles.Add(lFilePath)
+                    #If DEBUG Then
                     Console.WriteLine($"  Failed: {Path.GetFileName(lFilePath)}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -549,12 +589,18 @@ Private Function LoadAllSourceFiles() As Boolean
             End Try
         Next
         
+        #If DEBUG Then
         Console.WriteLine($"ProjectManager: Loaded {lSuccessCount} of {lSourceFilePaths.Count} source files")
+        #End If
         
         If lFailedFiles.Count > 0 Then
+            #If DEBUG Then
             Console.WriteLine($"ProjectManager: Failed to load {lFailedFiles.Count} files:")
+            #End If
             for each lFile in lFailedFiles
+                #If DEBUG Then
                 Console.WriteLine($"  - {Path.GetFileName(lFile)}")
+                #End If
             Next
         End If
         
@@ -657,7 +703,9 @@ End Function
                     Try
                         ' Ensure Parser is initialized
                         If Parser Is Nothing Then
+                            #If DEBUG Then
                             Console.WriteLine("ProjectManager.ParseFileAsync: Parser not initialized")
+                            #End If
                             Return
                         End If
                         
@@ -693,7 +741,9 @@ End Function
                             ' vFile.EnsureCharacterTokens()  ' <-- REMOVED: This was resetting all tokens!
                             
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"ProjectManager.ParseFileAsync: Parse result was Nothing for {vFile.FileName}")
+                            #End If
                         End If
                         
                         ' Notify listeners on UI thread
@@ -705,7 +755,9 @@ End Function
                                 ' Notify the SourceFileInfo that rendering has changed
                                 vFile.NotifyRenderingChanged(0, vFile.TextLines.Count - 1)
                                 
+                                #If DEBUG Then
                                 Console.WriteLine($"ProjectManager.ParseFileAsync: Notified UI and triggered redraw for {vFile.FileName}")
+                                #End If
                                 
                             Catch ex As Exception
                                 Console.WriteLine($"ParseFileAsync UI notification error: {ex.Message}")
@@ -757,7 +809,9 @@ End Function
                     UpdateCharacterTokens(vFile)
                 End SyncLock
 
+                #If DEBUG Then
                 Console.WriteLine($"UpdateSourceFileMetadata: Updated metadata and tokens for {vFile.FileName}")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"UpdateSourceFileMetadata error: {ex.Message}")
@@ -1026,7 +1080,9 @@ Private Sub WireSourceFileInfoEvents(vSourceFile As SourceFileInfo)
         ' Also set the ProjectManager directly since we have it
         vSourceFile.ProjectManager = Me
         
+        #If DEBUG Then
         Console.WriteLine($"ProjectManager: Wired events for {vSourceFile.FileName}")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"WireSourceFileInfoEvents error: {ex.Message}")
@@ -1047,7 +1103,9 @@ Private Sub UnwireSourceFileInfoEvents(vSourceFile As SourceFileInfo)
         ' Call cleanup on the SourceFileInfo
         vSourceFile.Cleanup()
         
+        #If DEBUG Then
         Console.WriteLine($"ProjectManager: Unwired events for {vSourceFile.FileName}")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"UnwireSourceFileInfoEvents error: {ex.Message}")

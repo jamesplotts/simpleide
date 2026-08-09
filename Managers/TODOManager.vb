@@ -53,7 +53,9 @@ Namespace Utilities
                     
                     SaveTODOs(lSampleTODOs)
                 End If
+                #If DEBUG Then
                 Console.WriteLine("EnsureTODOFileExists() Done")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"error ensuring TODO file exists: {ex.Message}")
             End Try

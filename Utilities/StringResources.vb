@@ -112,7 +112,9 @@ Namespace Utilities
                     Return pStringCache(vKey)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"StringResources: Key not found: {vKey}")
+                #End If
                 Return $"[{vKey}]" ' Return key in brackets if not found
                 
             Catch ex As Exception
@@ -203,7 +205,9 @@ Namespace Utilities
                 pIsLoaded = False
                 LoadResources()
                 
+                #If DEBUG Then
                 Console.WriteLine($"StringResources reloaded: {pStringCache.Count} strings")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"StringResources.ReloadResources error: {ex.Message}")
@@ -225,7 +229,9 @@ Namespace Utilities
                 
                 pIsLoaded = True
                 
+                #If DEBUG Then
                 Console.WriteLine($"StringResources loaded: {pStringCache.Count} strings")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"StringResources.LoadResources error: {ex.Message}")
@@ -264,9 +270,13 @@ Namespace Utilities
                 ' If not found by name, list all resources (for debugging)
                 If lResourceStream Is Nothing Then
                     Dim lAllResources() As String = lAssembly.GetManifestResourceNames()
+                    #If DEBUG Then
                     Console.WriteLine("Available embedded resources:")
+                    #End If
                     For Each lResource In lAllResources
+                        #If DEBUG Then
                         Console.WriteLine($"  - {lResource}")
+                        #End If
                         If lResource.Contains("Strings.xml") Then
                             lResourceStream = lAssembly.GetManifestResourceStream(lResource)
                             lFoundName = lResource
@@ -276,12 +286,16 @@ Namespace Utilities
                 End If
                 
                 If lResourceStream IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Loading embedded resource: {lFoundName}")
+                    #End If
                     Using lResourceStream
                         LoadXmlFromStream(lResourceStream)
                     End Using
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("Warning: Strings.xml not found in embedded resources")
+                    #End If
                     ' Load minimal fallback strings
                     LoadFallbackStrings()
                 End If
@@ -311,7 +325,9 @@ Namespace Utilities
                     End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"Loaded {lStringNodes.Count} strings from XML")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"StringResources.LoadXmlFromStream error: {ex.Message}")
@@ -328,7 +344,9 @@ Namespace Utilities
                 Dim lResourceFile As String = System.IO.Path.Combine(lAppDir, "Resources", "Strings.xml")
                 
                 If File.Exists(lResourceFile) Then
+                    #If DEBUG Then
                     Console.WriteLine($"Loading external resources: {lResourceFile}")
+                    #End If
                     LoadXmlFromFile(lResourceFile)
                 End If
                 
@@ -341,7 +359,9 @@ Namespace Utilities
                 )
                 
                 If File.Exists(lUserResourceFile) Then
+                    #If DEBUG Then
                     Console.WriteLine($"Loading user resources: {lUserResourceFile}")
+                    #End If
                     LoadXmlFromFile(lUserResourceFile)
                 End If
                 
@@ -377,7 +397,9 @@ Namespace Utilities
                 pStringCache(KEY_ERROR_FILE_NOT_FOUND) = "File not found: {FilePath}"
                 pStringCache(KEY_INFO_FILE_SAVED) = "File saved: {FileName}"
                 
+                #If DEBUG Then
                 Console.WriteLine("Loaded fallback strings")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"StringResources.LoadFallbackStrings error: {ex.Message}")

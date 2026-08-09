@@ -196,7 +196,9 @@ Namespace Editors
                         RemoveHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted
                         RemoveHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
                         RemoveHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
+                        #If DEBUG Then
                         Console.WriteLine($"CustomDrawingEditor: Unsubscribed from old ProjectManager")
+                        #End If
                     End If
                     
                     ' Set new manager
@@ -209,7 +211,9 @@ Namespace Editors
                         AddHandler pProjectManager.ParseCompleted, AddressOf OnProjectManagerParseCompleted
                         AddHandler pProjectManager.IdentifierMapUpdated, AddressOf OnProjectManagerIdentifierMapUpdated
                         AddHandler pProjectManager.ProjectClosed, AddressOf OnProjectManagerProjectClosed
+                        #If DEBUG Then
                         Console.WriteLine($"CustomDrawingEditor: Subscribed to ProjectManager for notifications")
+                        #End If
                         
                         ' If we have a SourceFileInfo that needs colors, it will request parsing itself
                         ' We just wait for the notification when parsing completes
@@ -350,13 +354,17 @@ Namespace Editors
                 End Try
 
                 ' REMOVED: Don't try to get ProjectManager here - it will be set by CreateNewTab
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawingEditor created for {vSourceFileInfo.FileName}, awaiting ProjectManager")
+                #End If
                
                 ' FIXED: Check if SourceFileInfo already has a parsed SyntaxTree
                 If vSourceFileInfo.SyntaxTree IsNot Nothing AndAlso vSourceFileInfo.IsParsed Then
                     ' Use the existing parsed structure
                     pRootNode = vSourceFileInfo.SyntaxTree
+                    #If DEBUG Then
                     Console.WriteLine($"Using existing parse tree for {vSourceFileInfo.FileName}")
+                    #End If
 
                     ' This tree was parsed before this editor existed (e.g. during initial
                     ' project load), so the ParseCompleted event that would normally trigger
@@ -365,7 +373,9 @@ Namespace Editors
                     RebuildVisualLineMap()
                 Else
                     ' REMOVED: Don't request parse here - wait for ProjectManager to be set
+                    #If DEBUG Then
                     Console.WriteLine($"No existing parse tree for {vSourceFileInfo.FileName}, will parse when ProjectManager is available")
+                    #End If
                 End If
                 
                 ' Mark as not modified for existing files
@@ -377,9 +387,15 @@ Namespace Editors
                 ' happen (see CustomDrawingEditor.IdentifierCaseSync.vb)
                 SeedIdentifierCaseMapsFromCurrentContent()
 
+                #If DEBUG Then
                 Console.WriteLine($"Editor initialized for: {pFilePath}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Lines: {pLineCount}, Loaded: {vSourceFileInfo.IsLoaded}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Using tokens: {If(vSourceFileInfo.CharacterTokens IsNot Nothing, "Yes", "No")}")
+                #End If
         
                 SetCursorPosition(0,0)
                 EnsureCursorVisible
@@ -398,7 +414,9 @@ Namespace Editors
             Try
                 ' Initialize critical objects first to prevent null references
                 If pSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("InitializeComponents: WARNING - pSourceFileInfo is Nothing, creating minimal instance")
+                    #End If
                     pSourceFileInfo = New SourceFileInfo("", "")
                     
                     ' Hook up ProjectManagerRequested event for emergency SourceFileInfo
@@ -515,7 +533,9 @@ Namespace Editors
 							Public 	Sub HandleProjectManagerRequests(sender As Object, e As SourceFileInfo.ProjectManagerRequestEventArgs)
             ' Check if we have a ProjectManager available from somewhere
             pSourceFileInfo.ProjectManager = pProjectManager
+            #If DEBUG Then
             Console.WriteLine("CustomDrawingEditor.InitializeComponents: Emergency SourceFileInfo requested ProjectManager")
+            #End If
         End Sub
 
         
@@ -537,7 +557,9 @@ Namespace Editors
                         ' Create SyntaxColorSet from theme
                         pSyntaxColorSet = New SyntaxColorSet()
                         pSyntaxColorSet.UpdateFromTheme(lCurrentTheme)
+                        #If DEBUG Then
                         Console.WriteLine("InitializeEditor: SyntaxColorSet initialized from current theme")
+                        #End If
                     Else
                         ' Fall back to creating default SyntaxColorSet
                         pSyntaxColorSet = New SyntaxColorSet()
@@ -599,7 +621,9 @@ Namespace Editors
                 ' Force redraw to apply changes
                 pLineNumberWidget.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"UpdateLineNumberWidget: Updated with theme '{lTheme?.Name}'")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateLineNumberWidget error: {ex.Message}")
@@ -632,7 +656,9 @@ Namespace Editors
                     ' Queue redraw of line numbers
                     pLineNumberWidget?.QueueDraw()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"UpdateLineNumberWidth: Set to {pLineNumberWidth}px for {pLineCount} lines")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -1013,7 +1039,9 @@ Namespace Editors
         ''' </remarks>
         Private Sub OnProjectManagerIdentifierMapUpdated()
             Try
+                #If DEBUG Then
                 Console.WriteLine("CustomDrawingEditor: Identifier map updated - refreshing display")
+                #End If
                 
                 ' The ProjectManager will re-parse and update CharacterColors
                 ' We just need to redraw
@@ -1034,7 +1062,9 @@ Namespace Editors
         Public Sub ClearIdentifierCaseMap()
             Try
                 pIdentifierCaseMap.Clear()
+                #If DEBUG Then
                 Console.WriteLine("Cleared identifier case map")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"ClearIdentifierCaseMap error: {ex.Message}")
             End Try
@@ -1048,7 +1078,9 @@ Namespace Editors
         ''' </remarks>
         Private Sub OnProjectManagerProjectClosed()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawingEditor: Project closed notification")
+                #End If
                 
                 ' Clear any cached parse data
                 pRootNode = Nothing
@@ -1131,7 +1163,9 @@ Namespace Editors
         ''' </remarks>
         Public Shadows Sub OnShown() Implements IEditor.OnShown
             Try
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawingEditor.OnShown: Editor shown for {pFilePath}")
+                #End If
                 
                 
                 ' Ensure the drawing area is focused for keyboard input
@@ -1159,7 +1193,9 @@ Namespace Editors
                 pDrawingArea?.QueueDraw()
                 pClientAreaBox?.QueueDraw()
 
+                #If DEBUG Then
                 Console.WriteLine("OnThemeChanged: Theme cache updated and redraw queued")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnThemeChanged error: {ex.Message}")
@@ -1197,7 +1233,9 @@ Namespace Editors
                 ' Raise text changed event for MainWindow
                 RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
+                #If DEBUG Then
                 Console.WriteLine($"OnTextLinesChanged: Updated for {vArgs.ChangeType}, lines affected: {vArgs.LinesAffected}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnTextLinesChanged error: {ex.Message}")
@@ -1218,7 +1256,9 @@ Namespace Editors
                 ' Simply queue a redraw when rendering changes
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("OnRenderingChanged: Redraw queued")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnRenderingChanged error: {ex.Message}")
@@ -1241,7 +1281,9 @@ Namespace Editors
                 AddHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
                 AddHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
                 
+                #If DEBUG Then
                 Console.WriteLine("HookSourceFileInfoEvents: Events connected")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"HookSourceFileInfoEvents error: {ex.Message}")
@@ -1263,7 +1305,9 @@ Namespace Editors
                 RemoveHandler pSourceFileInfo.TextLinesChanged, AddressOf OnTextLinesChanged
                 RemoveHandler pSourceFileInfo.RenderingChanged, AddressOf OnRenderingChanged
                 
+                #If DEBUG Then
                 Console.WriteLine("UnhookSourceFileInfoEvents: Events disconnected")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UnhookSourceFileInfoEvents error: {ex.Message}")

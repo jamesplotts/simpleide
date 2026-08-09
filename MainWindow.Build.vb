@@ -33,11 +33,15 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub InitializeBuildSystem()
         Try
+            #If DEBUG Then
             Console.WriteLine("InitializeBuildSystem: Starting...")
+            #End If
             
             ' Create build manager if needed
             If pBuildManager Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("InitializeBuildSystem: Creating BuildManager")
+                #End If
                 pBuildManager = New BuildManager()
                 
                 ' Add event handlers for build manager
@@ -49,18 +53,24 @@ Partial Public Class MainWindow
             
             ' Create build configuration if needed
             If pBuildConfiguration Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("InitializeBuildSystem: Creating BuildConfiguration")
+                #End If
                 pBuildConfiguration = New BuildConfiguration()
                 LoadBuildConfiguration()
             End If
             
             ' CRITICAL: Set the configuration on the build manager
             If pBuildManager IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"InitializeBuildSystem: Setting BuildManager.Configuration")
+                #End If
                 pBuildManager.Configuration = pBuildConfiguration
             End If
             
+            #If DEBUG Then
             Console.WriteLine("InitializeBuildSystem: Complete")
+            #End If
         Catch ex As Exception
             Console.WriteLine($"InitializeBuildSystem error: {ex.Message}")
             Console.WriteLine($"Stack trace: {ex.StackTrace}")
@@ -113,7 +123,9 @@ Partial Public Class MainWindow
             ' Check if already building - see IsAnyBuildInProgress's remarks for why this
             ' needs to check more than just this method's own flag
             If IsAnyBuildInProgress() Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProject: Already building (early exit)")
+                #End If
                 Return
             End If
 
@@ -122,13 +134,27 @@ Partial Public Class MainWindow
             pCurrentBuildOperation = "Build"
 
             ' DEBUG: Simple console output to verify method is called
+            #If DEBUG Then
             Console.WriteLine("===============================================")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("BUILD PROJECT CALLED!")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Time: {DateTime.Now:HH:mm:ss.fff}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Project Path: {pCurrentProject}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"BuildManager Is Nothing: {pBuildManager Is Nothing}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"BuildConfiguration Is Nothing: {pBuildConfiguration Is Nothing}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("===============================================")
+            #End If
              
             If String.IsNullOrEmpty(pCurrentProject) Then
                 ShowError("No project", "Please open a project before building.")
@@ -138,20 +164,26 @@ Partial Public Class MainWindow
     
             ' Initialize build system if needed
             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProject: Initializing build system")
+                #End If
                 InitializeBuildSystem()
             End If
             
             ' Verify initialization succeeded
             If pBuildManager Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProject: ERROR - BuildManager is Nothing after initialization")
+                #End If
                 ShowError("Build Error", "Failed to initialize build system")
                 pIsBuildingNow = False ' Reset flag on error
                 Return
             End If
             
             If pBuildConfiguration Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProject: ERROR - BuildConfiguration is Nothing after initialization")
+                #End If
                 ShowError("Build Error", "Failed to initialize build configuration")
                 pIsBuildingNow = False ' Reset flag on error
                 Return
@@ -159,7 +191,9 @@ Partial Public Class MainWindow
     
             ' Check if already building - use the BuildManager's IsBuilding property
             If pBuildManager.IsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProject: Build already in progress (BuildManager check)")
+                #End If
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 pIsBuildingNow = False ' Reset flag since we're not starting a new build
                 Return
@@ -176,25 +210,37 @@ Partial Public Class MainWindow
             SaveAllFiles()
     
             ' Set project path and configuration for build manager
+            #If DEBUG Then
             Console.WriteLine($"BuildProject: Setting project path = {pCurrentProject}")
+            #End If
             pBuildManager.ProjectPath = pCurrentProject
             
             ' Ensure configuration is set
+            #If DEBUG Then
             Console.WriteLine($"BuildProject: Setting configuration = {pBuildConfiguration.Configuration}")
+            #End If
             pBuildManager.Configuration = pBuildConfiguration
     
             ' Start async build - Pass the configuration explicitly
+            #If DEBUG Then
             Console.WriteLine("BuildProject: Starting async build")
+            #End If
             Task.Run(Async Function() 
                 Try
+                    #If DEBUG Then
                     Console.WriteLine("BuildProject: Async task started")
+                    #End If
                     Dim lResult = Await pBuildManager.BuildProjectAsync(pBuildConfiguration)
+                    #If DEBUG Then
                     Console.WriteLine($"BuildProject: Async task completed, Success = {lResult?.Success}")
+                    #End If
                     
                     ' Reset building flag when complete (on UI thread for safety)
                     Application.Invoke(Sub()
                         pIsBuildingNow = False
+                        #If DEBUG Then
                         Console.WriteLine("BuildProject: pIsBuildingNow flag reset to False")
+                        #End If
                     End Sub)
                     
                     Return lResult
@@ -263,12 +309,16 @@ Partial Public Class MainWindow
     Public Sub BuildSolution()
         Try
             If IsAnyBuildInProgress() Then
+                #If DEBUG Then
                 Console.WriteLine("BuildSolution: Already building (early exit)")
+                #End If
                 Return
             End If
 
             If pSolutionManager Is Nothing OrElse pSolutionManager.AllProjects.Count = 0 Then
+                #If DEBUG Then
                 Console.WriteLine("BuildSolution: No solution loaded, falling back to BuildProject")
+                #End If
                 BuildProject()
                 Return
             End If
@@ -385,7 +435,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub OnBuildSolution(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("OnBuildSolution called (Ctrl+Shift+B - Build Solution)")
+            #End If
             BuildSolution()
         Catch ex As Exception
             Console.WriteLine($"OnBuildSolution error: {ex.Message}")
@@ -409,7 +461,9 @@ Partial Public Class MainWindow
             
             ' Try to increment (will only do so if auto-increment is enabled)
             If lVersionManager.IncrementBuildNumberIfEnabled() Then
+                #If DEBUG Then
                 Console.WriteLine("Project version incremented before build")
+                #End If
                 
                 ' Refresh any open AssemblyInfo editors
                 RefreshAssemblyRelatedEditors()
@@ -441,7 +495,9 @@ Partial Public Class MainWindow
             ' Find the *.vbproj file
             Dim lIdeProjectPath As String = FindProjectFile()
             If String.IsNullOrEmpty(lIdeProjectPath) Then
+                #If DEBUG Then
                 Console.WriteLine("Could not find the *.vbproj for version increment")
+                #End If
                 Return
             End If
             
@@ -462,7 +518,9 @@ Partial Public Class MainWindow
                 
                 ' Set the new version
                 If lVersionManager.SetVersion(lNewVersion) Then
+                    #If DEBUG Then
                     Console.WriteLine($"Project version incremented from {lCurrentVersion} to {lNewVersion}")
+                    #End If
                     
                     
                     ' Clear cached version so UI updates
@@ -663,7 +721,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnBuildStarted(vSender As Object, vE As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("OnBuildStarted: Starting")
+            #End If
             
             Application.Invoke(Sub()
                 Try
@@ -709,8 +769,12 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnBuildCompleted(vSender As Object, vArgs As BuildEventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnBuildCompleted called - Success = {vArgs?.Result?.Success}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"OnBuildCompleted - Errors: {vArgs?.Result?.Errors?.Count}, Warnings: {vArgs?.Result?.Warnings?.Count}")
+            #End If
             
             Application.Invoke(Sub()
                 Try
@@ -812,7 +876,9 @@ Partial Public Class MainWindow
             
             ' Store reference if we need to track it
             If lProcess IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"Started process: {vExecutable}")
+                #End If
             End If
             
         Catch ex As Exception
@@ -975,14 +1041,18 @@ Partial Public Class MainWindow
                 ' Mark project as dirty if any file is modified
                 If Not pProjectManager.IsDirty Then
                     pProjectManager.MarkDirty()
+                    #If DEBUG Then
                     Console.WriteLine("UpdateProjectDirtyState: Project marked as dirty (files have unsaved changes)")
+                    #End If
                 End If
             Else
                 ' Mark project as clean if all files are saved
                 If pProjectManager.IsDirty Then
                     ' Note: We may need to add a MarkClean method to ProjectManager
                     ' For now, we'll set IsDirty through reflection or add the method
+                    #If DEBUG Then
                     Console.WriteLine("UpdateProjectDirtyState: All files saved, project should be clean")
+                    #End If
                     ' TODO: Add pProjectManager.MarkClean() method
                 End If
             End If

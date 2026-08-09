@@ -31,33 +31,47 @@ Namespace Editors
         ''' </summary>
         Public Sub ZoomIn() Implements IEditor.ZoomIn
             Try
+                #If DEBUG Then
                 Console.WriteLine("ZoomIn() called")
+                #End If
                 
                 If pSettingsManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ZoomIn: ERROR - No SettingsManager available")
+                    #End If
                     Return
                 End If
                 
                 ' Get current zoom from settings
                 Dim lCurrentZoom As Integer = pSettingsManager.EditorZoomLevel
+                #If DEBUG Then
                 Console.WriteLine($"ZoomIn: Current zoom level = {lCurrentZoom}pt")
+                #End If
                 
                 ' Calculate new font size
                 Dim lNewSize As Integer = CInt(Math.Round(lCurrentZoom * 1.2))
+                #If DEBUG Then
                 Console.WriteLine($"ZoomIn: Calculated new size = {lNewSize}pt")
+                #End If
                 
                 ' Apply maximum limit
                 If lNewSize > 72 Then
                     lNewSize = 72
+                    #If DEBUG Then
                     Console.WriteLine($"ZoomIn: Clamped to maximum = {lNewSize}pt")
+                    #End If
                 End If
                 
                 ' Only update if size changed
                 If lNewSize <> lCurrentZoom Then
+                    #If DEBUG Then
                     Console.WriteLine($"ZoomIn: Updating SettingsManager from {lCurrentZoom}pt to {lNewSize}pt")
+                    #End If
                     pSettingsManager.EditorZoomLevel = lNewSize
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("ZoomIn: No change needed")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -70,33 +84,47 @@ Namespace Editors
         ''' </summary>
         Public Sub ZoomOut() Implements IEditor.ZoomOut
             Try
+                #If DEBUG Then
                 Console.WriteLine("ZoomOut() called")
+                #End If
                 
                 If pSettingsManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ZoomOut: ERROR - No SettingsManager available")
+                    #End If
                     Return
                 End If
                 
                 ' Get current zoom from settings
                 Dim lCurrentZoom As Integer = pSettingsManager.EditorZoomLevel
+                #If DEBUG Then
                 Console.WriteLine($"ZoomOut: Current zoom level = {lCurrentZoom}pt")
+                #End If
                 
                 ' Calculate new font size
                 Dim lNewSize As Integer = CInt(Math.Round(lCurrentZoom / 1.2))
+                #If DEBUG Then
                 Console.WriteLine($"ZoomOut: Calculated new size = {lNewSize}pt")
+                #End If
                 
                 ' Apply minimum limit
                 If lNewSize < 6 Then
                     lNewSize = 6
+                    #If DEBUG Then
                     Console.WriteLine($"ZoomOut: Clamped to minimum = {lNewSize}pt")
+                    #End If
                 End If
                 
                 ' Only update if size changed
                 If lNewSize <> lCurrentZoom Then
+                    #If DEBUG Then
                     Console.WriteLine($"ZoomOut: Updating SettingsManager from {lCurrentZoom}pt to {lNewSize}pt")
+                    #End If
                     pSettingsManager.EditorZoomLevel = lNewSize
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("ZoomOut: No change needed")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -127,7 +155,9 @@ Namespace Editors
             Try
                 ' Validate font size
                 If vFontSize < MIN_FONT_SIZE OrElse vFontSize > MAX_FONT_SIZE Then
+                    #If DEBUG Then
                     Console.WriteLine($"ApplyZoomLevel: Invalid font size {vFontSize}")
+                    #End If
                     Return
                 End If
                 
@@ -149,10 +179,14 @@ Namespace Editors
                     pSettingsManager.EditorFont = lNewFontDesc
                     
                     ' Log the zoom change
+                    #If DEBUG Then
                     Console.WriteLine($"Zoom applied: {vFontSize}pt (from {pBaseFontSize}pt base)")
+                    #End If
                 Else
                     ' No font description yet, just store the size
+                    #If DEBUG Then
                     Console.WriteLine($"Zoom level stored: {vFontSize}pt (font not yet initialized)")
+                    #End If
                 End If
                 
                 ' Update line number width if showing
@@ -198,12 +232,16 @@ Namespace Editors
                     
                     pCurrentFontSize = pBaseFontSize
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Zoom initialized: Base font size = {pBaseFontSize}pt")
+                    #End If
                 Else
                     ' Use defaults if no font description
                     pBaseFontSize = DEFAULT_FONT_SIZE
                     pCurrentFontSize = DEFAULT_FONT_SIZE
+                    #If DEBUG Then
                     Console.WriteLine("Zoom initialized with defaults: 11pt")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -238,7 +276,9 @@ Namespace Editors
             Try
                 ' Validate percentage
                 If vPercentage < 10 OrElse vPercentage > 500 Then
+                    #If DEBUG Then
                     Console.WriteLine($"SetZoomPercentage: Invalid percentage {vPercentage}%")
+                    #End If
                     Return
                 End If
                 

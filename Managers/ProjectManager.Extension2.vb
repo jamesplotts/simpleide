@@ -89,7 +89,9 @@ Namespace Managers
         ''' </summary>
         Public Sub BuildProjectSyntaxTree()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"BuildProjectSyntaxTree: Starting with {pSourceFiles.Count} files")
+                #End If
                 
                 ' Create root document node
                 pProjectSyntaxTree = New SyntaxNode(CodeNodeType.eDocument, If(pCurrentProjectInfo?.ProjectName, "Project"))
@@ -100,7 +102,9 @@ Namespace Managers
                     lRootNamespaceName = pCurrentProjectInfo.GetEffectiveRootNamespace()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Using root namespace: {lRootNamespaceName}")
+                #End If
                 
                 ' Create root namespace node
                 Dim lRootNamespace As New SyntaxNode(CodeNodeType.eNamespace, lRootNamespaceName)
@@ -118,21 +122,31 @@ Namespace Managers
                     
                     If lFileInfo.SyntaxTree IsNot Nothing Then
                         lFileCount += 1
+                        #If DEBUG Then
                         Console.WriteLine($"  Processing file {lFileCount}: {lFileInfo.FileName}")
+                        #End If
                         
                         ' Merge file's syntax tree into project tree
                         MergeFileIntoProjectTree(lFileInfo, lRootNamespace, lNamespaceNodes)
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"  Skipping {lFileInfo.FileName} - no syntax tree")
+                        #End If
                     End If
                 Next
                 
                 ' Sort the entire tree
+                #If DEBUG Then
                 Console.WriteLine("  Sorting project tree...")
+                #End If
                 SortNodeChildrenRecursively(pProjectSyntaxTree)
                 
+                #If DEBUG Then
                 Console.WriteLine($"BuildProjectSyntaxTree: Complete. Processed {lFileCount} files")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Root namespace has {lRootNamespace.Children.Count} direct children")
+                #End If
                 
                 ' Raise the structure loaded event
                 RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
@@ -357,12 +371,16 @@ End Function
         ' Fixed LoadProjectWithDocuments - removed pCodeParser initialization
         Public Function LoadProjectWithDocuments(vProjectPath As String) As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager.LoadProjectWithDocuments: Loading {vProjectPath}")
+                #End If
                 
                 ' First parse the project file
                 Dim lProjectInfo As ProjectFileParser.ProjectInfo = ProjectFileParser.ParseProjectFile(vProjectPath)
                 If lProjectInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("Failed to parse project file")
+                    #End If
                     Return False
                 End If
                 
@@ -380,7 +398,9 @@ End Function
                 ClearDocumentModels()
                 
                 ' Get list of all VB source files from CompileItems
+                #If DEBUG Then
                 Console.WriteLine("Collecting source files from project...")
+                #End If
                 Dim lSourceFiles As New List(Of String)()
                 
                 ' FIXED: Use CompileItems from the project file instead of scanning all .vb files
@@ -396,16 +416,24 @@ End Function
                         ' Only add if the file exists and has .vb extension
                         If File.Exists(lFullPath) AndAlso Path.GetExtension(lFullPath).ToLower() = ".vb" Then
                             lSourceFiles.Add(lFullPath)
+                            #If DEBUG Then
                             Console.WriteLine($"  Source file: {lCompileItem}")
+                            #End If
                         ElseIf Not File.Exists(lFullPath) Then
+                            #If DEBUG Then
                             Console.WriteLine($"  Warning: Source file not found: {lCompileItem}")
+                            #End If
                         End If
                     Next
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("  Warning: No CompileItems found in project file")
+                    #End If
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Found {lSourceFiles.Count} source files to load")
+                #End If
                                 
                 ' Set counts for progress
                 pTotalFilesToLoad = lSourceFiles.Count
@@ -435,7 +463,9 @@ End Function
                 ' Raise completion event
                 RaiseEvent AllDocumentsLoaded(pDocumentModels.Count)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Loaded {pDocumentModels.Count} documents")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -470,20 +500,28 @@ End Function
             Try
                 If vFileInfo.SyntaxTree Is Nothing Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"Merging {vFileInfo.FileName} into project structure")
+                #End If
                 
                 ' Process each root node in the file
                 for each lNode in vFileInfo.SyntaxTree.Children
+                    #If DEBUG Then
                     Console.WriteLine($"  Processing node: {lNode.Name} ({lNode.NodeType})")
+                    #End If
                     
                     ' Check if this is the implicit root namespace
                     If lNode.NodeType = CodeNodeType.eNamespace AndAlso 
                        lNode.IsImplicit AndAlso
                        String.Equals(lNode.Name, vRootNamespace.Name, StringComparison.OrdinalIgnoreCase) Then
                         ' This is the implicit root namespace - merge its children directly into our root
+                        #If DEBUG Then
                         Console.WriteLine($"    Found implicit root namespace with {lNode.Children.Count} children")
+                        #End If
                         for each lChild in lNode.Children
+                            #If DEBUG Then
                             Console.WriteLine($"      Merging child: {lChild.Name} ({lChild.NodeType})")
+                            #End If
                             ' Use the RelativePath property that we added to SourceFileInfo
                             MergeNodeIntoProjectFixed(lChild, vRootNamespace, GetRelativePath(vFileInfo))
                         Next
@@ -616,7 +654,9 @@ Public Function SaveFile(vSourceFile As SourceFileInfo) As Boolean
             ' This should trigger MainWindow to update any open tabs for this file
             RaiseEvent FileSaved(vSourceFile.FilePath)
             
+            #If DEBUG Then
             Console.WriteLine($"ProjectManager.SaveFile: Saved {vSourceFile.FilePath}")
+            #End If
             Return True
         End If
         
@@ -634,7 +674,9 @@ End Function
         Private Sub DiagnoseNamespaceStructure(vNamespace As SyntaxNode, vIndent As Integer)
             Try
                 Dim lIndentStr As String = New String(" "c, vIndent * 2)
+                #If DEBUG Then
                 Console.WriteLine($"{lIndentStr}[{vNamespace.NodeType}] {vNamespace.Name} - {vNamespace.Children.Count} children")
+                #End If
                 
                 ' Group children by type to see what's actually in there
                 Dim lChildrenByType As New Dictionary(Of CodeNodeType, List(Of String))()
@@ -648,13 +690,17 @@ End Function
                 
                 ' Print summary of children by type
                 for each lKvp in lChildrenByType.OrderBy(Function(k) k.Key.ToString())
+                    #If DEBUG Then
                     Console.WriteLine($"{lIndentStr}  {lKvp.Key}: {String.Join(", ", lKvp.Value)}")
+                    #End If
                 Next
                 
                 ' For classes and modules, show their nested types
                 for each lChild in vNamespace.Children
                     If lChild.NodeType = CodeNodeType.eClass OrElse lChild.NodeType = CodeNodeType.eModule Then
+                        #If DEBUG Then
                         Console.WriteLine($"{lIndentStr}  [{lChild.NodeType}] {lChild.Name} contains:")
+                        #End If
                         
                         Dim lNestedTypes As New List(Of String)()
                         for each lNested in lChild.Children
@@ -667,7 +713,9 @@ End Function
                         Next
                         
                         If lNestedTypes.Count > 0 Then
+                            #If DEBUG Then
                             Console.WriteLine($"{lIndentStr}    Nested types: {String.Join(", ", lNestedTypes)}")
+                            #End If
                         End If
                     End If
                 Next
@@ -689,11 +737,17 @@ End Function
         ''' </summary>
         Public Sub DiagnoseProjectStructure()
             Try
+                #If DEBUG Then
                 Console.WriteLine("========== PROJECT STRUCTURE DIAGNOSIS ==========")
+                #End If
                 
                 If pProjectSyntaxTree IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Project root: {pProjectSyntaxTree.Name} ({pProjectSyntaxTree.NodeType})")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"Root has {pProjectSyntaxTree.Children.Count} children")
+                    #End If
                     
                     ' Find the root namespace (should be SimpleIDE)
                     for each lChild in pProjectSyntaxTree.Children
@@ -703,9 +757,15 @@ End Function
                             ' Special check for Syntax namespace
                             for each lSubNamespace in lChild.Children
                                 If lSubNamespace.NodeType = CodeNodeType.eNamespace AndAlso lSubNamespace.Name = "Syntax" Then
+                                    #If DEBUG Then
                                     Console.WriteLine("")
+                                    #End If
+                                    #If DEBUG Then
                                     Console.WriteLine("=== DETAILED SYNTAX NAMESPACE ANALYSIS ===")
+                                    #End If
+                                    #If DEBUG Then
                                     Console.WriteLine($"Syntax namespace has {lSubNamespace.Children.Count} direct children")
+                                    #End If
                                     
                                     ' Look for duplicates
                                     Dim lNameCounts As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
@@ -718,9 +778,13 @@ End Function
                                     Next
                                     
                                     ' Report duplicates
+                                    #If DEBUG Then
                                     Console.WriteLine("Duplicates found:")
+                                    #End If
                                     for each lKvp in lNameCounts.Where(Function(k) k.Value > 1)
+                                        #If DEBUG Then
                                         Console.WriteLine($"  {lKvp.Key} appears {lKvp.Value} times")
+                                        #End If
                                     Next
                                     
                                     ' Check if BlockInfo is in namespace children
@@ -728,22 +792,30 @@ End Function
                                     for each lSyntaxChild in lSubNamespace.Children
                                         If lSyntaxChild.Name = "BlockInfo" Then
                                             lBlockInfoCount += 1
+                                            #If DEBUG Then
                                             Console.WriteLine($"  Found BlockInfo at namespace level: Parent={If(lSyntaxChild.Parent IsNot Nothing, lSyntaxChild.Parent.Name, "Nothing")}")
+                                            #End If
                                         End If
                                     Next
                                     
                                     If lBlockInfoCount > 0 Then
+                                        #If DEBUG Then
                                         Console.WriteLine($"ERROR: BlockInfo found {lBlockInfoCount} times at namespace level!")
+                                        #End If
                                     End If
                                 End If
                             Next
                         End If
                     Next
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("No project syntax tree available")
+                    #End If
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("========== END DIAGNOSIS ==========")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DiagnoseProjectStructure error: {ex.Message}")

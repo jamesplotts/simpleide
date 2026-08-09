@@ -37,12 +37,9 @@ Namespace Editors
 
                 Dim lLine As String = TextLines(pCursorLine)
                 Dim lNextChar As Char = If(pCursorColumn < lLine.Length, lLine(pCursorColumn), ControlChars.NullChar)
-                Dim lNextCharDisplay As String = If(lNextChar = ControlChars.NullChar, "<EOL>", lNextChar.ToString())
-                Console.WriteLine($"DIAG HandleBracketAutoClose: vChar='{vChar}' lNextChar='{lNextCharDisplay}' pCursorColumn={pCursorColumn} lLine='{lLine}'")
 
                 ' Skip-over: typing a closing character that's already right there
                 If (BracketClosers.Contains(vChar) OrElse vChar = """"c) AndAlso lNextChar = vChar Then
-                    Console.WriteLine("DIAG HandleBracketAutoClose: SKIP-OVER")
                     SetCursorPosition(pCursorLine, pCursorColumn + 1)
                     Return True
                 End If
@@ -51,19 +48,16 @@ Namespace Editors
                     ' Typing a quote while already inside an open string closes it - a single
                     ' quote, not a new pair
                     If IsInsideStringOrComment(pCursorLine, pCursorColumn) Then Return False
-                    Console.WriteLine("DIAG HandleBracketAutoClose: QUOTE PAIR")
                     InsertBracketPair(""""c, """"c)
                     Return True
                 End If
 
                 If BracketPairs.ContainsKey(vChar) Then
                     If IsInsideStringOrComment(pCursorLine, pCursorColumn) Then Return False
-                    Console.WriteLine("DIAG HandleBracketAutoClose: NEW PAIR")
                     InsertBracketPair(vChar, BracketPairs(vChar))
                     Return True
                 End If
 
-                Console.WriteLine("DIAG HandleBracketAutoClose: NONE (fall through to normal insert)")
                 Return False
 
             Catch ex As Exception

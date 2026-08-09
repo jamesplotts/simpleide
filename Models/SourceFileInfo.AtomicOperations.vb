@@ -31,7 +31,9 @@ Namespace Models
 								        SyncLock pSyncRoot
 								        ' Validate line
 								        If vLine < 0 OrElse vLine >= TextLines.Count Then
+#If DEBUG Then
 								            Console.WriteLine($"InsertCharacter: Invalid line {vLine}")
+#End If
 								            Return
 								        End If
 								        
@@ -116,7 +118,9 @@ Namespace Models
 								                
 								                pCharacterTokens(vLine) = lNewTokens
 								                
+#If DEBUG Then
 								                Console.WriteLine($"InsertCharacter: Preserved tokens with simple shift for line {vLine}")
+#End If
 								            Else
 								                ' Complex case: need to update metadata and re-tokenize
 								                SetLineMetadataAndCharacterTokens(vLine)
@@ -137,8 +141,12 @@ Namespace Models
 								        
 								    End SyncLock
 								    Catch ex As Exception
+#If DEBUG Then
 								        Console.WriteLine($"InsertCharacter error: {ex.Message}")
+#End If
+#If DEBUG Then
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
+#End If
 								    End Try
 								End Sub
 								        
@@ -156,13 +164,17 @@ Namespace Models
 								        SyncLock pSyncRoot
 								        ' Validate line and column
 								        If vLine < 0 OrElse vLine >= TextLines.Count Then
+#If DEBUG Then
 								            Console.WriteLine($"DeleteCharacter: Invalid line {vLine}")
+#End If
 								            Return
 								        End If
 								        
 								        Dim lOldLine As String = TextLines(vLine)
 								        If vColumn < 0 OrElse vColumn >= lOldLine.Length Then
+#If DEBUG Then
 								            Console.WriteLine($"DeleteCharacter: Invalid column {vColumn} for line length {lOldLine.Length}")
+#End If
 								            Return
 								        End If
 								        
@@ -232,7 +244,9 @@ Namespace Models
 								                    pCharacterTokens(vLine) = New Byte() {}
 								                End If
 								                
+#If DEBUG Then
 								                Console.WriteLine($"DeleteCharacter: Preserved tokens with simple shift for line {vLine}")
+#End If
 								            Else
 								                ' Complex case: need to update metadata and re-tokenize
 								                SetLineMetadataAndCharacterTokens(vLine)
@@ -253,8 +267,12 @@ Namespace Models
 								        
 								    End SyncLock
 								    Catch ex As Exception
+#If DEBUG Then
 								        Console.WriteLine($"DeleteCharacter error: {ex.Message}")
+#End If
+#If DEBUG Then
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
+#End If
 								    End Try
 								End Sub
 								        
@@ -274,7 +292,9 @@ Namespace Models
             SyncLock pSyncRoot
                 If String.IsNullOrEmpty(vText) Then Return
                 If vLine < 0 OrElse vLine >= TextLines.Count Then
+                    #If DEBUG Then
                     Console.WriteLine($"InsertText: Invalid line {vLine}")
+                    #End If
                     Return
                 End If
                 
@@ -313,11 +333,15 @@ Namespace Models
             SyncLock pSyncRoot
                 ' Validate range
                 If vStartLine < 0 OrElse vStartLine >= TextLines.Count Then
+                    #If DEBUG Then
                     Console.WriteLine($"DeleteText: Invalid start line {vStartLine}")
+                    #End If
                     Return
                 End If
                 If vEndLine < 0 OrElse vEndLine >= TextLines.Count Then
+                    #If DEBUG Then
                     Console.WriteLine($"DeleteText: Invalid end line {vEndLine}")
+                    #End If
                     Return
                 End If
                 
@@ -500,8 +524,12 @@ Namespace Models
 								        
 								    End SyncLock
 								    Catch ex As Exception
+#If DEBUG Then
 								        Console.WriteLine($"SetLineMetadataAndCharacterTokens error: {ex.Message}")
+#End If
+#If DEBUG Then
 								        Console.WriteLine($"  Stack: {ex.StackTrace}")
+#End If
 								        
 								        ' On error, apply default tokens to prevent crashes
 								        Try

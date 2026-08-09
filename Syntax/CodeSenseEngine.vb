@@ -117,10 +117,14 @@ Namespace Syntax
             Try
                 If vIsProjectTree Then
                     pProjectSyntaxTree = vSyntaxTree
+                    #If DEBUG Then
                     Console.WriteLine($"CodeSenseEngine updated with project tree containing {CountNodes(vSyntaxTree)} nodes")
+                    #End If
                 Else
                     pCurrentSyntaxTree = vSyntaxTree
+                    #If DEBUG Then
                     Console.WriteLine($"CodeSenseEngine updated with document tree containing {CountNodes(vSyntaxTree)} nodes")
+                    #End If
                 End If
                 
                 pLastUpdateTime = DateTime.Now
@@ -175,7 +179,9 @@ Namespace Syntax
                     
                     UpdateFromSyntaxTree(lSyntaxNode, False)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"CodeSenseEngine updated from parse result for {vFile.FileName}")
+                    #End If
                 End If
                 
                 ' Also try to get the full project tree from ProjectManager
@@ -207,7 +213,9 @@ Namespace Syntax
                 ' Update the current syntax tree
                 pCurrentSyntaxTree = vRootNode
                 
+                #If DEBUG Then
                 Console.WriteLine($"CodeSenseEngine updated document nodes from ProjectParser")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateDocumentNodes error: {ex.Message}")
@@ -524,7 +532,9 @@ Namespace Syntax
                 ' Update the project syntax tree
                 UpdateFromSyntaxTree(vProjectTree, True)
                 
+                #If DEBUG Then
                 Console.WriteLine($"CodeSenseEngine updated from project structure")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateFromProjectStructure error: {ex.Message}")
@@ -606,7 +616,9 @@ Namespace Syntax
                     ' Clear type cache to reload with new assembly
                     pTypeCache.Clear()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"CodeSenseEngine: Added reference to {lAssembly.GetName().Name}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -629,7 +641,9 @@ Namespace Syntax
                 ' UpdateCodeSenseReferences) never leave the engine without System/etc.
                 LoadCoreAssemblies()
 
+                #If DEBUG Then
                 Console.WriteLine("CodeSenseEngine: All references cleared")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"ClearReferences error: {ex.Message}")

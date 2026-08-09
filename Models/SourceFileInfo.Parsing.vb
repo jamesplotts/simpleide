@@ -97,7 +97,9 @@ Private Function RetryGetProjectManager() As Boolean
         pRetryProjectManagerCount += 1
 
         If pRetryProjectManagerCount > 10 Then
+            #If DEBUG Then
             Console.WriteLine($"RetryGetProjectManager: Giving up after 10 attempts for {FileName}")
+            #End If
             pRetryProjectManagerTimer = 0
             pRetryProjectManagerCount = 0
             Return False ' Stop timer
@@ -126,7 +128,9 @@ End Function
             Try
                 ' Check if content is loaded
                 If pTextLines Is Nothing OrElse pTextLines.Count = 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"Cannot parse {FileName}: content not loaded")
+                    #End If
                     Return False
                 End If
                 
@@ -141,7 +145,9 @@ End Function
                     ' Delegate to ProjectManager for centralized parsing
                     Return pProjectManager.ParseFile(Me)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"ParseContent: No ProjectManager available")
+                    #End If
                     Return False
                 End If
                 
@@ -199,7 +205,9 @@ End Function
                     If pParseErrors IsNot Nothing Then pParseErrors.Clear()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Updated from parse result: {FileName}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateFromParseResult error: {ex.Message}")
@@ -367,7 +375,9 @@ End Function
         Public Sub ForceImmediateParsing(vStartLine As Integer, vEndLine As Integer)
             Try
               SyncLock pSyncRoot
+                #If DEBUG Then
                 Console.WriteLine($"SourceFileInfo.ForceImmediateParsing: Parsing lines {vStartLine} to {vEndLine}")
+                #End If
                 
                 ' Ensure we have valid line indices
                 vStartLine = Math.Max(0, vStartLine)
@@ -426,7 +436,9 @@ End Function
                     End Try
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"SourceFileInfo.ForceImmediateParsing: Parsed {lTokenCount} tokens in {vEndLine - vStartLine + 1} lines")
+                #End If
                 
                 ' Notify that rendering has changed
                 NotifyRenderingChanged(vStartLine, vEndLine)
@@ -582,7 +594,9 @@ End Function
                 
                 ' If still no ProjectManager, return empty
                 If pProjectManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ParseLine: No ProjectManager available")
+                    #End If
                     Return lTokens
                 End If
                 
@@ -648,16 +662,22 @@ Public Function EnsureProjectManagerConnection() As Boolean
         
         ' Try to get it via event
         Dim lArgs As New ProjectManagerRequestEventArgs()
+        #If DEBUG Then
         Console.WriteLine($"SourceFileInfo.EnsureProjectManagerConnection: Requesting ProjectManager for {FileName}")
+        #End If
         RaiseEvent ProjectManagerRequested(Me, lArgs)
         
         If lArgs.HasProjectManager Then
             pProjectManager = lArgs.ProjectManager
             ProjectManager = lArgs.ProjectManager ' Set both private and public property
+            #If DEBUG Then
             Console.WriteLine($"SourceFileInfo.EnsureProjectManagerConnection: Got ProjectManager for {FileName}")
+            #End If
             Return True
         Else
+            #If DEBUG Then
             Console.WriteLine($"SourceFileInfo.EnsureProjectManagerConnection: No ProjectManager available for {FileName}")
+            #End If
             Return False
         End If
         

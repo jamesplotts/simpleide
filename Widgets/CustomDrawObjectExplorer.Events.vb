@@ -453,17 +453,23 @@ Namespace Widgets
             Try
                 If vNode Is Nothing OrElse vNode.Node Is Nothing Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"Node activated: {vNode.Node.Name} ({vNode.Node.NodeType})")
+                #End If
                 
                 ' Check if this is a partial class/module/structure - don't navigate for these
                 ' Partial types have multiple definitions across files, so navigation doesn't make sense
                 If vNode.Node.IsPartial Then
+                    #If DEBUG Then
                     Console.WriteLine($"Skipping navigation for partial type: {vNode.Node.Name}")
+                    #End If
                     
                     ' You could optionally show a message or list of files where this partial type is defined
                     If vNode.Node.Attributes IsNot Nothing AndAlso vNode.Node.Attributes.ContainsKey("FilePaths") Then
                         Dim lFilePaths As String = vNode.Node.Attributes("FilePaths")
+                        #If DEBUG Then
                         Console.WriteLine($"  Partial type defined in: {lFilePaths}")
+                        #End If
                     End If
                     
                     Return  ' Don't navigate for partial types
@@ -482,7 +488,9 @@ Namespace Widgets
                     ' node from inside the body) - matches what the hover tooltip shows
                     ' (CustomDrawObjectExplorer.ContextMenu.vb uses vNode.StartLine + 1
                     ' directly with no adjustment), so no per-type adjustment is needed here
+                    #If DEBUG Then
                     Console.WriteLine($"Navigating to {vNode.Node.NodeType}: {vNode.Node.Name} at line {lNavigationLine + 1}")
+                    #End If
                     
                     ' Raise the NavigateToFile event with the adjusted line number
                     ' EditorPosition uses 0-based line numbers
@@ -565,7 +573,9 @@ Namespace Widgets
                 ' Simply redraw with new theme colors
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("ObjectExplorer theme updated")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnThemeChanged error: {ex.Message}")

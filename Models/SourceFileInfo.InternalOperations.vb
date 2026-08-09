@@ -179,7 +179,9 @@ Namespace Models
                     pLineMetadata(vLineIndex).UpdateHash(vText)
                     pLineMetadata(vLineIndex).ParseState = LineParseState.eParsed
                     
+                    #If DEBUG Then
                     Console.WriteLine($"InsertLineInternal: Created new metadata for line {vLineIndex} with {pLineMetadata(vLineIndex).SyntaxTokens.Count} tokens")
+                    #End If
                 End If
                 
                 ' Update CharacterTokens array
@@ -198,7 +200,9 @@ Namespace Models
                     Dim lLineLength As Integer = If(vText?.Length, 0)
                     If lLineLength > 0 AndAlso pLineMetadata(vLineIndex) IsNot Nothing Then
                         pCharacterTokens(vLineIndex) = pLineMetadata(vLineIndex).GetEncodedTokens(lLineLength)
+                        #If DEBUG Then
                         Console.WriteLine($"InsertLineInternal: Generated {lLineLength} character tokens for line {vLineIndex}")
+                        #End If
                     Else
                         pCharacterTokens(vLineIndex) = New Byte() {}
                     End If
@@ -249,7 +253,9 @@ Namespace Models
                 Dim lNewLines() As String = vText.Split({vbLf}, StringSplitOptions.None)
                 If lNewLines.Length = 0 Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"InsertMultiLineTextInternal: Inserting {lNewLines.Length} lines at line {vLine}, column {vColumn}")
+                #End If
                 
                 ' Get current line
                 Dim lCurrentLine As String = TextLines(vLine)
@@ -265,28 +271,36 @@ Namespace Models
                 
                 ' CRITICAL FIX: Update metadata for the modified first line
                 SetLineMetadataAndCharacterTokens(vLine)
+                #If DEBUG Then
                 Console.WriteLine($"InsertMultiLineTextInternal: Updated first line {vLine} with '{lFirstNewLine.Substring(0, Math.Min(20, lFirstNewLine.Length))}...'")
+                #End If
                 
                 ' Insert middle lines (if any)
                 Dim lInsertPosition As Integer = vLine + 1
                 For i As Integer = 1 To lNewLines.Length - 2
                     ' Insert each middle line
                     InsertLineInternal(lInsertPosition, lNewLines(i))
+                    #If DEBUG Then
                     Console.WriteLine($"InsertMultiLineTextInternal: Inserted middle line at {lInsertPosition}")
+                    #End If
                     lInsertPosition += 1
                 Next
                 
                 ' Insert last line with remainder of original line
                 Dim lLastNewLine As String = lNewLines(lNewLines.Length - 1) & lAfterInsert
                 InsertLineInternal(lInsertPosition, lLastNewLine)
+                #If DEBUG Then
                 Console.WriteLine($"InsertMultiLineTextInternal: Inserted last line at {lInsertPosition} with '{lLastNewLine.Substring(0, Math.Min(20, lLastNewLine.Length))}...'")
+                #End If
                 
                 ' CRITICAL FIX: Force immediate parsing of all affected lines
                 ' This ensures proper syntax coloring after multi-line paste
                 Dim lEndLine As Integer = vLine + lNewLines.Length - 1
                 If pProjectManager IsNot Nothing Then
                     ' Request immediate parsing for visual feedback
+                    #If DEBUG Then
                     Console.WriteLine($"InsertMultiLineTextInternal: Requesting immediate parse for lines {vLine} to {lEndLine}")
+                    #End If
                     ForceImmediateParsing(vLine, lEndLine)
                 Else
                     ' Fallback: At least ensure we have tokens for all lines
@@ -311,7 +325,9 @@ Namespace Models
                 ' Request async parse for full document context
                 RequestAsyncParse()
                 
+                #If DEBUG Then
                 Console.WriteLine($"InsertMultiLineTextInternal: Completed insertion of {lNewLines.Length} lines")
+                #End If
                 
             End SyncLock
             Catch ex As Exception

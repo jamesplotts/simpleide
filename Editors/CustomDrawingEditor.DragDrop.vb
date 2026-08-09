@@ -65,7 +65,9 @@ Namespace Editors
                 AddHandler pDrawingArea.DragEnd, AddressOf HandleDragEnd
                 AddHandler pDrawingArea.DragFailed, AddressOf HandleDragFailed
                 
+                #If DEBUG Then
                 Console.WriteLine("Drag and drop initialized for CustomDrawingEditor")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeDragDrop error: {ex.Message}")
@@ -99,9 +101,13 @@ Namespace Editors
                     NormalizeSelection(New EditorPosition(pDragStartLine, pDragStartColumn), 
                                      New EditorPosition(pDragEndLine, pDragEndColumn))
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Drag started: {pDragData.Length} characters from ({pDragStartLine},{pDragStartColumn}) to ({pDragEndLine},{pDragEndColumn})")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("HandleDragBegin: No selection to drag")
+                    #End If
                     vArgs.RetVal = False
                 End If
                 
@@ -125,7 +131,9 @@ Namespace Editors
                         vArgs.SelectionData.Text = pDragData
                 End Select
                 
+                #If DEBUG Then
                 Console.WriteLine($"HandleDragDataGet: Provided {pDragData.Length} chars")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragDataGet error: {ex.Message}")
@@ -148,7 +156,9 @@ Namespace Editors
                 ' Redraw to remove any drop indicators
                 pDrawingArea.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("Drag operation ended")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragEnd error: {ex.Message}")
@@ -160,7 +170,9 @@ Namespace Editors
         ''' </summary>
         Private Function HandleDragFailed(vSender As Object, vArgs As DragFailedArgs) As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine($"Drag failed: {vArgs.Result}")
+                #End If
                 
                 ' Reset state
                 pDragStarted = False
@@ -231,7 +243,9 @@ Namespace Editors
                 ' Queue redraw to remove drop indicator
                 pDrawingArea.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("Drag left editor area")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleDragLeave error: {ex.Message}")
@@ -257,7 +271,9 @@ Namespace Editors
                 ' Track if this is a move operation
                 pDragWasMove = (vArgs.Context.SelectedAction = DragAction.Move)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Drop requested at ({pDropTargetLine}, {pDropTargetColumn})")
+                #End If
                 
                 vArgs.RetVal = True
                 Return True
@@ -289,7 +305,9 @@ Namespace Editors
                 ' Determine if this is a move or copy operation
                 Dim lIsMove As Boolean = (vArgs.Context.SelectedAction = DragAction.Move)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Received drop: IsMove={lIsMove}, FromSameEditor={lIsFromSameEditor}")
+                #End If
                 
                 ' Handle the drop
                 If lIsFromSameEditor AndAlso lIsMove Then
@@ -434,11 +452,15 @@ Namespace Editors
         ''' </remarks>
         Private Sub PerformDragCopy(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"=== PerformDragCopy: Copying to ({vTargetLine},{vTargetColumn}) ===")
+                #End If
                 
                 ' Ensure SourceFileInfo is available
                 If pSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("PerformDragCopy: No SourceFileInfo available")
+                    #End If
                     Return
                 End If
                 
@@ -492,7 +514,9 @@ Namespace Editors
                 ' Queue redraw
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("Copy operation completed")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformDragCopy error: {ex.Message}")
@@ -539,7 +563,9 @@ Namespace Editors
         ''' <param name="vTargetColumn">Target column for the drop</param>
         Private Sub PerformDragMove(vText As String, vTargetLine As Integer, vTargetColumn As Integer)
             Try
+                #If DEBUG Then
                 Console.WriteLine("=== PerformDragMove (3-param) START ===")
+                #End If
                 
                 ' Use the stored drag coordinates from when the drag started
                 If pDragStartLine >= 0 AndAlso pDragEndLine >= 0 Then
@@ -549,11 +575,15 @@ Namespace Editors
                                       vTargetLine, vTargetColumn, vText)
                 Else
                     ' No valid source coordinates, just do a copy instead
+                    #If DEBUG Then
                     Console.WriteLine("Warning: No valid source coordinates for drag move, performing copy instead")
+                    #End If
                     PerformDragCopy(vText, vTargetLine, vTargetColumn)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("=== PerformDragMove (3-param) END ===")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"PerformDragMove (3-param) error: {ex.Message}")

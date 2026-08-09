@@ -67,14 +67,18 @@ Namespace Widgets
                 UpdateStatusBar()
                 ShowEmptyState()
                 ShowAll()
+            #If DEBUG Then
             Console.WriteLine($"TODO Intialized")
+            #End If
             Catch ex As Exception
                 Console.WriteLine($"error initializing TodoPanel: {ex.Message}")
             End Try
         End Sub
         
         Private Sub BuildUI()
+            #If DEBUG Then
             Console.WriteLine($"TodoPanel.vb - BuildUI()")
+            #End If
             ' Main toolbar row - a plain Box holding CustomDrawButtons rather than a
             ' Gtk.Toolbar, since CustomDrawButton isn't a ToolItem
             pToolbar = New Box(Orientation.Horizontal, 4)
@@ -202,7 +206,9 @@ Namespace Widgets
         ''' events on its own.
         ''' </summary>
         Private Sub CreateListBox()
+            #If DEBUG Then
             Console.WriteLine($"TodoPanel.vb - CreateListBox()")
+            #End If
             pListBox = New CustomDrawListBox()
 
             AddHandler pListBox.SelectionChanged, AddressOf OnListBoxSelectionChanged
@@ -252,7 +258,9 @@ Namespace Widgets
 
         Protected Overrides Sub OnShown()
             MyBase.OnShown()
+            #If DEBUG Then
             Console.WriteLine($"TODO OnShown")
+            #End If
         End Sub
         
         Private Sub ConnectEvents()
@@ -532,7 +540,9 @@ Namespace Widgets
                 If Not String.IsNullOrEmpty(vProjectRoot) Then
                     pProjectRoot = vProjectRoot
                     pTODOManager = New TODOManager(vProjectRoot)
+                    #If DEBUG Then
                     Console.WriteLine("TODOManager New()")
+                    #End If
                     AddHandler pTODOManager.TODOsChanged, AddressOf OnTODOsChanged
 
                     ' IMPORTANT: Refresh TODOs after setting project root
@@ -569,22 +579,30 @@ Namespace Widgets
 
         Friend Sub RefreshTODOs()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"RefreshTODOs Started")
+                #End If
                 If pTODOManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("TODO Manager Not initialized")
+                    #End If
                     Return
                 End If
 
                 ' Load TODOs
                 Dim lTODOs As List(Of TODOItem) = pTODOManager.LoadTODOs()
+                #If DEBUG Then
                 Console.WriteLine($"loaded {lTODOs.Count} TODO items")
+                #End If
 
                 ' Store all TODOs, then run them back through the active filters/toggles
                 ' (previously this bypassed the current filter state entirely on refresh)
                 pAllTODOs = lTODOs
                 ApplyFilters()
 
+                #If DEBUG Then
                 Console.WriteLine($"RefreshTODOs Finished")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"error refreshing TODOs: {ex.Message}")
@@ -897,7 +915,9 @@ Namespace Widgets
                     
                     pStatusBar.Text = lStatusText
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"No project loaded in TodoPanel.UpdateStatusBar")
+                    #End If
                     pStatusBar.Text = "No project loaded"
                 End If
                 

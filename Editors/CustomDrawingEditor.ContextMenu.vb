@@ -475,7 +475,9 @@ Namespace Editors
         ''' </remarks>
         Private Sub OnContextMenuGoToDefinition(vSender As Object, vArgs As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("OnContextMenuGoToDefinition: Started")
+                #End If
 
                 ' First try to get selected text
                 Dim lSelectedText As String = GetSelectedText()
@@ -488,17 +490,23 @@ Namespace Editors
                     lWord = lSelectedText.Trim()
                     lLineNumber = pSelectionStartLine
                     lColumnNumber = Math.Min(pSelectionStartColumn, pSelectionEndColumn)
+                    #If DEBUG Then
                     Console.WriteLine($"OnContextMenuGoToDefinition: Using selected text '{lWord}'")
+                    #End If
                 Else
                     ' No selection - resolve the word under the mouse at the right-click
                     ' location, not the text cursor
                     lWord = GetWordAtClickPosition(lLineNumber, lColumnNumber)
+                    #If DEBUG Then
                     Console.WriteLine($"OnContextMenuGoToDefinition: No selection, word at click = '{lWord}' at {lLineNumber}:{lColumnNumber}")
+                    #End If
                 End If
 
                 ' Check if we found a word
                 If String.IsNullOrWhiteSpace(lWord) Then
+                    #If DEBUG Then
                     Console.WriteLine("OnContextMenuGoToDefinition: No word found at click position")
+                    #End If
                     Return
                 End If
 
@@ -509,7 +517,9 @@ Namespace Editors
                 lEventArgs.ColumnNumber = lColumnNumber
                 lEventArgs.Word = lWord
 
+                #If DEBUG Then
                 Console.WriteLine($"OnContextMenuGoToDefinition: Raising event for word '{lWord}' at {lEventArgs.FilePath}:{lEventArgs.LineNumber}:{lEventArgs.ColumnNumber}")
+                #End If
 
                 ' Raise the event
                 RaiseEvent RequestGotoDefinition(Me, lEventArgs)
@@ -531,7 +541,9 @@ Namespace Editors
         ''' </remarks>
         Private Sub OnContextMenuFindAllReferences(vSender As Object, vArgs As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("OnContextMenuFindAllReferences: Started")
+                #End If
 
                 Dim lSelectedText As String = GetSelectedText()
                 Dim lWord As String = ""
@@ -547,7 +559,9 @@ Namespace Editors
                 End If
 
                 If String.IsNullOrWhiteSpace(lWord) Then
+                    #If DEBUG Then
                     Console.WriteLine("OnContextMenuFindAllReferences: No word found at click position")
+                    #End If
                     Return
                 End If
 

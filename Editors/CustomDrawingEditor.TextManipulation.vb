@@ -208,7 +208,9 @@ Namespace Editors
                 UpdateLineNumberWidth()
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"ReplaceText: Replaced entire document with {vText.Length} characters")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ReplaceText error: {ex.Message}")
@@ -325,7 +327,9 @@ Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
         If vLine < 0 OrElse vLine >= pLineCount Then Return
         If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
         
+        #If DEBUG Then
         Console.WriteLine($"IndentLine: Line {vLine}")
+        #End If
         
         ' Ensure we have settings
         'EnsureSettingsManager()
@@ -339,9 +343,13 @@ Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
             If lTabWidth <= 0 Then lTabWidth = 4 ' Default to 4 if not set
             lIndentString = New String(" "c, lTabWidth)
             lIndentLength = lTabWidth
+            #If DEBUG Then
             Console.WriteLine($"IndentLine: Using {lTabWidth} spaces")
+            #End If
         Else
+            #If DEBUG Then
             Console.WriteLine("IndentLine: Using tab")
+            #End If
         End If
         
         ' Record for undo
@@ -357,7 +365,9 @@ Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
         ' Adjust cursor if on this line
         If pCursorLine = vLine Then
             SetCursorPosition(pCursorLine, pCursorColumn + lIndentLength)
+            #If DEBUG Then
             Console.WriteLine($"IndentLine: Cursor adjusted to column {pCursorColumn}")
+            #End If
         End If
         
         ' Update state
@@ -367,7 +377,9 @@ Public Sub IndentLine(vLine As Integer) Implements IEditor.IndentLine
         ' Update UI
         pDrawingArea?.QueueDraw()
         
+        #If DEBUG Then
         Console.WriteLine("IndentLine: Completed")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"IndentLine error: {ex.Message}")
@@ -391,7 +403,9 @@ Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
         Dim lLine As String = pSourceFileInfo.TextLines(vLine)
         If String.IsNullOrEmpty(lLine) Then Return
         
+        #If DEBUG Then
         Console.WriteLine($"OutdentLine: Line {vLine}, content='{lLine}'")
+        #End If
         
         ' Ensure we have settings
         'EnsureSettingsManager()
@@ -408,7 +422,9 @@ Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
         If lLine.StartsWith(vbTab) Then
             ' Remove one tab
             lCharsToRemove = 1
+            #If DEBUG Then
             Console.WriteLine("OutdentLine: Removing one tab")
+            #End If
         ElseIf lLine.StartsWith(" ") Then
             ' Remove up to TabWidth spaces
             While lCharsToRemove < lLine.Length AndAlso 
@@ -416,7 +432,9 @@ Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
                   lLine(lCharsToRemove) = " "c
                 lCharsToRemove += 1
             End While
+            #If DEBUG Then
             Console.WriteLine($"OutdentLine: Removing {lCharsToRemove} spaces")
+            #End If
         End If
         
         If lCharsToRemove > 0 Then
@@ -436,7 +454,9 @@ Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
             ' Adjust cursor if on this line
             If pCursorLine = vLine AndAlso pCursorColumn > 0 Then
                 SetCursorPosition(pCursorLine, Math.Max(0, pCursorColumn - lCharsToRemove))
+                #If DEBUG Then
                 Console.WriteLine($"OutdentLine: Cursor adjusted To column {pCursorColumn}")
+                #End If
             End If
             
             ' Update state
@@ -446,9 +466,13 @@ Public Sub OutdentLine(vLine As Integer) Implements IEditor.OutdentLine
             ' Update UI
             pDrawingArea?.QueueDraw()
             
+            #If DEBUG Then
             Console.WriteLine("OutdentLine: Completed")
+            #End If
         Else
+            #If DEBUG Then
             Console.WriteLine("OutdentLine: Nothing To remove")
+            #End If
         End If
         
     Catch ex As Exception
@@ -470,7 +494,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
     Try
         If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
         
+        #If DEBUG Then
         Console.WriteLine("IndentSelection: Starting")
+        #End If
         
         Dim lStartLine As Integer
         Dim lEndLine As Integer
@@ -497,12 +523,16 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
                 lEndLine -= 1
             End If
 
+            #If DEBUG Then
             Console.WriteLine($"IndentSelection: Selection from line {lStartLine} To {lEndLine}")
+            #End If
         Else
             ' Just indent current line
             lStartLine = pCursorLine
             lEndLine = pCursorLine
+            #If DEBUG Then
             Console.WriteLine($"IndentSelection: Single line {lStartLine}")
+            #End If
         End If
         
         ' Validate line bounds
@@ -511,7 +541,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         
         ' Get indent string (tab or spaces based on settings)
         Dim lIndentLength As Integer = pSettingsManager.TabWidth
+        #If DEBUG Then
         Console.WriteLine("IndentSelection: TabWidth in SettinsManager = " + lIndentLength.ToString)
+        #End If
         Dim lIndentString As String  = New String(" "c, lIndentLength)
         
         If pSettingsManager IsNot Nothing AndAlso Not pSettingsManager.UseTabs Then
@@ -519,7 +551,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
             If lTabWidth <= 0 Then lTabWidth = 4 ' Default to 4 if not set
             lIndentString = New String(" "c, lTabWidth)
             lIndentLength = lTabWidth
+            #If DEBUG Then
             Console.WriteLine($"IndentSelection: Using {lTabWidth} spaces for indent")
+            #End If
         End If
         
         ' Begin undo group
@@ -531,7 +565,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         Dim lLinesIndented As Integer = 0
         For i As Integer = lStartLine To lEndLine
             If i < pSourceFileInfo.TextLines.Count Then
+                #If DEBUG Then
                 Console.WriteLine($"IndentSelection: Indenting line {i}")
+                #End If
 
                 ' Record for undo BEFORE the operation
                 If pUndoRedoManager IsNot Nothing Then
@@ -545,7 +581,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
             End If
         Next
         
+        #If DEBUG Then
         Console.WriteLine($"IndentSelection: Indented {lLinesIndented} lines")
+        #End If
         
         ' End undo group
         If pUndoRedoManager IsNot Nothing Then
@@ -555,7 +593,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         ' Adjust cursor position if it's on an indented line
         If pCursorLine >= lStartLine AndAlso pCursorLine <= lEndLine Then
             SetCursorPosition(pCursorLine, pCursorColumn + lIndentLength)
+            #If DEBUG Then
             Console.WriteLine($"IndentSelection: Cursor moved To ({pCursorLine},{pCursorColumn})")
+            #End If
         End If
         
         ' Maintain and adjust selection if we had one
@@ -577,7 +617,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
             pSelectionActive = True
             pHasSelection = True
             
+            #If DEBUG Then
             Console.WriteLine($"IndentSelection: Selection adjusted To ({pSelectionStartLine},{pSelectionStartColumn}) - ({pSelectionEndLine},{pSelectionEndColumn})")
+            #End If
         End If
         
         ' Update state
@@ -590,7 +632,9 @@ Public Sub IndentSelection() Implements IEditor.IndentSelection
         EnsureCursorVisible()
         pDrawingArea?.QueueDraw()
         
+        #If DEBUG Then
         Console.WriteLine("IndentSelection: Completed")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"IndentSelection error: {ex.Message}")
@@ -619,7 +663,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
     Try
         If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
         
+        #If DEBUG Then
         Console.WriteLine("OutdentSelection: Starting")
+        #End If
         
         Dim lStartLine As Integer
         Dim lEndLine As Integer
@@ -643,12 +689,16 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
                 lEndLine -= 1
             End If
 
+            #If DEBUG Then
             Console.WriteLine($"OutdentSelection: Selection from line {lStartLine} To {lEndLine}")
+            #End If
         Else
             ' Just outdent current line
             lStartLine = pCursorLine
             lEndLine = pCursorLine
+            #If DEBUG Then
             Console.WriteLine($"OutdentSelection: Single line {lStartLine}")
+            #End If
         End If
         
         ' Validate line bounds
@@ -664,7 +714,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
             If lTabWidth <= 0 Then lTabWidth = 4
         End If
         
+        #If DEBUG Then
         Console.WriteLine($"OutdentSelection: Using tab width Of {lTabWidth}")
+        #End If
         
         ' Begin undo group
         If pUndoRedoManager IsNot Nothing Then
@@ -684,14 +736,18 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
                 ' Determine how much to outdent
                 If lLine.StartsWith(vbTab) Then
                     lCharsToRemove = 1
+                    #If DEBUG Then
                     Console.WriteLine($"OutdentSelection: Line {i} - removing tab")
+                    #End If
                 ElseIf lLine.StartsWith(" ") Then
                     While lCharsToRemove < lLine.Length AndAlso 
                           lCharsToRemove < lTabWidth AndAlso 
                           lLine(lCharsToRemove) = " "c
                         lCharsToRemove += 1
                     End While
+                    #If DEBUG Then
                     Console.WriteLine($"OutdentSelection: Line {i} - removing {lCharsToRemove} spaces")
+                    #End If
                 End If
                 
                 If lCharsToRemove > 0 Then
@@ -709,7 +765,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
             End If
         Next
         
+        #If DEBUG Then
         Console.WriteLine($"OutdentSelection: Outdented {lLinesOutdented} lines")
+        #End If
         
         ' End undo group
         If pUndoRedoManager IsNot Nothing Then
@@ -721,7 +779,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
             Dim lRemoved As Integer = lRemovedPerLine(pCursorLine)
             If pCursorColumn > 0 Then
                 SetCursorPosition(pCursorLine, Math.Max(0, pCursorColumn - lRemoved))
+                #If DEBUG Then
                 Console.WriteLine($"OutdentSelection: Cursor adjusted To column {pCursorColumn}")
+                #End If
             End If
         End If
         
@@ -743,7 +803,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
             pSelectionActive = True
             pHasSelection = True
             
+            #If DEBUG Then
             Console.WriteLine($"OutdentSelection: Selection adjusted To ({pSelectionStartLine},{pSelectionStartColumn}) - ({pSelectionEndLine},{pSelectionEndColumn})")
+            #End If
         End If
         
         ' Update state
@@ -756,7 +818,9 @@ Public Sub OutdentSelection() Implements IEditor.OutdentSelection
         EnsureCursorVisible()
         pDrawingArea?.QueueDraw()
         
+        #If DEBUG Then
         Console.WriteLine("OutdentSelection: Completed")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"OutdentSelection error: {ex.Message}")

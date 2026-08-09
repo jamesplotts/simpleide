@@ -960,7 +960,9 @@ Partial Public Class MainWindow
             If pProjectManager IsNot Nothing Then
                 Dim lSourceFileInfo As SourceFileInfo = pProjectManager.GetSourceFileInfo(lCurrentTab.FilePath)
                 If lSourceFileInfo IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Reverting {lCurrentTab.FilePath} To saved version")
+                    #End If
                     
                     ' Use ReloadFile to reload from disk
                     If lSourceFileInfo.LoadContent() Then

@@ -344,7 +344,9 @@ Partial Public Class MainWindow
     Private Sub OnShowHelpPanel(vSender As Object, vArgs As EventArgs)
         Try
             ' Open help in a new tab instead of bottom panel
+            #If DEBUG Then
             Console.WriteLine($"OnShowHelpPanel Called")
+            #End If
             OpenHelpTab()
 
         Catch ex As Exception
@@ -551,7 +553,9 @@ Partial Public Class MainWindow
                 "Run Merge Diagnostics (Debug Partial Class merging)", vPixelSize, vShowLabel)
             ' AddHandler lDiagnosticButton.Clicked, AddressOf OnRunDiagnostics
 
+            #If DEBUG Then
             Console.WriteLine("Diagnostic toolbar button added successfully")
+            #End If
 
         Catch ex As Exception
             Console.WriteLine($"CreateDiagnosticToolbarButton error: {ex.Message}")
@@ -594,7 +598,9 @@ Partial Public Class MainWindow
                 "Quick Find from Clipboard (F2) - Searches for clipboard text in entire project", vPixelSize, vShowLabel)
             AddHandler pQuickFindClipboardButton.Clicked, AddressOf OnQuickFindFromClipboard
 
+            #If DEBUG Then
             Console.WriteLine("Quick Find from Clipboard button added successfully")
+            #End If
 
         Catch ex As Exception
             Console.WriteLine($"CreateQuickFindFromClipboardButton error: {ex.Message}")

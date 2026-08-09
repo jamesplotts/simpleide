@@ -160,7 +160,6 @@ Namespace Managers
         ''' </summary>
         Public Sub BeginGroup()
             If Not pIsUndoingOrRedoing Then
-                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginGroup: NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
                 If pGroupDepth = 0 Then
                     pGroupingActions = True
                     pCurrentGroup.Clear()
@@ -198,10 +197,6 @@ Namespace Managers
         ''' search/replace-all, and several keyboard operations)
         ''' </remarks>
         Private Sub FinalizeGroup()
-            Console.WriteLine($"DIAG FinalizeGroup: count={pCurrentGroup.Count}")
-            for i As Integer = 0 To pCurrentGroup.Count - 1
-                Console.WriteLine($"DIAG FinalizeGroup: [{i}] {DescribeAction(pCurrentGroup(i))}")
-            Next
             If pCurrentGroup.Count = 0 Then Return
 
             If pCurrentGroup.Count = 1 Then
@@ -390,10 +385,7 @@ Namespace Managers
 
                 Dim lAction As UndoAction = pUndoStack.Pop()
 
-                Console.WriteLine($"DIAG Undo POP: {DescribeAction(lAction)}")
                 ApplyUndoAction(lAction)
-                Dim lCursorAfter As EditorPosition = pEditor.GetCursorPosition()
-                Console.WriteLine($"DIAG Undo AFTER-APPLY cursor=({lCursorAfter.Line},{lCursorAfter.Column})")
 
                 ' Add to redo stack
                 pRedoStack.Push(lAction)
@@ -449,12 +441,9 @@ Namespace Managers
 
                 Case UndoActionType.eGroup
                     If vAction.GroupedActions IsNot Nothing Then
-                        Console.WriteLine($"DIAG ApplyUndoAction: entering group of {vAction.GroupedActions.Count}")
                         for i As Integer = vAction.GroupedActions.Count - 1 To 0 Step -1
-                            Console.WriteLine($"DIAG ApplyUndoAction: group sub-action [{i}] {DescribeAction(vAction.GroupedActions(i))}")
                             ApplyUndoAction(vAction.GroupedActions(i))
                         Next
-                        Console.WriteLine("DIAG ApplyUndoAction: exiting group")
                     End If
 
             End Select
@@ -533,8 +522,6 @@ Namespace Managers
         Private Sub AddUndoAction(vAction As UndoAction)
             If pIsUndoingOrRedoing Then Return
 
-            Console.WriteLine($"DIAG AddUndoAction PUSH: {DescribeAction(vAction)}")
-
             ' Clear redo stack when new action is added
             pRedoStack.Clear()
 
@@ -545,23 +532,6 @@ Namespace Managers
             EnforceStackLimit()
         End Sub
 
-        ''' <summary>
-        ''' TEMP DIAGNOSTIC - one-line description of an action for undo/redo tracing
-        ''' </summary>
-        Private Function DescribeAction(vAction As UndoAction) As String
-            Try
-                If vAction Is Nothing Then Return "(null)"
-                Dim lTextPreview As String = If(vAction.Text, "").Replace(Environment.NewLine, "\n")
-                If lTextPreview.Length > 40 Then lTextPreview = lTextPreview.Substring(0, 40) & "..."
-                Dim lOldPreview As String = If(vAction.OldText, "").Replace(Environment.NewLine, "\n")
-                Dim lNewPreview As String = If(vAction.NewText, "").Replace(Environment.NewLine, "\n")
-                Dim lGroupInfo As String = If(vAction.GroupedActions IsNot Nothing, $" [group of {vAction.GroupedActions.Count}]", "")
-                Return $"Type={vAction.Type} Start=({vAction.StartPosition.Line},{vAction.StartPosition.Column}) End=({vAction.EndPosition.Line},{vAction.EndPosition.Column}) Cursor=({vAction.CursorPosition.Line},{vAction.CursorPosition.Column}) Text='{lTextPreview}' OldText='{lOldPreview}' NewText='{lNewPreview}'{lGroupInfo}"
-            Catch ex As Exception
-                Return $"(describe error: {ex.Message})"
-            End Try
-        End Function
-        
         ''' <summary>
         ''' Enforce maximum stack size
         ''' </summary>
@@ -665,7 +635,6 @@ Namespace Managers
         ''' </summary>
         Public Sub BeginUserAction()
             If Not pIsUndoingOrRedoing Then
-                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginUserAction(): NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
                 If pGroupDepth = 0 Then
                     pGroupingActions = True
                     pCurrentGroup.Clear()
@@ -688,7 +657,6 @@ Namespace Managers
         ''' <param name="vGroupType">Type of group being created</param>
         Public Sub BeginUserAction(Optional vGroupType As UndoGroupType = UndoGroupType.eUserAction)
             If Not pIsUndoingOrRedoing Then
-                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginUserAction({vGroupType}): NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
                 If pGroupDepth = 0 Then
                     pCurrentUndoGroup = New UndoGroup()
                     pCurrentUndoGroup.GroupType = vGroupType
@@ -792,7 +760,9 @@ Namespace Managers
                     lReplacementCount += 1
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"Replaced {lReplacementCount} occurrences")
+                #End If
                 
             Finally
                 EndUserAction()

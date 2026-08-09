@@ -94,9 +94,13 @@ Partial Public Class MainWindow
             If lEditor IsNot Nothing Then
                 ' Use GrabFocus directly on the editor
                 lEditor.GrabFocus()
+                #If DEBUG Then
                 Console.WriteLine("Focus returned to editor after hiding bottom panel")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("No editor available to focus after hiding bottom panel")
+                #End If
             End If
             
         Catch ex As Exception
@@ -208,7 +212,9 @@ Partial Public Class MainWindow
         Try
             ' Ensure build output panel exists
             If pBuildOutputPanel Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("BuildOutputPanel not initialized")
+                #End If
                 Return
             End If
             
@@ -231,7 +237,9 @@ Partial Public Class MainWindow
             
             ' Check if the grid exists
             If lTargetGrid Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"Target grid for {vType} not available")
+                #End If
                 Return
             End If
             
@@ -361,7 +369,9 @@ Partial Public Class MainWindow
             Dim lColumn As TreeViewColumn = vArgs.Column
             
             ' Process the activation
+            #If DEBUG Then
             Console.WriteLine("Error list row activated")
+            #End If
             ' Add actual implementation here if needed
         Catch ex As Exception
             Console.WriteLine($"OnErrorListRowActivated error: {ex.Message}")
@@ -393,7 +403,9 @@ Partial Public Class MainWindow
                 ' Schedule focus return on idle to ensure panel is fully hidden
                 GLib.Idle.Add(Function()
                     lEditor.GrabFocus()
+                    #If DEBUG Then
                     Console.WriteLine("Focus returned to editor via panel closed event")
+                    #End If
                     Return False ' Run once
                 End Function)
             End If
@@ -413,7 +425,9 @@ Partial Public Class MainWindow
             If pBottomPanelManager IsNot Nothing Then
                 ' Connect to panel closed event
                 AddHandler pBottomPanelManager.PanelClosed, AddressOf OnBottomPanelClosed
+                #If DEBUG Then
                 Console.WriteLine("Connected bottom panel events")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"ConnectBottomPanelEvents error: {ex.Message}")
@@ -516,7 +530,9 @@ Partial Public Class MainWindow
             Dim lPaned As Paned = TryCast(vSender, Paned)
             If lPaned IsNot Nothing Then
                 pIsDraggingPaned = True
+                #If DEBUG Then
                 Console.WriteLine("Started dragging paned separator")
+                #End If
             End If
             Return False ' Let default handler process
         Catch ex As Exception
@@ -531,7 +547,9 @@ Partial Public Class MainWindow
     Private Function OnPanedButtonRelease(vSender As Object, vArgs As ButtonReleaseEventArgs) As Boolean
         Try
             pIsDraggingPaned = False
+            #If DEBUG Then
             Console.WriteLine("Stopped dragging paned separator")
+            #End If
             
             
             Return False
@@ -578,7 +596,9 @@ Partial Public Class MainWindow
                 'Console.WriteLine($"Enforced min position: {lMinPos}")
             ElseIf lCurrentPos > lMaxPos Then
                 pCenterVPaned.Position = lMaxPos
+                #If DEBUG Then
                 Console.WriteLine($"Enforced max position: {lMaxPos}")
+                #End If
             End If
             
         Catch ex As Exception

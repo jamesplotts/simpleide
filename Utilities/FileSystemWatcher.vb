@@ -76,7 +76,9 @@ Namespace Utilities
                 ' Add to dictionary
                 pWatchers(lDirectory) = lWatcher
                 
+                #If DEBUG Then
                 Console.WriteLine($"Now watching directory: {lDirectory}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"WatchFile error: {ex.Message}")
@@ -96,7 +98,9 @@ Namespace Utilities
                     lWatcher.Dispose()
                     pWatchers.Remove(lDirectory)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Stopped watching directory: {lDirectory}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -137,7 +141,9 @@ Namespace Utilities
         
         Private Sub OnFileDeleted(vSender As Object, vArgs As FileSystemEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"File deleted: {vArgs.FullPath}")
+                #End If
                 RaiseEvent FileDeleted(vArgs.FullPath)
                 
             Catch ex As Exception
@@ -147,7 +153,9 @@ Namespace Utilities
         
         Private Sub OnFileRenamed(vSender As Object, vArgs As RenamedEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"File renamed: {vArgs.OldFullPath} -> {vArgs.FullPath}")
+                #End If
                 RaiseEvent FileRenamed(vArgs.OldFullPath, vArgs.FullPath)
                 
             Catch ex As Exception
@@ -157,7 +165,9 @@ Namespace Utilities
         
         Private Sub OnWatcherError(vSender As Object, vArgs As ErrorEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"FileSystemWatcher error: {vArgs.GetException().Message}")
+                #End If
                 
                 ' Try to restart the watcher
                 Dim lWatcher As System.IO.FileSystemWatcher = TryCast(vSender, System.IO.FileSystemWatcher)
@@ -186,7 +196,9 @@ Namespace Utilities
                 
                 ' Raise events for changed files
                 For Each lFilePath In lChangedFiles
+                    #If DEBUG Then
                     Console.WriteLine($"File changed: {lFilePath}")
+                    #End If
                     RaiseEvent FileChanged(lFilePath)
                 Next
                 

@@ -82,7 +82,9 @@ Namespace Editors
             Try
                 ' Validate line number
                 If vLine < 0 OrElse vLine >= pLineCount Then
+                    #If DEBUG Then
                     Console.WriteLine($"SetEditingLine: Invalid line {vLine} (LineCount={pLineCount})")
+                    #End If
                     Return
                 End If
                 
@@ -92,7 +94,9 @@ Namespace Editors
                 pEditingLine = vLine
                 pLastEditedLine = vLine
                 
+                #If DEBUG Then
                 Console.WriteLine($"SetEditingLine: Now editing line {vLine}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SetEditingLine error: {ex.Message}")
@@ -119,7 +123,9 @@ Namespace Editors
                     pSourceFileInfo.ParseLine(vOldLine)
                     ' Fire LineExited event for capitalization manager (KEEP THIS)
                     RaiseLineExitedEvent(vOldLine)
+                    #If DEBUG Then
                     Console.WriteLine($"OnLineChanged: Raised LineExited for line {vOldLine}")
+                    #End If
                 End If
                 
                 ' Update editing line (use consolidated version)
@@ -131,7 +137,9 @@ Namespace Editors
                 ' Recompute the matching block-keyword highlight for the new line
                 UpdateKeywordPairHighlight()
 
+                #If DEBUG Then
                 Console.WriteLine($"OnLineChanged: Moved from line {vOldLine} to line {vNewLine}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnLineChanged error: {ex.Message}")
@@ -149,7 +157,9 @@ Namespace Editors
         Private Sub MarkLinesChangedAndParse(vStartLine As Integer, Optional vEndLine As Integer = -1)
             Try
                 If pSourceFileInfo Is Nothing Then 
+                    #If DEBUG Then
                     Console.WriteLine("MarkLinesChangedAndParse: No SourceFileInfo available")
+                    #End If
                     Return
                 End If
                 
@@ -158,7 +168,9 @@ Namespace Editors
                 
                 ' Validate range
                 If vStartLine < 0 OrElse vStartLine >= pLineCount Then
+                    #If DEBUG Then
                     Console.WriteLine($"MarkLinesChangedAndParse: Invalid start line {vStartLine}")
+                    #End If
                     Return
                 End If
                 
@@ -169,7 +181,9 @@ Namespace Editors
                 
                 ' Request async parse through SourceFileInfo
                 pSourceFileInfo.RequestAsyncParse()
+                #If DEBUG Then
                 Console.WriteLine("MarkLinesChangedAndParse: Requested async parse")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"MarkLinesChangedAndParse error: {ex.Message}")
@@ -195,7 +209,9 @@ Namespace Editors
                 ' Check if line changed and trigger line change handling
                 If lOldLine <> pCursorLine Then
                     OnLineChanged(lOldLine, pCursorLine)
+                    #If DEBUG Then
                     Console.WriteLine($"SetCursorPosition_WithTracking: Line changed from {lOldLine} to {pCursorLine}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -225,7 +241,9 @@ Namespace Editors
 
                     ' Fire LineExited event before leaving the line (for capitalization)
                     RaiseLineExitedEvent(pEditingLine)
+                    #If DEBUG Then
                     Console.WriteLine($"HandleEnterKey: Raised LineExited for line {pEditingLine}")
+                    #End If
                 End If
                 
                 ' Get current line content from SourceFileInfo
@@ -261,7 +279,9 @@ Namespace Editors
                 ' Raise text changed event
                 RaiseEvent TextChanged(Me, New EventArgs())
                 
+                #If DEBUG Then
                 Console.WriteLine($"HandleEnterKey: Inserted new line at {pCursorLine}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"HandleEnterKey error: {ex.Message}")

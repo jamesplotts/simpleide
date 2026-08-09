@@ -556,16 +556,6 @@ Namespace Editors
 
                 If lBestIndex >= 0 Then
                     MoveCodeSenseSelection(lBestIndex - pCodeSenseSelectedIndex)
-                Else
-                    Dim lAllText As New System.Text.StringBuilder()
-                    for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
-                        If i > 0 Then lAllText.Append(", ")
-                        lAllText.Append(pCodeSenseSuggestions(i).Text)
-                        lAllText.Append("[")
-                        lAllText.Append(pCodeSenseSuggestions(i).Kind.ToString())
-                        lAllText.Append("]")
-                    Next
-                    Console.WriteLine($"DIAG SelectCodeSenseSuggestionBestMatch: NO MATCH for '{vTypedText}' lExcludeLocals={lExcludeLocals} among {pCodeSenseSuggestions.Count}: {lAllText}")
                 End If
 
             Catch ex As Exception

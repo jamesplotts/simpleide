@@ -65,10 +65,14 @@ Namespace Managers
         ''' Build the project asynchronously
         ''' </summary>
         Public Async Function BuildProjectAsync(vConfiguration As BuildConfiguration) As Task(Of BuildResult)
+            #If DEBUG Then
             Console.WriteLine($"BuildProjectAsync: Starting - ProjectPath = {pProjectPath}")
+            #End If
             
             If pIsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("BuildProjectAsync: Already building")
+                #End If
                 Return New BuildResult() with {
                     .Success = False,
                     .Message = "Build already in progress"
@@ -76,7 +80,9 @@ Namespace Managers
             End If
             
             If String.IsNullOrEmpty(pProjectPath) OrElse Not File.Exists(pProjectPath) Then
+                #If DEBUG Then
                 Console.WriteLine($"BuildProjectAsync: Invalid project path - {pProjectPath}")
+                #End If
                 Return New BuildResult() with {
                     .Success = False,
                     .Message = $"Invalid project path: {pProjectPath}"
@@ -90,21 +96,29 @@ Namespace Managers
                 pCancellationTokenSource = New CancellationTokenSource()
                 
                 ' Raise build started event
+                #If DEBUG Then
                 Console.WriteLine("BuildProjectAsync: Raising BuildStarted event")
+                #End If
                 RaiseEvent BuildStarted(Me, EventArgs.Empty)
                 
                 ' Execute restore if needed
                 If vConfiguration.RestorePackages Then
+                    #If DEBUG Then
                     Console.WriteLine("BuildProjectAsync: Executing restore")
+                    #End If
                     Await ExecuteRestoreAsync()
                 End If
                 
                 ' Execute build
+                #If DEBUG Then
                 Console.WriteLine("BuildProjectAsync: Executing build")
+                #End If
                 Dim lResult As BuildResult = Await ExecuteBuildAsync(vConfiguration)
                 
                 ' Raise build completed event
+                #If DEBUG Then
                 Console.WriteLine($"BuildProjectAsync: Build complete - Success = {lResult.Success}")
+                #End If
                 RaiseEvent BuildCompleted(Me, New BuildEventArgs(lResult))
                 
                 Return lResult
@@ -134,13 +148,19 @@ Namespace Managers
         ''' </summary>
         Private Async Function ExecuteBuildAsync(vConfiguration As BuildConfiguration) As Task(Of BuildResult)
             Try
+                #If DEBUG Then
                 Console.WriteLine("ExecuteBuildAsync: Starting")
+                #End If
                 
                 Dim lDotnetPath As String = FindDotnetExecutable()
+                #If DEBUG Then
                 Console.WriteLine($"ExecuteBuildAsync: Using dotnet at: {lDotnetPath}")
+                #End If
                 
                 Dim lArguments As String = vConfiguration.GetBuildArguments(pProjectPath)
+                #If DEBUG Then
                 Console.WriteLine($"ExecuteBuildAsync: Arguments: {lArguments}")
+                #End If
                 
                 Dim lStartInfo As New ProcessStartInfo()
                 lStartInfo.FileName = lDotnetPath
@@ -158,7 +178,9 @@ Namespace Managers
                 
                 ' Send command to output
                 Dim lCommandLine As String = $"{lStartInfo.FileName} {lStartInfo.Arguments}"
+                #If DEBUG Then
                 Console.WriteLine($"ExecuteBuildAsync: Executing: {lCommandLine}")
+                #End If
                 RaiseEvent OutputReceived(Me, $"Executing: {lCommandLine}{Environment.NewLine}")
                 RaiseEvent OutputReceived(Me, $"Working Directory: {lStartInfo.WorkingDirectory}{Environment.NewLine}")
                 RaiseEvent OutputReceived(Me, $"========================================{Environment.NewLine}")
@@ -166,21 +188,27 @@ Namespace Managers
                 Dim lResult As New BuildResult()
                 
                 ' Start the process
+                #If DEBUG Then
                 Console.WriteLine("ExecuteBuildAsync: Starting process")
+                #End If
                 Using lProcess As Process = Process.Start(lStartInfo)
                     If lProcess Is Nothing Then
                         Throw New Exception("Failed to start dotnet process")
                     End If
                     
                     pCurrentProcess = lProcess
+                    #If DEBUG Then
                     Console.WriteLine($"ExecuteBuildAsync: Process started - PID = {lProcess.Id}")
+                    #End If
                     
                     ' Read output asynchronously
                     Dim lOutputTask As Task = Task.Run(Sub() ReadProcessOutput(lProcess.StandardOutput))
                     'Dim lErrorTask As Task = Task.Run(Sub() ReadProcessError(lProcess.StandardError))
                     
                     ' Wait for process to exit (compatible with .NET Standard 2.0)
+                    #If DEBUG Then
                     Console.WriteLine("ExecuteBuildAsync: Waiting for process to exit")
+                    #End If
                     Await Task.Run(Sub()
                         lProcess.WaitForExit()
                     End Sub)
@@ -189,7 +217,9 @@ Namespace Managers
                     Await Task.WhenAll(lOutputTask)
                     
                     Dim lExitCode As Integer = lProcess.ExitCode
+                    #If DEBUG Then
                     Console.WriteLine($"ExecuteBuildAsync: Process exited with code {lExitCode}")
+                    #End If
                     
                     lResult.Success = (lExitCode = 0)
                     lResult.ExitCode = lExitCode
@@ -197,7 +227,9 @@ Namespace Managers
                     lResult.Output = pOutputBuilder.ToString()
                     lResult.ErrorOutput = pErrorBuilder.ToString()
 
+                    #If DEBUG Then
                     Console.WriteLine($"pOutputBuilder contents: " + pOutputBuilder.ToString())
+                    #End If
                     
                     ' Parse errors and warnings
                     ParseBuildOutput(lResult)
@@ -205,7 +237,9 @@ Namespace Managers
                     pCurrentProcess = Nothing
                 End Using
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExecuteBuildAsync: Complete - Success = {lResult.Success}")
+                #End If
                 Return lResult
                 
             Catch ex As Exception
@@ -331,7 +365,9 @@ Namespace Managers
         ''' </summary>
         Private Async Function ExecuteRestoreAsync() As Task
             Try
+                #If DEBUG Then
                 Console.WriteLine("ExecuteRestoreAsync: Starting")
+                #End If
                 RaiseEvent OutputReceived(Me, "Restoring packages..." & Environment.NewLine)
                 
                 Dim lDotnetPath As String = FindDotnetExecutable()
@@ -344,7 +380,9 @@ Namespace Managers
                 lStartInfo.CreateNoWindow = True
                 lStartInfo.WorkingDirectory = Path.GetDirectoryName(pProjectPath)
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExecuteRestoreAsync: {lStartInfo.FileName} {lStartInfo.Arguments}")
+                #End If
                 
                 Using lProcess As Process = Process.Start(lStartInfo)
                     If lProcess Is Nothing Then
@@ -367,7 +405,9 @@ Namespace Managers
                     pCurrentProcess = Nothing
                 End Using
                 
+                #If DEBUG Then
                 Console.WriteLine("ExecuteRestoreAsync: Complete")
+                #End If
                 RaiseEvent OutputReceived(Me, "Restoring packages complete." & Environment.NewLine)
 
             Catch ex As Exception
@@ -476,7 +516,9 @@ Namespace Managers
                         lProcess.WaitForExit()
                         
                         If Not String.IsNullOrEmpty(lPath) AndAlso File.Exists(lPath) Then
+                            #If DEBUG Then
                             Console.WriteLine($"FindDotnetExecutable: Found via 'which': {lPath}")
+                            #End If
                             Return lPath
                         End If
                     End Using
@@ -507,13 +549,17 @@ Namespace Managers
                 ' Find first existing executable
                 For Each lExePath As String In lPossiblePaths
                     If File.Exists(lExePath) Then
+                        #If DEBUG Then
                         Console.WriteLine($"FindDotnetExecutable: Found at: {lExePath}")
+                        #End If
                         Return lExePath
                     End If
                 Next
                 
                 ' Default to just "dotnet" and hope it's in PATH
+                #If DEBUG Then
                 Console.WriteLine("FindDotnetExecutable: Using Default 'dotnet' command")
+                #End If
                 Return "dotnet"
                 
             Catch ex As Exception
@@ -556,9 +602,13 @@ Namespace Managers
                         ' Only add if we haven't seen this exact error before
                         If lProcessedErrors.Add(lErrorKey) Then
                             vResult.Errors.Add(lError)
+                            #If DEBUG Then
                             Console.WriteLine($"Added error: {lError.FilePath}({lError.Line},{lError.Column}): {lError.ErrorCode}")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Skipped duplicate error: {lErrorKey}")
+                            #End If
                         End If
                         
                         Continue for
@@ -580,9 +630,13 @@ Namespace Managers
                         ' Only add if we haven't seen this exact warning before
                         If lProcessedWarnings.Add(lWarningKey) Then
                             vResult.Warnings.Add(lWarning)
+                            #If DEBUG Then
                             Console.WriteLine($"Added warning: {lWarning.FilePath}({lWarning.Line},{lWarning.Column}): {lWarning.WarningCode}")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Skipped duplicate warning: {lWarningKey}")
+                            #End If
                         End If
                     End If
                 Next
@@ -591,7 +645,9 @@ Namespace Managers
                 vResult.ErrorCount = vResult.Errors.Count
                 vResult.WarningCount = vResult.Warnings.Count
                 
+                #If DEBUG Then
                 Console.WriteLine($"ParseBuildOutput complete: {vResult.ErrorCount} unique errors, {vResult.WarningCount} unique warnings")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ParseBuildOutput error: {ex.Message}")

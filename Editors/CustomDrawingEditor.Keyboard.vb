@@ -26,7 +26,9 @@ Namespace Editors
                 pCursorBlink = True
                 pCursorVisible = True
                 InvalidateCursor()
+                #If DEBUG Then
                 Console.WriteLine($"OnKeypress in CustomDrawingEditor.Keyboard.vb called.")
+                #End If
                 
                 ' Get key and modifiers
                 Dim lKey As Gdk.Key = CType(vArgs.Event.Key, Gdk.Key)
@@ -43,7 +45,9 @@ Namespace Editors
 
                 ' Debug output for Tab keys
                 If lKey = Gdk.Key.Tab OrElse lKey = Gdk.Key.ISO_Left_Tab Then
+                    #If DEBUG Then
                     Console.WriteLine($"Editor Tab Detection: Key={lKey}, KeyValue={vArgs.Event.KeyValue}, Modifiers={lModifiers}")
+                    #End If
                 End If
                 
                 ' SPECIAL HANDLING FOR TAB AND SHIFT+TAB (by KeyValue to avoid enum issues)
@@ -57,16 +61,24 @@ Namespace Editors
                     If Not pIsReadOnly Then
                         If (lModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
                             ' Shift+Tab - Always outdent
+                            #If DEBUG Then
                             Console.WriteLine("Tab with Shift modifier - calling OutdentSelection()")
+                            #End If
                             OutdentSelection()
                         Else
                             ' Regular Tab
+                            #If DEBUG Then
                             Console.WriteLine($"Regular Tab - SelectionActive={pSelectionActive}, HasSelection={pHasSelection}")
+                            #End If
                             If pSelectionActive OrElse pHasSelection Then
+                                #If DEBUG Then
                                 Console.WriteLine("Has selection - calling IndentSelection()")
+                                #End If
                                 IndentSelection()
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine("No selection - inserting Tab character")
+                                #End If
                                 InsertText(GetTabIndentString())
                             End If
                         End If
@@ -76,7 +88,9 @@ Namespace Editors
                 ElseIf vArgs.Event.KeyValue = 65056 Then
                     ' ISO_Left_Tab (this IS Shift+Tab on many systems)
                     If Not pIsReadOnly Then
+                        #If DEBUG Then
                         Console.WriteLine("ISO_Left_Tab (Shift+Tab) detected - calling OutdentSelection()")
+                        #End If
                         OutdentSelection()
                     End If
                     vArgs.RetVal = True
@@ -89,7 +103,9 @@ Namespace Editors
                     Case Gdk.Key.F1, Gdk.Key.F2, Gdk.Key.F3, Gdk.Key.F4, Gdk.Key.F5, Gdk.Key.F6,
                          Gdk.Key.F7, Gdk.Key.F8, Gdk.Key.F9, Gdk.Key.F10, Gdk.Key.F11, Gdk.Key.F12
                         ' Let function keys pass through to MainWindow
+                        #If DEBUG Then
                         Console.WriteLine($"Function key {lKey} detected - passing to MainWindow")
+                        #End If
                         vArgs.RetVal = False
                         Return False
                 End Select
@@ -358,7 +374,6 @@ Namespace Editors
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 AndAlso
                            (lModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
-                            Console.WriteLine($"DIAG KeyChar: lChar='{lChar}' KeyValue={vArgs.Event.KeyValue} lKey={lKey} pCursorColumn={pCursorColumn} pCodeSenseActive={pCodeSenseActive}")
 
                             Dim lReplacedSelection As Boolean = pHasSelection
                             If pHasSelection Then
@@ -418,7 +433,9 @@ Namespace Editors
                             Return True
                         Else
                             ' Debug: Log any unhandled keys
+                            #If DEBUG Then
                             Console.WriteLine($"Editor Unhandled Key: Key={lKey}, KeyValue={vArgs.Event.KeyValue}, Modifiers={lModifiers}")
+                            #End If
                             ' Let unhandled keys pass through
                             vArgs.RetVal = False
                             Return False

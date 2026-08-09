@@ -193,7 +193,9 @@ Namespace Managers
 
                     Case Else
                         ' Handle other member types if needed
+                        #If DEBUG Then
                         Console.WriteLine($"Unhandled member kind: {vMember.Kind()}")
+                        #End If
                 End Select
 
             Catch ex As Exception
@@ -257,7 +259,9 @@ Namespace Managers
 
                     Case Else
                         ' Handle other member types if needed
+                        #If DEBUG Then
                         Console.WriteLine($"Unhandled type member kind: {vMember.Kind()}")
+                        #End If
                 End Select
 
             Catch ex As Exception

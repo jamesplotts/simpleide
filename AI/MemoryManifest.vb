@@ -84,7 +84,9 @@ Namespace AI
                 Dim lApiKey As String = pSettingsManager.GetString("Mem0.ApiKey", "")
                 If Not String.IsNullOrEmpty(lApiKey) Then
                     pMem0Client = New Mem0Client(lApiKey)
+                    #If DEBUG Then
                     Console.WriteLine("MemoryManifest: Mem0 client initialized")
+                    #End If
                 End If
                 
                 ' Load cached memories
@@ -128,7 +130,9 @@ Namespace AI
                 If vIsPersistent AndAlso pMem0Client IsNot Nothing Then
                     Dim lSuccess As Boolean = Await pMem0Client.StoreMemoryAsync(vKey, vValue, lEntry.Metadata)
                     If Not lSuccess Then
+                        #If DEBUG Then
                         Console.WriteLine($"Failed to store Memory persistently: {vKey}")
+                        #End If
                     End If
                 End If
                 
@@ -327,7 +331,9 @@ Namespace AI
                             pMemoryCache(lEntry.key) = lEntry
                         Next
                         
+                        #If DEBUG Then
                         Console.WriteLine($"loaded {lEntries.Length} memories from cache")
+                        #End If
                     End If
                 End If
                 

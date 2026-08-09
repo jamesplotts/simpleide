@@ -601,7 +601,9 @@ Namespace Widgets
                                 ShowAddNewItemDialog("ResourceFile", ".resx", AddressOf GenerateResourceFileCode)
                                 
                             Case Else
+                                #If DEBUG Then
                                 Console.WriteLine($"Unknown item type selected: {lItemType}")
+                                #End If
                         End Select
                     End If
                 Else
@@ -839,7 +841,9 @@ Namespace Widgets
                 
                 ' Check if successfully added
                 If lDocModel IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Added new {lActualName}{vExtension} to project at {lFinalPath}")
+                    #End If
 
                     ' Refresh project explorer - RefreshProject() is solution-aware (routes to
                     ' LoadSolutionFromManager when a .sln is loaded); LoadProjectFromManager
@@ -849,7 +853,9 @@ Namespace Widgets
                     ' Raise event to open the new file
                     RaiseEvent FileSelected(lFullPath)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Failed to add {lFileName} to project")
+                    #End If
                     ShowErrorDialog($"Failed to add {lFileName} to project")
                 End If
                 
@@ -963,7 +969,9 @@ Namespace Widgets
                 ' Create folder
                 System.IO.Directory.CreateDirectory(lFullPath)
 
+                #If DEBUG Then
                 Console.WriteLine($"Created New folder: {lFullPath}")
+                #End If
 
                 ' Insert the new node directly under whichever folder (or the project root)
                 ' was selected, then rebuild just the visual/viewport-culled representation -
@@ -1013,7 +1021,9 @@ Namespace Widgets
                 
                 ' Check if successfully added
                 If lDocModel IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Added existing file To project: {vFilePath}")
+                    #End If
 
                     ' Refresh project explorer - RefreshProject() is solution-aware (see
                     ' CreateNewItem's comment above for why LoadProjectFromManager directly
@@ -1026,7 +1036,9 @@ Namespace Widgets
                     ' Open the file in the editor
                     RaiseEvent FileSelected(vFilePath)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Failed To add existing file To project: {vFilePath}")
+                    #End If
                     ShowErrorDialog($"Failed To add file To project")
                 End If
                 
@@ -1835,9 +1847,13 @@ Namespace Widgets
                     ' Raise event to open the file
                     RaiseEvent FileSelected(lFullPath)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Created empty VB file: {lFullPath}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Failed to add file to project: {lFullPath}")
+                    #End If
                     ShowErrorDialog("Failed To add file To project")
                 End If
                 

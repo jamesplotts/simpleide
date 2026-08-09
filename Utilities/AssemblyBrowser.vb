@@ -34,7 +34,9 @@ Namespace Utilities
             Try
                 ' Get runtime directory
                 Dim lRuntimeDir As String = RuntimeEnvironment.GetRuntimeDirectory()
+                #If DEBUG Then
                 Console.WriteLine($"Runtime directory: {lRuntimeDir}")
+                #End If
                 
                 ' Common runtime assemblies
                 Dim lCommonAssemblies As String() = {

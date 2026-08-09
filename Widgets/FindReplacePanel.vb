@@ -335,7 +335,9 @@ Namespace Widgets
                     AddHandler pResultsGrid.ContentArea.KeyPressEvent, AddressOf OnFindPanelKeyPress
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("FindReplacePanel: ESC handling initialized")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeEscapeHandling error: {ex.Message}")
@@ -542,7 +544,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnFindEntryActivated(vSender As Object, vArgs As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("OnFindEntryActivated: Enter pressed via Activated event!")
+                #End If
                 
                 ' Execute Find All if we have text
                 If Not String.IsNullOrEmpty(pFindEntry.Text) Then
@@ -1044,7 +1048,9 @@ Namespace Widgets
                 vSourceFile.NotifyRenderingChanged(0, Math.Max(0, vSourceFile.TextLines.Count - 1))
 
                 If Not vSourceFile.SaveContent() Then
+                    #If DEBUG Then
                     Console.WriteLine($"ReplaceAllInSourceFileInfo: failed To save {vFilePath}")
+                    #End If
                     vFailedSaves.Add(vFilePath)
                 End If
 
@@ -1303,17 +1309,23 @@ Namespace Widgets
             Try
                 Select Case vScope
                     Case SearchScope.eCurrentFile
+                        #If DEBUG Then
                         Console.WriteLine("SetSearchScope: Setting Scope To Current File")
+                        #End If
                         pInFileRadio.Active = True
                         pInProjectRadio.Active = False
                         
                     Case SearchScope.eProject
+                        #If DEBUG Then
                         Console.WriteLine("SetSearchScope: Setting Scope To Entire Project")
+                        #End If
                         pInProjectRadio.Active = True
                         pInFileRadio.Active = False
                         
                     Case Else
+                        #If DEBUG Then
                         Console.WriteLine($"SetSearchScope: Unsupported Scope {vScope}, defaulting To Current File")
+                        #End If
                         pInFileRadio.Active = True
                         pInProjectRadio.Active = False
                 End Select

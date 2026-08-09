@@ -63,7 +63,9 @@ Namespace Widgets
                 pSettingsManager.SetInteger("Explorer.TextScale", vScale)
                 pSettingsManager.SaveSettings()
                 
+                #If DEBUG Then
                 Console.WriteLine($"Saved unified Explorer.TextScale: {vScale}%")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SaveUnifiedTextScale error: {ex.Message}")
@@ -170,7 +172,9 @@ Namespace Widgets
                     pVScrollBar.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectExplorer.ApplyTheme: Theme applied and refreshed")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
@@ -182,7 +186,9 @@ Namespace Widgets
         ''' </summary>
         Public Sub OnThemeChanged()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ProjectExplorer.OnThemeChanged: Received theme change notification")
+                #End If
                 
                 ' Apply the new theme
                 ApplyTheme()

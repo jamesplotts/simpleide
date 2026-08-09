@@ -263,7 +263,9 @@ Namespace Editors
                         End If
                     End If
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ApplyFont: Updated settings with {vFontDescription}")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -287,7 +289,9 @@ Namespace Editors
                     Dim lCurrentTheme As EditorTheme = GetActiveTheme()
                     If lCurrentTheme IsNot Nothing Then
                         pLineNumberWidget.UpdateTheme(lCurrentTheme)
+                        #If DEBUG Then
                         Console.WriteLine($"ApplyTheme: Updated LineNumberWidget with theme '{lCurrentTheme.Name}'")
+                        #End If
                     End If
                 End If
                 
@@ -299,7 +303,9 @@ Namespace Editors
                 pDrawingArea?.QueueDraw()
                 pClientAreaBox?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine("ApplyTheme: Theme applied To all components")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
@@ -452,12 +458,16 @@ Namespace Editors
         ''' </remarks>
         Private Sub OnSettingsZoomChanged(vSettingName As String, vOldValue As Object, vNewValue As Object)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"OnSettingsZoomChanged: {vSettingName} = {vNewValue}")
+                #End If
                 
                 Select Case vSettingName
                     Case "EditorZoomLevel", "EditorFont"
                         ' Font or zoom changed - update metrics and redraw
+                        #If DEBUG Then
                         Console.WriteLine($"Zoom/Font changed: Updating metrics and redrawing")
+                        #End If
                         
                         ' CRITICAL: Force FontMetrics recreation with new font size
                         pFontMetrics = Nothing  ' Clear cached metrics to force recalculation
@@ -484,25 +494,33 @@ Namespace Editors
                         
                     Case "TabWidth", "UseTabs"
                         ' Tab settings changed - redraw
+                        #If DEBUG Then
                         Console.WriteLine($"Tab settings changed: Redrawing")
+                        #End If
                         pDrawingArea?.QueueDraw()
                         
                     Case "ShowLineNumbers"
                         ' Line numbers visibility changed
+                        #If DEBUG Then
                         Console.WriteLine($"Line numbers visibility changed: {vNewValue}")
+                        #End If
                         UpdateLineNumberWidth()
                         pLineNumberWidget?.QueueDraw()
                         pDrawingArea?.QueueDraw()
                         
                     Case "WordWrap"
                         ' Word wrap changed - update scrollbars and redraw
+                        #If DEBUG Then
                         Console.WriteLine($"Word wrap changed: {vNewValue}")
+                        #End If
                         UpdateScrollbars()
                         pDrawingArea?.QueueDraw()
                         
                     Case "ShowWhitespace", "HighlightCurrentLine", "BraceMatching", "AutoIndent"
                         ' Visual settings changed - redraw
+                        #If DEBUG Then
                         Console.WriteLine($"{vSettingName} changed: Redrawing")
+                        #End If
                         pDrawingArea?.QueueDraw()
 
                     Case "UndoHistorySize"
@@ -514,7 +532,9 @@ Namespace Editors
                         
                     Case "CurrentTheme"
                         ' Theme changed - update colors and redraw
+                        #If DEBUG Then
                         Console.WriteLine($"Theme changed: Updating colors")
+                        #End If
                         UpdateSyntaxColorsFromTheme()
                         
                         ' CRITICAL: Update LineNumberWidget theme
@@ -576,7 +596,9 @@ Namespace Editors
                 UpdateLineNumberWidth()
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"ApplyCurrentZoomFromSettings: Applied {pCurrentZoomLevel}pt")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyCurrentZoomFromSettings error: {ex.Message}")
@@ -653,7 +675,9 @@ Namespace Editors
                     ' Apply current settings
                     ApplyCurrentZoomFromSettings()
                     
+                    #If DEBUG Then
                     Console.WriteLine("CustomDrawingEditor: SettingsManager initialized with centralized properties")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -668,7 +692,9 @@ Namespace Editors
             Try
                 If pSettingsManager IsNot Nothing Then
                     RemoveHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsZoomChanged
+                    #If DEBUG Then
                     Console.WriteLine("CustomDrawingEditor: SettingsManager disconnected")
+                    #End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"DisconnectSettingsManager error: {ex.Message}")
@@ -711,7 +737,9 @@ Namespace Editors
 
                     pDrawingArea?.QueueDraw()
 
+                    #If DEBUG Then
                     Console.WriteLine($"SetThemeColors: Demo theme '{vTheme.Name}' applied")
+                    #End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"SetThemeColors error: {ex.Message}")

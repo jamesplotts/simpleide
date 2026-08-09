@@ -50,7 +50,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub ProcessCompileItems(vDoc As XmlDocument)
             Try
+                #If DEBUG Then
                 Console.WriteLine("ProcessCompileItems: Starting to process project file")
+                #End If
                 
                 ' First, try to detect if this is an SDK-style project
                 Dim lIsSdkProject As Boolean = False
@@ -59,17 +61,23 @@ Namespace Widgets
                 If lRootElement IsNot Nothing Then
                     ' Check for Sdk attribute (SDK-style projects)
                     lIsSdkProject = lRootElement.HasAttribute("Sdk")
+                    #If DEBUG Then
                     Console.WriteLine($"  Project type: {If(lIsSdkProject, "SDK-style", "Classic MSBuild")}")
+                    #End If
                 End If
                 
                 ' For SDK-style projects, we need to scan the actual file system
                 ' because they use globbing patterns by default
                 If lIsSdkProject Then
+                    #If DEBUG Then
                     Console.WriteLine("  Using file system scan for SDK-style project")
+                    #End If
                     ScanProjectDirectory()
                 Else
                     ' For classic projects, parse the XML
+                    #If DEBUG Then
                     Console.WriteLine("  Parsing XML for classic project")
+                    #End If
                     
                     ' Setup namespace manager for classic MSBuild projects
                     Dim lNamespaceManager As New XmlNamespaceManager(vDoc.NameTable)
@@ -82,7 +90,9 @@ Namespace Widgets
                     ProcessXmlItems(vDoc, lNamespaceManager, "EmbeddedResource")
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProcessCompileItems: Completed, found {CountFiles(pRootNode)} files")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProcessCompileItems error: {ex.Message}")
@@ -585,7 +595,9 @@ Namespace Widgets
                 End If
                 
                 If lNodes IsNot Nothing AndAlso lNodes.Count > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Found {lNodes.Count} {vItemType} items")
+                    #End If
                     
                     For Each lNode As XmlNode In lNodes
                         Dim lInclude As String = lNode.Attributes("Include")?.Value
@@ -611,11 +623,15 @@ Namespace Widgets
         Private Sub ScanProjectDirectory()
             Try
                 If String.IsNullOrEmpty(pProjectDirectory) OrElse Not Directory.Exists(pProjectDirectory) Then
+                    #If DEBUG Then
                     Console.WriteLine("  Project directory not valid")
+                    #End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Scanning directory: {pProjectDirectory}")
+                #End If
                 
                 ' Scan for VB files recursively
                 ScanDirectoryRecursive(pProjectDirectory, pRootNode, "")
@@ -704,7 +720,9 @@ Namespace Widgets
                     ' Skip certain file types
                     Dim lExt As String = System.IO.Path.GetExtension(lFileName).ToLower()
                     If lExt = ".dll" OrElse lExt = ".exe" OrElse lExt = ".pdb" Then
+                        #If DEBUG Then
                         Console.WriteLine($"    Skipping binary file: {lFileName}")
+                        #End If
                         Continue For
                     End If
                     
@@ -736,13 +754,19 @@ Namespace Widgets
                         End Select
                         
                         vParentNode.AddChild(lFileNode)
+                        #If DEBUG Then
                         Console.WriteLine($"    Added file: {lFileName} (Type={lFileNode.NodeType})")
+                        #End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"    File already exists: {lFileName}")
+                        #End If
                     End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Completed scanning: {vDirectory} - Added {vParentNode.Children.Count} children to {vParentNode.Name}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ScanDirectoryRecursive error: {ex.Message}")

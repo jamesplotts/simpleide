@@ -188,7 +188,9 @@ Namespace Editors
                     pMainGrid = Nothing
                     pClientAreaBox = Nothing
                     
+                    #If DEBUG Then
                     Console.WriteLine("CustomDrawingEditor disposed")
+                    #End If
                 End If
                 
                 ' Mark as disposed before calling base

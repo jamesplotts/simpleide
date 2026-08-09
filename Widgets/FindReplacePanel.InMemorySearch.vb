@@ -35,7 +35,9 @@ Namespace Widgets
         ''' <param name="vProjectManager">The project manager instance</param>
         Public Sub SetProjectManager(vProjectManager As ProjectManager)
             pProjectManager = vProjectManager
+            #If DEBUG Then
             Console.WriteLine($"FindReplacePanel: ProjectManager set - {If(pProjectManager IsNot Nothing, "Success", "Nothing")}")
+            #End If
         End Sub
 
         ''' <summary>
@@ -68,7 +70,9 @@ Namespace Widgets
 
                 ' Fall back to file-based search if no ProjectManager
                 If pProjectManager Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("FindReplacePanel: No ProjectManager available, using file-based search")
+                    #End If
                     SearchInProject(vOnComplete) ' Call original method
                     Return
                 End If

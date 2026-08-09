@@ -546,7 +546,9 @@ Namespace Editors
         End Sub
         
         Private Sub ShowMessage(vMessage As String)
+            #If DEBUG Then
             Console.WriteLine($"PngEditor: {vMessage}")
+            #End If
             ' TODO: Connect to main window status bar
         End Sub
         

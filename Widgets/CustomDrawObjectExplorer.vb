@@ -212,7 +212,9 @@ Namespace Widgets
                 
                 ShowAll()
                 
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawObjectExplorer initialized with unified scale: {pCurrentScale}%")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawObjectExplorer constructor error: {ex.Message}")
@@ -319,11 +321,15 @@ Namespace Widgets
         ''' </remarks>
         Public Sub UpdateStructure(vRootNode As SyntaxNode) Implements IObjectExplorer.UpdateStructure
             Try
+                #If DEBUG Then
                 Console.WriteLine($"UpdateStructure called with root: {If(vRootNode?.Name, "Nothing")}")
+                #End If
                 
                 ' Check if this is actually a change
                 If vRootNode Is pRootNode Then
+                    #If DEBUG Then
                     Console.WriteLine("UpdateStructure: Same root, skipping update")
+                    #End If
                     Return
                 End If
                 
@@ -413,7 +419,9 @@ Namespace Widgets
         Private Sub AttemptStructureRecovery()
             Try
                 If pRootNode Is Nothing AndAlso pLastValidRootNode IsNot Nothing AndAlso pIsProjectLoaded Then
+                    #If DEBUG Then
                     Console.WriteLine("Attempting to recover Object Explorer structure...")
+                    #End If
                     
                     ' Restore the root
                     pRootNode = pLastValidRootNode
@@ -421,7 +429,9 @@ Namespace Widgets
                     ' Rebuild the visual tree
                     RebuildVisualTree()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Structure recovered with {pVisibleNodes.Count} nodes")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -479,7 +489,9 @@ Namespace Widgets
                     RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
                     AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoaded
                     
+                    #If DEBUG Then
                     Console.WriteLine("CustomDrawObjectExplorer subscribed to ProjectManager parse events")
+                    #End If
                 End If
                 
                 ' Load initial project structure if available
@@ -583,8 +595,12 @@ Namespace Widgets
         ''' </summary>
         Public Sub OnPageActivated() Implements IObjectExplorer.OnPageActivated
             Try
+                #If DEBUG Then
                 Console.WriteLine("CustomDrawObjectExplorer.OnPageActivated called")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Initial state: Root=" + If(pRootNode IsNot Nothing, "Present", "Nothing") + ", LastValid=" + If(pLastValidRootNode IsNot Nothing, "Present", "Nothing") + ", IsProjectLoaded=" + pIsProjectLoaded.ToString)
+                #End If
                 
                 ' Apply theme (should not affect tree structure)
                 'CustomDrawObjectExplorer.ApplyTheme: Applied theme To Object Explorer: {pThemeManager?.GetCurrentTheme()}")
@@ -592,7 +608,9 @@ Namespace Widgets
                 
                 ' Check if we need to restore from last valid state
                 If pRootNode Is Nothing AndAlso pLastValidRootNode IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("OnPageActivated: Restoring from last valid root")
+                    #End If
                     pRootNode = pLastValidRootNode
                     pIsProjectLoaded = True
                     pNeedsRebuild = True  ' Mark for rebuild since we restored root
@@ -600,17 +618,25 @@ Namespace Widgets
                 
                 ' Only rebuild if actually needed
                 If IsRebuildNeeded() Then
+                    #If DEBUG Then
                     Console.WriteLine("OnPageActivated: Rebuilding visual tree...")
+                    #End If
                     RebuildVisualTree()
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("OnPageActivated: Visual tree Is current, skipping rebuild")
+                    #End If
                 End If
                 
                 ' Always ensure drawing area is refreshed
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"OnPageActivated: Complete with {pVisibleNodes.Count} nodes")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Final state: Root=" + If(pRootNode IsNot Nothing, "Present", "Nothing") + ", LastValid=" + If(pLastValidRootNode IsNot Nothing, "Present", "Nothing") + ", IsProjectLoaded=" + pIsProjectLoaded.ToString)
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnPageActivated error: {ex.Message}")
@@ -624,7 +650,9 @@ Namespace Widgets
         ''' </summary>
         Public Sub DiagnoseTreeViewStatus() Implements IObjectExplorer.DiagnoseTreeViewStatus
             Try
+                #If DEBUG Then
                 Console.WriteLine(GetTreeViewStatus())
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DiagnoseTreeViewStatus error: {ex.Message}")
@@ -673,16 +701,24 @@ Namespace Widgets
         ''' </summary>
         Public Sub CheckTreeViewContent() Implements IObjectExplorer.CheckTreeViewContent
             Try
+                #If DEBUG Then
                 Console.WriteLine($"TreeView Content Check:")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Total visible nodes: {pVisibleNodes.Count}")
+                #End If
                 
                 for i As Integer = 0 To Math.Min(10, pVisibleNodes.Count - 1)
                     Dim lNode As VisualNode = pVisibleNodes(i)
+                    #If DEBUG Then
                     Console.WriteLine($"  [{i}] {New String(" "c, lNode.Level * 2)}{lNode.Node.Name} ({lNode.Node.NodeType})")
+                    #End If
                 Next
                 
                 If pVisibleNodes.Count > 10 Then
+                    #If DEBUG Then
                     Console.WriteLine($"  ... and {pVisibleNodes.Count - 10} more nodes")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -729,7 +765,9 @@ Namespace Widgets
         ''' </remarks>
         Public Sub LoadProjectStructure(vProjectSyntaxTree As SyntaxNode) Implements IObjectExplorer.LoadProjectStructure
             Try
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectStructure called with tree: {If(vProjectSyntaxTree?.Name, "Nothing")}")
+                #End If
                 
                 ' Store current UI state before loading new structure
                 Dim lPreviousExpandedPaths As New HashSet(Of String)(pExpandedNodes)
@@ -737,10 +775,14 @@ Namespace Widgets
                 Dim lPreviousScrollX As Double = pScrollX
                 Dim lPreviousScrollY As Double = pScrollY
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Preserving UI state: {lPreviousExpandedPaths.Count} expanded paths")
+                #End If
                 
                 If vProjectSyntaxTree Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("LoadProjectStructure: No tree provided - clearing")
+                    #End If
                     ClearStructure()
                     Return
                 End If
@@ -750,7 +792,9 @@ Namespace Widgets
                 pLastValidRootNode = vProjectSyntaxTree
                 pIsProjectLoaded = True
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Loaded project with {vProjectSyntaxTree.Children.Count} root children")
+                #End If
                 
                 ' Preserve expanded state for nodes that still exist
                 pExpandedNodes = lPreviousExpandedPaths
@@ -763,7 +807,9 @@ Namespace Widgets
                     Dim lFirstChild As SyntaxNode = vProjectSyntaxTree.Children(0)
                     If lFirstChild.NodeType = CodeNodeType.eNamespace Then
                         pExpandedNodes.Add(lFirstChild.Name)
+                        #If DEBUG Then
                         Console.WriteLine($"  Auto-expanded root namespace: {lFirstChild.Name}")
+                        #End If
                     End If
                 End If
                 
@@ -779,7 +825,9 @@ Namespace Widgets
                     
                     If lNodeToSelect IsNot Nothing Then
                         pSelectedNode = lNodeToSelect
+                        #If DEBUG Then
                         Console.WriteLine($"  Selection restored to: {lNodeToSelect.Node.Name}")
+                        #End If
                     End If
                 End If
                 
@@ -791,7 +839,9 @@ Namespace Widgets
                 UpdateScrollbars()
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectStructure complete: {pVisibleNodes.Count} visible nodes")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectStructure error: {ex.Message}")
@@ -821,7 +871,9 @@ Namespace Widgets
                 ' Refresh display with new theme
                 RefreshTheme()
                 
+                #If DEBUG Then
                 Console.WriteLine("ObjectExplorer ThemeManager set")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SetThemeManager error: {ex.Message}")

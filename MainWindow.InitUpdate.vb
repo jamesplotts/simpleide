@@ -48,16 +48,22 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Full path to the file to open</param>
     Private Sub OnProjectExplorerFileSelected(vFilePath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnProjectExplorerFileSelected: {vFilePath}")
+            #End If
             
             If String.IsNullOrEmpty(vFilePath) Then 
+                #If DEBUG Then
                 Console.WriteLine("OnProjectExplorerFileSelected: Empty file path")
+                #End If
                 Return
             End If
             
             ' Check if file exists
             If Not System.IO.File.Exists(vFilePath) Then
+                #If DEBUG Then
                 Console.WriteLine($"OnProjectExplorerFileSelected: File not found - {vFilePath}")
+                #End If
                 ShowError("File Not Found", $"The file '{vFilePath}' does not exist.")
                 Return
             End If

@@ -197,7 +197,9 @@ Namespace Editors
                 ' Get the current theme
                 Dim lTheme As EditorTheme = GetActiveTheme()
                 If lTheme Is Nothing Then 
+                    #If DEBUG Then
                     Console.WriteLine("InitializeThemeColorCache: No active theme")
+                    #End If
                     Return
                 End If
                 
@@ -274,7 +276,9 @@ Namespace Editors
                     pThemeFontCache("BoldItalic") = lBoldItalicFont
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"InitializeThemeColorCache: Cached {pThemeColorCache.Length} colors")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeThemeColorCache error: {ex.Message}")

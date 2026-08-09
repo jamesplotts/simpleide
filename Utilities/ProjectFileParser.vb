@@ -92,7 +92,9 @@ Namespace Utilities
                 
                 If lRootNamespaceNode IsNot Nothing Then
                     vInfo.RootNamespace = lRootNamespaceNode.InnerText.Trim()
+                    #If DEBUG Then
                     Console.WriteLine($"Found root namespace: {vInfo.RootNamespace}")
+                    #End If
                 End If
                 
             Catch ex As Exception

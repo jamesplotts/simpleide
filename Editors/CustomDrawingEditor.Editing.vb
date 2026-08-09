@@ -261,7 +261,6 @@ Namespace Editors
                     ' Delete selection
                     DeleteSelection()
                 ElseIf pCursorColumn > 0 AndAlso IsBetweenAdjacentBracketPair(pCursorLine, pCursorColumn) Then
-                    Console.WriteLine($"DIAG HandleBackspace: SMART-PAIR at column={pCursorColumn}")
                     ' Smart pair backspace - deleting the opener of an adjacent empty pair
                     ' (e.g. "(|)", "[|]", "{|}", "|"|") also removes its matching closer,
                     ' instead of leaving an orphaned closer behind (see BracketAutoClose.vb,
@@ -566,7 +565,9 @@ Namespace Editors
                 ' Raise text changed event
                 RaiseEvent TextChanged(Me, New EventArgs())
                 
+                #If DEBUG Then
                 Console.WriteLine($"CutLine: Cut line {pCursorLine + 1} to clipboard")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CutLine error: {ex.Message}")
@@ -889,7 +890,9 @@ Namespace Editors
                 
                 ' Log for debugging
                 If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.NeedsParsing Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnTextModified: Text changed, parse requested for {pFilePath}")
+                    #End If
                 End If
                 
             Catch ex As Exception

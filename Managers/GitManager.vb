@@ -662,7 +662,9 @@ Namespace Managers
                 lResult.ErrorText = lError
 
                 If lProcess.ExitCode <> 0 AndAlso Not String.IsNullOrEmpty(lError) Then
+                    #If DEBUG Then
                     Console.WriteLine($"git command error: {lError}")
+                    #End If
                 End If
 
                 ' Text-content fallback for callers that display/log the output: if the

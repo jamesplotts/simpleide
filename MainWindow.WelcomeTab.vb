@@ -23,13 +23,17 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub ShowWelcomeTab()
         Try
+            #If DEBUG Then
             Console.WriteLine("ShowWelcomeTab: Starting")
+            #End If
             
             ' Check if Welcome tab already exists
             for i As Integer = 0 To pNotebook.NPages - 1
                 If IsWelcomeTab(i) Then
                     ' Welcome tab already exists, just switch to it
+                    #If DEBUG Then
                     Console.WriteLine($"  Welcome tab already exists at index {i}")
+                    #End If
                     pNotebook.CurrentPage = i
                     Return
                 End If
@@ -45,11 +49,15 @@ Partial Public Class MainWindow
             Next
             
             If lHasNonWelcomeTabs Then
+                #If DEBUG Then
                 Console.WriteLine("  Non-welcome tabs exist, not showing welcome tab")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine("  Creating new Welcome tab")
+            #End If
             
             ' Create the custom welcome widget
             Dim lWelcomeWidget As New WelcomeTabWidget()
@@ -113,13 +121,17 @@ Partial Public Class MainWindow
             If TypeOf pNotebook Is CustomDrawNotebook Then
                 Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
                 lTabIndex = lCustomNotebook.AppendPage(lWelcomeWidget, "Welcome", Nothing)
+                #If DEBUG Then
                 Console.WriteLine($"  Added Welcome tab at index {lTabIndex}")
+                #End If
                 
                 ' Ensure the notebook is visible
                 lCustomNotebook.ShowAll()
             Else
                 lTabIndex = pNotebook.AppendPage(lWelcomeWidget, "Welcome")
+                #If DEBUG Then
                 Console.WriteLine($"  Added Welcome tab at index {lTabIndex}")
+                #End If
             End If
             
             ' Make sure it's the current page
@@ -134,7 +146,9 @@ Partial Public Class MainWindow
                 Return False  ' Remove idle handler
             End Function)
                         
+            #If DEBUG Then
             Console.WriteLine($"  Set Welcome tab as current page")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"ShowWelcomeTab error: {ex.Message}")
@@ -177,7 +191,9 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Path to the file to open</param>
     Private Sub OnWelcomeRecentFileClicked(vSender As Object, vFilePath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnWelcomeRecentFileClicked: Opening {vFilePath}")
+            #End If
             
             If String.IsNullOrEmpty(vFilePath) Then Return
             

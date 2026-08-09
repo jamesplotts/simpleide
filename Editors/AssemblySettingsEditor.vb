@@ -560,7 +560,9 @@ Namespace Editors
                 ' Save the file
                 File.WriteAllText(lAssemblyInfoPath, lContent, Encoding.UTF8)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Assembly info saved to: {lAssemblyInfoPath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"error saving assembly info: {ex.Message}")

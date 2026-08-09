@@ -210,7 +210,9 @@ Namespace Editors
                 ' Queue redraw to show updated selection
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"SquareSelection: Lines {pSelectionStartLine} To {pSelectionEndLine}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SquareSelection error: {ex.Message}")

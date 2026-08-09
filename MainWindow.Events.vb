@@ -279,16 +279,22 @@ Partial Public Class MainWindow
     ''' </remarks>
     Public Sub OnRunProject(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnRunProject called - Sender type: {vSender?.GetType()?.Name}")
+            #End If
             
             ' CRITICAL: Check if we're already building/running to prevent cascade
             If pIsBuildingNow OrElse pRunAfterBuild Then
+                #If DEBUG Then
                 Console.WriteLine("OnRunProject: Skipping - already in build/run cycle")
+                #End If
                 Return
             End If
             
             If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("OnRunProject: Skipping - build in progress")
+                #End If
                 Return
             End If
             
@@ -301,16 +307,22 @@ Partial Public Class MainWindow
                                            TypeOf vSender Is MenuItem
             
             If Not lIsFromButton Then
+                #If DEBUG Then
                 Console.WriteLine("OnRunProject: Not from button/menu - skipping To prevent duplicate")
+                #End If
                 Return
             End If
             
             ' Now proceed with normal run logic
+            #If DEBUG Then
             Console.WriteLine("OnRunProject: Proceeding with run logic")
+            #End If
             
             ' Check if we should build before run based on settings
             If pSettingsManager IsNot Nothing AndAlso pSettingsManager.BuildBeforeRun Then
+                #If DEBUG Then
                 Console.WriteLine("BuildBeforeRun Is enabled - checking If build Is needed")
+                #End If
                 
                 ' Check if project needs building
                 Dim lNeedsBuild As Boolean = False
@@ -318,22 +330,30 @@ Partial Public Class MainWindow
                 ' Check if any files have been modified since last build
                 If HasModifiedFiles() Then
                     lNeedsBuild = True
+                    #If DEBUG Then
                     Console.WriteLine("Project has modified files - build needed")
+                    #End If
                 End If
                 
                 ' Check if no build output exists
                 If Not lNeedsBuild AndAlso Not HasBuildOutput() Then
                     lNeedsBuild = True
+                    #If DEBUG Then
                     Console.WriteLine("No build output found - build needed")
+                    #End If
                 End If
                 
                 If lNeedsBuild Then
                     ' Call BuildAndRun instead of just RunProject
+                    #If DEBUG Then
                     Console.WriteLine("Calling BuildAndRun from OnRunProject")
+                    #End If
                     BuildAndRun()
                 Else
                     ' Project is up to date, just run it
+                    #If DEBUG Then
                     Console.WriteLine("Project Is up To Date - running without build")
+                    #End If
                     Task.Run(Async Function()
                         Await RunProject()
                         Return Nothing
@@ -341,7 +361,9 @@ Partial Public Class MainWindow
                 End If
             Else
                 ' BuildBeforeRun is disabled or not set, just run
+                #If DEBUG Then
                 Console.WriteLine("BuildBeforeRun Is disabled - running without build check")
+                #End If
                 Task.Run(Async Function()
                     Await RunProject()
                     Return Nothing
@@ -361,16 +383,22 @@ Partial Public Class MainWindow
     ''' <param name="vArgs">Event arguments</param>
     Public Sub OnBuildAndRun(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("OnBuildAndRun called")
+            #End If
             
             ' Check if already building using both flags
             If pIsBuildingNow Then
+                #If DEBUG Then
                 Console.WriteLine("OnBuildAndRun: Already building (pIsBuildingNow check)")
+                #End If
                 Return
             End If
             
             If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("OnBuildAndRun: Build already in progress (BuildManager check)")
+                #End If
                 ShowInfo("Build in Progress", "A build Is already in progress.")
                 Return
             End If
@@ -568,55 +596,75 @@ Partial Public Class MainWindow
     ''' <param name="vArgs">Event arguments</param>
     Private Sub OnQuickFindFromClipboard(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("OnQuickFindFromClipboard: Starting quick find from clipboard operation")
+            #End If
             
             ' Get clipboard text
             Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
             Dim lClipboardText As String = lClipboard.WaitForText()
             
             If String.IsNullOrEmpty(lClipboardText) Then
+                #If DEBUG Then
                 Console.WriteLine("OnQuickFindFromClipboard: Clipboard Is empty")
+                #End If
                 ShowError("Quick Find", "Clipboard Is empty. Please copy some text To search for.")
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"OnQuickFindFromClipboard: Got clipboard text: {lClipboardText.Substring(0, Math.Min(50, lClipboardText.Length))}...")
+            #End If
             
             ' Show bottom panel if hidden
             If Not pBottomPanelVisible Then
+                #If DEBUG Then
                 Console.WriteLine("OnQuickFindFromClipboard: Showing bottom panel")
+                #End If
                 ToggleBottomPanel()
             End If
             
             ' Switch to Find Results tab
             If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnQuickFindFromClipboard: Switching To Find Results tab")
+                #End If
                 pBottomPanelManager.ShowTabForPanel(pFindPanel)
             End If
             
             ' Set project root if available
             If Not String.IsNullOrEmpty(pCurrentProject) Then
                 Dim lProjectDir As String = System.IO.Path.GetDirectoryName(pCurrentProject)
+                #If DEBUG Then
                 Console.WriteLine($"OnQuickFindFromClipboard: Setting project root To {lProjectDir}")
+                #End If
                 pFindPanel.SetProjectRoot(lProjectDir)
             End If
             
             ' Set the clipboard text into the Find field
+            #If DEBUG Then
             Console.WriteLine("OnQuickFindFromClipboard: Setting search text from clipboard")
+            #End If
             pFindPanel.SetSearchText(lClipboardText)
             
             ' Set search scope to Entire Project for better results
+            #If DEBUG Then
             Console.WriteLine("OnQuickFindFromClipboard: Setting search scope To Entire Project")
+            #End If
             pFindPanel.SetSearchScope(FindReplacePanel.SearchScope.eProject)
             
             ' Focus the find panel (without selecting text since we want to keep what we just set)
             pFindPanel.FocusSearchEntryNoSelect()
             
             ' Execute Find All operation
+            #If DEBUG Then
             Console.WriteLine("OnQuickFindFromClipboard: Executing Find All")
+            #End If
             pFindPanel.OnFind(Nothing, Nothing)
             
+            #If DEBUG Then
             Console.WriteLine("OnQuickFindFromClipboard: Quick find from clipboard completed successfully")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnQuickFindFromClipboard error: {ex.Message}")
@@ -640,7 +688,9 @@ Partial Public Class MainWindow
             
             If lProjectFiles.Length = 1 Then
                 ' Single project found - auto-load it
+                #If DEBUG Then
                 Console.WriteLine($"Auto-detected project: {lProjectFiles(0)}")
+                #End If
                 
                 ' Use idle handler to let UI settle first
                 GLib.Idle.Add(Function()
@@ -650,7 +700,9 @@ Partial Public Class MainWindow
                 
             ElseIf lProjectFiles.Length > 1 Then
                 ' Multiple projects - let user choose
+                #If DEBUG Then
                 Console.WriteLine($"Multiple projects found in {lCurrentDir}")
+                #End If
                 ' Could show a selection dialog here
                 
             Else
@@ -660,7 +712,9 @@ Partial Public Class MainWindow
                     If File.Exists(lMostRecent) Then
                         ' Optionally auto-load most recent project
                         ' For now, just log it
+                        #If DEBUG Then
                         Console.WriteLine($"Most recent project: {lMostRecent}")
+                        #End If
                     End If
                 End If
             End If
@@ -711,13 +765,17 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub EnsureNotebooksReady()
         Try
+            #If DEBUG Then
             Console.WriteLine("=== EnsureNotebooksReady Starting ===")
+            #End If
             
             ' Fix main notebook (editor tabs)
             If TypeOf pNotebook Is CustomDrawNotebook Then
                 Dim lMainNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Main notebook: {lMainNotebook.NPages} pages")
+                #End If
                 
                 ' Force refresh to ensure events are enabled
                 lMainNotebook.ForceRefresh()
@@ -726,14 +784,18 @@ Partial Public Class MainWindow
                 lMainNotebook.ShowAll()
                 
                 ' Diagnose state for debugging
+                #If DEBUG Then
                 Console.WriteLine("Main notebook state:")
+                #End If
                 lMainNotebook.DiagnoseNotebookState()
                 
                 ' Ensure Welcome tab is visible if it's the only tab
                 If lMainNotebook.NPages = 1 Then
                     Dim lTabLabel As String = lMainNotebook.GetTabLabel(0)
                     If lTabLabel = "Welcome" Then
+                        #If DEBUG Then
                         Console.WriteLine("Ensuring Welcome tab Is active")
+                        #End If
                         lMainNotebook.CurrentPage = 0
                         
                         ' Force the widget to be visible
@@ -745,7 +807,9 @@ Partial Public Class MainWindow
                     End If
                 ElseIf lMainNotebook.NPages = 0 Then
                     ' No tabs at all - show welcome
+                    #If DEBUG Then
                     Console.WriteLine("No tabs in main notebook - showing Welcome")
+                    #End If
                     ShowWelcomeTab()
                 End If
             End If
@@ -754,7 +818,9 @@ Partial Public Class MainWindow
             If TypeOf pLeftNotebook Is CustomDrawNotebook Then
                 Dim lLeftNotebook As CustomDrawNotebook = DirectCast(pLeftNotebook, CustomDrawNotebook)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Left notebook: {lLeftNotebook.NPages} pages")
+                #End If
                 
                 ' Force refresh to ensure events are enabled
                 lLeftNotebook.ForceRefresh()
@@ -763,12 +829,16 @@ Partial Public Class MainWindow
                 lLeftNotebook.ShowAll()
                 
                 ' Diagnose state for debugging
+                #If DEBUG Then
                 Console.WriteLine("Left notebook state:")
+                #End If
                 lLeftNotebook.DiagnoseNotebookState()
                 
                 ' Ensure Project tab is active by default
                 If lLeftNotebook.NPages > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("Setting Project tab As active")
+                    #End If
                     lLeftNotebook.CurrentPage = 0
                     
                     ' Force the widget to be visible
@@ -784,7 +854,9 @@ Partial Public Class MainWindow
             If pBottomPanelManager IsNot Nothing Then
                 Dim lBottomNotebook As CustomDrawNotebook = TryCast(pBottomPanelManager.GetNotebook(), CustomDrawNotebook)
                 If lBottomNotebook IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Bottom notebook: {lBottomNotebook.NPages} pages")
+                    #End If
                     
                     ' Force refresh
                     lBottomNotebook.ForceRefresh()
@@ -793,7 +865,9 @@ Partial Public Class MainWindow
                     lBottomNotebook.ShowAll()
                     
                     ' Diagnose state
+                    #If DEBUG Then
                     Console.WriteLine("Bottom notebook state:")
+                    #End If
                     lBottomNotebook.DiagnoseNotebookState()
                     
                     ' Ensure first tab is active
@@ -803,7 +877,9 @@ Partial Public Class MainWindow
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("=== EnsureNotebooksReady Complete ===")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"EnsureNotebooksReady error: {ex.Message}")
@@ -815,7 +891,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnWindowRealizedForNotebooks(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("Window realized - ensuring notebooks are ready")
+            #End If
             
             ' Use idle handler to let GTK complete initialization
             GLib.Idle.Add(Function()

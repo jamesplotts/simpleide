@@ -48,7 +48,9 @@ Namespace Widgets
                 ' Load expanded nodes
                 LoadExpandedNodes()
                 
+                #If DEBUG Then
                 Console.WriteLine($"Settings loaded with unified scale: {pCurrentScale}%")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadSettings error: {ex.Message}")

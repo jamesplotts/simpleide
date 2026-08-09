@@ -280,7 +280,9 @@ Namespace Widgets
         Private Sub OnContextMenuCut(vSender As Object, vArgs As EventArgs)
             Try
                 ' TODO: Implement cut functionality
+                #If DEBUG Then
                 Console.WriteLine("Cut not yet implemented")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuCut error: {ex.Message}")
@@ -290,7 +292,9 @@ Namespace Widgets
         Private Sub OnContextMenuCopy(vSender As Object, vArgs As EventArgs)
             Try
                 ' TODO: Implement copy functionality
+                #If DEBUG Then
                 Console.WriteLine("Copy not yet implemented")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuCopy error: {ex.Message}")
@@ -300,7 +304,9 @@ Namespace Widgets
         Private Sub OnContextMenuPaste(vSender As Object, vArgs As EventArgs)
             Try
                 ' TODO: Implement paste functionality
+                #If DEBUG Then
                 Console.WriteLine("Paste not yet implemented")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuPaste error: {ex.Message}")
@@ -343,16 +349,22 @@ Namespace Widgets
                         If pProjectManager IsNot Nothing Then
                             ' Remove from project file and internal structures
                             If pProjectManager.RemoveFileFromProject(lPath) Then
+                                #If DEBUG Then
                                 Console.WriteLine($"Removed {lPath} from project file")
+                                #End If
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"Warning: Could Not remove {lPath} from project file")
+                                #End If
                             End If
                         End If
                         
                         ' Then delete the physical file
                         If File.Exists(lPath) Then
                             File.Delete(lPath)
+                            #If DEBUG Then
                             Console.WriteLine($"Deleted physical file: {lPath}")
+                            #End If
                             lSuccess = True
                         End If
                     Else
@@ -365,14 +377,18 @@ Namespace Widgets
                             If pProjectManager IsNot Nothing Then
                                 For Each lFile As String In lVbFiles
                                     If pProjectManager.RemoveFileFromProject(lFile) Then
+                                        #If DEBUG Then
                                         Console.WriteLine($"Removed {lFile} from project file")
+                                        #End If
                                     End If
                                 Next
                             End If
                             
                             ' Delete the physical directory
                             Directory.Delete(lPath, True)
+                            #If DEBUG Then
                             Console.WriteLine($"Deleted directory: {lPath}")
+                            #End If
                             lSuccess = True
                         End If
                     End If
@@ -405,7 +421,9 @@ Namespace Widgets
                 ' Not raising ProjectModified here - this handler doesn't actually change
                 ' anything yet, so it shouldn't mark the project dirty (that previously made
                 ' the title bar/tab show unsaved changes for an action that did nothing)
+                #If DEBUG Then
                 Console.WriteLine("Exclude from project Not yet implemented")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuExclude error: {ex.Message}")
@@ -719,14 +737,18 @@ Namespace Widgets
                                     ' Then add the new file to project
                                     If pProjectManager.AddFileToProject(lNewPath, "Compile") = True Then
                                         lProjectUpdated = True
+                                        #If DEBUG Then
                                         Console.WriteLine($"Updated project file: {lOldPath} -> {lNewPath}")
+                                        #End If
                                     End If
                                 End If
                             End If
                             
                             ' Rename the physical file
                             File.Move(lOldPath, lNewPath)
+                            #If DEBUG Then
                             Console.WriteLine($"Renamed physical file: {lOldPath} -> {lNewPath}")
+                            #End If
                             
                             ' The ProjectManager's FileSystemWatcher will detect this rename
                             ' and fire the FileRenamed event automatically (see OnFileRenamed in ProjectManager)

@@ -142,7 +142,9 @@ Namespace Editors
                     If pPotentialDrag AndAlso Not pIsDragging Then
                         ' It was a click in selection without dragging
                         ' Clear selection and move cursor to click position
+                        #If DEBUG Then
                         Console.WriteLine("OnButtonRelease: Click in selection without drag - clearing")
+                        #End If
                         Dim lPos As EditorPosition = GetPositionFromCoordinates(vArgs.Event.X, vArgs.Event.Y)
                         ClearSelection()
                         SetCursorPosition(lPos.Line, lPos.Column)
@@ -322,7 +324,9 @@ Namespace Editors
                     lClickInSelection = IsPositionInSelection(vPos.Line, vPos.Column,
                                                              pSelectionStartLine, pSelectionStartColumn,
                                                              pSelectionEndLine, pSelectionEndColumn)
+                    #If DEBUG Then
                     Console.WriteLine($"HandleLeftClick: HasSelection=True, ClickInSelection={lClickInSelection}")
+                    #End If
                 End If
                 
                 If (vModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask Then
@@ -360,7 +364,9 @@ Namespace Editors
                     
                 ElseIf lClickInSelection Then
                     ' Clicking in selection - potential drag operation
+                    #If DEBUG Then
                     Console.WriteLine("HandleLeftClick: Setting up potential drag")
+                    #End If
                     pPotentialDrag = True
                     pIsDragging = False  ' Not dragging yet
                     pIsStartingNewSelection = False
@@ -372,7 +378,9 @@ Namespace Editors
                     
                 Else
                     ' Regular click outside selection - clear selection and move cursor
+                    #If DEBUG Then
                     Console.WriteLine("HandleLeftClick: Regular click - clearing selection")
+                    #End If
                     
                     ' Clear any existing selection
                     ClearSelection()
@@ -762,7 +770,9 @@ Namespace Editors
                     If pDrawingArea.Window IsNot Nothing AndAlso pBlankCursor IsNot Nothing Then
                         pDrawingArea.Window.Cursor = pBlankCursor
                         pMouseHidden = True
+                        #If DEBUG Then
                         Console.WriteLine("Mouse cursor hidden")
+                        #End If
                     End If
                 End If
             Catch ex As Exception
@@ -792,7 +802,9 @@ Namespace Editors
                             pDrawingArea.Window.Cursor = pTextCursor
                         End If
                         
+                        #If DEBUG Then
                         Console.WriteLine("Mouse cursor shown")
+                        #End If
                     End If
                 End If
             Catch ex As Exception
@@ -823,7 +835,9 @@ Namespace Editors
                 
                 ' Debug logging
                 If pPotentialDrag OrElse pIsStartingNewSelection OrElse pIsDragging Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnMotionNotify: potential drag={pPotentialDrag}, starting selection={pIsStartingNewSelection}, dragging={pIsDragging}, LeftButton={lLeftButtonPressed}")
+                    #End If
                 End If
                 
                 ' If drag operation already started, let DragDrop handlers manage it
@@ -851,7 +865,9 @@ Namespace Editors
                                 pDragEndLine = Math.Max(pSelectionStartLine, pSelectionEndLine)
                                 pDragEndColumn = If(pDragEndLine = pSelectionEndLine, pSelectionEndColumn, pSelectionStartColumn)
                                 
+                                #If DEBUG Then
                                 Console.WriteLine($"Starting drag-drop from ({pDragStartLine},{pDragStartColumn}) to ({pDragEndLine},{pDragEndColumn})")
+                                #End If
                                 
                                 ' Set drag data
                                 pDragText = lSelectedText
@@ -875,9 +891,13 @@ Namespace Editors
                                     CInt(lCurrentY))  ' y coordinate
                                 
                                 If lContext IsNot Nothing Then
+                                    #If DEBUG Then
                                     Console.WriteLine("Drag context created successfully")
+                                    #End If
                                 Else
+                                    #If DEBUG Then
                                     Console.WriteLine("Failed to create drag context")
+                                    #End If
                                 End If
                                 
                                 ' Reset local mouse drag state
@@ -938,7 +958,9 @@ Namespace Editors
                                 pSelectionActive = True  ' CRITICAL: Set this flag for drawing!
                                 pIsDragging = True
                                 pIsStartingNewSelection = False
+                                #If DEBUG Then
                                 Console.WriteLine($"Started text selection from ({pTextDragAnchorLine},{pTextDragAnchorColumn})")
+                                #End If
                             End If
                             
                             ' Always use anchor as start, current position as end
@@ -951,8 +973,12 @@ Namespace Editors
                             ' This ensures cursor is at the end of selection regardless of direction
                             SetCursorPosition(lPos.Line, lPos.Column)
                             
+                            #If DEBUG Then
                             Console.WriteLine($"Selection now from ({pSelectionStartLine},{pSelectionStartColumn}) to ({pSelectionEndLine},{pSelectionEndColumn})")
+                            #End If
+                            #If DEBUG Then
                             Console.WriteLine($"Cursor at ({pCursorLine},{pCursorColumn})")
+                            #End If
                             
                             ' Auto-scroll if near edges
                             AutoScrollIfNearEdge(lCurrentX, lCurrentY)

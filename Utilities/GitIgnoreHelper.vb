@@ -223,7 +223,9 @@ SimpleIDE.config
         Public Shared Function CreateGitIgnore(vProjectPath As String) As Boolean
             Try
                 If String.IsNullOrEmpty(vProjectPath) OrElse Not Directory.Exists(vProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("Invalid project Path for .gitignore creation")
+                    #End If
                     Return False
                 End If
                 
@@ -231,13 +233,17 @@ SimpleIDE.config
                 
                 ' Check if .gitignore already exists
                 If File.Exists(lGitIgnorePath) Then
+                    #If DEBUG Then
                     Console.WriteLine(".gitignore already exists")
+                    #End If
                     Return True
                 End If
                 
                 ' Write default content
                 File.WriteAllText(lGitIgnorePath, DefaultGitIgnore, Encoding.UTF8)
+                #If DEBUG Then
                 Console.WriteLine($"Created .gitignore at: {lGitIgnorePath}")
+                #End If
                 
                 Return True
                 
@@ -279,7 +285,9 @@ SimpleIDE.config
                 
                 ' Write back
                 File.WriteAllText(lGitIgnorePath, lNewContent.ToString(), Encoding.UTF8)
+                #If DEBUG Then
                 Console.WriteLine($"Added {vPatterns.Length} patterns to .gitignore")
+                #End If
                 
                 Return True
                 
@@ -354,7 +362,9 @@ SimpleIDE.config
                 
                 Dim lGitIgnorePath As String = System.IO.Path.Combine(vProjectPath, ".gitignore")
                 File.WriteAllText(lGitIgnorePath, vContent, Encoding.UTF8)
+                #If DEBUG Then
                 Console.WriteLine($"updated .gitignore at: {lGitIgnorePath}")
+                #End If
                 
                 Return True
                 

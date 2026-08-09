@@ -95,7 +95,9 @@ Public Function SaveContent() As Boolean Implements IEditor.SaveContent
             ' Update the editor's modified state to match SourceFileInfo
             IsModified = False
             pUndoRedoManager?.MarkClean()
+            #If DEBUG Then
             Console.WriteLine($"CustomDrawingEditor.SaveContent: Saved and cleared modified flag for {pFilePath}")
+            #End If
         End If
         
         Return lResult
@@ -144,9 +146,13 @@ Public Function LoadContent() As Boolean Implements IEditor.LoadContent
             UpdateScrollbars()
             pDrawingArea?.QueueDraw()
             
+            #If DEBUG Then
             Console.WriteLine($"CustomDrawingEditor.LoadContent: Loaded and cleared modified flag for {pFilePath}")
+            #End If
         Else
+            #If DEBUG Then
             Console.WriteLine($"CustomDrawingEditor.LoadContent: Failed to load {pFilePath}")
+            #End If
         End If
         
         Return lResult

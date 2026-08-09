@@ -53,7 +53,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Async Function RunProject() As Task
         Try
+            #If DEBUG Then
             Console.WriteLine("RunProject: Starting")
+            #End If
             
             ' Check if project is open
             If String.IsNullOrEmpty(pCurrentProject) Then
@@ -152,7 +154,9 @@ Partial Public Class MainWindow
                 Throw New Exception("Failed to start dotnet run process")
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"RunProjectAsync: Process started with PID {pRunProcess.Id}")
+            #End If
             
             ' Read output asynchronously
             Dim lOutputTask As Task = Task.Run(Sub() ReadRunOutput(pRunProcess.StandardOutput))
@@ -227,7 +231,9 @@ Partial Public Class MainWindow
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine("StopProject: Stopping running process")
+            #End If
             
             ' Cancel the token
             pRunCancellationTokenSource?.Cancel()
@@ -274,11 +280,15 @@ Partial Public Class MainWindow
     ''' </remarks>
     Public Sub BuildAndRun()
         Try
+            #If DEBUG Then
             Console.WriteLine("BuildAndRun called")
+            #End If
             
             ' Final safety check - prevent multiple simultaneous builds
             If pIsBuildingNow Then
+                #If DEBUG Then
                 Console.WriteLine("BuildAndRun: Already building - exiting")
+                #End If
                 Return
             End If
             
@@ -289,13 +299,17 @@ Partial Public Class MainWindow
             
             ' Initialize build system if needed
             If pBuildManager Is Nothing OrElse pBuildConfiguration Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("BuildAndRun: Initializing build system")
+                #End If
                 InitializeBuildSystem()
             End If
             
             ' Final check after initialization
             If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("BuildAndRun: BuildManager reports build in progress")
+                #End If
                 Return
             End If
             
@@ -303,7 +317,9 @@ Partial Public Class MainWindow
             pRunAfterBuild = True
             
             ' Start the build (BuildProject handles its own checking)
+            #If DEBUG Then
             Console.WriteLine("BuildAndRun: Calling BuildProject")
+            #End If
             BuildProject()
             
         Catch ex As Exception

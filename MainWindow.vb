@@ -115,7 +115,9 @@ Partial Public Class MainWindow
             ' FIX: Now set the ProjectManager in ProjectExplorer since it was created before ProjectManager existed
             If pProjectExplorer IsNot Nothing Then
                 pProjectExplorer.SetProjectManager(pProjectManager)
+                #If DEBUG Then
                 Console.WriteLine("ProjectManager set in ProjectExplorer after creation")
+                #End If
             End If
 
             ' Now initialize ObjectExplorer with ProjectManager
@@ -149,7 +151,9 @@ Partial Public Class MainWindow
                 AddHandler pProjectManager.FileRenamed, AddressOf OnProjectManagerFileRenamed
                 ' Note: OnProjectManagerProjectModified is already wired up elsewhere
                 
+                #If DEBUG Then
                 Console.WriteLine("ProjectExplorer integrated with ProjectManager")
+                #End If
             End If            
 
             ' Apply theme
@@ -200,7 +204,9 @@ Partial Public Class MainWindow
                     ' Ensure left panel is visible with correct width
                     If pLeftNotebook IsNot Nothing Then
                         pLeftNotebook.ShowAll()
+                        #If DEBUG Then
                         Console.WriteLine($"Left notebook shown with {pLeftNotebook.NPages} pages")
+                        #End If
                     End If
                     
                     ' Get saved width or use default
@@ -216,14 +222,18 @@ Partial Public Class MainWindow
                     ' Set the position
                     If pMainHPaned IsNot Nothing Then
                         pMainHPaned.Position = lSavedWidth
+                        #If DEBUG Then
                         Console.WriteLine($"Set left panel initial position to {lSavedWidth}")
+                        #End If
                     End If
                     
                     ' Ensure left notebook is visible
                     If pLeftNotebook IsNot Nothing Then
                         pLeftNotebook.Visible = True
                         pLeftNotebook.ShowAll()
+                        #If DEBUG Then
                         Console.WriteLine($"Left notebook visibility ensured")
+                        #End If
                     End If
                     
                     ' Run auto-diagnosis to check and fix any issues
@@ -245,11 +255,15 @@ Partial Public Class MainWindow
                 Try
                     ' Final check - if left panel still not visible, force it
                     If pLeftNotebook IsNot Nothing AndAlso Not pLeftNotebook.Visible Then
+                        #If DEBUG Then
                         Console.WriteLine("WARNING: Left panel still not visible after 500ms, forcing visibility")
+                        #End If
                         ForceShowLeftPanel()
                         EnsureLeftPanelWidth
                     ElseIf pMainHPaned IsNot Nothing AndAlso pMainHPaned.Position < 50 Then
+                        #If DEBUG Then
                         Console.WriteLine("WARNING: Left panel position still too small after 500ms, forcing position")
+                        #End If
                         pMainHPaned.Position = LEFT_PANEL_MINIMUM_WIDTH
                     End If
                 Catch ex As Exception
@@ -264,7 +278,9 @@ Partial Public Class MainWindow
                 AddHandler Me.Shown, AddressOf OnWindowShownNoProject
             End If
 
+            #If DEBUG Then
             Console.WriteLine("MainWindow initialized successfully")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"MainWindow constructor error: {ex.Message}")
@@ -283,20 +299,28 @@ Partial Public Class MainWindow
         Me.New()
         
         Try
+            #If DEBUG Then
             Console.WriteLine($"MainWindow(project) constructor: Starting with project: {vProjectFile}")
+            #End If
             
             ' Store the project file to load after UI is ready
             pPendingProjectFile = vProjectFile
+            #If DEBUG Then
             Console.WriteLine($"MainWindow(project) constructor: Set pPendingProjectFile = {pPendingProjectFile}")
+            #End If
             
             ' Use a timeout to load the project after the UI is ready
             ' This gives GTK time to fully initialize and show the window
             GLib.Timeout.Add(100, Function()
+                #If DEBUG Then
                 Console.WriteLine($"MainWindow(project) Timeout: Checking if ready to load project")
+                #End If
                 
                 ' Check if window is realized and visible
                 If Me.IsRealized AndAlso Me.Visible Then
+                    #If DEBUG Then
                     Console.WriteLine($"MainWindow(project) Timeout: Window ready, loading project")
+                    #End If
                     
                     ' Load the project (or solution) asynchronously
                     If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso
@@ -313,12 +337,16 @@ Partial Public Class MainWindow
                     
                     Return False ' Remove timeout
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"MainWindow(project) Timeout: Window not ready yet, will retry")
+                    #End If
                     Return True ' Keep trying
                 End If
             End Function)
             
+            #If DEBUG Then
             Console.WriteLine("MainWindow(project) constructor: Complete")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"MainWindow(project) constructor error: {ex.Message}")
@@ -510,7 +538,9 @@ Partial Public Class MainWindow
             If Not String.IsNullOrEmpty(lThemeCss) Then
                 lCssProvider.LoadFromData(lThemeCss)
             Else
+                #If DEBUG Then
                 Console.WriteLine($"Warning: Theme CSS Is empty for theme: {lTheme}")
+                #End If
             End If
             
             ' Apply to all screens
@@ -775,7 +805,9 @@ Partial Public Class MainWindow
             ' Also handle window activation (when clicking on title bar)
             AddHandler Me.WindowStateEvent, AddressOf OnWindowStateEventForFocus
             
+            #If DEBUG Then
             Console.WriteLine("Window focus handling initialized")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"SetupWindowFocusHandling error: {ex.Message}")
@@ -792,7 +824,9 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OnWindowFocusIn(vSender As Object, vArgs As FocusInEventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("Window gained focus")
+            #End If
             
             ' Schedule editor focus on idle to ensure window is fully activated
             GLib.Idle.Add(Function()
@@ -801,7 +835,9 @@ Partial Public Class MainWindow
                     Dim lEditor As IEditor = GetCurrentEditor()
                     If lEditor IsNot Nothing Then
                         lEditor.GrabFocus()
+                        #If DEBUG Then
                         Console.WriteLine("Focus returned To editor On window activation")
+                        #End If
                     End If
                 End If
                 Return False ' Run once
@@ -822,7 +858,9 @@ Partial Public Class MainWindow
     ''' </remarks>
     Private Sub OnWindowFocusOut(vSender As Object, vArgs As FocusOutEventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("Window lost focus")
+            #End If
             ' Could store state here if needed
         Catch ex As Exception
             Console.WriteLine($"OnWindowFocusOut error: {ex.Message}")
@@ -847,7 +885,9 @@ Partial Public Class MainWindow
                 Dim lIsFocused As Boolean = (lNewState and Gdk.WindowState.Focused) = Gdk.WindowState.Focused
                 
                 If lIsFocused Then
+                    #If DEBUG Then
                     Console.WriteLine("Window became focused via state change")
+                    #End If
                     
                     ' Schedule editor focus on idle
                     GLib.Idle.Add(Function()
@@ -855,7 +895,9 @@ Partial Public Class MainWindow
                             Dim lEditor As IEditor = GetCurrentEditor()
                             If lEditor IsNot Nothing Then
                                 lEditor.GrabFocus()
+                                #If DEBUG Then
                                 Console.WriteLine("Focus returned To editor On window state change")
+                                #End If
                             End If
                         End If
                         Return False ' Run once
@@ -875,7 +917,9 @@ Partial Public Class MainWindow
         Try
             ' Ensure Object Explorer is properly set up
             If pObjectExplorer Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("Warning: Object Explorer Not initialized")
+                #End If
                 Return
             End If
             
@@ -895,7 +939,9 @@ Partial Public Class MainWindow
                 AddHandler pLeftNotebook.CurrentTabChanged, AddressOf OnLeftNotebookPageChanged
             End If
             
+            #If DEBUG Then
             Console.WriteLine("Object Explorer integration initialized")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"InitializeObjectExplorer error: {ex.Message}")
@@ -909,7 +955,9 @@ Partial Public Class MainWindow
     ''' <param name="e">Event arguments</param>
     Private Sub OnWindowShownWithProject(sender As Object, e As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnWindowShownWithProject: Called with pending file: {pPendingProjectFile}")
+            #End If
             
             ' Unhook BOTH events so they don't fire again
             RemoveHandler Me.Shown, AddressOf OnWindowShownWithProject
@@ -917,11 +965,15 @@ Partial Public Class MainWindow
             
             ' Check if we have a pending project to load
             If Not String.IsNullOrEmpty(pPendingProjectFile) AndAlso File.Exists(pPendingProjectFile) Then
+                #If DEBUG Then
                 Console.WriteLine($"OnWindowShownWithProject: Scheduling project load for: {pPendingProjectFile}")
+                #End If
                 
                 ' Use idle handler to ensure UI is fully rendered
                 GLib.Idle.Add(Function()
+                    #If DEBUG Then
                     Console.WriteLine($"OnWindowShownWithProject (Idle): Loading project asynchronously")
+                    #End If
                     ' Use the async loading method instead of the synchronous one
                     LoadProjectEnhanced(pPendingProjectFile)
                     pPendingProjectFile = Nothing ' Clear the pending file
@@ -929,9 +981,13 @@ Partial Public Class MainWindow
                 End Function)
             Else
                 If String.IsNullOrEmpty(pPendingProjectFile) Then
+                    #If DEBUG Then
                     Console.WriteLine("OnWindowShownWithProject: No pending project file")
+                    #End If
                 ElseIf Not File.Exists(pPendingProjectFile) Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnWindowShownWithProject: File doesn't exist: {pPendingProjectFile}")
+                    #End If
                 End If
             End If
             
@@ -949,7 +1005,9 @@ Partial Public Class MainWindow
     ''' <param name="e">Event arguments</param>
     Private Sub OnWindowRealizedWithProject(sender As Object, e As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnWindowRealizedWithProject: Called with pending file: {pPendingProjectFile}")
+            #End If
             
             ' Unhook the event so it doesn't fire again
             RemoveHandler Me.Realized, AddressOf OnWindowRealizedWithProject
@@ -959,17 +1017,23 @@ Partial Public Class MainWindow
                File.Exists(pPendingProjectFile) AndAlso 
                String.IsNullOrEmpty(pCurrentProject) Then
                 
+                #If DEBUG Then
                 Console.WriteLine($"OnWindowRealizedWithProject: Scheduling project load")
+                #End If
                 
                 ' Use idle handler to ensure UI is fully rendered
                 GLib.Idle.Add(Function()
+                    #If DEBUG Then
                     Console.WriteLine($"OnWindowRealizedWithProject (Idle): Loading project now")
+                    #End If
                     LoadProjectEnhanced(pPendingProjectFile)
                     pPendingProjectFile = Nothing ' Clear the pending file
                     Return False ' Remove idle handler
                 End Function)
             Else
+                #If DEBUG Then
                 Console.WriteLine($"OnWindowRealizedWithProject: Not loading - already loaded Or no pending file")
+                #End If
             End If
             
         Catch ex As Exception
@@ -995,7 +1059,9 @@ Partial Public Class MainWindow
             ' Set the paned position
             If pMainHPaned IsNot Nothing Then
                 pMainHPaned.Position = lSavedPosition
+                #If DEBUG Then
                 Console.WriteLine($"InitializePanedPosition: Set To {lSavedPosition}")
+                #End If
             End If
             
             ' Connect to notify event to save position when changed
@@ -1027,7 +1093,9 @@ Partial Public Class MainWindow
                                     Dim lPosition As Integer = pMainHPaned.Position
                                     If lPosition > 0 Then ' Only save valid positions
                                         pSettingsManager.SetInteger("LeftPanelWidth", lPosition)
+                                        #If DEBUG Then
                                         Console.WriteLine($"Saved paned position: {lPosition}")
+                                        #End If
                                     End If
                                 End If
                             End Sub)

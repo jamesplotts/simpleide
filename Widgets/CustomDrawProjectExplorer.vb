@@ -205,7 +205,9 @@ Namespace Widgets
                 ' Show all components
                 ShowAll()
                 
+                #If DEBUG Then
                 Console.WriteLine("CustomDrawProjectExplorer initialized with shared ThemeManager")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawProjectExplorer constructor error: {ex.Message}")
@@ -316,10 +318,14 @@ Namespace Widgets
         ''' </summary>
         Public Sub LoadProjectFromManager()
             Try
+                #If DEBUG Then
                 Console.WriteLine("LoadProjectFromManager: Starting...")
+                #End If
 
                 If pProjectManager Is Nothing OrElse Not pProjectManager.IsProjectOpen Then
+                    #If DEBUG Then
                     Console.WriteLine("LoadProjectFromManager: No project loaded in ProjectManager")
+                    #End If
                     Return
                 End If
                 
@@ -329,16 +335,24 @@ Namespace Widgets
                 ' Get project info from manager
                 Dim lProjectInfo As ProjectInfo = pProjectManager.CurrentProjectInfo
                 If lProjectInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("LoadProjectFromManager: No project info available")
+                    #End If
                     Return
                 End If
                 
                 pProjectFile = lProjectInfo.ProjectPath
                 pProjectDirectory = lProjectInfo.ProjectDirectory
                 
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectFromManager: Project: {lProjectInfo.ProjectName}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Directory: {pProjectDirectory}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Files count: {lProjectInfo.SourceFiles.Count}")
+                #End If
                 
                 ' Create root project node
                 pRootNode = New ProjectNode() With {
@@ -352,7 +366,9 @@ Namespace Widgets
                 ' Add to expanded nodes
                 Dim lRootPath As String = GetNodePath(pRootNode)
                 pExpandedNodes.Add(lRootPath)
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectFromManager: Added root to expanded nodes: {lRootPath}")
+                #End If
                 
                 ' Build tree from ProjectManager's file list
                 BuildTreeFromFileList(lProjectInfo.SourceFiles)
@@ -364,12 +380,18 @@ Namespace Widgets
                 pRootNode?.SortChildren()
                 
                 ' Log the structure
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectFromManager: Root node has {pRootNode?.Children.Count} children:")
+                #End If
                 If pRootNode IsNot Nothing Then
                     For Each lChild In pRootNode.Children
+                        #If DEBUG Then
                         Console.WriteLine($"  - {lChild.Name} (IsFile={lChild.IsFile}, Type={lChild.NodeType})")
+                        #End If
                         If Not lChild.IsFile AndAlso lChild.Children.Count > 0 Then
+                            #If DEBUG Then
                             Console.WriteLine($"    Has {lChild.Children.Count} children")
+                            #End If
                         End If
                     Next
                 End If
@@ -378,16 +400,22 @@ Namespace Widgets
                 RebuildVisualTree()
                 
                 ' Log visible nodes
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectFromManager: Visible nodes count: {pVisibleNodes.Count}")
+                #End If
                 For i As Integer = 0 To Math.Min(5, pVisibleNodes.Count - 1)
                     Dim lNode As VisualProjectNode = pVisibleNodes(i)
+                    #If DEBUG Then
                     Console.WriteLine($"  Visible[{i}]: {lNode.Node.Name} at depth {lNode.Depth}")
+                    #End If
                 Next
                 
                 ' Force redraw
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"LoadProjectFromManager: Project loaded successfully with {pVisibleNodes.Count} visible nodes")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"LoadProjectFromManager error: {ex.Message}")
@@ -420,7 +448,9 @@ Namespace Widgets
         Public Sub LoadSolutionFromManager(vSolutionManager As SolutionManager)
             Try
                 If vSolutionManager Is Nothing OrElse vSolutionManager.AllProjects.Count = 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("LoadSolutionFromManager: No solution/projects available")
+                    #End If
                     Return
                 End If
 
@@ -466,7 +496,9 @@ Namespace Widgets
                     pRootNode.SortChildren()
                     lSolutionRoot.AddChild(pRootNode)
 
+                    #If DEBUG Then
                     Console.WriteLine($"LoadSolutionFromManager: Built subtree for {lProjectInfo.ProjectName} ({pRootNode.Children.Count} children)")
+                    #End If
                 Next
 
                 ' Leave the explorer's "current single project" pointed at the startup
@@ -483,7 +515,9 @@ Namespace Widgets
                 RebuildVisualTree()
                 pDrawingArea?.QueueDraw()
 
+                #If DEBUG Then
                 Console.WriteLine($"LoadSolutionFromManager: Loaded {lSolutionRoot.Children.Count} project(s), {pVisibleNodes.Count} visible nodes")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"LoadSolutionFromManager error: {ex.Message}")
@@ -530,7 +564,9 @@ Namespace Widgets
                 RebuildVisualTree()
                 pDrawingArea?.QueueDraw()
 
+                #If DEBUG Then
                 Console.WriteLine($"ShowSolutionLoadingPlaceholder: Showing placeholder for '{vSolutionName}'")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"ShowSolutionLoadingPlaceholder error: {ex.Message}")
@@ -575,11 +611,15 @@ Namespace Widgets
         Private Sub BuildTreeFromFileList(vFiles As List(Of String))
             Try
                 If vFiles Is Nothing OrElse vFiles.Count = 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("No files to process")
+                    #End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Building tree from {vFiles.Count} files")
+                #End If
                 
                 ' Group files by directory
                 Dim lFilesByDir As New Dictionary(Of String, List(Of String))()
@@ -608,7 +648,9 @@ Namespace Widgets
                     lFilesByDir(lDirPath).Add(lFilePath)
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"Found {lFilesByDir.Count} directories")
+                #End If
                 
                 ' Process each directory
                 For Each lDirEntry In lFilesByDir
@@ -640,7 +682,9 @@ Namespace Widgets
                                     .IsFile = False
                                 }
                                 lParentNode.AddChild(lFolderNode)
+                                #If DEBUG Then
                                 Console.WriteLine($"  Created folder: {lPart}")
+                                #End If
                             End If
                             
                             lParentNode = lFolderNode
@@ -682,7 +726,9 @@ Namespace Widgets
                         End If
                     Next
                     
+                    #If DEBUG Then
                     Console.WriteLine($"  Directory '{lDirPath}': {lFiles.Count} files")
+                    #End If
                 Next
                 
             Catch ex As Exception
@@ -735,10 +781,14 @@ Namespace Widgets
         Public Sub RefreshProject()
             Try
                 If pSolutionManager IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Calling pProjectExplorer.LoadSolutionFromManager from CustomDrawProjectExplorer.RefreshProject")
+                    #End If
                     LoadSolutionFromManager(pSolutionManager)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshProject")
+                    #End If
                     LoadProjectFromManager
                 End If
 
@@ -799,10 +849,14 @@ Namespace Widgets
         Public Sub RefreshTree()
             Try
                 If pSolutionManager IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Calling pProjectExplorer.LoadSolutionFromManager from CustomDrawProjectExplorer.RefreshTree")
+                    #End If
                     LoadSolutionFromManager(pSolutionManager)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from CustomDrawProjectExplorer.RefreshTree")
+                    #End If
                     LoadProjectFromManager
                 End If
 
@@ -876,7 +930,9 @@ Namespace Widgets
         Public Sub SetProjectManager(vProjectManager As ProjectManager)
             Try
                 pProjectManager = vProjectManager
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager set in CustomDrawProjectExplorer: {If(pProjectManager IsNot Nothing, "Success", "Nothing")}")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"SetProjectManager error: {ex.Message}")
             End Try

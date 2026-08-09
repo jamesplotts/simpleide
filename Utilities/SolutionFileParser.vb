@@ -34,7 +34,9 @@ Namespace Utilities
         Public Shared Function ParseSolutionFile(vSolutionPath As String) As Solution
             Try
                 If Not File.Exists(vSolutionPath) Then
+                    #If DEBUG Then
                     Console.WriteLine($"SolutionFileParser: Solution file not found: {vSolutionPath}")
+                    #End If
                     Return Nothing
                 End If
 
@@ -56,7 +58,9 @@ Namespace Utilities
                     lSolution.Projects.Add(lEntry)
                 Next
 
+                #If DEBUG Then
                 Console.WriteLine($"SolutionFileParser: Parsed {lSolution.Projects.Count} project(s) from {vSolutionPath}")
+                #End If
                 Return lSolution
 
             Catch ex As Exception

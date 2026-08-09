@@ -717,7 +717,9 @@ Namespace Widgets
         ''' <param name="vError">The failure reason, logged for diagnostics</param>
         Private Sub OnHtmlViewLoadFailed(vUrl As String, vError As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"HelpBrowser: embedded load failed for {vUrl}: {vError}")
+                #End If
                 NavigateToUrlExternal(vUrl)
             Catch ex As Exception
                 Console.WriteLine($"HelpBrowser.OnHtmlViewLoadFailed error: {ex.Message}")

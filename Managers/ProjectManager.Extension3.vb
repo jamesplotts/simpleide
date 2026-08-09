@@ -65,16 +65,24 @@ Namespace Managers
                         ' Only add if the file exists
                         If File.Exists(lFullPath) Then
                             lSourceFiles.Add(lFullPath)
+                            #If DEBUG Then
                             Console.WriteLine($"  Adding source file: {lCompileItem}")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"  Warning: Source file not found: {lCompileItem}")
+                            #End If
                         End If
                     Next
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("  Warning: No CompileItems found in project info")
+                    #End If
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"GetProjectSourceFiles: Found {lSourceFiles.Count} source files")
+                #End If
                 Return lSourceFiles
                 
             Catch ex As Exception
@@ -95,9 +103,11 @@ Namespace Managers
                 Dim lClassCount As Integer = vNode.Children.Where(Function(c) c.NodeType = CodeNodeType.eClass).Count()
                 Dim lOtherCount As Integer = vNode.Children.Count - lNamespaceCount - lClassCount
 
+#If DEBUG Then
                 Console.WriteLine($"{lIndentStr}{vNode.Name} ({vNode.NodeType}): " &
                                  $"{lNamespaceCount} namespaces, {lClassCount} classes, {lOtherCount} others")
-                
+#End If
+
                 ' Log child namespaces only (to avoid too much output)
                 for each lChild in vNode.Children
                     If lChild.NodeType = CodeNodeType.eNamespace Then
@@ -197,11 +207,15 @@ Namespace Managers
                                         vRootNamespaceName As String)
             Try
                 If vFileInfo Is Nothing OrElse vFileInfo.SyntaxTree Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"ProcessFileStructure: No syntax tree for {vFileInfo?.FileName}")
+                    #End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Processing file structure: {vFileInfo.FileName}")
+                #End If
                 
                 ' Process each top-level node in the file's syntax tree
                 for each lNode in vFileInfo.SyntaxTree.Children
@@ -214,7 +228,9 @@ Namespace Managers
                            String.Equals(lNode.Name, vRootNamespaceName, StringComparison.OrdinalIgnoreCase) Then
                             
                             ' This is the implicit root namespace - merge its children directly
+                            #If DEBUG Then
                             Console.WriteLine($"  Merging implicit root namespace children")
+                            #End If
                             for each lChild in lNode.Children
                                 MergeNodeIntoNamespace(lChild, vRootNamespace, vFileInfo.FilePath)
                             Next
@@ -222,7 +238,9 @@ Namespace Managers
                         Else
                             ' This is an explicit namespace declaration
                             Dim lNamespaceName As String = lNode.Name
+                            #If DEBUG Then
                             Console.WriteLine($"  Processing namespace: {lNamespaceName}")
+                            #End If
                             
                             ' CRITICAL FIX: Check if namespace already exists in the ROOT namespace
                             ' not just in vNamespaceNodes dictionary
@@ -233,7 +251,9 @@ Namespace Managers
                                 If lRootChild.NodeType = CodeNodeType.eNamespace AndAlso
                                    String.Equals(lRootChild.Name, lNamespaceName, StringComparison.OrdinalIgnoreCase) Then
                                     lNamespaceNode = lRootChild
+                                    #If DEBUG Then
                                     Console.WriteLine($"    Found existing namespace in root: {lNamespaceName}")
+                                    #End If
                                     Exit for
                                 End If
                             Next
@@ -241,12 +261,16 @@ Namespace Managers
                             ' If not found in root children, check dictionary
                             If lNamespaceNode Is Nothing AndAlso vNamespaceNodes.ContainsKey(lNamespaceName) Then
                                 lNamespaceNode = vNamespaceNodes(lNamespaceName)
+                                #If DEBUG Then
                                 Console.WriteLine($"    Found namespace in dictionary: {lNamespaceName}")
+                                #End If
                             End If
                             
                             ' Create new namespace node only if it doesn't exist
                             If lNamespaceNode Is Nothing Then
+                                #If DEBUG Then
                                 Console.WriteLine($"    Creating new namespace: {lNamespaceName}")
+                                #End If
                                 lNamespaceNode = New SyntaxNode(CodeNodeType.eNamespace, lNamespaceName)
                                 
                                 ' Initialize attributes
@@ -282,12 +306,16 @@ Namespace Managers
                     Else
                         ' Non-namespace top-level node (class, module, etc.)
                         ' These go directly into the root namespace
+                        #If DEBUG Then
                         Console.WriteLine($"  Processing top-level {lNode.NodeType}: {lNode.Name}")
+                        #End If
                         MergeNodeIntoNamespace(lNode, vRootNamespace, vFileInfo.FilePath)
                     End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"Completed processing: {vFileInfo.FileName}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProcessFileStructure error: {ex.Message}")
@@ -309,7 +337,9 @@ Namespace Managers
                 If vNode Is Nothing OrElse vNamespaceNode Is Nothing Then Return
                 
                 ' DEBUG: Log merge operation
+                #If DEBUG Then
                 Console.WriteLine($"    Merging {vNode.NodeType}: {vNode.Name} into namespace: {vNamespaceNode.Name}")
+                #End If
                 
                 ' Check if a node with this name and type already exists (partial classes)
                 Dim lExistingNode As SyntaxNode = Nothing
@@ -324,7 +354,9 @@ Namespace Managers
                 
                 If lExistingNode IsNot Nothing Then
                     ' Merge into existing node (partial class scenario)
+                    #If DEBUG Then
                     Console.WriteLine($"    Found existing {vNode.NodeType}: {vNode.Name} - merging members")
+                    #End If
                     
                     ' Mark as partial
                     lExistingNode.IsPartial = True
@@ -377,12 +409,18 @@ Namespace Managers
                         End If
                     Next
                     
+                    #If DEBUG Then
                     Console.WriteLine($"      Merged {lMergedCount} new members, skipped {lDuplicateCount} duplicates")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"      Total members in merged class: {lExistingNode.Children.Count}")
+                    #End If
                     
                 Else
                     ' Create new node
+                    #If DEBUG Then
                     Console.WriteLine($"    Creating new {vNode.NodeType}: {vNode.Name}")
+                    #End If
                     
                     Dim lNewNode As New SyntaxNode(vNode.NodeType, vNode.Name)
                     vNode.CopyNodeAttributesTo(lNewNode)
@@ -434,7 +472,9 @@ Namespace Managers
                         End If
                     Next
                     
+                    #If DEBUG Then
                     Console.WriteLine($"      Added with {lNewNode.Children.Count} members")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -469,18 +509,24 @@ Namespace Managers
                 Dim lLoadedCount As Integer = 0
                 
                 If pCurrentProjectInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("EnsureAllFilesLoaded: No project loaded")
+                    #End If
                     Return 0
                 End If
                 
                 ' Get list of all compile items from project
                 Dim lCompileItems As List(Of String) = pCurrentProjectInfo.CompileItems
                 If lCompileItems Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("EnsureAllFilesLoaded: No compile items found")
+                    #End If
                     Return 0
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"EnsureAllFilesLoaded: Checking {lCompileItems.Count} compile items")
+                #End If
                 
                 for each lRelativePath in lCompileItems
                     Try
@@ -493,7 +539,9 @@ Namespace Managers
                         
                         ' Check if file exists
                         If Not System.IO.File.Exists(lFullPath) Then
+                            #If DEBUG Then
                             Console.WriteLine($"  File not found: {lRelativePath}")
+                            #End If
                             Continue for
                         End If
                         
@@ -507,7 +555,9 @@ Namespace Managers
                         End If
                         
                         ' Load the file
+                        #If DEBUG Then
                         Console.WriteLine($"  Loading: {lRelativePath}")
+                        #End If
                         Dim lNewSourceFile As New SourceFileInfo(lFullPath, "")
 
                         ' Set project context and wire events BEFORE loading - LoadContent
@@ -522,14 +572,18 @@ Namespace Managers
                         ' Actually load the content from disk
                         If lNewSourceFile.LoadContent() Then
                             ' Parse the file to build its syntax tree
+                            #If DEBUG Then
                             Console.WriteLine($"  Parsing: {lRelativePath}")
+                            #End If
                             ParseFile(lNewSourceFile)
                             
                             ' Add or update in dictionary
                             pSourceFiles(lFullPath) = lNewSourceFile
                             lLoadedCount += 1
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"  Failed to load content: {lRelativePath}")
+                            #End If
                         End If
                         
                     Catch ex As Exception
@@ -537,7 +591,9 @@ Namespace Managers
                     End Try
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"EnsureAllFilesLoaded: {lLoadedCount} files loaded successfully")
+                #End If
                 Return lLoadedCount
                 
             Catch ex As Exception
@@ -701,10 +757,14 @@ Namespace Managers
         ''' <returns>True if structure is valid, False if duplicates found</returns>
         Public Function VerifyNamespaceMerge() As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine("=== VERIFYING NAMESPACE MERGE ===")
+                #End If
                 
                 If pProjectSyntaxTree Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("No project tree to verify")
+                    #End If
                     Return False
                 End If
                 
@@ -714,12 +774,18 @@ Namespace Managers
                 VerifyNodeChildren(pProjectSyntaxTree, "", lHasDuplicates)
                 
                 If Not lHasDuplicates Then
+                    #If DEBUG Then
                     Console.WriteLine("✓ No duplicate namespaces found - merge successful!")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("✗ Duplicate namespaces detected - merge failed!")
+                    #End If
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("=== END VERIFICATION ===")
+                #End If
                 Return Not lHasDuplicates
                 
             Catch ex As Exception
@@ -759,7 +825,9 @@ Namespace Managers
                         Dim lName As String = lParts(0)
                         Dim lType As String = If(lParts.Length > 1, lParts(1), "Unknown")
                         
+                        #If DEBUG Then
                         Console.WriteLine($"  DUPLICATE: {lCurrentPath} has {lKvp.Value.Count} '{lName}' nodes of type {lType}")
+                        #End If
                         vHasDuplicates = True
                         
                         ' Show file paths for each duplicate
@@ -773,7 +841,9 @@ Namespace Managers
                                     lFilePath = lDupNode.Attributes("FilePaths")
                                 End If
                             End If
+                            #If DEBUG Then
                             Console.WriteLine($"    [{lIndex}] Children: {lDupNode.Children.Count}, Files: {lFilePath}")
+                            #End If
                             lIndex += 1
                         Next
                     End If
@@ -797,11 +867,15 @@ Namespace Managers
         ''' </summary>
         Public Sub DiagnoseRootClasses()
             Try
+                #If DEBUG Then
                 Console.WriteLine("=== DIAGNOSING ROOT CLASSES (MainWindow, Program) ===")
+                #End If
                 
                 ' Check if we have the project tree
                 If pProjectSyntaxTree Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("No project tree loaded")
+                    #End If
                     Return
                 End If
                 
@@ -815,11 +889,15 @@ Namespace Managers
                 Next
                 
                 If lRootNamespace Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("Root Namespace 'SimpleIDE' not found")
+                    #End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Root namespace found with {lRootNamespace.Children.Count} children:")
+                #End If
                 
                 ' List all direct children of root namespace
                 Dim lClasses As New List(Of SyntaxNode)()
@@ -840,46 +918,68 @@ Namespace Managers
                     End Select
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Namespaces: {lNamespaces.Count}")
+                #End If
                 for each lNs in lNamespaces
+                    #If DEBUG Then
                     Console.WriteLine($"    - {lNs.Name}")
+                    #End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Classes: {lClasses.Count}")
+                #End If
                 for each lClass in lClasses
                     Dim lPartialInfo As String = If(lClass.IsPartial, " [PARTIAL]", "")
                     Dim lFileInfo As String = ""
                     If lClass.Attributes IsNot Nothing AndAlso lClass.Attributes.ContainsKey("FilePaths") Then
                         lFileInfo = $" Files: {lClass.Attributes("FilePaths")}"
                     End If
+                    #If DEBUG Then
                     Console.WriteLine($"    - {lClass.Name}{lPartialInfo}{lFileInfo}")
+                    #End If
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Modules: {lModules.Count}")
+                #End If
                 for each lModule in lModules
                     Dim lFileInfo As String = ""
                     If lModule.Attributes IsNot Nothing AndAlso lModule.Attributes.ContainsKey("FilePath") Then
                         lFileInfo = $" File: {lModule.Attributes("FilePath")}"
                     End If
+                    #If DEBUG Then
                     Console.WriteLine($"    - {lModule.Name}{lFileInfo}")
+                    #End If
                 Next
                 
                 If lOther.Count > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Other: {lOther.Count}")
+                    #End If
                     for each lNode in lOther
+                        #If DEBUG Then
                         Console.WriteLine($"    - {lNode.Name} ({lNode.NodeType})")
+                        #End If
                     Next
                 End If
                 
                 ' Now check specific files
+                #If DEBUG Then
                 Console.WriteLine()
+                #End If
+                #If DEBUG Then
                 Console.WriteLine("Checking specific source files:")
+                #End If
                 
                 ' Check MainWindow.vb
                 CheckSourceFile("MainWindow.vb")
                 CheckSourceFile("Program.vb")
                 
+                #If DEBUG Then
                 Console.WriteLine("=== END DIAGNOSIS ===")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DiagnoseRootClasses error: {ex.Message}")
@@ -891,7 +991,9 @@ Namespace Managers
         ''' </summary>
         Private Sub CheckSourceFile(vFileName As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"  Checking {vFileName}:")
+                #End If
                 
                 ' Find the file in pSourceFiles
                 Dim lFileInfo As SourceFileInfo = Nothing
@@ -903,27 +1005,45 @@ Namespace Managers
                 Next
                 
                 If lFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"    NOT FOUND in source files")
+                    #End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"    Found: {lFileInfo.FilePath}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"    Parsed: {lFileInfo.IsParsed}")
+                #End If
                 
                 If lFileInfo.SyntaxTree IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"    SyntaxTree children: {lFileInfo.SyntaxTree.Children.Count}")
+                    #End If
                     for each lChild in lFileInfo.SyntaxTree.Children
+                        #If DEBUG Then
                         Console.WriteLine($"      - {lChild.Name} ({lChild.NodeType})")
+                        #End If
                         If lChild.NodeType = CodeNodeType.eNamespace Then
+                            #If DEBUG Then
                             Console.WriteLine($"        IsImplicit: {lChild.IsImplicit}")
+                            #End If
+                            #If DEBUG Then
                             Console.WriteLine($"        Children: {lChild.Children.Count}")
+                            #End If
                             for each lSubChild in lChild.Children
+                                #If DEBUG Then
                                 Console.WriteLine($"          - {lSubChild.Name} ({lSubChild.NodeType})")
+                                #End If
                             Next
                         End If
                     Next
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"    SyntaxTree: Nothing")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -959,7 +1079,9 @@ Namespace Managers
                     ' Raise parse completed event with the SyntaxNode
                     RaiseEvent ParseCompleted(vFile, vFile.SyntaxTree)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Parse complete: {vFile.FileName} - {If(vFile.SyntaxTree IsNot Nothing, "Success", "Failed")}")
+                    #End If
                     Return vFile.SyntaxTree IsNot Nothing
                 End If
                 
@@ -999,7 +1121,9 @@ Namespace Managers
                 ' Wire up the RequestProjectManager event to provide reference
                 AddHandler vModel.RequestProjectManager, AddressOf OnDocumentModelRequestProjectManager
                 
+                #If DEBUG Then
                 Console.WriteLine($"Wired DocumentModel events for {vModel.FilePath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"WireDocumentModelEvents error: {ex.Message}")
@@ -1013,7 +1137,9 @@ Namespace Managers
             Try
                 ' Provide this ProjectManager instance to the requesting DocumentModel
                 e.ProjectManager = Me
+                #If DEBUG Then
                 Console.WriteLine("ProjectManager provided to DocumentModel via event")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnDocumentModelRequestProjectManager error: {ex.Message}")
@@ -1045,10 +1171,14 @@ Namespace Managers
                 ' Load content
                 If lSourceFile.LoadContent() Then
                     pSourceFiles(lFullPath) = lSourceFile
+                    #If DEBUG Then
                     Console.WriteLine($"Loaded source file: {lSourceFile.FileName}")
+                    #End If
                     Return lSourceFile
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"Failed to load source file: {lFullPath}")
+                    #End If
                     Return Nothing
                 End If
                 
@@ -1093,10 +1223,14 @@ Namespace Managers
         ''' </remarks>
         Public Function FindDefinition(vWord As String, vCurrentFilePath As String, vLine As Integer, vColumn As Integer) As DefinitionInfo
             Try
+                #If DEBUG Then
                 Console.WriteLine($"FindDefinition: Searching for '{vWord}' from {vCurrentFilePath}:{vLine}:{vColumn}")
+                #End If
 
                 If String.IsNullOrWhiteSpace(vWord) Then
+                    #If DEBUG Then
                     Console.WriteLine("FindDefinition: Empty word")
+                    #End If
                     Return Nothing
                 End If
 
@@ -1105,7 +1239,9 @@ Namespace Managers
                 Dim lCandidates As List(Of String) = GetImportsDerivedCandidates(vCurrentFilePath, vWord)
                 Dim lFastResult As DefinitionInfo = FindDefinitionByFqnCandidates(vWord, lCandidates)
                 If lFastResult IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"FindDefinition: Found '{vWord}' via indexed lookup as '{lFastResult.FullyQualifiedName}'")
+                    #End If
                     Return lFastResult
                 End If
 
@@ -1113,16 +1249,22 @@ Namespace Managers
 
                 Dim lCurrentFileInfo As SourceFileInfo = Nothing
                 If pSourceFiles.TryGetValue(vCurrentFilePath, lCurrentFileInfo) AndAlso lCurrentFileInfo.SyntaxTree IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"FindDefinition: Searching in current file's syntax tree")
+                    #End If
                     Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lCurrentFileInfo.SyntaxTree, vWord, True)
 
                     If lDefinitionNode IsNot Nothing Then
+                        #If DEBUG Then
                         Console.WriteLine($"FindDefinition: Found in current file at line {lDefinitionNode.StartLine}")
+                        #End If
                         Return New DefinitionInfo(lDefinitionNode, vCurrentFilePath)
                     End If
                 End If
 
+                #If DEBUG Then
                 Console.WriteLine("FindDefinition: Searching project-wide syntax trees")
+                #End If
                 for each lFileEntry in pSourceFiles
                     Dim lFilePath As String = lFileEntry.Key
                     Dim lFileInfo As SourceFileInfo = lFileEntry.Value
@@ -1132,7 +1274,9 @@ Namespace Managers
 
                     Dim lDefinitionNode As SyntaxNode = FindDefinitionInNode(lFileInfo.SyntaxTree, vWord, True)
                     If lDefinitionNode IsNot Nothing Then
+                        #If DEBUG Then
                         Console.WriteLine($"FindDefinition: Found in {lFilePath} at line {lDefinitionNode.StartLine}")
+                        #End If
                         Return New DefinitionInfo(lDefinitionNode, lFilePath)
                     End If
                 Next
@@ -1142,12 +1286,16 @@ Namespace Managers
                 If lCurrentFileInfo IsNot Nothing AndAlso lCurrentFileInfo.SyntaxTree Is Nothing Then
                     Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lCurrentFileInfo, vWord)
                     If lDefInfo IsNot Nothing Then
+                        #If DEBUG Then
                         Console.WriteLine($"FindDefinition: Found in current file via text search at line {lDefInfo.Line}")
+                        #End If
                         Return lDefInfo
                     End If
                 End If
 
+                #If DEBUG Then
                 Console.WriteLine("FindDefinition: Searching project-wide via text search (unparsed files only)")
+                #End If
                 for each lFileEntry in pSourceFiles
                     Dim lFilePath As String = lFileEntry.Key
                     Dim lFileInfo As SourceFileInfo = lFileEntry.Value
@@ -1157,12 +1305,16 @@ Namespace Managers
 
                     Dim lDefInfo As DefinitionInfo = FindDefinitionInFileContent(lFileInfo, vWord)
                     If lDefInfo IsNot Nothing Then
+                        #If DEBUG Then
                         Console.WriteLine($"FindDefinition: Found in {lFilePath} via text search at line {lDefInfo.Line}")
+                        #End If
                         Return lDefInfo
                     End If
                 Next
 
+                #If DEBUG Then
                 Console.WriteLine($"FindDefinition: Definition not found for '{vWord}'")
+                #End If
                 Return Nothing
 
             Catch ex As Exception
@@ -1237,7 +1389,9 @@ Namespace Managers
                                 lDefInfo.NodeType = CodeNodeType.eField
                             End If
                             
+                            #If DEBUG Then
                             Console.WriteLine($"FindDefinitionInFileContent: Found '{vSymbolName}' at line {i + 1} as {lDefInfo.NodeType}")
+                            #End If
                             Return lDefInfo
                         End If
                     Next
@@ -1265,7 +1419,9 @@ Namespace Managers
                 
                 ' Check if this node is a definition of the symbol
                 If IsDefinitionNode(vNode) AndAlso String.Equals(vNode.Name, vSymbolName, StringComparison.OrdinalIgnoreCase) Then
+                    #If DEBUG Then
                     Console.WriteLine($"FindDefinitionInNode: Found definition '{vNode.Name}' of type {vNode.NodeType}")
+                    #End If
                     Return vNode
                 End If
                 

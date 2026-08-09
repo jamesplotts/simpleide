@@ -146,10 +146,14 @@ Namespace Editors
                 Static sDebugCounter As Integer = 0
                 sDebugCounter += 1
                 If sDebugCounter Mod 100 = 1 Then
+                    #If DEBUG Then
                     Console.WriteLine($"DrawContent: FirstLine={lFirstLine} (Prop={pFirstVisibleLine}), Ascent={lAscent}, TopOffset={lTopOffset}")
+                    #End If
                     If GetVisualLineCount() > 0 Then
                         Dim lFirstVisual As Integer = VisualToSourceLine(lFirstLine)
+                        #If DEBUG Then
                         Console.WriteLine($"  Visual {lFirstLine} -> Source {lFirstVisual}")
+                        #End If
                     End If
                 End If
                 Dim lFirstColumn As Integer = pFirstVisibleColumn
@@ -464,7 +468,9 @@ Namespace Editors
                 ' Simply queue a redraw when content/rendering changes
                 If pDrawingArea IsNot Nothing Then
                     pDrawingArea.QueueDraw()
+                    #If DEBUG Then
                     Console.WriteLine("OnSourceFileContentChanged: Redraw queued after content change")
+                    #End If
                 End If
                 
                 ' Also update line numbers if visible

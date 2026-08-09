@@ -152,7 +152,9 @@ Namespace Widgets
                 
                 ' Process children if expanded
                 If lVisualNode.IsExpanded AndAlso lHasChildren Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Processing {vNode.Children.Count} children...")
+                    #End If
                     
                     ' Children are always at the next depth level
                     For Each lChild In vNode.Children

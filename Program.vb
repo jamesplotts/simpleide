@@ -22,11 +22,15 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(lCurrentDir)
             
             If lProjectFile Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"Exporting context for: {lProjectFile}")
+            #End If
             
             ' Create AIFileSystemBridge to gather project info
             Dim lBridge As New Utilities.AIFileSystemBridge()
@@ -67,9 +71,13 @@ Module Program
             
             If vOutputFile IsNot Nothing Then
                 File.WriteAllText(vOutputFile, lOutput)
+                #If DEBUG Then
                 Console.WriteLine($"Context exported to: {vOutputFile}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine(lOutput)
+                #End If
             End If
             
         Catch ex As Exception
@@ -83,7 +91,9 @@ Module Program
     Private Sub ImportArtifact(vArtifactFile As String, vUseJson As Boolean)
         Try
             If Not File.Exists(vArtifactFile) Then
+                #If DEBUG Then
                 Console.WriteLine($"Artifact file not found: {vArtifactFile}")
+                #End If
                 Return
             End If
             
@@ -91,7 +101,9 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(Environment.CurrentDirectory)
             
             If lProjectFile Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
+                #End If
                 Return
             End If
             
@@ -118,13 +130,17 @@ Module Program
             If File.Exists(lTargetPath) Then
                 Console.Write($"File {lFileName} already exists. Overwrite? (y/n): ")
                 If Console.ReadLine().ToLower() <> "y" Then
+                    #If DEBUG Then
                     Console.WriteLine("Import cancelled")
+                    #End If
                     Return
                 End If
             End If
             
             File.WriteAllText(lTargetPath, lCode)
+            #If DEBUG Then
             Console.WriteLine($"Imported artifact to: {lTargetPath}")
+            #End If
             
             ' TODO: Add file to project file if it's a .vb file
             ' - Parse the .vbproj XML
@@ -142,7 +158,9 @@ Module Program
     ''' </summary>
     Private Sub UpdateAIKnowledge(vUseJson As Boolean)
         Try
+            #If DEBUG Then
             Console.WriteLine("Updating AI knowledge base...")
+            #End If
             
             ' TODO: Implement actual AI knowledge base update
             ' - Connect to AI knowledge storage system
@@ -158,7 +176,9 @@ Module Program
             )
             
             ExportProjectContext(lKnowledgeFile, True)
+            #If DEBUG Then
             Console.WriteLine($"Knowledge base updated: {lKnowledgeFile}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"Error updating knowledge: {ex.Message}")
@@ -173,12 +193,18 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(Environment.CurrentDirectory)
             
             If lProjectFile Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"Analyzing project: {Path.GetFileName(lProjectFile)}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"Analysis type: {vType}")
+            #End If
             
             Dim lResults As New Dictionary(Of String, Object)
             lResults("project") = lProjectFile
@@ -203,8 +229,12 @@ Module Program
                     lResults("security") = AnalyzeSecurity(lProjectFile)
                     
                 Case Else
+                    #If DEBUG Then
                     Console.WriteLine($"Unknown analysis type: {vType}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine("Valid types: errors, structure, quality, security, all")
+                    #End If
                     Return
             End Select
             
@@ -218,9 +248,13 @@ Module Program
             
             If vOutputFile IsNot Nothing Then
                 File.WriteAllText(vOutputFile, lOutput)
+                #If DEBUG Then
                 Console.WriteLine($"Analysis results saved to: {vOutputFile}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine(lOutput)
+                #End If
             End If
             
         Catch ex As Exception
@@ -233,8 +267,12 @@ Module Program
     ''' </summary>
     Private Sub GenerateCode(vType As String, vOutputFile As String, vUseJson As Boolean)
         Try
+            #If DEBUG Then
             Console.WriteLine($"Code generation type: {vType}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("Note: This feature requires AI integration to be configured in the IDE")
+            #End If
             
             ' TODO: Implement actual code generation with AI
             ' - Connect to Claude API or other AI service
@@ -244,7 +282,9 @@ Module Program
             
             Select Case vType.ToLower()
                 Case "tests"
+                    #If DEBUG Then
                     Console.WriteLine("Generating unit test templates...")
+                    #End If
                     ' TODO: Implement test generation
                     ' - Analyze public methods and classes
                     ' - Generate NUnit/XUnit test fixtures
@@ -252,7 +292,9 @@ Module Program
                     ' - Add assertions based on method signatures
                     
                 Case "docs"
+                    #If DEBUG Then
                     Console.WriteLine("Generating documentation...")
+                    #End If
                     ' TODO: Implement documentation generation
                     ' - Parse all public APIs
                     ' - Generate XML documentation comments
@@ -260,7 +302,9 @@ Module Program
                     ' - Generate API documentation
                     
                 Case "interface"
+                    #If DEBUG Then
                     Console.WriteLine("Generating interface definitions...")
+                    #End If
                     ' TODO: Implement interface extraction
                     ' - Analyze all public classes
                     ' - Extract public methods and properties
@@ -268,7 +312,9 @@ Module Program
                     ' - Optionally refactor classes to implement interfaces
                     
                 Case "refactor"
+                    #If DEBUG Then
                     Console.WriteLine("Generating refactoring suggestions...")
+                    #End If
                     ' TODO: Implement refactoring analysis
                     ' - Identify code smells
                     ' - Suggest design pattern applications
@@ -276,8 +322,12 @@ Module Program
                     ' - Suggest method/class reorganization
                     
                 Case Else
+                    #If DEBUG Then
                     Console.WriteLine($"Unknown generation type: {vType}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine("Valid types: tests, docs, interface, refactor")
+                    #End If
             End Select
             
         Catch ex As Exception
@@ -290,8 +340,12 @@ Module Program
     ''' </summary>
     Private Sub FixCompilationErrors(vUseJson As Boolean)
         Try
+            #If DEBUG Then
             Console.WriteLine("Analyzing compilation errors...")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("Note: This feature requires AI integration to be configured")
+            #End If
             
             ' TODO: Implement actual error fixing with AI
             ' - Run dotnet build and capture all errors
@@ -301,11 +355,21 @@ Module Program
             ' - Re-run build to verify fixes
             ' - Report success/failure for each fix
             
+            #If DEBUG Then
             Console.WriteLine("Would attempt to fix:")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("  - Missing imports")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("  - Type mismatches")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("  - Syntax errors")
+            #End If
+            #If DEBUG Then
             Console.WriteLine("  - Missing references")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"Error fixing compilation errors: {ex.Message}")
@@ -437,19 +501,27 @@ Module Program
             Select Case lArg.ToLower()
                 Case "--maximize", "-m"
                     lShouldMaximize = True
+                    #If DEBUG Then
                     Console.WriteLine("Window will be maximized")
+                    #End If
                     
                 Case "--minimize"
                     lShouldMinimize = True
+                    #If DEBUG Then
                     Console.WriteLine("Window will be minimized")
+                    #End If
                     
                 Case "--New-project", "-n"
                     If i + 1 < vArgs.Length Then
                         i += 1
                         lNewProject = vArgs(i)
+                        #If DEBUG Then
                         Console.WriteLine($"Will create New project: {lNewProject}")
+                        #End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("error: --New-project requires a project name")
+                        #End If
                         Return
                     End If
                     
@@ -458,38 +530,56 @@ Module Program
                         i += 1
                         lNewProjectType = vArgs(i)
                         If Not IsValidProjectType(lNewProjectType) Then
+                            #If DEBUG Then
                             Console.WriteLine($"error: Invalid project type '{lNewProjectType}'. Valid types: Console, Library, GTK")
+                            #End If
                             Return
                         End If
+                        #If DEBUG Then
                         Console.WriteLine($"Project type: {lNewProjectType}")
+                        #End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --project-type requires a type (Console, Library, GTK)")
+                        #End If
                         Return
                     End If
                     
                 Case "--safe-mode"
                     lSafeMode = True
+                    #If DEBUG Then
                     Console.WriteLine("Starting in safe mode (no extensions or custom settings)")
+                    #End If
                     
                 Case "--reset-settings"
                     lResetSettings = True
+                    #If DEBUG Then
                     Console.WriteLine("Settings will be reset to defaults")
+                    #End If
                     
                 Case "--test-mode"
                     lTestMode = True
+                    #If DEBUG Then
                     Console.WriteLine("Running in test mode - will exit automatically")
+                    #End If
 
                 Case "--test-delay"
                     If i + 1 < vArgs.Length Then
                         i += 1
                         If Integer.TryParse(vArgs(i), lTestDelay) Then
+                            #If DEBUG Then
                             Console.WriteLine($"Test mode delay set to {lTestDelay}ms")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Invalid delay value: {vArgs(i)}, using default 5000ms")
+                            #End If
                             lTestDelay = 5000
                         End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --test-delay requires a value in milliseconds")
+                        #End If
                         Return
                     End If
                     
@@ -500,13 +590,19 @@ Module Program
                         Dim lFullPath As String = If(Path.IsPathRooted(lPath), lPath, Path.Combine(lCurrentDirectory, lPath))
                         If File.Exists(lFullPath) Then
                             lProjectToLoad = lFullPath
+                            #If DEBUG Then
                             Console.WriteLine($"Will load project: {lFullPath}")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Error: Project file not found: {lFullPath}")
+                            #End If
                             Return
                         End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --project requires a file path")
+                        #End If
                         Return
                     End If
                     
@@ -517,12 +613,18 @@ Module Program
                         Dim lFullPath As String = If(Path.IsPathRooted(lPath), lPath, Path.Combine(lCurrentDirectory, lPath))
                         If File.Exists(lFullPath) Then
                             lFilesToOpen.Add(lFullPath)
+                            #If DEBUG Then
                             Console.WriteLine($"Will open file: {lFullPath}")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Warning: File not found: {lFullPath}")
+                            #End If
                         End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --open requires a file path")
+                        #End If
                         Return
                     End If
                     
@@ -539,21 +641,33 @@ Module Program
                                 ' It's a project or solution file - only load the first one
                                 If lProjectToLoad Is Nothing Then
                                     lProjectToLoad = lFullPath
+                                    #If DEBUG Then
                                     Console.WriteLine($"Will load project: {lFullPath}")
+                                    #End If
                                 Else
+                                    #If DEBUG Then
                                     Console.WriteLine($"Project already specified, ignoring: {lFullPath}")
+                                    #End If
                                 End If
                             Else
                                 ' It's a regular file to open
                                 lFilesToOpen.Add(lFullPath)
+                                #If DEBUG Then
                                 Console.WriteLine($"Will open file: {lFullPath}")
+                                #End If
                             End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"File not found: {lFullPath}")
+                            #End If
                         End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"Unknown option: {lArg}")
+                        #End If
+                        #If DEBUG Then
                         Console.WriteLine("Use --help to see available options")
+                        #End If
                     End If
             End Select
             
@@ -571,9 +685,13 @@ Module Program
             Dim lProjectPath As String = Path.Combine(lCurrentDirectory, lNewProject)
             If CreateNewProjectStructure(lProjectPath, lNewProject, lNewProjectType) Then
                 lProjectToLoad = Path.Combine(lProjectPath, $"{lNewProject}.vbproj")
+                #If DEBUG Then
                 Console.WriteLine($"Created new project: {lProjectToLoad}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("Failed to create new project")
+                #End If
                 Return
             End If
         End If
@@ -588,11 +706,15 @@ Module Program
         
         If lProjectToLoad IsNot Nothing Then
             ' Use the constructor that loads a project
+            #If DEBUG Then
             Console.WriteLine($"Creating MainWindow with project: {lProjectToLoad}")
+            #End If
             lMainWindow = New MainWindow(lProjectToLoad)
         Else
             ' Use the default constructor
+            #If DEBUG Then
             Console.WriteLine("Creating MainWindow without project")
+            #End If
             lMainWindow = New MainWindow()
         End If
         
@@ -620,10 +742,14 @@ Module Program
                 ' Handle window state
                 If lShouldMinimize Then
                     lMainWindow.Iconify()
+                    #If DEBUG Then
                     Console.WriteLine("Window minimized")
+                    #End If
                 ElseIf lShouldMaximize Then
                     lMainWindow.Maximize()
+                    #If DEBUG Then
                     Console.WriteLine("Window maximized")
+                    #End If
                 ElseIf lRestoreLayout Then
                     RestoreWindowSizeAndState(lMainWindow, False)
                 Else
@@ -640,16 +766,22 @@ Module Program
                         Dim lProjectDir As String = Path.GetDirectoryName(lProjectToLoad)
                         for each lFile in lFilesToOpen
                             If lFile.StartsWith(lProjectDir) Then
+                                #If DEBUG Then
                                 Console.WriteLine($"Opening project file: {lFile}")
+                                #End If
                                 lMainWindow.OpenFile(lFile)
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"Skipping file outside project: {lFile}")
+                                #End If
                             End If
                         Next
                     Else
                         ' No project loaded, open all files
                         for each lFile in lFilesToOpen
+                            #If DEBUG Then
                             Console.WriteLine($"Opening file: {lFile}")
+                            #End If
                             lMainWindow.OpenFile(lFile)
                         Next
                     End If
@@ -657,16 +789,30 @@ Module Program
                 
                 ' Set up test mode exit if requested
                 If lTestMode Then
+                    #If DEBUG Then
                     Console.WriteLine($"Test mode: Scheduling exit in {lTestDelay}ms")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine("============================================")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine("Test Mode Output:")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine("============================================")
+                    #End If
                     
                     ' Schedule application exit after the delay
                     GLib.Timeout.Add(CUInt(lTestDelay), Function()
+                        #If DEBUG Then
                         Console.WriteLine("============================================")
+                        #End If
+                        #If DEBUG Then
                         Console.WriteLine($"Test mode: Exiting after {lTestDelay}ms")
+                        #End If
+                        #If DEBUG Then
                         Console.WriteLine("============================================")
+                        #End If
                         
                         ' Properly close the application
                         Try
@@ -751,7 +897,9 @@ Module Program
                         ImportArtifact(vArgs(i + 1), lUseJson)
                         Return True
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --import-artifact requires a file path")
+                        #End If
                         Return True
                     End If
                     
@@ -776,7 +924,9 @@ Module Program
                         i += 1
                         Return True
                     Else
+                        #If DEBUG Then
                         Console.WriteLine("Error: --generate requires a type (tests|docs|interface|refactor)")
+                        #End If
                         Return True
                     End If
                     
@@ -804,59 +954,165 @@ Module Program
     ''' Display help information
     ''' </summary>
     Private Sub ShowHelp()
+        #If DEBUG Then
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Usage: VbIDE [options] [project-file] [files...]")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Options:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -h, --help              Show this help message and exit")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -v, --version           Show version information and exit")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --license           Show license information and exit")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Project Options:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -p, --project FILE      Load specified project file")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -n, --new-project NAME  Create a new project with the given name")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -t, --project-type TYPE Set project type (Console|Library|GTK) [default: GTK]")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -o, --open FILE         Open specified file(s) in editor")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --list-projects     List recently opened projects and exit")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Window Options:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  -m, --maximize          Start with maximized window")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --minimize          Start with minimized window")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Maintenance Options:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --safe-mode         Start without loading extensions or custom settings")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --reset-settings    Reset all settings to defaults")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --clean             Clean all build artifacts in current directory")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --test-mode         Run in test mode and exit automatically")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --test-delay MS     Set test mode exit delay in milliseconds (default: 5000)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("AI Integration Options:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --export-context    Export project context for AI analysis")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --import-artifact FILE Import AI-generated artifact into project")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --update-knowledge  Update AI knowledge base with current project")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --analyze [TYPE]    Analyze project (errors|structure|quality|security)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --generate TYPE     Generate code (tests|docs|interface|refactor)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --fix-errors        Attempt to auto-fix compilation errors")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --headless          Run without GUI (for automation)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --json              Output in JSON format (for parsing)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("      --output FILE       Write output to file instead of console")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Examples:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE                           # Auto-detect project/solution in current directory")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE MyProject.vbproj          # Open specific project")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE MySolution.sln            # Open specific solution (all member projects)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE Program.vb Module1.vb     # Open files without project")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE -n MyApp -t Console       # Create new console application")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VbIDE -p ~/projects/App.vbproj  # Open project from specific path")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Environment Variables:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VBIDE_SETTINGS_PATH    Override default settings location")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VBIDE_THEME            Set color theme (Dark|Light|System)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  VBIDE_DEBUG            Enable debug logging (1|true)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("When launched without arguments in a directory containing a .sln or .vbproj")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("file, the IDE will automatically load it (a .sln takes priority).")
+        #End If
     End Sub
     
     ''' <summary>
@@ -868,72 +1124,180 @@ Module Program
         Dim v As String = assembly.FullName
        ' Console.WriteLine("Assembly Version: " & version.ToString())   
 
+        #If DEBUG Then
         Console.WriteLine($"{v}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"Build: {ApplicationVersion.BuildNumber}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"Date: {ApplicationVersion.BuildDate:yyyy-MM-dd}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Runtime Information:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"  .NET Version: {Environment.Version}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"  OS: {Environment.OSVersion}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"  Machine: {Environment.MachineName}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine($"  Processors: {Environment.ProcessorCount}")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Copyright (C) 2026 VbIDE Contributors")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Licensed under the MIT License - See --license for details")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("For more information, visit: https://github.com/jamesplotts/simpleide")
+        #End If
     End Sub
     
     ''' <summary>
     ''' Display license information
     ''' </summary>
     Private Sub ShowLicense()
+        #If DEBUG Then
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Copyright (c) 2025-2026 James Duane Plotts")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Repository: https://github.com/jamesplotts/simpleide")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("MIT License")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("Permission is hereby granted, free of charge, to any person obtaining a copy")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("of this software and associated documentation files (the ""Software""), to deal")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("in the Software without restriction, including without limitation the rights")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("to use, copy, modify, merge, publish, distribute, sublicense, and/or sell")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("copies of the Software, and to permit persons to whom the Software is")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("furnished to do so, subject to the following conditions:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("The above copyright notice and this permission notice shall be included in all")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("copies or substantial portions of the Software.")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("SOFTWARE.")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("================================================================================")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("This software includes the following third-party components:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("GTK# (LGPL v2.1)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  GTK# is a .NET binding for the GTK+ toolkit")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  https://github.com/GtkSharp/GtkSharp")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine(".NET Runtime (MIT License)")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("  https://github.com/dotnet/runtime")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("For the complete license text, see the LICENSE file in the repository:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("https://github.com/jamesplotts/simpleide/blob/main/LICENSE")
+        #End If
+        #If DEBUG Then
         Console.WriteLine()
+        #End If
+        #If DEBUG Then
         Console.WriteLine("To contribute to this project, visit:")
+        #End If
+        #If DEBUG Then
         Console.WriteLine("https://github.com/jamesplotts/simpleide")
+        #End If
     End Sub
     
     ''' <summary>
     ''' Auto-detect project file in directory
     ''' </summary>
     Private Function AutoDetectProject(vDirectory As String) As String
+        #If DEBUG Then
         Console.WriteLine($"Searching for project in: {vDirectory}")
+        #End If
 
         ' A solution is a superset of a single project - if a .sln is sitting right here
         ' (e.g. launched from a multi-project solution folder), prefer it over any lone
@@ -941,12 +1305,18 @@ Module Program
         Dim lSolutionFiles As String() = Directory.GetFiles(vDirectory, "*.sln", SearchOption.TopDirectoryOnly)
         If lSolutionFiles.Length > 0 Then
             Dim lSolutionToLoad As String = lSolutionFiles(0)
+            #If DEBUG Then
             Console.WriteLine($"Found solution file: {lSolutionToLoad}")
+            #End If
 
             If lSolutionFiles.Length > 1 Then
+                #If DEBUG Then
                 Console.WriteLine($"Warning: Multiple solution files found. Using: {Path.GetFileName(lSolutionToLoad)}")
+                #End If
                 for i As Integer = 1 To lSolutionFiles.Length - 1
+                    #If DEBUG Then
                     Console.WriteLine($"  Ignoring: {Path.GetFileName(lSolutionFiles(i))}")
+                    #End If
                 Next
             End If
 
@@ -959,12 +1329,18 @@ Module Program
         If lProjectFiles.Length > 0 Then
             ' Found project file(s) - use the first one
             Dim lProjectToLoad As String = lProjectFiles(0)
+            #If DEBUG Then
             Console.WriteLine($"Found project file: {lProjectToLoad}")
+            #End If
             
             If lProjectFiles.Length > 1 Then
+                #If DEBUG Then
                 Console.WriteLine($"Warning: Multiple project files found. Using: {Path.GetFileName(lProjectToLoad)}")
+                #End If
                 for i As Integer = 1 To lProjectFiles.Length - 1
+                    #If DEBUG Then
                     Console.WriteLine($"  Ignoring: {Path.GetFileName(lProjectFiles(i))}")
+                    #End If
                 Next
             End If
             
@@ -976,16 +1352,22 @@ Module Program
         
         If lCSharpProjects.Length > 0 Then
             Dim lProjectToLoad As String = lCSharpProjects(0)
+            #If DEBUG Then
             Console.WriteLine($"Found C# project file: {lProjectToLoad}")
+            #End If
             
             If lCSharpProjects.Length > 1 Then
+                #If DEBUG Then
                 Console.WriteLine($"Warning: Multiple C# project files found. Using: {Path.GetFileName(lProjectToLoad)}")
+                #End If
             End If
             
             Return lProjectToLoad
         End If
         
+        #If DEBUG Then
         Console.WriteLine("No project files found in current directory")
+        #End If
         Return Nothing
     End Function
     
@@ -994,20 +1376,28 @@ Module Program
     ''' </summary>
     Private Sub ListRecentProjects()
         Try
+            #If DEBUG Then
             Console.WriteLine("Recently opened projects:")
+            #End If
+            #If DEBUG Then
             Console.WriteLine()
+            #End If
             
             ' Create temporary settings manager to read recent projects
             Dim lSettingsManager As New SettingsManager()
             Dim lRecentProjects As List(Of String) = lSettingsManager.RecentProjects
             
             If lRecentProjects.Count = 0 Then
+                #If DEBUG Then
                 Console.WriteLine("  No recent projects")
+                #End If
             Else
                 for i As Integer = 0 To lRecentProjects.Count - 1
                     Dim lProject As String = lRecentProjects(i)
                     Dim lExists As String = If(File.Exists(lProject), "", " [NOT FOUND]")
+                    #If DEBUG Then
                     Console.WriteLine($"  {i + 1}. {lProject}{lExists}")
+                    #End If
                 Next
             End If
             
@@ -1022,7 +1412,9 @@ Module Program
     Private Sub CleanBuildArtifacts()
         Try
             Dim lCurrentDir As String = Environment.CurrentDirectory
+            #If DEBUG Then
             Console.WriteLine($"Cleaning build artifacts in: {lCurrentDir}")
+            #End If
             
             Dim lDirsToClean As String() = {"bin", "obj", ".vs"}
             Dim lCleaned As Integer = 0
@@ -1030,16 +1422,22 @@ Module Program
             for each lDirName in lDirsToClean
                 Dim lDirPath As String = Path.Combine(lCurrentDir, lDirName)
                 If Directory.Exists(lDirPath) Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Removing: {lDirName}/")
+                    #End If
                     Directory.Delete(lDirPath, True)
                     lCleaned += 1
                 End If
             Next
             
             If lCleaned > 0 Then
+                #If DEBUG Then
                 Console.WriteLine($"Cleaned {lCleaned} directories")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("No build artifacts found to clean")
+                #End If
             End If
             
         Catch ex As Exception
@@ -1072,7 +1470,9 @@ Module Program
             ' - Create My Project folder with AssemblyInfo.vb
             ' - Initialize git repository if git is available
             ' - Create .gitignore file
+            #If DEBUG Then
             Console.WriteLine($"TODO: Create project structure for {vName} of type {vType}")
+            #End If
             Return False
         Catch ex As Exception
             Console.WriteLine($"Error creating project: {ex.Message}")
@@ -1098,9 +1498,13 @@ Module Program
             
             If File.Exists(lSettingsPath) Then
                 File.Delete(lSettingsPath)
+                #If DEBUG Then
                 Console.WriteLine("Settings have been reset to defaults")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("No settings file found to reset")
+                #End If
             End If
             
         Catch ex As Exception
@@ -1119,7 +1523,9 @@ Module Program
         ' - Use minimal UI configuration
         ' - Disable auto-save features
         ' - Log all operations for debugging
+        #If DEBUG Then
         Console.WriteLine("Safe mode applied - extensions disabled, using default settings")
+        #End If
     End Sub
     
     ''' <summary>
@@ -1133,12 +1539,16 @@ Module Program
             Dim lSettingsManager = vWindow.GetSettingsManager()
             If lSettingsManager Is Nothing Then Return
             
+            #If DEBUG Then
             Console.WriteLine($"RestoreWindowSizeAndState: ShouldMaximize={vShouldMaximize}")
+            #End If
             
             ' If window should be maximized, just maximize it
             If vShouldMaximize Then
                 vWindow.Maximize()
+                #If DEBUG Then
                 Console.WriteLine("Window maximized")
+                #End If
                 Return
             End If
             
@@ -1150,7 +1560,9 @@ Module Program
             If lWidth < 800 Then lWidth = 1024
             If lHeight < 600 Then lHeight = 768
             
+            #If DEBUG Then
             Console.WriteLine($"Restoring window size: {lWidth}x{lHeight}")
+            #End If
             
             ' Set the size and center it
             vWindow.Resize(lWidth, lHeight)

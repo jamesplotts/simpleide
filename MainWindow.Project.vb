@@ -294,7 +294,9 @@ Partial Public Class MainWindow
     Private Sub OpenFileInEditor(vFilePath As String)
         Try
             ' TODO: Implement file opening in editor
+            #If DEBUG Then
             Console.WriteLine($"Opening file: {vFilePath}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OpenFileInEditor error: {ex.Message}")
@@ -387,7 +389,9 @@ Partial Public Class MainWindow
             ' Clear application version cache to get fresh data
             ApplicationVersion.ClearCache()
             
+            #If DEBUG Then
             Console.WriteLine($"Version displays refreshed - IDE: {ApplicationVersion.VersionString}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"RefreshVersionDisplays error: {ex.Message}")

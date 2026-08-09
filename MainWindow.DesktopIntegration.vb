@@ -112,7 +112,9 @@ Partial Public Class MainWindow
             Dim lIconBytes As Byte()
             Using lStream = GetType(MainWindow).Assembly.GetManifestResourceStream("SimpleIDE.icon.png")
                 If lStream Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("InstallDesktopIntegration: embedded icon resource not found")
+                    #End If
                     Return False
                 End If
                 Using lMemoryStream As New MemoryStream()

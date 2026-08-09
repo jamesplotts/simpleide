@@ -268,8 +268,12 @@ Imports System
 
 Module Program
     Sub Main(args As String())
+        #If DEBUG Then
         Console.WriteLine(""Hello, World!"")
+        #End If
+        #If DEBUG Then
         Console.WriteLine(""Press any key To Exit..."")
+        #End If
         Console.ReadKey()
     End Sub
 End Module"
@@ -291,7 +295,9 @@ Imports System
 Module Program
     Sub Main(args As String())
         ' TODO: Initialize your application here
+        #If DEBUG Then
         Console.WriteLine(""Application started"")
+        #End If
     End Sub
 End Module"
             End Select

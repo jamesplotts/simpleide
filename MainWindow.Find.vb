@@ -50,7 +50,9 @@ Partial Public Class MainWindow
     Private Sub OnFindPanelRequestProjectManager(vSender As Object, vArgs As FindReplacePanel.ProjectManagerEventArgs)
         Try
             vArgs.ProjectManager = pProjectManager
+            #If DEBUG Then
             Console.WriteLine($"MainWindow: Provided ProjectManager to FindReplacePanel")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnFindPanelRequestProjectManager error: {ex.Message}")
@@ -402,7 +404,9 @@ Partial Public Class MainWindow
                     pBottomPanelManager.FindPanel.SetProjectRoot(pProjectManager.CurrentProjectInfo.ProjectDirectory)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("FindReplacePanel updated with ProjectManager after project load")
+                #End If
             End If
             
         Catch ex As Exception

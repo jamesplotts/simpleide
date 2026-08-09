@@ -125,7 +125,9 @@ Namespace Editors
             Try
                 If String.IsNullOrEmpty(vText) OrElse pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"OnClipboardTextReceived: Pasting {vText.Length} characters")
+                #End If
                 
                 ' Begin undo group
                 If pUndoRedoManager IsNot Nothing Then
@@ -195,7 +197,9 @@ Namespace Editors
                 
                 ' CRITICAL FIX: For multi-line pastes, ensure immediate visual update
                 If lLines.Length > 1 Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnClipboardTextReceived: Multi-line paste detected ({lLines.Length} lines)")
+                    #End If
                     
                     ' Force immediate parsing for visual feedback
                     pSourceFileInfo.ForceImmediateParsing(lPasteStartLine, lPasteEndLine)
@@ -203,7 +207,9 @@ Namespace Editors
                     ' Explicitly queue a redraw to show the updated coloring
                     If pDrawingArea IsNot Nothing Then
                         pDrawingArea.QueueDraw()
+                        #If DEBUG Then
                         Console.WriteLine($"OnClipboardTextReceived: Queued redraw for lines {lPasteStartLine} to {lPasteEndLine}")
+                        #End If
                     End If
                 End If
                 
@@ -216,7 +222,9 @@ Namespace Editors
                 End If
                 
                 ' Automatically select the pasted text
+                #If DEBUG Then
                 Console.WriteLine($"OnClipboardTextReceived: Selecting pasted text from ({lPasteStartLine},{lPasteStartColumn}) to ({lPasteEndLine},{lPasteEndColumn})")
+                #End If
                 
                 ' Set the selection to cover the pasted text
                 pSelectionStartLine = lPasteStartLine
@@ -238,7 +246,9 @@ Namespace Editors
                 IsModified = True
                 RaiseEvent TextChanged(Me, EventArgs.Empty)
                 
+                #If DEBUG Then
                 Console.WriteLine($"OnClipboardTextReceived: Paste operation completed")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"OnClipboardTextReceived error: {ex.Message}")
@@ -681,29 +691,39 @@ Namespace Editors
                 If vTextLength < 100 AndAlso (vEndLine - vStartLine) < 3 Then
                     ' Small paste - let normal async parse handle it  
                     ' But still force immediate parsing for better UX
+                    #If DEBUG Then
                     Console.WriteLine($"EnsurePasteColoring: Small paste, Using immediate parsing")
+                    #End If
                     If pSourceFileInfo IsNot Nothing Then
                         pSourceFileInfo.ForceImmediateParsing(vStartLine, vEndLine)
                         
                         ' CRITICAL: Explicitly queue redraw after parsing
                         If pDrawingArea IsNot Nothing Then
                             pDrawingArea.QueueDraw()
+                            #If DEBUG Then
                             Console.WriteLine("EnsurePasteColoring: Redraw queued after small paste parsing")
+                            #End If
                         End If
                     End If
                     Return
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"EnsurePasteColoring: Ensuring colors for lines {vStartLine} To {vEndLine} ({vTextLength} chars)")
+                #End If
                 
                 If pSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("EnsurePasteColoring: No SourceFileInfo available")
+                    #End If
                     Return
                 End If
                 
                 ' For medium pastes (100-1000 chars or 3-20 lines), use immediate parsing
                 If vTextLength < 1000 OrElse (vEndLine - vStartLine) < 20 Then
+                    #If DEBUG Then
                     Console.WriteLine("EnsurePasteColoring: Using immediate parsing for medium paste")
+                    #End If
                     
                     ' Let SourceFileInfo handle all the parsing and coloring internally
                     pSourceFileInfo.ForceImmediateParsing(vStartLine, vEndLine)
@@ -711,7 +731,9 @@ Namespace Editors
                     ' CRITICAL: Explicitly queue redraw to show the colored text
                     If pDrawingArea IsNot Nothing Then
                         pDrawingArea.QueueDraw()
+                        #If DEBUG Then
                         Console.WriteLine("EnsurePasteColoring: Redraw queued after medium paste parsing")
+                        #End If
                     End If
                     
                     ' Also request async parse for full document context
@@ -720,20 +742,26 @@ Namespace Editors
                 Else
                     ' Large paste (1000+ chars or 20+ lines)
                     ' Use immediate parsing for visible portion, then progressive for rest
+                    #If DEBUG Then
                     Console.WriteLine($"EnsurePasteColoring: Large paste detected, Using progressive coloring")
+                    #End If
                     
                     ' First, parse and color the visible portion immediately
                     Dim lVisibleStart As Integer = Math.Max(vStartLine, pFirstVisibleLine)
                     Dim lVisibleEnd As Integer = Math.Min(vEndLine, pFirstVisibleLine + pTotalVisibleLines)
                     
                     If lVisibleEnd >= lVisibleStart Then
+                        #If DEBUG Then
                         Console.WriteLine($"EnsurePasteColoring: Immediate parse for visible lines {lVisibleStart} To {lVisibleEnd}")
+                        #End If
                         pSourceFileInfo.ForceImmediateParsing(lVisibleStart, lVisibleEnd)
                         
                         ' CRITICAL: Explicitly queue redraw
                         If pDrawingArea IsNot Nothing Then
                             pDrawingArea.QueueDraw()
+                            #If DEBUG Then
                             Console.WriteLine("EnsurePasteColoring: Redraw queued after visible portion parsing")
+                            #End If
                         End If
                     End If
                     
@@ -748,7 +776,9 @@ Namespace Editors
                                 Await Task.Delay(100)
                                 Gtk.Application.Invoke(Sub()
                                     Try
+                                        #If DEBUG Then
                                         Console.WriteLine($"EnsurePasteColoring: Parsing pre-visible lines {vStartLine} To {lVisibleStart - 1}")
+                                        #End If
                                         pSourceFileInfo.ForceImmediateParsing(vStartLine, lVisibleStart - 1)
                                         pDrawingArea?.QueueDraw()
                                     Catch ex As Exception
@@ -762,7 +792,9 @@ Namespace Editors
                                 Await Task.Delay(200)
                                 Gtk.Application.Invoke(Sub()
                                     Try
+                                        #If DEBUG Then
                                         Console.WriteLine($"EnsurePasteColoring: Parsing post-visible lines {lVisibleEnd + 1} To {vEndLine}")
+                                        #End If
                                         pSourceFileInfo.ForceImmediateParsing(lVisibleEnd + 1, vEndLine)
                                         pDrawingArea?.QueueDraw()
                                     Catch ex As Exception

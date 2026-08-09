@@ -75,7 +75,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnPreferencesSettingsChanged()
         Try
+            #If DEBUG Then
             Console.WriteLine("Applying preferences changes to IDE...")
+            #End If
             
             ' ===== Apply Theme Changes =====
             ApplyThemeChanges()
@@ -98,7 +100,9 @@ Partial Public Class MainWindow
             ' ===== Update Status Bar =====
             UpdateStatusBar("Settings applied")
             
+            #If DEBUG Then
             Console.WriteLine("Preferences changes applied successfully")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnPreferencesSettingsChanged error: {ex.Message}")
@@ -126,7 +130,9 @@ Partial Public Class MainWindow
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"Theme settings applied: {lThemeName}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"ApplyThemeChanges error: {ex.Message}")
@@ -165,7 +171,9 @@ Partial Public Class MainWindow
                 StopAutoSaveTimer()
             End If
             
+            #If DEBUG Then
             Console.WriteLine("UI settings applied")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"ApplyUISettings error: {ex.Message}")
@@ -194,10 +202,14 @@ Partial Public Class MainWindow
                         Dim lEscapedName As String = lUserName.Replace("""", """""")
                         Dim lEscapedEmail As String = lEmail.Replace("""", """""")
                         ExecuteGitCommand($"config --local user.name ""{lEscapedName}""", lRepoDir, Sub(lNameOutput, lNameExitCode)
+                            #If DEBUG Then
                             If lNameExitCode <> 0 Then Console.WriteLine($"ApplyGitSettings: Failed to set user.name: {lNameOutput}")
+                            #End If
                         End Sub)
                         ExecuteGitCommand($"config --local user.email ""{lEscapedEmail}""", lRepoDir, Sub(lEmailOutput, lEmailExitCode)
+                            #If DEBUG Then
                             If lEmailExitCode <> 0 Then Console.WriteLine($"ApplyGitSettings: Failed to set user.email: {lEmailOutput}")
+                            #End If
                         End Sub)
                     End If
                 End If
@@ -227,7 +239,9 @@ Partial Public Class MainWindow
                 pGitPanel.RefreshGitStatus()
             End If
 
+            #If DEBUG Then
             Console.WriteLine("Git settings applied")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"ApplyGitSettings error: {ex.Message}")
@@ -253,7 +267,9 @@ Partial Public Class MainWindow
                 Dim lShowArtifacts As Boolean = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
                 Dim lAutoContext As Boolean = pSettingsManager.GetBoolean("AI.AutoContext", True)
 
+                #If DEBUG Then
                 Console.WriteLine($"AI Settings: ShowArtifacts={lShowArtifacts}, AutoContext={lAutoContext}")
+                #End If
 
                 ' TODO: Update AI panel when it's implemented
                 ' If pAIPanel IsNot Nothing Then
@@ -265,11 +281,15 @@ Partial Public Class MainWindow
                 Dim lMem0Enabled As Boolean = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
                 If lMem0Enabled Then
                     ' Initialize or update Mem0 integration
+                    #If DEBUG Then
                     Console.WriteLine("Mem0 integration enabled")
+                    #End If
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("AI settings applied")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"ApplyAISettings error: {ex.Message}")
@@ -298,7 +318,9 @@ Partial Public Class MainWindow
                 lInterval
             )
             
+            #If DEBUG Then
             Console.WriteLine($"Auto-save timer started: {vIntervalMinutes} minutes")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"StartAutoSaveTimer error: {ex.Message}")
@@ -313,7 +335,9 @@ Partial Public Class MainWindow
             If pAutoSaveTimer IsNot Nothing Then
                 pAutoSaveTimer.Dispose()
                 pAutoSaveTimer = Nothing
+                #If DEBUG Then
                 Console.WriteLine("Auto-save timer stopped")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"StopAutoSaveTimer error: {ex.Message}")
@@ -358,7 +382,9 @@ Partial Public Class MainWindow
                 lInterval
             )
             
+            #If DEBUG Then
             Console.WriteLine($"Git auto-fetch timer started: {vIntervalMinutes} minutes")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"StartGitAutoFetchTimer error: {ex.Message}")
@@ -373,7 +399,9 @@ Partial Public Class MainWindow
             If pGitAutoFetchTimer IsNot Nothing Then
                 pGitAutoFetchTimer.Dispose()
                 pGitAutoFetchTimer = Nothing
+                #If DEBUG Then
                 Console.WriteLine("Git auto-fetch timer stopped")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"StopGitAutoFetchTimer error: {ex.Message}")
@@ -397,7 +425,9 @@ Partial Public Class MainWindow
                             UpdateStatusBar("Git auto-fetch completed")
                             pGitPanel?.RefreshGitStatus()
                         Else
+                            #If DEBUG Then
                             Console.WriteLine("Git auto-fetch failed")
+                            #End If
                         End If
                     End Sub)
                 Catch ex As Exception

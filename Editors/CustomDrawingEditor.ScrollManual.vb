@@ -65,8 +65,10 @@ Namespace Editors
                     End If
                     
                     ' Debug output to track scrolling
+#If DEBUG Then
                     Console.WriteLine($"OnVScrollbarValueChanged: FirstLine={pFirstVisibleLine}, " & _
                                     $"MaxFirstLine={lMaxFirstLine}, ScrollValue={pVScrollbar.Value}")
+#End If
                 End If
                 
             Catch ex As Exception
@@ -201,9 +203,11 @@ Namespace Editors
                 pVScrollbar.Visible = (lVisualLineCount > pTotalVisibleLines)
                 
                 ' Debug output to verify scrollbar settings
+#If DEBUG Then
                 Console.WriteLine($"UpdateVerticalScrollbar: Lines={pLineCount}, VisibleLines={pTotalVisibleLines}, " & _
                                  $"Upper={lAdjustment.Upper}, PageSize={lAdjustment.PageSize}, MaxValue={lMaxValue}")
-                
+#End If
+
             Catch ex As Exception
                 Console.WriteLine($"UpdateVerticalScrollbar error: {ex.Message}")
                 ' Ensure handler is reconnected even on error
@@ -345,7 +349,9 @@ Namespace Editors
         ''' </summary>
         Public Shadows Function OnScrollEvent(vSender As Object, vArgs As ScrollEventArgs) As Boolean
             Try
+                #If DEBUG Then
                 Console.WriteLine($"OnScrollEvent called: Direction={vArgs.Event.Direction}, State={vArgs.Event.State}")
+                #End If
 
                 ' If the CodeSense popup is showing and the pointer is over it, scroll its
                 ' list instead of the editor content
@@ -358,12 +364,16 @@ Namespace Editors
 
                 ' Check for Ctrl+Scroll for zoom functionality
                 If (vArgs.Event.State And ModifierType.ControlMask) = ModifierType.ControlMask Then
+                    #If DEBUG Then
                     Console.WriteLine("Ctrl modifier detected!")
+                    #End If
                     
                     ' Ctrl+Scroll: Zoom in/out via SettingsManager
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up
+                            #If DEBUG Then
                             Console.WriteLine("Ctrl+ScrollUp: Calling ZoomIn()")
+                            #End If
                             ZoomIn()
                             
                             ' CRITICAL: Force immediate redraw after zoom
@@ -383,7 +393,9 @@ Namespace Editors
                             End Sub)
                             
                         Case ScrollDirection.Down
+                            #If DEBUG Then
                             Console.WriteLine("Ctrl+ScrollDown: Calling ZoomOut()")
+                            #End If
                             ZoomOut()
                             
                             ' CRITICAL: Force immediate redraw after zoom
@@ -408,12 +420,16 @@ Namespace Editors
                     Return True
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("No Ctrl modifier - handling normal scroll")
+                #End If
                 Dim lLines As Integer = SCROLL_WHEEL_LINES
                 
                 ' Check for horizontal scrolling (Shift+Scroll)
                 If (vArgs.Event.State And ModifierType.ShiftMask) = ModifierType.ShiftMask Then
+                    #If DEBUG Then
                     Console.WriteLine("Shift modifier detected - horizontal scroll")
+                    #End If
                     ' Horizontal scroll
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up, ScrollDirection.Left
@@ -422,7 +438,9 @@ Namespace Editors
                             ScrollRight(lLines * pCharWidth)
                     End Select
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("Regular vertical scroll")
+                    #End If
                     ' Vertical scroll
                     Select Case vArgs.Event.Direction
                         Case ScrollDirection.Up
@@ -509,7 +527,9 @@ Namespace Editors
                         pDrawingArea?.QueueDraw()
                         pLineNumberWidget?.QueueDraw()
                         
+                        #If DEBUG Then
                         Console.WriteLine($"ScrollUp: Scrolled to line {pFirstVisibleLine}")
+                        #End If
                     End If
                 End If
             Catch ex As Exception
@@ -545,7 +565,9 @@ Namespace Editors
                         pDrawingArea?.QueueDraw()
                         pLineNumberWidget?.QueueDraw()
                         
+                        #If DEBUG Then
                         Console.WriteLine($"ScrollDown: Scrolled to line {pFirstVisibleLine}, Max={lMaxFirstLine}")
+                        #End If
                     End If
                 ElseIf lVisualLineCount > pTotalVisibleLines Then
                     ' CRITICAL FIX: If we think we're at the bottom but we're not showing all lines,
@@ -562,7 +584,9 @@ Namespace Editors
                         pDrawingArea?.QueueDraw()
                         pLineNumberWidget?.QueueDraw()
                         
+                        #If DEBUG Then
                         Console.WriteLine($"ScrollDown: Force scrolled to absolute max {pFirstVisibleLine}")
+                        #End If
                     End If
                 End If
             Catch ex As Exception
@@ -888,7 +912,9 @@ Namespace Editors
                     pLineNumberWidget.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("ScrollToTop: Scrolled to line 0")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ScrollToTop error: {ex.Message}")
@@ -933,7 +959,9 @@ Namespace Editors
                     pLineNumberWidget.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"ScrollToBottom: Lines={pLineCount}, VisibleLines={pTotalVisibleLines}, FirstLine={pFirstVisibleLine}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ScrollToBottom error: {ex.Message}")

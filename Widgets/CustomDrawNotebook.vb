@@ -246,7 +246,9 @@ Namespace Widgets
                 pShowCloseAllButton = False
                 pShowHidePanelButton = False
                 
+                #If DEBUG Then
                 Console.WriteLine("CustomDrawNotebook components initialized with event masks enabled")
+                #End If
                 ' Seed default theme colors now; SetThemeManager() will apply the real theme
                 ' once it's actually provided by whoever constructs this widget
                 ApplyTheme()
@@ -453,9 +455,15 @@ Namespace Widgets
                 ' Refresh the entire layout (tab bounds and navigation buttons)
                 RefreshLayout()
                 
+                #If DEBUG Then
                 Console.WriteLine($"AppendPage: Added tab '{vLabel}' at index {lNewIndex}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Tab bounds: X={lTab.Bounds.X}, Y={lTab.Bounds.Y}, W={lTab.Bounds.Width}, H={lTab.Bounds.Height}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  ScrollOffset={pScrollOffset}, TabCount={pTabs.Count}")
+                #End If
                 
                 Return lNewIndex
                 
@@ -487,19 +495,25 @@ Namespace Widgets
                 
                 ' Check if the close was cancelled
                 If lEventArgs.Cancel Then 
+                    #If DEBUG Then
                     Console.WriteLine($"Tab close cancelled for index {vIndex}")
+                    #End If
                     Return
                 End If
                 
                 ' Check if the parent handled the close (e.g., hiding panel instead)
                 If lEventArgs.Handled Then
+                    #If DEBUG Then
                     Console.WriteLine($"Tab close handled by parent for index {vIndex}")
+                    #End If
                     ' Parent handled it, so we don't remove the tab
                     Return
                 End If
                 
                 ' If we get here, proceed with normal tab removal
+                #If DEBUG Then
                 Console.WriteLine($"Removing tab at index {vIndex}")
+                #End If
                 
                 ' Store whether we need to select a new tab
                 Dim lNeedNewSelection As Boolean = (vIndex = pCurrentTabIndex)
@@ -565,7 +579,9 @@ Namespace Widgets
                 ' Raise TabClosed event
                 RaiseEvent TabClosed(vIndex)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Tab removal completed. Remaining tabs: {pTabs.Count}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"RemovePage error: {ex.Message}")
@@ -1173,7 +1189,9 @@ Namespace Widgets
         Public Sub SetTabLabelText(vIndex As Integer, vText As String)
             Try
                 If vIndex < 0 OrElse vIndex >= pTabs.Count Then
+                    #If DEBUG Then
                     Console.WriteLine($"SetTabLabelText: Invalid index {vIndex}")
+                    #End If
                     Return
                 End If
                 
@@ -1201,44 +1219,88 @@ Namespace Widgets
         ''' </remarks>
         Public Sub DiagnoseNotebookState()
             Try
+                #If DEBUG Then
                 Console.WriteLine("=== CustomDrawNotebook Diagnostic ===")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"Notebook visible: {Me.Visible}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"Notebook sensitive: {Me.Sensitive}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"Tab count: {pTabs.Count}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"Current tab index: {pCurrentTabIndex}")
+                #End If
                 
                 ' Check tab bar
                 If pTabBar IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"Tab bar visible: {pTabBar.Visible}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"Tab bar sensitive: {pTabBar.Sensitive}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"Tab bar can focus: {pTabBar.CanFocus}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"Tab bar has focus: {pTabBar.HasFocus}")
+                    #End If
                     
                     ' Check event mask
                     Dim lEvents As EventMask = pTabBar.Events
+                    #If DEBUG Then
                     Console.WriteLine($"Tab bar events mask: {lEvents}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  ButtonPress: {(lEvents and EventMask.ButtonPressMask) <> 0}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  ButtonRelease: {(lEvents and EventMask.ButtonReleaseMask) <> 0}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  PointerMotion: {(lEvents and EventMask.PointerMotionMask) <> 0}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("Tab bar Is Nothing!")
+                    #End If
                 End If
                 
                 ' Check each tab
                 For i As Integer = 0 To pTabs.Count - 1
                     Dim lTab As TabData = pTabs(i)
+                    #If DEBUG Then
                     Console.WriteLine($"Tab {i}: '{lTab.Label}'")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Widget: {If(lTab.Widget IsNot Nothing, lTab.Widget.GetType().Name, "Nothing")}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Visible: {If(lTab.Widget?.Visible, "True", "False")}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  IsVisible flag: {lTab.IsVisible}")
+                    #End If
+                    #If DEBUG Then
                     Console.WriteLine($"  Bounds: X={lTab.Bounds.X}, Y={lTab.Bounds.Y}, W={lTab.Bounds.Width}, H={lTab.Bounds.Height}")
+                    #End If
                 Next
                 
                 ' Check navigation buttons
+                #If DEBUG Then
                 Console.WriteLine("Navigation buttons:")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  Dropdown: Visible={pDropdownButton?.Visible}, Setting={pShowDropdownButton}")
+                #End If
                 
+                #If DEBUG Then
                 Console.WriteLine("=====================================")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"DiagnoseNotebookState error: {ex.Message}")
@@ -1253,7 +1315,9 @@ Namespace Widgets
         ''' </remarks>
         Public Sub ForceRefresh()
             Try
+                #If DEBUG Then
                 Console.WriteLine("Forcing CustomDrawNotebook refresh...")
+                #End If
                 
                 ' Re-enable events on tab bar if needed
                 If pTabBar IsNot Nothing Then
@@ -1283,7 +1347,9 @@ Namespace Widgets
                 ' Update navigation buttons
                 UpdateNavigationButtons()
                 
+                #If DEBUG Then
                 Console.WriteLine("Refresh complete")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ForceRefresh error: {ex.Message}")

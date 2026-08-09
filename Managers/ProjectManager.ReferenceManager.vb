@@ -46,7 +46,9 @@ Namespace Managers
                 ' Lazy initialization
                 If pReferenceManager Is Nothing Then
                     pReferenceManager = New ReferenceManager()
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: Initialized ReferenceManager")
+                    #End If
                 End If
                 Return pReferenceManager
             End Get
@@ -69,14 +71,18 @@ Namespace Managers
         Public Function LoadProjectReferences() As Boolean
             Try
                 If Not pIsProjectOpen OrElse String.IsNullOrEmpty(CurrentProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project open to load references")
+                    #End If
                     Return False
                 End If
                 
                 ' Use the ReferenceManager to get all references
                 pProjectReferences = ReferenceManager.GetAllReferences(CurrentProjectPath)
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager: Loaded {pProjectReferences.Count} references")
+                #End If
                 
                 ' Raise event
                 RaiseEvent ReferencesChanged(pProjectReferences)
@@ -98,7 +104,9 @@ Namespace Managers
         Public Function AddAssemblyReference(vAssemblyName As String, vHintPath As String) As Boolean
             Try
                 If Not pIsProjectOpen OrElse String.IsNullOrEmpty(CurrentProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project open")
+                    #End If
                     Return False
                 End If
                 
@@ -120,7 +128,9 @@ Namespace Managers
                     RaiseEvent ReferenceAdded(lRef)
                     RaiseEvent ProjectModified()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: Added assembly reference {vAssemblyName}")
+                    #End If
                 End If
                 
                 Return lSuccess
@@ -140,7 +150,9 @@ Namespace Managers
         Public Function AddPackageReference(vPackageName As String, vVersion As String) As Boolean
             Try
                 If Not pIsProjectOpen OrElse String.IsNullOrEmpty(CurrentProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project open")
+                    #End If
                     Return False
                 End If
                 
@@ -162,7 +174,9 @@ Namespace Managers
                     RaiseEvent ReferenceAdded(lRef)
                     RaiseEvent ProjectModified()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: Added package reference {vPackageName} v{vVersion}")
+                    #End If
                 End If
                 
                 Return lSuccess
@@ -181,7 +195,9 @@ Namespace Managers
         Public Function AddProjectReference(vReferencePath As String) As Boolean
             Try
                 If Not pIsProjectOpen OrElse String.IsNullOrEmpty(CurrentProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project open")
+                    #End If
                     Return False
                 End If
                 
@@ -203,7 +219,9 @@ Namespace Managers
                     RaiseEvent ReferenceAdded(lRef)
                     RaiseEvent ProjectModified()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: Added project reference {lRef.Name}")
+                    #End If
                 End If
                 
                 Return lSuccess
@@ -223,7 +241,9 @@ Namespace Managers
         Public Function RemoveReference(vReferenceName As String, vReferenceType As ReferenceManager.ReferenceType) As Boolean
             Try
                 If Not pIsProjectOpen OrElse String.IsNullOrEmpty(CurrentProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: No project open")
+                    #End If
                     Return False
                 End If
                 
@@ -238,7 +258,9 @@ Namespace Managers
                     RaiseEvent ReferenceRemoved(vReferenceName, vReferenceType)
                     RaiseEvent ProjectModified()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ProjectManager: Removed reference {vReferenceName}")
+                    #End If
                 End If
                 
                 Return lSuccess
@@ -324,7 +346,9 @@ Namespace Managers
                 ' Load all references for the project
                 LoadProjectReferences()
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager: Initialized {pProjectReferences.Count} references for project")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.InitializeProjectReferences error: {ex.Message}")

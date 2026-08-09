@@ -89,7 +89,9 @@ Namespace Utilities
                     Next
                 End Using
                 
+                #If DEBUG Then
                 Console.WriteLine($"NuGet Search Url: {pSearchUrl}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"error initializing NuGet service URLs: {ex.Message}")

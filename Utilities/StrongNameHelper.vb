@@ -48,7 +48,9 @@ Namespace Utilities
                     lProcess.WaitForExit(10000) ' 10 second timeout
                     
                     If lProcess.ExitCode = 0 Then
+                        #If DEBUG Then
                         Console.WriteLine($"Successfully generated key using sn.exe")
+                        #End If
                         Return True
                     End If
                 End Using
@@ -75,7 +77,9 @@ Namespace Utilities
                     lProcess.WaitForExit(10000) ' 10 second timeout
                     
                     If lProcess.ExitCode = 0 Then
+                        #If DEBUG Then
                         Console.WriteLine($"Successfully generated key using dotnet sn")
+                        #End If
                         Return True
                     End If
                 End Using
@@ -98,7 +102,9 @@ Namespace Utilities
                     ' Write to file
                     File.WriteAllBytes(vPath, lKeyData)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Successfully generated key manually")
+                    #End If
                     Return True
                 End Using
                 
@@ -135,7 +141,9 @@ Namespace Utilities
                 ' Check each path
                 For Each lPath In lPossiblePaths
                     If File.Exists(lPath) Then
+                        #If DEBUG Then
                         Console.WriteLine($"Found sn.exe at: {lPath}")
+                        #End If
                         Return lPath
                     End If
                 Next
@@ -157,7 +165,9 @@ Namespace Utilities
                             ' Take first result if multiple found
                             Dim lLines() As String = lOutput.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
                             If lLines.Length > 0 Then
+                                #If DEBUG Then
                                 Console.WriteLine($"Found sn.exe via where: {lLines(0)}")
+                                #End If
                                 Return lLines(0)
                             End If
                         End If
@@ -235,7 +245,9 @@ Namespace Utilities
             Try
                 ' This would require X509 certificate creation
                 ' For now, return false as this requires additional implementation
+                #If DEBUG Then
                 Console.WriteLine("PFX generation requires X509 certificate tools")
+                #End If
                 Return False
                 
             Catch ex As Exception

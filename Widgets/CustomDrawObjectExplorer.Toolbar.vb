@@ -232,7 +232,9 @@ Namespace Widgets
                 If pProjectCombo.Active >= lProjects.Count Then Return
 
                 Dim lChosen As ProjectManager = lProjects(pProjectCombo.Active)
+                #If DEBUG Then
                 Console.WriteLine($"Object Explorer: Project picker changed to {lChosen.CurrentProjectName}")
+                #End If
                 InitializeWithProjectManager(lChosen)
 
             Catch ex As Exception
@@ -355,7 +357,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnExpandAllClicked(vSender As Object, vE As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("Expand All button clicked")
+                #End If
                 ExpandAllNamespaces()
             Catch ex As Exception
                 Console.WriteLine($"OnExpandAllClicked error: {ex.Message}")
@@ -367,7 +371,9 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnCollapseAllClicked(vSender As Object, vE As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("Collapse All button clicked")
+                #End If
                 CollapseAllNamespaces()
             Catch ex As Exception
                 Console.WriteLine($"OnCollapseAllClicked error: {ex.Message}")
@@ -380,18 +386,24 @@ Namespace Widgets
         ''' </summary>
         Private Sub OnRefreshClicked(vSender As Object, vE As EventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine("Object Explorer: Refresh button clicked")
+                #End If
                 
                 ' Store current state before refresh
                 Dim lExpandedPaths As New HashSet(Of String)(pExpandedNodes)
                 Dim lSelectedPath As String = pSelectedNode?.NodePath
                 Dim lScrollPosition As (X As Double, Y As Double) = (pScrollX, pScrollY)
                 
+                #If DEBUG Then
                 Console.WriteLine($"  Preserving state: {lExpandedPaths.Count} expanded nodes, selected: {lSelectedPath}")
+                #End If
                 
                 ' Request a fresh parse from ProjectManager if available
                 If pProjectManager IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("  Requesting project structure refresh from ProjectManager...")
+                    #End If
                     
                     ' Force the ProjectManager to refresh its structure
                     pProjectManager.RefreshProjectStructure()
@@ -404,7 +416,9 @@ Namespace Widgets
                     
                 ElseIf pRootNode IsNot Nothing Then
                     ' No ProjectManager, just rebuild the visual tree from existing data
+                    #If DEBUG Then
                     Console.WriteLine("  No ProjectManager - rebuilding visual tree from existing data")
+                    #End If
                     
                     ' Store expanded state
                     lExpandedPaths = New HashSet(Of String)(pExpandedNodes)
@@ -439,7 +453,9 @@ Namespace Widgets
                     
                     pDrawingArea?.QueueDraw()
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("  No data to refresh")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -511,7 +527,9 @@ Namespace Widgets
             Try
                 If vTargetNode Is Nothing Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExpandParentsAndNavigate: Target = {vTargetNode.Node.Name}, Path = {vTargetNode.NodePath}")
+                #End If
                 
                 ' Build list of all parent paths
                 Dim lParentPaths As New List(Of String)()
@@ -528,7 +546,9 @@ Namespace Widgets
                         lCurrentPath = lCurrentPath & "." & lPathParts(i)  ' Changed from "/" to "."
                     End If
                     lParentPaths.Add(lCurrentPath)
+                    #If DEBUG Then
                     Console.WriteLine($"  Parent path to expand: {lCurrentPath}")
+                    #End If
                 Next
                 
                 ' Expand all parent paths
@@ -537,13 +557,17 @@ Namespace Widgets
                     If Not pExpandedNodes.Contains(lPath) Then
                         pExpandedNodes.Add(lPath)
                         lNeedRebuild = True
+                        #If DEBUG Then
                         Console.WriteLine($"  Expanded: {lPath}")
+                        #End If
                     End If
                 Next
                 
                 ' Rebuild the visual tree if we expanded anything
                 If lNeedRebuild Then
+                    #If DEBUG Then
                     Console.WriteLine("  Rebuilding visual tree with expanded parents...")
+                    #End If
                     RebuildVisualTree()
                 End If
                 
@@ -560,9 +584,13 @@ Namespace Widgets
                     ' Select and scroll to the node
                     SelectNode(lFoundNode)
                     ScrollToNode(lFoundNode)
+                    #If DEBUG Then
                     Console.WriteLine($"  Navigated to: {lFoundNode.Node.Name}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"  Warning: Could not find target node in visible nodes")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -714,10 +742,14 @@ Namespace Widgets
                 If pSearchResults.Count > 0 Then
                     pCurrentSearchIndex = 0
                     pSearchEntry.PlaceholderText = $"Found {pSearchResults.Count} result(s)"
+                    #If DEBUG Then
                     Console.WriteLine($"Search found {pSearchResults.Count} results for '{pSearchText}'")
+                    #End If
                 Else
                     pSearchEntry.PlaceholderText = "No results found"
+                    #If DEBUG Then
                     Console.WriteLine($"No results found for '{pSearchText}'")
+                    #End If
                 End If
                 
                 pDrawingArea?.QueueDraw()
@@ -839,7 +871,9 @@ Namespace Widgets
                 pSettingsManager.SetInteger("Explorer.TextScale", vScale)
                 pSettingsManager.SaveSettings()
                 
+                #If DEBUG Then
                 Console.WriteLine($"Saved unified Explorer.TextScale: {vScale}%")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SaveUnifiedTextScale error: {ex.Message}")
@@ -1091,7 +1125,9 @@ Namespace Widgets
         ''' <param name="vSearchText">The search text in lowercase</param>
         Private Sub HandleProgressiveFQNSearch(vSearchText As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"HandleProgressiveFQNSearch: '{vSearchText}'")
+                #End If
                 
                 ' Split the search into parts
                 Dim lParts As String() = vSearchText.Split("."c)
@@ -1117,7 +1153,9 @@ Namespace Widgets
                                 ' This is a node we need to expand - use its actual NodePath (case-sensitive)
                                 If Not pExpandedNodes.Contains(lNode.NodePath) Then
                                     lPathsToExpand.Add(lNode.NodePath)
+                                    #If DEBUG Then
                                     Console.WriteLine($"  Will expand: {lNode.NodePath} (FQN: {lNodeFQN})")
+                                    #End If
                                 End If
                                 Exit For ' Found the node for this level
                             End If
@@ -1129,12 +1167,16 @@ Namespace Widgets
                 For Each lPath In lPathsToExpand
                     pExpandedNodes.Add(lPath)
                     lNeedsRebuild = True
+                    #If DEBUG Then
                     Console.WriteLine($"  Expanded: {lPath}")
+                    #End If
                 Next
                 
                 ' Rebuild tree if we expanded anything
                 If lNeedsRebuild Then
+                    #If DEBUG Then
                     Console.WriteLine("  Rebuilding visual tree...")
+                    #End If
                     RebuildVisualTree()
                 End If
                 
@@ -1149,7 +1191,9 @@ Namespace Widgets
                         ' Check for match
                         If lFQNLower.Contains(vSearchText) OrElse lFQNLower = vSearchText Then
                             pSearchResults.Add(lNode)
+                            #If DEBUG Then
                             Console.WriteLine($"  Found match: {lFQN}")
+                            #End If
                         End If
                     End If
                 Next
@@ -1175,9 +1219,13 @@ Namespace Widgets
                     ScrollToNode(lBestMatch)
                     pCurrentSearchIndex = 0
                     
+                    #If DEBUG Then
                     Console.WriteLine($"  Selected: {GetNodeFullyQualifiedName(lBestMatch)}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"  No matches found")
+                    #End If
                 End If
                 
                 ' Update status
@@ -1282,10 +1330,14 @@ Namespace Widgets
             Try
                 If pSearchResults.Count > 0 Then
                     pSearchEntry.PlaceholderText = $"Found {pSearchResults.Count} result(s)"
+                    #If DEBUG Then
                     Console.WriteLine($"Search found {pSearchResults.Count} results")
+                    #End If
                 ElseIf Not String.IsNullOrEmpty(pSearchText) Then
                     pSearchEntry.PlaceholderText = "No results found"
+                    #If DEBUG Then
                     Console.WriteLine("No results found")
+                    #End If
                 Else
                     pSearchEntry.PlaceholderText = "Search (use dots for FQN)"
                 End If
@@ -1421,13 +1473,19 @@ Namespace Widgets
         ''' </summary>
         Private Sub DebugPrintVisibleNodes()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"=== VISIBLE NODES ({pVisibleNodes.Count}) ===")
+                #End If
                 For Each lNode In pVisibleNodes
                     Dim lFQN As String = GetNodeFullyQualifiedName(lNode)
                     Dim lIndent As String = New String(" "c, lNode.Level * 2)
+                    #If DEBUG Then
                     Console.WriteLine($"{lIndent}{lNode.Node.Name} -> FQN: {lFQN}")
+                    #End If
                 Next
+                #If DEBUG Then
                 Console.WriteLine("================================")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"DebugPrintVisibleNodes error: {ex.Message}")
             End Try
@@ -1438,11 +1496,17 @@ Namespace Widgets
         ''' </summary>
         Private Sub DebugExpandedNodes()
             Try
+                #If DEBUG Then
                 Console.WriteLine($"=== EXPANDED NODES ({pExpandedNodes.Count}) ===")
+                #End If
                 For Each lPath In pExpandedNodes
+                    #If DEBUG Then
                     Console.WriteLine($"  {lPath}")
+                    #End If
                 Next
+                #If DEBUG Then
                 Console.WriteLine("================================")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"DebugExpandedNodes error: {ex.Message}")
             End Try
@@ -1454,13 +1518,17 @@ Namespace Widgets
         ''' <param name="vPaths">List of paths to expand</param>
         Private Sub ForceExpandAndRefresh(vPaths As List(Of String))
             Try
+                #If DEBUG Then
                 Console.WriteLine("ForceExpandAndRefresh called")
+                #End If
                 
                 ' Add all paths to expanded nodes
                 For Each lPath In vPaths
                     If Not pExpandedNodes.Contains(lPath) Then
                         pExpandedNodes.Add(lPath)
+                        #If DEBUG Then
                         Console.WriteLine($"  Force expanded: {lPath}")
+                        #End If
                     End If
                 Next
                 
@@ -1471,7 +1539,9 @@ Namespace Widgets
                 pDrawingArea?.QueueDraw()
                 
                 ' Debug output
+                #If DEBUG Then
                 Console.WriteLine($"After expansion: {pVisibleNodes.Count} visible nodes")
+                #End If
                 DebugExpandedNodes()
                 
             Catch ex As Exception

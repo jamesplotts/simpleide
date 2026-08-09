@@ -34,7 +34,9 @@ Namespace Managers
                 for each lChild in vParent.Children
                     If lChild.NodeType = CodeNodeType.eNamespace AndAlso 
                        String.Equals(lChild.Name, vNamespaceName, StringComparison.OrdinalIgnoreCase) Then
+                        #If DEBUG Then
                         Console.WriteLine($"    Found existing namespace child: {vNamespaceName}")
+                        #End If
                         ' Update dictionary if not already there
                         If Not vNamespaceNodes.ContainsKey(vFullNamespaceName) Then
                             vNamespaceNodes(vFullNamespaceName) = lChild
@@ -46,12 +48,16 @@ Namespace Managers
                 ' Check if it exists in the dictionary but not as a child (shouldn't happen but defensive)
                 If vNamespaceNodes.ContainsKey(vFullNamespaceName) Then
                     Dim lExisting As SyntaxNode = vNamespaceNodes(vFullNamespaceName)
+                    #If DEBUG Then
                     Console.WriteLine($"    WARNING: Namespace in dictionary but not as child: {vNamespaceName}")
+                    #End If
                     Return lExisting
                 End If
                 
                 ' Create new namespace node
+                #If DEBUG Then
                 Console.WriteLine($"    Creating new namespace: {vNamespaceName}")
+                #End If
                 Dim lNewNamespace As New SyntaxNode(CodeNodeType.eNamespace, vNamespaceName)
                 
                 ' Initialize attributes and set FilePath
@@ -95,7 +101,9 @@ Namespace Managers
                         If vNamespaceNodes.ContainsKey(lFullNamespaceName) Then
                             ' Namespace already exists, use it
                             lNamespaceNode = vNamespaceNodes(lFullNamespaceName)
+                            #If DEBUG Then
                             Console.WriteLine($"      Using existing namespace: {vNode.Name}")
+                            #End If
                         Else
                             ' CRITICAL FIX: Check if namespace already exists as a child
                             lNamespaceNode = FindChildByNameAndType(vCurrentNamespace, vNode.Name, CodeNodeType.eNamespace)
@@ -104,9 +112,13 @@ Namespace Managers
                                 ' Create new namespace
                                 lNamespaceNode = New SyntaxNode(CodeNodeType.eNamespace, vNode.Name)
                                 vCurrentNamespace.AddChild(lNamespaceNode)
+                                #If DEBUG Then
                                 Console.WriteLine($"      Creating new namespace: {vNode.Name}")
+                                #End If
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"      Found existing namespace child: {vNode.Name}")
+                                #End If
                             End If
                             
                             ' Add to dictionary for tracking
@@ -126,7 +138,9 @@ Namespace Managers
                             
                             If lExistingClass IsNot Nothing Then
                                 ' Merge into existing partial class
+                                #If DEBUG Then
                                 Console.WriteLine($"      Merging partial class: {vNode.Name} from {vFilePath}")
+                                #End If
                                 lExistingClass.IsPartial = True
                                 
                                 ' Initialize Attributes if needed
@@ -167,12 +181,16 @@ Namespace Managers
                                         lExistingClass.AddChild(lNewMember)
                                     Else
                                         ' Member already exists - could update file path info
+                                        #If DEBUG Then
                                         Console.WriteLine($"        Member already exists: {lMember.Name}")
+                                        #End If
                                     End If
                                 Next
                             Else
                                 ' First occurrence of this partial class
+                                #If DEBUG Then
                                 Console.WriteLine($"      Creating new partial class: {vNode.Name}")
+                                #End If
                                 Dim lNewClass As New SyntaxNode(CodeNodeType.eClass, vNode.Name)
                                 vNode.CopyNodeAttributesTo(lNewClass)
                                 lNewClass.IsPartial = True
@@ -214,7 +232,9 @@ Namespace Managers
                                 vNode.Metadata = New Dictionary(Of String, Object) From {{"FilePath", vFilePath}}
                                 vCurrentNamespace.AddChild(vNode)
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"      WARNING: Non-partial class {vNode.Name} already exists!")
+                                #End If
                             End If
                         End If
                         
@@ -227,11 +247,15 @@ Namespace Managers
                             ' Add the complete type with ALL its children to the namespace
                             vNode.Metadata = New Dictionary(Of String, Object) From {{"FilePath", vFilePath}}
                             vCurrentNamespace.AddChild(vNode)
+                            #If DEBUG Then
                             Console.WriteLine($"      Adding {vNode.NodeType}: {vNode.Name}")
+                            #End If
                         Else
                             ' CRITICAL FIX: For modules, check if they should be merged
                             If vNode.NodeType = CodeNodeType.eModule AndAlso vNode.IsPartial Then
+                                #If DEBUG Then
                                 Console.WriteLine($"      Merging partial module: {vNode.Name}")
+                                #End If
                                 lExistingNode.IsPartial = True
                                 
                                 ' Track file paths
@@ -268,13 +292,17 @@ Namespace Managers
                                     End If
                                 Next
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"      WARNING: {vNode.NodeType} {vNode.Name} already exists!")
+                                #End If
                             End If
                         End If
                         
                     Case Else
                         ' Other node types (shouldn't normally appear at namespace level)
+                        #If DEBUG Then
                         Console.WriteLine($"      Unexpected node type at namespace level: {vNode.NodeType} - {vNode.Name}")
+                        #End If
                         vCurrentNamespace.AddChild(vNode)
                 End Select
                 
@@ -381,9 +409,13 @@ Namespace Managers
                             If Not lAlreadyChild Then
                                 ' Add to parent namespace
                                 lParentNamespace.AddChild(lNamespaceNode)
+                                #If DEBUG Then
                                 Console.WriteLine($"Added {lNamespaceName} to parent {lParentName}")
+                                #End If
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"Skipped {lNamespaceName} - already child of {lParentName}")
+                                #End If
                             End If
                         Else
                             ' No parent found, check if it should be added to root
@@ -397,9 +429,13 @@ Namespace Managers
                             
                             If Not lAlreadyInRoot Then
                                 vRootNamespace.AddChild(lNamespaceNode)
+                                #If DEBUG Then
                                 Console.WriteLine($"Added {lNamespaceName} to root")
+                                #End If
                             Else
+                                #If DEBUG Then
                                 Console.WriteLine($"Skipped {lNamespaceName} - already in root")
+                                #End If
                             End If
                         End If
                     Else
@@ -414,9 +450,13 @@ Namespace Managers
                         
                         If Not lAlreadyInRoot Then
                             vRootNamespace.AddChild(lNamespaceNode)
+                            #If DEBUG Then
                             Console.WriteLine($"Added top-level {lNamespaceName} to root")
+                            #End If
                         Else
+                            #If DEBUG Then
                             Console.WriteLine($"Skipped top-level {lNamespaceName} - already in root")
+                            #End If
                         End If
                     End If
                 Next
@@ -541,7 +581,9 @@ Namespace Managers
                 ' Get the DocumentModel
                 Dim lModel As DocumentModel = GetDocumentModel(vFilePath)
                 If lModel Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"No DocumentModel for file: {lRelativePath}")
+                    #End If
                     Return
                 End If
                 
@@ -557,7 +599,9 @@ Namespace Managers
                     pActiveEditors(lRelativePath).Add(vEditor)
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Registered Editor for {lRelativePath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.RegisterEditorForDocument error: {ex.Message}")
@@ -586,7 +630,9 @@ Namespace Managers
                     End If
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"Unregistered Editor for {lRelativePath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.UnregisterEditorForDocument error: {ex.Message}")
@@ -647,7 +693,9 @@ Namespace Managers
         ''' </summary>
         Private Sub BuildUnifiedNamespaceTree()
             Try
+                #If DEBUG Then
                 Console.WriteLine("Building unified namespace tree...")
+                #End If
                 
                 ' Create root node for SimpleIDE namespace
                 pUnifiedNamespaceTree = New DocumentNode()
@@ -674,7 +722,9 @@ Namespace Managers
                 ' Raise structure changed event
                 RaiseEvent ProjectStructureChanged(pUnifiedNamespaceTree)
                 
+                #If DEBUG Then
                 Console.WriteLine($"Namespace tree built with {pSymbolTable.Count} symbols")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.BuildUnifiedNamespaceTree error: {ex.Message}")
@@ -961,7 +1011,9 @@ Namespace Managers
                     RaiseEvent FileParsed(lSourceFile)
                     RaiseEvent ProjectStructureLoaded(pProjectSyntaxTree)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"UpdateFileStructure: Failed to parse {vFilePath}")
+                    #End If
                 End If                
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.UpdateFileStructure error: {ex.Message}")
@@ -973,7 +1025,9 @@ Namespace Managers
         ''' </summary>
         Public Sub RefreshProjectStructure()
             Try
+                #If DEBUG Then
                 Console.WriteLine("Refreshing project structure...")
+                #End If
                 LoadProjectStructure()
                 
             Catch ex As Exception

@@ -876,7 +876,9 @@ Namespace Widgets
 
         Private Sub ShowMessage(vMessage As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"git: {vMessage}")
+                #End If
                 RaiseEvent StatusMessage(vMessage)
             Catch ex As Exception
                 Console.WriteLine($"GitPanel.ShowMessage error: {ex.Message}")
@@ -885,7 +887,9 @@ Namespace Widgets
 
         Private Sub ShowError(vMessage As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"git error: {vMessage}")
+                #End If
                 Dim lParent As Window = CType(Toplevel, Window)
                 Dim lDialog As New MessageDialog(
                     lParent,

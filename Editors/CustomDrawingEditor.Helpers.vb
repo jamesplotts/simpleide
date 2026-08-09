@@ -312,7 +312,9 @@ Namespace Editors
                 AddHandler pDrawingArea.DragDrop, AddressOf HandleDragDrop
                 AddHandler pDrawingArea.DragDataReceived, AddressOf HandleDragDataReceived
                 
+                #If DEBUG Then
                 Console.WriteLine("Drag and drop setup complete")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"SetupDragAndDrop error: {ex.Message}")
@@ -346,7 +348,9 @@ Namespace Editors
                     ' Set reasonable defaults if no font description
                     pCharWidth = 8
                     pLineHeight = 18
+                    #If DEBUG Then
                     Console.WriteLine("UpdateFontMetrics: No font description, using defaults")
+                    #End If
                     
                     ' Still update dependent components even with defaults
                     UpdateLineNumberWidget()
@@ -368,7 +372,9 @@ Namespace Editors
                             If pFontMetrics IsNot Nothing Then
                                 pCharWidth = pFontMetrics.CharWidth
                                 pLineHeight = pFontMetrics.CharHeight
+                                #If DEBUG Then
                                 Console.WriteLine($"UpdateFontMetrics: Updated from FontMetrics - CharWidth={pCharWidth}, LineHeight={pLineHeight}")
+                                #End If
                             End If
                         End Using
                     End Using
@@ -390,13 +396,17 @@ Namespace Editors
                         ' CRITICAL FIX: Ensure we never set line height to an unreasonably small value
                         ' Line height should be at least 10 pixels for any readable font
                         If lHeight < 10 Then
+                            #If DEBUG Then
                             Console.WriteLine($"UpdateFontMetrics: Measured height too small ({lHeight}), using minimum")
+                            #End If
                             pLineHeight = 18  ' Use reasonable default
                             pCharWidth = 8
                         Else
                             pCharWidth = lWidth
                             pLineHeight = lHeight + 2  ' Add some line spacing
+                            #If DEBUG Then
                             Console.WriteLine($"UpdateFontMetrics: Measured from Pango - CharWidth={pCharWidth}, LineHeight={pLineHeight}")
+                            #End If
                         End If
                     End Using
                 End If
@@ -419,16 +429,22 @@ Namespace Editors
                         pCharWidth = Math.Max(6, CInt(lSizeInPixels * 0.6))  ' Approximate for monospace
                     End If
                     
+                    #If DEBUG Then
                     Console.WriteLine($"UpdateFontMetrics: Using calculated defaults - CharWidth={pCharWidth}, LineHeight={pLineHeight}")
+                    #End If
                 End If
                 
                 ' CRITICAL VALIDATION: Ensure metrics are never too small
                 If pLineHeight < 10 Then
+                    #If DEBUG Then
                     Console.WriteLine($"UpdateFontMetrics: WARNING - Line height {pLineHeight} too small, forcing to 18")
+                    #End If
                     pLineHeight = 18
                 End If
                 If pCharWidth < 6 Then
+                    #If DEBUG Then
                     Console.WriteLine($"UpdateFontMetrics: WARNING - Char width {pCharWidth} too small, forcing to 8")
+                    #End If
                     pCharWidth = 8
                 End If
                 

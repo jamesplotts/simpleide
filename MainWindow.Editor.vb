@@ -30,23 +30,35 @@ Partial Public Class MainWindow
     ' Replace: SimpleIDE.MainWindow.OpenFile
     Public Sub OpenFile(vFilePath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"===== OpenFile called with: {vFilePath} =====")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"  pOpenTabs.Count = {pOpenTabs.Count}")
+            #End If
             
             ' Debug: List all open tabs
             for each lKey in pOpenTabs.Keys
+                #If DEBUG Then
                 Console.WriteLine($"  Open tab: {lKey}")
+                #End If
             Next
             
             ' Check if file is already open
             If pOpenTabs.ContainsKey(vFilePath) Then
+                #If DEBUG Then
                 Console.WriteLine($"  File IS in pOpenTabs, switching to existing tab")
+                #End If
                 SwitchToTab(vFilePath)
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"  File NOT in pOpenTabs, creating new tab")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"OpenFile: Opening {vFilePath}")
+            #End If
             
             ' Get or create SourceFileInfo through ProjectManager
             Dim lSourceFileInfo As SourceFileInfo = Nothing
@@ -55,21 +67,29 @@ Partial Public Class MainWindow
             If pProjectManager IsNot Nothing Then
                 lSourceFileInfo = pProjectManager.GetSourceInfo(vFilePath)
                 If lSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"OpenFile: Creating new SourceFileInfo for {vFilePath}")
+                    #End If
                     lSourceFileInfo = pProjectManager.CreateEmptyFile(vFilePath)
                     lIsNewFile = True
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"OpenFile: Found existing SourceFileInfo for {vFilePath}")
+                    #End If
                 End If
             Else
+                #If DEBUG Then
                 Console.WriteLine($"OpenFile: WARNING - No ProjectManager, creating standalone SourceFileInfo")
+                #End If
                 lSourceFileInfo = New SourceFileInfo(vFilePath, "")
                 lIsNewFile = True
             End If
             
             ' Ensure content is loaded
             If Not lSourceFileInfo.IsLoaded Then
+                #If DEBUG Then
                 Console.WriteLine($"OpenFile: Loading content for {vFilePath}")
+                #End If
                 lSourceFileInfo.LoadContent()
             End If
             
@@ -85,13 +105,19 @@ Partial Public Class MainWindow
                 Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
                 If lProjectTree IsNot Nothing Then
                     ' Update with project-aware structure
+                    #If DEBUG Then
                     Console.WriteLine($"OpenFile: Updating Object Explorer with project structure")
+                    #End If
                     UpdateObjectExplorerForActiveTab()
                 End If
             End If            
     
+            #If DEBUG Then
             Console.WriteLine($"OpenFile: Completed for {vFilePath}")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"===== OpenFile finished =====")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OpenFile error: {ex.Message}")
@@ -281,7 +307,9 @@ Partial Public Class MainWindow
     Public Sub SwitchToTab(vFilePath As String)
         Try
             If Not pOpenTabs.ContainsKey(vFilePath) Then
+                #If DEBUG Then
                 Console.WriteLine($"SwitchToTab: Tab not found for: {vFilePath}")
+                #End If
                 Return
             End If
             
@@ -356,10 +384,14 @@ Partial Public Class MainWindow
                 End If
 
                 If lOwningProjectManager IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"CreateNewTab: Setting ProjectManager on editor for {vFilePath}")
+                    #End If
                     lEditor.ProjectManager = lOwningProjectManager
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"CreateNewTab: WARNING - No ProjectManager available for {vFilePath}")
+                    #End If
                 End If
             
                 ' Show the editor widget
@@ -473,7 +505,9 @@ Partial Public Class MainWindow
                 AddHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
             End If
 
+            #If DEBUG Then
             Console.WriteLine($"Hooked up all events for editor")
+            #End If
 
         Catch ex As Exception
             Console.WriteLine($"HookupAllEditorEvents error: {ex.Message}")
@@ -493,7 +527,9 @@ Partial Public Class MainWindow
         Try
             If vEditor Is Nothing Then Return
             
+            #If DEBUG Then
             Console.WriteLine($"UnhookAllEditorEvents: Cleaning up events for {vEditor.DisplayName}")
+            #End If
             
             ' Find the tab info for this editor to clean up navigation
             Dim lTabInfo As TabInfo = Nothing
@@ -539,7 +575,9 @@ Partial Public Class MainWindow
                 RemoveHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"Unhooked all events for editor: {vEditor.DisplayName}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"UnhookAllEditorEvents error: {ex.Message}")
@@ -676,8 +714,12 @@ Partial Public Class MainWindow
         Try
             If vTabInfo Is Nothing Then Return True
             
+            #If DEBUG Then
             Console.WriteLine($"===== CloseTab called for: {vTabInfo.FilePath} =====")
+            #End If
+            #If DEBUG Then
             Console.WriteLine($"  pOpenTabs.Count before = {pOpenTabs.Count}")
+            #End If
 
             ' Check for unsaved changes
             If vTabInfo.Modified Then
@@ -686,51 +728,73 @@ Partial Public Class MainWindow
                         ' Save the file
                         If Not SaveFile(vTabInfo) Then
                             ' Save failed, abort close
+                            #If DEBUG Then
                             Console.WriteLine("  Save failed, aborting close")
+                            #End If
                             Return False
                         End If
                     Case ResponseType.Cancel
                         ' User cancelled, abort close
+                        #If DEBUG Then
                         Console.WriteLine("  User cancelled, aborting close")
+                        #End If
                         Return False
                     Case ResponseType.No
                         ' Discard changes (reverts the cached SourceFileInfo to match disk,
                         ' and clears Modified so the RemovePage call below, which raises
                         ' TabClosing, doesn't prompt a second time)
+                        #If DEBUG Then
                         Console.WriteLine("  Closing without saving")
+                        #End If
                         DiscardTabChanges(vTabInfo)
                 End Select
             End If
 
             ' Remove from notebook
+            #If DEBUG Then
             Console.WriteLine($"  Removing from notebook...")
+            #End If
             For i As Integer = 0 To pNotebook.NPages - 1
                 Dim lPage As Widget = pNotebook.GetNthPage(i)
                 If lPage Is vTabInfo.EditorContainer Then
+                    #If DEBUG Then
                     Console.WriteLine($"    Found at index {i}, removing")
+                    #End If
                     pNotebook.RemovePage(i)
                     Exit For
                 End If
             Next
             
             ' Remove from open tabs dictionary
+            #If DEBUG Then
             Console.WriteLine($"  Removing from pOpenTabs dictionary...")
+            #End If
             If pOpenTabs.ContainsKey(vTabInfo.FilePath) Then
                 pOpenTabs.Remove(vTabInfo.FilePath)
+                #If DEBUG Then
                 Console.WriteLine($"    Removed {vTabInfo.FilePath}")
+                #End If
             Else
+                #If DEBUG Then
                 Console.WriteLine($"    WARNING: {vTabInfo.FilePath} was Not in pOpenTabs!")
+                #End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"  pOpenTabs.Count after = {pOpenTabs.Count}")
+            #End If
             
             ' Debug: List remaining open tabs
             For Each lKey In pOpenTabs.Keys
+                #If DEBUG Then
                 Console.WriteLine($"    Still open: {lKey}")
+                #End If
             Next
             
             ' CRITICAL: Dispose the TabInfo which will dispose the editor
+            #If DEBUG Then
             Console.WriteLine($"  Disposing TabInfo...")
+            #End If
             vTabInfo.Dispose()
             
             ' Update UI elements
@@ -741,7 +805,9 @@ Partial Public Class MainWindow
             ' CRITICAL FIX: Check tab count AFTER removing from notebook
             ' For CustomDrawNotebook, we need to check the actual page count
             Dim lRemainingTabs As Integer = pNotebook.NPages
+            #If DEBUG Then
             Console.WriteLine($"  Remaining tabs in notebook: {lRemainingTabs}")
+            #End If
             
             ' Also check if there are any non-Welcome tabs remaining
             Dim lHasNonWelcomeTabs As Boolean = False
@@ -754,7 +820,9 @@ Partial Public Class MainWindow
             
             ' Show welcome screen if no tabs left or only Welcome tab remains
             If lRemainingTabs = 0 OrElse Not lHasNonWelcomeTabs Then
+                #If DEBUG Then
                 Console.WriteLine("  No tabs left, showing Welcome tab")
+                #End If
                 ' Close any existing Welcome tab first to avoid duplicates
                 CloseWelcomeTab()
                 ShowWelcomeTab()
@@ -765,7 +833,9 @@ Partial Public Class MainWindow
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"===== CloseTab finished =====")
+            #End If
             Return True
 
         Catch ex As Exception
@@ -828,7 +898,9 @@ Private Function SaveFileAs(vTabInfo As TabInfo) As Boolean
             ' CRITICAL: Update the SourceFileInfo's file path too
             If vTabInfo.Editor.SourceFileInfo IsNot Nothing Then
                 vTabInfo.Editor.SourceFileInfo.FilePath = lDialog.Filename
+                #If DEBUG Then
                 Console.WriteLine($"SaveFileAs: Updated SourceFileInfo path To {lDialog.Filename}")
+                #End If
             End If
             
             ' Save file (this will now save to the new path and sync states)
@@ -1064,7 +1136,9 @@ End Function
                     If lPage Is vTabInfo.EditorContainer Then
                         ' Update the red dot indicator in the CustomDrawNotebook
                         lCustomNotebook.SetTabModified(i, vTabInfo.Modified)
+                        #If DEBUG Then
                         Console.WriteLine($"UpdateTabLabel: Updated red dot for tab {i} To {vTabInfo.Modified} for {vTabInfo.FilePath}")
+                        #End If
                         Exit For
                     End If
                 Next
@@ -1233,7 +1307,9 @@ End Function
     ''' </remarks>
     Private Sub OnLeftPanelNotebookSwitchPage(vOldIndex As Integer, vNewIndex As Integer)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnNotebookSwitchPage: Switching To page {vNewIndex}")
+            #End If
             
             ' ===== 1. Basic UI Updates =====
             UpdateWindowTitle()
@@ -1243,11 +1319,15 @@ End Function
             ' ===== 2. Get Current Tab Info =====
             Dim lCurrentTab As TabInfo = GetCurrentTabInfo()
             If lCurrentTab Is Nothing OrElse lCurrentTab.Editor Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnNotebookSwitchPage: No current tab Or editor found")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"OnNotebookSwitchPage: Switching To {lCurrentTab.FilePath}")
+            #End If
             
             ' ===== 3. Object Explorer Integration =====
             ' Update Object Explorer for new active editor
@@ -1283,7 +1363,9 @@ End Function
             
             ' ===== 6. UPDATE NAVIGATION DROPDOWNS (STEP 5) =====
             ' Update navigation dropdowns for the newly active tab
+            #If DEBUG Then
             Console.WriteLine("OnNotebookSwitchPage: Updating navigation dropdowns for newly active tab")
+            #End If
             UpdateNavigationDropdowns()
             
             ' ===== 7. Ensure Editor Focus =====
@@ -1296,7 +1378,9 @@ End Function
             Dim lFileName As String = System.IO.Path.GetFileName(lCurrentTab.FilePath)
             UpdateStatusBar($"Ready - {lFileName}")
             
+            #If DEBUG Then
             Console.WriteLine($"OnNotebookSwitchPage: Successfully completed tab switch To {lFileName}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnNotebookSwitchPage error: {ex.Message}")
@@ -1338,7 +1422,9 @@ End Function
                     ' Update window title (now shows both project and file states)
                     UpdateWindowTitle()
                     
+                    #If DEBUG Then
                     Console.WriteLine($"OnEditorModified: Updated tab for {lTabInfo.FilePath}, Modified = {vIsModified}")
+                    #End If
                     Exit For
                 End If
             Next
@@ -1377,7 +1463,9 @@ End Function
             ' Get the current editor
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnCutLine: No active editor")
+                #End If
                 Return
             End If
             
@@ -1430,11 +1518,15 @@ End Function
     Private Sub HookupNavigationEvents(vTabInfo As TabInfo)
         Try
             If vTabInfo?.Editor Is Nothing OrElse vTabInfo.NavigationDropdowns Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("HookupNavigationEvents: Missing editor Or navigation dropdowns")
+                #End If
                 Return
             End If
             
+            #If DEBUG Then
             Console.WriteLine($"HookupNavigationEvents: Setting up navigation events for {vTabInfo.FilePath}")
+            #End If
             
             ' Store reference to tab info for use in event handlers
             ' We'll use the existing event handlers and add navigation updates to them
@@ -1449,7 +1541,9 @@ End Function
             If TypeOf vTabInfo.Editor Is CustomDrawingEditor Then
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vTabInfo.Editor, CustomDrawingEditor)
                 If lCustomEditor.LineCount > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("HookupNavigationEvents: Editor has content, scheduling initial navigation update")
+                    #End If
                     
                     ' Schedule initial update after UI is fully loaded
                     GLib.Idle.Add(Function()
@@ -1457,7 +1551,9 @@ End Function
                             ' Only update if this tab is currently active
                             If GetCurrentTabInfo() Is vTabInfo Then
                                 UpdateNavigationDropdowns()
+                                #If DEBUG Then
                                 Console.WriteLine("Initial navigation dropdowns populated")
+                                #End If
                             End If
                         Catch ex As Exception
                             Console.WriteLine($"Initial navigation update error: {ex.Message}")
@@ -1467,7 +1563,9 @@ End Function
                 End If
             End If
             
+            #If DEBUG Then
             Console.WriteLine("Navigation events integration completed")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"HookupNavigationEvents error: {ex.Message}")
@@ -1487,19 +1585,25 @@ End Function
         Try
             If vTabInfo Is Nothing Then Return
             
+            #If DEBUG Then
             Console.WriteLine($"UnhookNavigationEvents: Cleaning up navigation for {vTabInfo.FilePath}")
+            #End If
             
             ' Clear navigation dropdowns
             If vTabInfo.NavigationDropdowns IsNot Nothing Then
                 vTabInfo.NavigationDropdowns.Clear()
+                #If DEBUG Then
                 Console.WriteLine("Navigation dropdowns cleared")
+                #End If
             End If
             
             ' Note: We don't need to manually unhook the cursor position and document parsed
             ' events here because they are handled by the main UnhookAllEditorEvents method
             ' and the navigation updates are integrated into those existing handlers.
             
+            #If DEBUG Then
             Console.WriteLine("Navigation events cleanup completed")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"UnhookNavigationEvents error: {ex.Message}")
@@ -1529,7 +1633,9 @@ End Function
             ' based on the current cursor position and document structure
             UpdateNavigationDropdowns()
             
+            #If DEBUG Then
             Console.WriteLine("OnEditorNavigationUpdateRequested: Navigation dropdowns updated")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorNavigationUpdateRequested error: {ex.Message}")
@@ -1543,7 +1649,9 @@ End Function
     ''' <param name="vIndex">Index of the closed tab</param>
     Private Sub OnCustomNotebookTabClosed(vIndex As Integer)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnCustomNotebookTabClosed: Tab at index {vIndex} was closed")
+            #End If
             
             ' CRITICAL FIX: We need to find and remove the TabInfo from pOpenTabs
             ' The CustomDrawNotebook has already removed the widget from the notebook,
@@ -1572,7 +1680,9 @@ End Function
                 If Not lFoundInNotebook Then
                     lTabInfoToRemove = lTabInfo
                     lKeyToRemove = lKey
+                    #If DEBUG Then
                     Console.WriteLine($"  Found closed tab: {lKey}")
+                    #End If
                     Exit For
                 End If
             Next
@@ -1588,7 +1698,9 @@ End Function
                     If pScratchpadPanels.ContainsKey(lTabId) Then
                         pScratchpadPanels(lTabId).ForceSave()
                         pScratchpadPanels.Remove(lTabId)
+                        #If DEBUG Then
                         Console.WriteLine($"  Saved and removed scratchpad panel: {lTabId}")
+                        #End If
                     End If
                     
                     ' Update scratchpad button tooltip
@@ -1603,7 +1715,9 @@ End Function
                     ' Remove from help tabs dictionary if it exists
                     If pHelpTabs IsNot Nothing AndAlso pHelpTabs.ContainsKey(lHelpTabId) Then
                         pHelpTabs.Remove(lHelpTabId)
+                        #If DEBUG Then
                         Console.WriteLine($"  Removed help tab: {lHelpTabId}")
+                        #End If
                     End If
                 End If
                 
@@ -1615,14 +1729,20 @@ End Function
                     ' Remove from AI artifact tabs dictionary if it exists
                     If pAIArtifactTabs IsNot Nothing AndAlso pAIArtifactTabs.ContainsKey(lArtifactId) Then
                         pAIArtifactTabs.Remove(lArtifactId)
+                        #If DEBUG Then
                         Console.WriteLine($"  Removed AI artifact tab: {lArtifactId}")
+                        #End If
                     End If
                 End If
                 
                 ' Remove from pOpenTabs dictionary
                 pOpenTabs.Remove(lKeyToRemove)
+                #If DEBUG Then
                 Console.WriteLine($"  Removed {lKeyToRemove} from pOpenTabs")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"  pOpenTabs.Count = {pOpenTabs.Count}")
+                #End If
                 
                 ' Unhook all editor events (if it has an editor)
                 If lTabInfoToRemove.Editor IsNot Nothing Then
@@ -1642,7 +1762,9 @@ End Function
                     UpdateObjectExplorerForActiveTab()
                 End If
             Else
+                #If DEBUG Then
                 Console.WriteLine("  WARNING: Could Not find TabInfo for closed tab!")
+                #End If
             End If
             
             ' Check if all tabs are now closed
@@ -1651,7 +1773,9 @@ End Function
                 
                 ' Check if notebook is now empty
                 If lNotebook.NPages = 0 Then
+                    #If DEBUG Then
                     Console.WriteLine("CustomDrawNotebook Is now empty - showing Welcome tab")
+                    #End If
                     ShowWelcomeTab()
                     
                     ' Clear Object Explorer
@@ -1723,24 +1847,32 @@ End Function
     ''' </remarks>
     Private Sub OnRequestGotoDefinition(vSender As Object, vArgs As GoToDefinitionEventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine($"OnRequestGotoDefinition: Word='{vArgs.Word}' at {vArgs.FilePath}:{vArgs.LineNumber}:{vArgs.ColumnNumber}")
+            #End If
 
             If String.IsNullOrWhiteSpace(vArgs.Word) Then
+                #If DEBUG Then
                 Console.WriteLine("OnRequestGotoDefinition: No word specified")
+                #End If
                 UpdateStatusBar("No symbol selected for Go to Definition")
                 Return
             End If
 
             Dim lOwnProjectManager As ProjectManager = ResolveProjectManagerForRequester(vSender)
             If lOwnProjectManager Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine("OnRequestGotoDefinition: No ProjectManager available")
+                #End If
                 UpdateStatusBar($"Go to Definition: No project open")
                 Return
             End If
 
             Dim lDefinitionInfo As DefinitionInfo = lOwnProjectManager.FindDefinition(vArgs.Word, vArgs.FilePath, vArgs.LineNumber, vArgs.ColumnNumber)
             If lDefinitionInfo IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"OnRequestGotoDefinition: Found definition in {lDefinitionInfo.FilePath} at line {lDefinitionInfo.Line}")
+                #End If
                 NavigateToDefinitionResult(lDefinitionInfo, vArgs.Word)
                 Return
             End If
@@ -1756,11 +1888,15 @@ End Function
                 Next
 
                 If lCandidates.Count = 1 Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnRequestGotoDefinition: Found definition in sibling project {lCandidates(0).ProjectName}")
+                    #End If
                     NavigateToDefinitionResult(lCandidates(0).Definition, vArgs.Word)
                     Return
                 ElseIf lCandidates.Count > 1 Then
+                    #If DEBUG Then
                     Console.WriteLine($"OnRequestGotoDefinition: Found {lCandidates.Count} candidates across sibling projects, prompting user")
+                    #End If
                     Using lPicker As New DefinitionPickerDialog(Me, vArgs.Word, lCandidates, pThemeManager)
                         If lPicker.Run() = CInt(ResponseType.Ok) AndAlso lPicker.SelectedCandidate IsNot Nothing Then
                             NavigateToDefinitionResult(lPicker.SelectedCandidate.Definition, vArgs.Word)
@@ -1771,7 +1907,9 @@ End Function
                 End If
             End If
 
+            #If DEBUG Then
             Console.WriteLine($"OnRequestGotoDefinition: Definition not found for '{vArgs.Word}'")
+            #End If
             UpdateStatusBar($"Definition Of '{vArgs.Word}' not found")
 
         Catch ex As Exception
@@ -1793,16 +1931,22 @@ End Function
             Dim lTargetFilePath As String = vDefinitionInfo.FilePath
 
             If pOpenTabs.ContainsKey(lTargetFilePath) Then
+                #If DEBUG Then
                 Console.WriteLine($"NavigateToDefinitionResult: File already open, switching to tab")
+                #End If
                 SwitchToTab(lTargetFilePath)
             Else
+                #If DEBUG Then
                 Console.WriteLine($"NavigateToDefinitionResult: Opening file {lTargetFilePath}")
+                #End If
                 OpenFile(lTargetFilePath)
             End If
 
             Dim lTabInfo As TabInfo = Nothing
             If Not pOpenTabs.TryGetValue(lTargetFilePath, lTabInfo) OrElse lTabInfo.Editor Is Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"NavigateToDefinitionResult: Could Not find tab for {lTargetFilePath}")
+                #End If
                 Return
             End If
 
@@ -1834,7 +1978,9 @@ End Function
             End If
 
             Dim lPosition As New EditorPosition(vDefinitionInfo.Line + 1, lIdentifierColumn + 1)
+            #If DEBUG Then
             Console.WriteLine($"NavigateToDefinitionResult: Navigating to position {lPosition}")
+            #End If
 
             lTabInfo.Editor.GoToPosition(lPosition)
             lTabInfo.Editor.FlashIdentifierAt(vDefinitionInfo.Line, lIdentifierColumn, lIdentifierEndColumn)

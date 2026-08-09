@@ -25,7 +25,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub SetupKeyboardShortcuts()
         Try
+            #If DEBUG Then
             Console.WriteLine("Setting up direct keyboard handling...")
+            #End If
 
             ' Connect the main window keyboard handler
             AddHandler Me.KeyPressEvent, AddressOf OnWindowKeyPress
@@ -39,7 +41,9 @@ Partial Public Class MainWindow
             ' KeyPressEvent handler - see InstallTabCyclingSnooper for why
             InstallTabCyclingSnooper()
 
+            #If DEBUG Then
             Console.WriteLine("Keyboard handling setup complete")
+            #End If
 
         Catch ex As Exception
             Console.WriteLine($"SetupKeyboardShortcuts error: {ex.Message}")
@@ -138,7 +142,9 @@ Partial Public Class MainWindow
             If lCurrentKey = sLastKey Then
                 Dim lTimeDiff As TimeSpan = lCurrentTime - sLastKeyTime
                 If lTimeDiff.TotalMilliseconds < 50 Then
+                    #If DEBUG Then
                     Console.WriteLine($"Duplicate key event prevented: KeyValue={lCurrentKey}, TimeDiff={lTimeDiff.TotalMilliseconds:F4}ms")
+                    #End If
                     vArgs.RetVal = True
                     Return  ' Exit early to prevent duplicate processing
                 End If
@@ -153,7 +159,9 @@ Partial Public Class MainWindow
             Dim lModifiers As ModifierType = vArgs.Event.State
             
             ' Debug output for testing
+            #If DEBUG Then
             Console.WriteLine($"MainWindow Key: {lKeyString}, Modifiers: {lModifiers}")
+            #End If
             
             ' Filter out lock key modifiers (NumLock, CapsLock, ScrollLock) and Release mask
             Dim lCleanModifiers As ModifierType = lModifiers and Not (ModifierType.LockMask Or 
@@ -165,28 +173,36 @@ Partial Public Class MainWindow
                 Select Case lKeyString
                     Case "F5"
                         ' F5 - Build and Run
+                        #If DEBUG Then
                         Console.WriteLine("F5 pressed - Build and Run")
+                        #End If
                         OnBuildAndRun(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
                         
                     Case "F6"
                         ' F6 - Build Project
+                        #If DEBUG Then
                         Console.WriteLine("F6 pressed - Build Project")
+                        #End If
                         OnBuildProject(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
 
                     Case "F2"
                         ' F2 - Quick Find from Clipboard
+                        #If DEBUG Then
                         Console.WriteLine("F2 pressed - Quick Find from Clipboard")
+                        #End If
                         OnQuickFindFromClipboard(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
                         
                     Case "F1"
                         ' F1 - Show Help in a tab
+                        #If DEBUG Then
                         Console.WriteLine("F1 pressed - Show Help")
+                        #End If
                         Dim lContext As String = GetCurrentHelpContext()
                         If Not String.IsNullOrEmpty(lContext) Then
                             ShowContextHelpInTab(lContext)
@@ -198,7 +214,9 @@ Partial Public Class MainWindow
                                       
                     Case "F3"
                         ' F3 - Find Next
+                        #If DEBUG Then
                         Console.WriteLine("F3 pressed - Find Next")
+                        #End If
                         FindNextOccurrence()
                         vArgs.RetVal = True
                         Return
@@ -223,7 +241,9 @@ Partial Public Class MainWindow
                 Select Case lKeyString
                     Case "F3"
                         ' Shift+F3 - Find Previous
+                        #If DEBUG Then
                         Console.WriteLine("Shift+F3 pressed - Find Previous")
+                        #End If
                         FindPreviousOccurrence()
                         vArgs.RetVal = True
                         Return
@@ -463,7 +483,9 @@ Partial Public Class MainWindow
     ' These can be implemented as needed
     
     Private Sub ShowFindInFilesDialog()
+        #If DEBUG Then
         Console.WriteLine("Find in Files - Not yet implemented")
+        #End If
         ' TODO: Implement find in files dialog
     End Sub
     
@@ -473,7 +495,9 @@ Partial Public Class MainWindow
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
                 ' TODO: Implement toggle comment in editor
+                #If DEBUG Then
                 Console.WriteLine("Toggle Comment - Not yet implemented")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"ToggleComment error: {ex.Message}")
@@ -485,7 +509,9 @@ Partial Public Class MainWindow
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
                 ' TODO: Implement duplicate line in editor
+                #If DEBUG Then
                 Console.WriteLine("Duplicate Line - Not yet implemented")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"DuplicateLine error: {ex.Message}")
@@ -497,7 +523,9 @@ Partial Public Class MainWindow
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
                 ' TODO: Implement delete line in editor
+                #If DEBUG Then
                 Console.WriteLine("Delete Line - Not yet implemented")
+                #End If
             End If
         Catch ex As Exception
             Console.WriteLine($"DeleteLine error: {ex.Message}")
@@ -505,7 +533,9 @@ Partial Public Class MainWindow
     End Sub
     
     Private Sub ShowQuickOpen()
+        #If DEBUG Then
         Console.WriteLine("Quick Open - Not yet implemented")
+        #End If
         ' TODO: Implement quick open/command palette
     End Sub
     
@@ -533,7 +563,9 @@ Partial Public Class MainWindow
 
                 pMainHPaned.Position = 0
                 pLeftPanelVisible = False
+                #If DEBUG Then
                 Console.WriteLine($"Hidden left panel, saved width: {pLastLeftPanelWidth}")
+                #End If
             Else
                 ' Restore size request FIRST
                 If pLeftNotebook IsNot Nothing Then
@@ -551,7 +583,9 @@ Partial Public Class MainWindow
 
                 pMainHPaned.Position = lRestoreWidth
                 pLeftPanelVisible = True
+                #If DEBUG Then
                 Console.WriteLine($"Shown left panel at width: {lRestoreWidth}")
+                #End If
             End If
 
             If pSettingsManager IsNot Nothing Then
@@ -564,17 +598,23 @@ Partial Public Class MainWindow
     End Sub
     
     Private Sub ShowQuickFix()
+        #If DEBUG Then
         Console.WriteLine("Quick Fix - Not yet implemented")
+        #End If
         ' TODO: Implement quick fix/show properties
     End Sub
     
     Private Sub NavigateToPreviousHighlight()
+        #If DEBUG Then
         Console.WriteLine("Previous Highlight - Not yet implemented")
+        #End If
         ' TODO: Implement navigate to previous highlight
     End Sub
     
     Private Sub NavigateToNextHighlight()
+        #If DEBUG Then
         Console.WriteLine("Next Highlight - Not yet implemented")
+        #End If
         ' TODO: Implement navigate to next highlight
     End Sub
     
@@ -613,27 +653,37 @@ Partial Public Class MainWindow
     End Sub
     
     Private Sub RenameSymbol()
+        #If DEBUG Then
         Console.WriteLine("Rename Symbol - Not yet implemented")
+        #End If
         ' TODO: Implement rename symbol
     End Sub
     
     Private Sub NavigateToNextCompilationError()
+        #If DEBUG Then
         Console.WriteLine("Next Compilation Error - Not yet implemented")
+        #End If
         ' TODO: Navigate to next compilation error
     End Sub
     
     Private Sub ToggleBreakpoint()
+        #If DEBUG Then
         Console.WriteLine("Toggle Breakpoint - Not yet implemented")
+        #End If
         ' TODO: Implement toggle breakpoint
     End Sub
     
     Private Sub StepOver()
+        #If DEBUG Then
         Console.WriteLine("Step Over - Not yet implemented")
+        #End If
         ' TODO: Implement step over debugging
     End Sub
     
     Private Sub StepOut()
+        #If DEBUG Then
         Console.WriteLine("Step Out - Not yet implemented")
+        #End If
         ' TODO: Implement step out debugging
     End Sub
     
@@ -686,18 +736,24 @@ Partial Public Class MainWindow
     ''' <param name="vArgs">Event arguments</param>
     Public Sub OnBuildProject(vSender As Object, vArgs As EventArgs)
         Try
+            #If DEBUG Then
             Console.WriteLine("OnBuildProject called (F6 - Build Only)")
+            #End If
             
             ' Check if already building
             If pIsBuildingNow Then
+                #If DEBUG Then
                 Console.WriteLine("OnBuildProject: Already building (pIsBuildingNow check)")
+                #End If
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If
             
             ' Check if already building using BuildManager
             If pBuildManager IsNot Nothing AndAlso pBuildManager.IsBuilding Then
+                #If DEBUG Then
                 Console.WriteLine("OnBuildProject: Build already in progress (BuildManager check)")
+                #End If
                 ShowInfo("Build in Progress", "A build is already in progress.")
                 Return
             End If

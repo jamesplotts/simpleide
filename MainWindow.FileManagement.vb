@@ -47,7 +47,9 @@ Partial Public Class MainWindow
 
                 Case ResponseType.No
                     ' User wants to keep current version
+                    #If DEBUG Then
                     Console.WriteLine($"Keeping current version Of {vFilePath}")
+                    #End If
                     ' Mark as modified if it wasn't already
                     If Not lTabInfo.Modified AndAlso lTabInfo.Editor IsNot Nothing Then
                         ' The file differs from disk, so mark it as modified
@@ -260,7 +262,9 @@ Partial Public Class MainWindow
                 If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
                     ' Navigate to next error
                     ' This would need implementation in BuildOutputPanel
+                    #If DEBUG Then
                     Console.WriteLine("Navigate to next error")
+                    #End If
                 End If
             End If
         Catch ex As Exception
@@ -276,7 +280,9 @@ Partial Public Class MainWindow
                 If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
                     ' Navigate to previous error
                     ' This would need implementation in BuildOutputPanel
+                    #If DEBUG Then
                     Console.WriteLine("Navigate to previous error")
+                    #End If
                 End If
             End If
         Catch ex As Exception
@@ -346,7 +352,9 @@ Private Function SaveFile(vTabInfo As TabInfo) As Boolean
         If lResult Then
             vTabInfo.Modified = False
             UpdateTabLabel(vTabInfo)
+            #If DEBUG Then
             Console.WriteLine($"SaveFile: Saved and updated tab state for {vTabInfo.FilePath}")
+            #End If
         End If
         
         Return lResult

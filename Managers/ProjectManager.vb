@@ -277,7 +277,9 @@ Namespace Managers
         Private Sub InitializeParser()
             Try
                 If pProjectParser Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ProjectManager: Initializing ProjectParser")
+                    #End If
                     pProjectParser = New ProjectParser(Me)
                 End If
             Catch ex As Exception
@@ -343,7 +345,9 @@ Namespace Managers
                 ' content/SyntaxTree - still needed here since callers of bare LoadProject()
                 ' (not LoadProjectWithParsing) rely on pSourceFiles being populated
                 Dim lFilesLoaded As Integer = EnsureAllFilesLoaded()
+                #If DEBUG Then
                 Console.WriteLine($"LoadProject: Loaded {lFilesLoaded} source files")
+                #End If
 
                 ' NOTE: deliberately NOT calling BuildProjectSyntaxTree() here anymore. It
                 ' merged every file's already-parsed SyntaxTree into pProjectSyntaxTree and
@@ -496,7 +500,9 @@ End Sub
                 End If
                 
                 If lExisting IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine($"File already in project: {lRelativePath}")
+                    #End If
                     Return False
                 End If
                 
@@ -522,7 +528,9 @@ End Sub
                     
                     ' CRITICAL: Create SourceFileInfo for the newly added file
                     If Not pSourceFiles.ContainsKey(vFilePath) Then
+                        #If DEBUG Then
                         Console.WriteLine($"Creating SourceFileInfo for newly added file: {vFilePath}")
+                        #End If
                         
                         ' Create new SourceFileInfo
                         Dim lSourceInfo As New SourceFileInfo(vFilePath, "")
@@ -557,7 +565,9 @@ End Sub
                 RaiseEvent FileAdded(vFilePath)
                 RaiseEvent ProjectModified()
                 
+                #If DEBUG Then
                 Console.WriteLine($"Added {lXmlRelativePath} to project as {vItemType}")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -579,7 +589,9 @@ End Sub
                 
                 ' Check if already exists
                 If pDocumentModels.ContainsKey(lRelativePath) Then
+                    #If DEBUG Then
                     Console.WriteLine($"File already in project: {lRelativePath}")
+                    #End If
                     Return pDocumentModels(lRelativePath)
                 End If
                 
@@ -626,7 +638,9 @@ End Sub
                         
                         ' Save project file
                         SaveProjectFile(lDoc)
+                        #If DEBUG Then
                         Console.WriteLine($"Added {lXmlRelativePath} to project file")
+                        #End If
                     End If
                     
                     ' Update project info collections
@@ -670,7 +684,9 @@ End Sub
                 ' Convert to forward slashes for XML compatibility
                 Dim lXmlRelativePath As String = lRelativePath.Replace("\"c, "/"c)
                 
+                #If DEBUG Then
                 Console.WriteLine($"RemoveFileFromProject: Attempting To remove {lXmlRelativePath}")
+                #End If
                 
                 ' Handle DocumentModel removal if it exists
                 Dim lHadDocumentModel As Boolean = False
@@ -722,18 +738,24 @@ End Sub
                         ' Remove the Compile element
                         lItemGroup.RemoveChild(lCompileNode)
                         lRemovedFromXml = True
+                        #If DEBUG Then
                         Console.WriteLine($"Removed Compile element for {lXmlRelativePath} from project file")
+                        #End If
                         
                         ' If ItemGroup is now empty, remove it too
                         If Not lItemGroup.HasChildNodes OrElse lItemGroup.ChildNodes.Count = 0 Then
                             lItemGroup.ParentNode.RemoveChild(lItemGroup)
+                            #If DEBUG Then
                             Console.WriteLine("Removed empty ItemGroup from project file")
+                            #End If
                         End If
                         
                         ' Save the updated project file with proper formatting
                         SaveProjectFile(lDoc)
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"Compile element for '{lXmlRelativePath}' not found in project file")
+                        #End If
                     End If
                 End If
                 
@@ -938,7 +960,9 @@ End Sub
         ' File watcher event handlers
         Private Sub OnFileCreated(vSender As Object, vArgs As FileSystemEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"project file Created: {vArgs.Name}")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.OnFileCreated error: {ex.Message}")
             End Try
@@ -946,7 +970,9 @@ End Sub
         
         Private Sub OnFileDeleted(vSender As Object, vArgs As FileSystemEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"project file deleted: {vArgs.Name}")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.OnFileDeleted error: {ex.Message}")
             End Try
@@ -954,7 +980,9 @@ End Sub
         
         Private Sub OnFileRenamed(vSender As Object, vArgs As RenamedEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"project file renamed: {vArgs.OldName} -> {vArgs.Name}")
+                #End If
                 RaiseEvent FileRenamed(vArgs.OldFullPath, vArgs.FullPath)
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.OnFileRenamed error: {ex.Message}")
@@ -1008,7 +1036,9 @@ End Sub
                     vDoc.Save(lWriter)
                 End Using
                 
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager saved project file: {CurrentProjectPath}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ProjectManager.SaveProjectFile error: {ex.Message}")
@@ -1148,7 +1178,9 @@ End Sub
             Try
                 If vNode Is Nothing Then Return
                 
+                #If DEBUG Then
                 Console.WriteLine($"    MergeNodeIntoProjectFixed: {vNode.Name} ({vNode.NodeType}) into {vParentNode.Name}")
+                #End If
                 
                 ' Ensure Attributes dictionary is initialized
                 If vNode.Attributes Is Nothing Then
@@ -1162,13 +1194,17 @@ End Sub
                     
                     If lExistingNamespace IsNot Nothing Then
                         ' Merge into existing namespace
+                        #If DEBUG Then
                         Console.WriteLine($"      Merging into existing Namespace: {lExistingNamespace.Name}")
+                        #End If
                         for each lChild in vNode.Children
                             MergeNodeIntoProjectFixed(lChild, lExistingNamespace, vFilePath)
                         Next
                     Else
                         ' Create new namespace node
+                        #If DEBUG Then
                         Console.WriteLine($"      Creating New Namespace: {vNode.Name}")
+                        #End If
                         Dim lNewNamespace As New SyntaxNode(CodeNodeType.eNamespace, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewNamespace)
                         
@@ -1192,7 +1228,9 @@ End Sub
                     
                     If lExistingClass IsNot Nothing Then
                         ' Merge members into existing class
+                        #If DEBUG Then
                         Console.WriteLine($"      Merging Partial Class: {vNode.Name}")
+                        #End If
                         lExistingClass.IsPartial = True ' Mark as partial
                         
                         ' Initialize Attributes if needed
@@ -1229,7 +1267,9 @@ End Sub
                         Next
                     Else
                         ' Create new partial class
+                        #If DEBUG Then
                         Console.WriteLine($"      Creating New Partial Class: {vNode.Name}")
+                        #End If
                         Dim lNewClass As New SyntaxNode(CodeNodeType.eClass, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewClass)
                         lNewClass.IsPartial = True
@@ -1256,7 +1296,9 @@ End Sub
                     
                     If lExistingNode Is Nothing Then
                         ' Create new node in project tree
+                        #If DEBUG Then
                         Console.WriteLine($"      Creating New {vNode.NodeType}: {vNode.Name}")
+                        #End If
                         Dim lNewNode As New SyntaxNode(vNode.NodeType, vNode.Name)
                         vNode.CopyNodeAttributesTo(lNewNode)
                         
@@ -1273,7 +1315,9 @@ End Sub
                             MergeNodeIntoProjectFixed(lChild, lNewNode, vFilePath)
                         Next
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"      Node already exists: {vNode.Name} ({vNode.NodeType})")
+                        #End If
                         
                         ' Initialize Attributes if needed
                         If lExistingNode.Attributes Is Nothing Then
@@ -1415,7 +1459,9 @@ End Sub
         ''' </remarks>
         Public Sub RaiseFileRenamedEvent(vOldPath As String, vNewPath As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"ProjectManager.RaiseFileRenamedEvent: {vOldPath} -> {vNewPath}")
+                #End If
                 RaiseEvent FileRenamed(vOldPath, vNewPath)
             Catch ex As Exception
                 Console.WriteLine($"RaiseFileRenamedEvent error: {ex.Message}")
@@ -1477,7 +1523,9 @@ Public Sub Dispose() Implements IDisposable.Dispose
         pRootNode = Nothing
         pThemeManager = Nothing
         
+        #If DEBUG Then
         Console.WriteLine("ProjectManager: Disposed")
+        #End If
         
     Catch ex As Exception
         Console.WriteLine($"ProjectManager.Dispose error: {ex.Message}")

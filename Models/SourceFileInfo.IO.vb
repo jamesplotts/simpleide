@@ -65,7 +65,9 @@ Namespace Models
                 ' Request async parse
                 RequestAsyncParse()
                 
+                #If DEBUG Then
                 Console.WriteLine($"Loaded {FileName}: {pTextLines.Count} lines")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -82,7 +84,9 @@ Namespace Models
         Public Function SaveContent() As Boolean
             Try
                 If String.IsNullOrEmpty(pFilePath) Then
+                    #If DEBUG Then
                     Console.WriteLine("Cannot save: no file path")
+                    #End If
                     Return False
                 End If
                 
@@ -99,7 +103,9 @@ Namespace Models
                 pIsModified = False
                 pLastModified = DateTime.Now
                 
+                #If DEBUG Then
                 Console.WriteLine($"Saved {Content.Length} characters to {FileName}")
+                #End If
                 Return True
                 
             Catch ex As Exception

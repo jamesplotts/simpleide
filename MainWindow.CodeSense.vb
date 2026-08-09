@@ -122,11 +122,15 @@ Partial Public Class MainWindow
                 Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
                 If lProjectTree IsNot Nothing Then
                     pCodeSenseEngine.UpdateFromSyntaxTree(lProjectTree, True)
+                    #If DEBUG Then
                     Console.WriteLine("CodeSense updated with ProjectParser structure")
+                    #End If
                 End If
             End If
 
+            #If DEBUG Then
             Console.WriteLine($"CodeSense references updated from ProjectManager")
+            #End If
 
         Catch ex As Exception
             Console.WriteLine($"UpdateCodeSenseReferences error: {ex.Message}")
@@ -237,7 +241,9 @@ Partial Public Class MainWindow
                 ' Check if this file matches current tab
                 If lCurrentTab IsNot Nothing AndAlso lCurrentTab.FilePath = vFile.FilePath Then
                     pCodeSenseEngine.UpdateDocumentNodes(vResult)
+                    #If DEBUG Then
                     Console.WriteLine($"CodeSense updated with parse results for {vFile.FileName}")
+                    #End If
                 End If
             End If
 
@@ -254,7 +260,9 @@ Partial Public Class MainWindow
             If pCodeSenseEngine IsNot Nothing AndAlso vRootNode IsNot Nothing Then
                 ' Update CodeSense with the complete project structure
                 pCodeSenseEngine.UpdateFromSyntaxTree(vRootNode, True)
+                #If DEBUG Then
                 Console.WriteLine($"CodeSense updated with project structure from ProjectParser")
+                #End If
 
                 ' Update references as well
                 UpdateCodeSenseReferences()
@@ -287,7 +295,9 @@ Partial Public Class MainWindow
                 RemoveHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoadedForCodeSense
                 AddHandler pProjectManager.ProjectStructureLoaded, AddressOf OnProjectStructureLoadedForCodeSense
 
+                #If DEBUG Then
                 Console.WriteLine("CodeSense subscribed to ProjectManager parse events")
+                #End If
             End If
 
         Catch ex As Exception

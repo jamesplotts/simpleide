@@ -514,8 +514,12 @@ Namespace Widgets
         ''' </summary>
         Public Sub ShowBuildResult(vResult As BuildResult, vProjectRoot As String)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"ShowBuildResult Called! UseDataGrid={pUseDataGrid}")
+                #End If
+                #If DEBUG Then
                 Console.WriteLine($"Errors: {vResult?.Errors?.Count}, Warnings: {vResult?.Warnings?.Count}")
+                #End If
                 
                 ShowBuildResultDataGrid(vResult, vProjectRoot)
                 
@@ -679,10 +683,14 @@ Namespace Widgets
                     Dim lClipboard As Clipboard = Clipboard.Get(Gdk.Selection.Clipboard)
                     lClipboard.Text = lText
                     
+                    #If DEBUG Then
                     Console.WriteLine($"Copied {pBuildErrors.Count} errors and {pBuildWarnings.Count} warnings to clipboard")
+                    #End If
                     RaiseEvent ErrorsCopied()
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("No errors or warnings to copy")
+                    #End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"CopyErrorsToClipboard error: {ex.Message}")

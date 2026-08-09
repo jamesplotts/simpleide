@@ -196,7 +196,9 @@ Namespace Dialogs
                         GLib.Idle.Add(Function()
                             Try
                                 If t.IsFaulted Then
+                                    #If DEBUG Then
                                     Console.WriteLine($"LoadStagedFiles error: {t.Exception?.GetBaseException()?.Message}")
+                                    #End If
                                     Return False
                                 End If
 
@@ -276,7 +278,9 @@ Namespace Dialogs
                                     If Not pAmendCheck.Active Then Return False
 
                                     If t.IsFaulted Then
+                                        #If DEBUG Then
                                         Console.WriteLine($"OnAmendToggled error: {t.Exception?.GetBaseException()?.Message}")
+                                        #End If
                                         Return False
                                     End If
 

@@ -24,7 +24,9 @@ Partial Public Class MainWindow
     ''' <returns>The unique ID of the help tab</returns>
     Public Function OpenHelpTab(Optional vTopic As String = Nothing, Optional vUrl As String = Nothing) As String
         Try
+            #If DEBUG Then
             Console.WriteLine($"OpenHelpTab: Topic='{vTopic}', URL='{vUrl}'")
+            #End If
 
             ' Generate unique ID for this help tab
             Dim lHelpTabId As String = $"help_{pNextHelpTabId}"
@@ -92,7 +94,9 @@ Partial Public Class MainWindow
             UpdateStatusBar($"Opened help: {lTabTitle}")
             UpdateToolbarButtons()
             
+            #If DEBUG Then
             Console.WriteLine($"Help tab created with ID: {lHelpTabId}")
+            #End If
             Return lHelpTabId
             
         Catch ex As Exception
@@ -193,7 +197,9 @@ Partial Public Class MainWindow
             End If
             
             UpdateToolbarButtons()
+            #If DEBUG Then
             Console.WriteLine($"Closed help tab: {vHelpTabId}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"CloseHelpTab error: {ex.Message}")

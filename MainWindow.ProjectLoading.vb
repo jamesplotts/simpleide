@@ -33,7 +33,9 @@ Partial Public Class MainWindow
     ''' <param name="vProjectPath">Path to the project file</param>
     Private Sub LoadProjectWithProgressBar(vProjectPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"LoadProjectWithProgressBar: Loading {vProjectPath}")
+            #End If
             
             ' Show initial status
             UpdateStatusBar("Loading project structure...")
@@ -69,7 +71,9 @@ Partial Public Class MainWindow
                 UpdateStatusBar($"Project loaded: {pProjectManager.CurrentProjectName}")
                 
                 
+                #If DEBUG Then
                 Console.WriteLine($"Project loaded successfully: {vProjectPath}")
+                #End If
             Else
                 ' Failed
                 pCurrentProject = ""
@@ -112,7 +116,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub LoadProjectWithProgress(vProjectPath As String)
         Try
+            #If DEBUG Then
             Console.WriteLine($"MainWindow.LoadProjectWithProgress: Loading {vProjectPath}")
+            #End If
             
             ' Create and show progress dialog
             CreateProgressDialog()
@@ -261,7 +267,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub OnAllDocumentsLoaded(vDocumentCount As Integer)
         Try
+            #If DEBUG Then
             Console.WriteLine($"All {vDocumentCount} documents loaded")
+            #End If
             
             ' Close progress dialog on main thread
             Application.Invoke(Sub()
@@ -303,7 +311,9 @@ Partial Public Class MainWindow
         Try
             ' Populate project explorer
             If pProjectExplorer IsNot Nothing Then
+                #If DEBUG Then
                 Console.WriteLine($"Calling pProjectExplorer.LoadProjectFromManager from MainWindow.UpdateUIForLoadedProject")
+                #End If
                 pProjectExplorer.LoadProjectFromManager
             End If
             
@@ -425,7 +435,9 @@ Partial Public Class MainWindow
             ' Implementation depends on your menu structure
             
             ' For now, just log the state
+            #If DEBUG Then
             Console.WriteLine($"project menu items enabled: {vEnabled}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"MainWindow.EnableProjectMenuItems error: {ex.Message}")
@@ -510,11 +522,15 @@ Partial Public Class MainWindow
                 
                 ' Load the structure into Object Explorer
                 pObjectExplorer.LoadProjectStructure(lProjectRoot)
+                #If DEBUG Then
                 Console.WriteLine("Object Explorer refreshed with project structure")
+                #End If
             Else
                 ' Clear the Object Explorer if no project
                 pObjectExplorer.ClearStructure()
+                #If DEBUG Then
                 Console.WriteLine("Object Explorer cleared - no project structure")
+                #End If
             End If
             
         Catch ex As Exception

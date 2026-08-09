@@ -171,7 +171,9 @@ Namespace Widgets
         ''' </summary>
         Public Sub ExpandAll()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ExpandAll: Expanding all nodes in the tree")
+                #End If
                 
                 ' Use the namespace-aware expansion
                 ExpandAllNamespaces()
@@ -211,7 +213,9 @@ Namespace Widgets
         ''' </summary>
         Public Sub CollapseAll()
             Try
+                #If DEBUG Then
                 Console.WriteLine("CollapseAll: Collapsing all nodes in the tree")
+                #End If
                 
                 ' Use the namespace-aware collapse
                 CollapseAllNamespaces()
@@ -306,7 +310,9 @@ Namespace Widgets
                 Next
                 
                 ' Rebuild sorted list
+#If DEBUG Then
 Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
+#End If
 
                 pVisibleNodes.Clear()
                 RebuildSortedList(lNodeGroups, Nothing, "root")
@@ -529,7 +535,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                         
                     ' Default case - don't show unknown types
                     Case Else
+                        #If DEBUG Then
                         Console.WriteLine($"ShouldDisplayNode: Unknown node type {vNode.NodeType} for node '{vNode.Name}'")
+                        #End If
                         Return False
                 End Select
                 
@@ -679,7 +687,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         Private Sub EnsureVisibleNodesList()
             If pVisibleNodes Is Nothing Then
                 pVisibleNodes = New List(Of VisualNode)()
+                #If DEBUG Then
                 Console.WriteLine("Created new pVisibleNodes list")
+                #End If
             End If
         End Sub
         
@@ -754,12 +764,16 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
                 ' Log node creation for debugging
                 If vLevel <= 1 Then  ' Only log top-level nodes to reduce noise
+                    #If DEBUG Then
                     Console.WriteLine($"  Created node: {vNode.Name} (Level={vLevel}, HasChildren={lVisualNode.HasChildren}, IsExpanded={lVisualNode.IsExpanded})")
+                    #End If
                 End If
                 
                 ' Process children if this node is expanded AND has children
                 If lVisualNode.IsExpanded AndAlso vNode.Children.Count > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Expanding {vNode.Name} with {vNode.Children.Count} children")
+                    #End If
                     
                     ' Sort children alphabetically for consistent display
                     ' Sort children alphabetically for consistent display (Namespaces first)
@@ -869,13 +883,17 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 
                 ' IMPORTANT: Ensure state is preserved after CSS application
                 If pRootNode Is Nothing AndAlso lSavedRoot IsNot Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ApplyTheme: Restoring root after CSS application")
+                    #End If
                     pRootNode = lSavedRoot
                 End If
                 
                 If pVisibleNodes Is Nothing OrElse pVisibleNodes.Count = 0 Then
                     If lSavedVisibleNodes IsNot Nothing AndAlso lSavedVisibleNodes.Count > 0 Then
+                        #If DEBUG Then
                         Console.WriteLine("ApplyTheme: Restoring visible nodes after CSS application")
+                        #End If
                         pVisibleNodes = lSavedVisibleNodes
                     End If
                 End If
@@ -887,7 +905,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ' Force redraw with the preserved state
                 pDrawingArea.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"CustomDrawObjectExplorer.ApplyTheme: Applied theme to Object Explorer: {lThemeName}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyTheme error: {ex.Message}")
@@ -926,11 +946,15 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ' For single file updates, we might want to update just that file's node
                 ' For now, if we get a full project tree, update the whole structure
                 If vResult IsNot Nothing AndAlso vResult.NodeType = CodeNodeType.eProject Then
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer received project parse from ProjectParser")
+                    #End If
                     UpdateStructure(vResult)
                 ElseIf vFile IsNot Nothing Then
                     ' Single file update - could update just that file's nodes
+                    #If DEBUG Then
                     Console.WriteLine($"ObjectExplorer received file parse for {vFile.FileName}")
+                    #End If
                     ' For now, request full project structure update
                     If pProjectManager IsNot Nothing Then
                         Dim lProjectTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
@@ -954,13 +978,17 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' </remarks>
         Private Sub OnProjectStructureLoaded(vRootNode As SyntaxNode)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"ObjectExplorer received project structure from ProjectParser")
+                #End If
                 
                 If vRootNode IsNot Nothing Then
                     ' Update the display with the ProjectParser's structure
                     UpdateStructure(vRootNode)
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("ObjectExplorer: No root node in project structure")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -978,10 +1006,14 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' </remarks>
         Public Sub ExpandAllNamespaces()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ExpandAllNamespaces: Starting...")
+                #End If
                 
                 If pRootNode Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ExpandAllNamespaces: No root node")
+                    #End If
                     Return
                 End If
                 
@@ -992,7 +1024,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 AddNamespaceNodesToExpanded(pRootNode, "")
                 
                 Dim lAddedCount As Integer = pExpandedNodes.Count - lInitialCount
+                #If DEBUG Then
                 Console.WriteLine($"ExpandAllNamespaces: Added {lAddedCount} namespace paths")
+                #End If
                 
                 ' Only rebuild if we actually expanded something
                 If lAddedCount > 0 Then
@@ -1003,7 +1037,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     pDrawingArea?.QueueDraw()
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExpandAllNamespaces: Complete. {pVisibleNodes.Count} nodes now visible")
+                #End If
 
             Catch ex As Exception
                 Console.WriteLine($"ExpandAllNamespaces error: {ex.Message}")
@@ -1062,10 +1098,14 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' </remarks>
         Public Sub CollapseAllNamespaces()
             Try
+                #If DEBUG Then
                 Console.WriteLine("CollapseAllNamespaces: Starting...")
+                #End If
                 
                 If pRootNode Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("CollapseAllNamespaces: No root node")
+                    #End If
                     Return
                 End If
                 
@@ -1073,7 +1113,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 Dim lInitialCount As Integer = pExpandedNodes.Count
                 pExpandedNodes.Clear()
                 
+                #If DEBUG Then
                 Console.WriteLine($"CollapseAllNamespaces: Cleared {lInitialCount} expanded paths")
+                #End If
                 
                 ' Rebuild the visual tree
                 RebuildVisualTree()
@@ -1081,7 +1123,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ' Force redraw
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"CollapseAllNamespaces: Complete. {pVisibleNodes.Count} nodes now visible")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CollapseAllNamespaces error: {ex.Message}")
@@ -1097,16 +1141,22 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
         ''' </remarks>
         Public Sub ExpandRootOnly()
             Try
+                #If DEBUG Then
                 Console.WriteLine("ExpandRootOnly: Starting...")
+                #End If
                 
                 If pRootNode Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ExpandRootOnly: No root node")
+                    #End If
                     Return
                 End If
                 
                 ' First, clear all expanded nodes
                 pExpandedNodes.Clear()
+                #If DEBUG Then
                 Console.WriteLine("ExpandRootOnly: Collapsed all nodes")
+                #End If
                 
                 ' Now determine what to expand
                 Dim lPathsToExpand As New List(Of String)()
@@ -1116,7 +1166,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     for each lChild in pRootNode.Children
                         If lChild.NodeType = CodeNodeType.eNamespace Then
                             lPathsToExpand.Add(lChild.Name)
+                            #If DEBUG Then
                             Console.WriteLine($"  Will expand namespace: {lChild.Name}")
+                            #End If
                             
                             ' Only expand the first namespace if there are multiple
                             Exit for
@@ -1125,7 +1177,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ElseIf pRootNode.NodeType = CodeNodeType.eNamespace Then
                     ' Root is a namespace - expand it
                     lPathsToExpand.Add(pRootNode.Name)
+                    #If DEBUG Then
                     Console.WriteLine($"  Will expand root namespace: {pRootNode.Name}")
+                    #End If
                 End If
                 
                 ' Add the paths to the expanded set
@@ -1133,7 +1187,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                     pExpandedNodes.Add(lPath)
                 Next
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExpandRootOnly: Expanded {lPathsToExpand.Count} root node(s)")
+                #End If
                 
                 ' Rebuild the visual tree with the new expansion state
                 RebuildVisualTree()
@@ -1141,7 +1197,9 @@ Console.WriteLine($"SortAlphabetically  pVisibleNodesClear()")
                 ' Force redraw
                 pDrawingArea?.QueueDraw()
                 
+                #If DEBUG Then
                 Console.WriteLine($"ExpandRootOnly: Complete. {pVisibleNodes.Count} nodes visible")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"ExpandRootOnly error: {ex.Message}")

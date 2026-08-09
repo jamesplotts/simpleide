@@ -31,7 +31,9 @@ Partial Public Class MainWindow
             ' 3. Raise IdentifierMapUpdated event
             ' 4. Trigger re-parsing of affected files
             
+            #If DEBUG Then
             Console.WriteLine($"Identifier case changed: {vOldCase} -> {vNewCase}")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnEditorIdentifierCaseChanged error: {ex.Message}")
@@ -71,7 +73,9 @@ Partial Public Class MainWindow
                 lEditor.QueueDraw()
             Next
             
+            #If DEBUG Then
             Console.WriteLine($"Updated {pOpenTabs.Count} editors with {lIdentifierMap.Count} identifier cases")
+            #End If
             
         Catch ex As Exception
             Console.WriteLine($"OnProjectManagerIdentifierMapUpdated error: {ex.Message}")

@@ -82,7 +82,9 @@ Namespace Utilities
                         Return StoreInEncryptedFile(vService, vAccount, vPassword)
                         
                     Case Else
+                        #If DEBUG Then
                         Console.WriteLine("No credential storage method available")
+                        #End If
                         Return False
                 End Select
                 

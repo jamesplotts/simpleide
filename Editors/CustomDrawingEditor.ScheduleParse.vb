@@ -37,12 +37,16 @@ Namespace Editors
         Private Function ValidateEditorState() As Boolean
             Try
                 If pSourceFileInfo Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ValidateEditorState: pSourceFileInfo is Nothing")
+                    #End If
                     Return False
                 End If
                 
                 If pSourceFileInfo.TextLines Is Nothing Then
+                    #If DEBUG Then
                     Console.WriteLine("ValidateEditorState: TextLines is Nothing")
+                    #End If
                     Return False
                 End If
                 
@@ -66,7 +70,9 @@ Namespace Editors
                 ' Update the dictionary
                 pIdentifierCaseMap(vOldCase) = vNewCase
                 
+                #If DEBUG Then
                 Console.WriteLine($"Updated identifier case: {vOldCase} -> {vNewCase}")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"UpdateIdentifierCaseMap error: {ex.Message}")
@@ -108,12 +114,16 @@ Namespace Editors
                     ' Update our local reference to the root node
                     pRootNode = pSourceFileInfo.SyntaxTree
                     
+                    #If DEBUG Then
                     Console.WriteLine($"NotifyParsingComplete: Updated pRootNode from SourceFileInfo for {pFilePath}")
+                    #End If
                 ElseIf pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.ParseResult IsNot Nothing Then
                     ' Alternative: Get from ParseResult if SyntaxTree not set
                     pRootNode = pSourceFileInfo.ParseResult
                     
+                    #If DEBUG Then
                     Console.WriteLine($"NotifyParsingComplete: Updated pRootNode from ParseResult for {pFilePath}")
+                    #End If
                 End If
                 
                 ' Only raise event if we have a valid root node
@@ -121,9 +131,13 @@ Namespace Editors
                     ' Notify listeners that parsing is complete
                     RaiseEvent DocumentParsed(pRootNode)
                     
+                    #If DEBUG Then
                     Console.WriteLine($"NotifyParsingComplete: Raised DocumentParsed event for {pFilePath}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"NotifyParsingComplete: No root node available for {pFilePath}")
+                    #End If
                 End If
                 
             Catch ex As Exception

@@ -151,9 +151,11 @@ Namespace Managers
                     pUsesAssemblyInfo = lAssemblyInfoExists
                 End If
                 
+#If DEBUG Then
                 Console.WriteLine($"Project style: {If(pIsSdkStyleProject, "SDK-style", "Classic")}, " &
                                 $"Uses AssemblyInfo: {pUsesAssemblyInfo}")
-                
+#End If
+
             Catch ex As Exception
                 Console.WriteLine($"DetectProjectStyle error: {ex.Message}")
                 ' Default to classic with AssemblyInfo
@@ -187,7 +189,9 @@ Namespace Managers
                 
                 If lModified Then
                     lDoc.Save(pProjectFile)
+                    #If DEBUG Then
                     Console.WriteLine("Version incremented in .vbproj")
+                    #End If
                     Return True
                 End If
                 
@@ -227,7 +231,9 @@ Namespace Managers
                         lNode.InnerText = lNewVersion.ToString()
                     End If
                     
+                    #If DEBUG Then
                     Console.WriteLine($"{vPropertyName} incremented to {lNode.InnerText}")
+                    #End If
                     Return True
                 End If
                 
@@ -257,7 +263,9 @@ Namespace Managers
                     Dim lVersionNode As XmlElement = vDoc.CreateElement("Version")
                     lVersionNode.InnerText = $"{vVersion.Major}.{vVersion.Minor}.{vVersion.Build}"
                     lPropertyGroup.AppendChild(lVersionNode)
+                    #If DEBUG Then
                     Console.WriteLine($"Created Version property: {lVersionNode.InnerText}")
+                    #End If
                     Return True
                 End If
                 
@@ -314,7 +322,9 @@ Namespace Managers
                 SetProjectProperty(lDoc, "FileVersion", vVersion.ToString())
                 
                 lDoc.Save(pProjectFile)
+                #If DEBUG Then
                 Console.WriteLine($"Version set to {vVersion} in .vbproj")
+                #End If
                 Return True
                 
             Catch ex As Exception
@@ -359,7 +369,9 @@ Namespace Managers
                 If Not File.Exists(lAssemblyInfoPath) Then
                     ' For projects that should use AssemblyInfo but don't have it,
                     ' fall back to .vbproj versioning
+                    #If DEBUG Then
                     Console.WriteLine("AssemblyInfo.vb not found - using .vbproj versioning")
+                    #End If
                     pUsesAssemblyInfo = False
                     Return IncrementVersionInProject()
                 End If
@@ -377,7 +389,9 @@ Namespace Managers
                 ' Save if modified
                 If lModified Then
                     File.WriteAllText(lAssemblyInfoPath, lContent)
+                    #If DEBUG Then
                     Console.WriteLine("Version incremented in AssemblyInfo.vb")
+                    #End If
                     Return True
                 End If
                 
@@ -424,7 +438,9 @@ Namespace Managers
                             vContent = vContent.Replace(lOldAttribute, lNewAttribute)
                             vModified = True
                             
+                            #If DEBUG Then
                             Console.WriteLine($"{vAttributeName} incremented to {lNewVersion}")
+                            #End If
                         End If
                     End If
                 End If
@@ -499,7 +515,9 @@ Namespace Managers
                 
                 If lModified Then
                     File.WriteAllText(lAssemblyInfoPath, lContent)
+                    #If DEBUG Then
                     Console.WriteLine($"Version set to {vVersion} in AssemblyInfo.vb")
+                    #End If
                     Return True
                 End If
                 
@@ -618,9 +636,13 @@ Namespace Managers
                     If File.Exists(vPath) Then
                         pManifestPath = vPath
                         pIsManifestEmbeddingEnabled = True
+                        #If DEBUG Then
                         Console.WriteLine($"Manifest path set: {vPath}")
+                        #End If
                     Else
+                        #If DEBUG Then
                         Console.WriteLine($"Manifest file not found: {vPath}")
+                        #End If
                         pManifestPath = String.Empty
                         pIsManifestEmbeddingEnabled = False
                     End If
@@ -628,7 +650,9 @@ Namespace Managers
                     ' Clear manifest path (disable embedding)
                     pManifestPath = String.Empty
                     pIsManifestEmbeddingEnabled = False
+                    #If DEBUG Then
                     Console.WriteLine("Manifest embedding disabled")
+                    #End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"SetManifestPath error: {ex.Message}")

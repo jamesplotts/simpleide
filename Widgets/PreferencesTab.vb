@@ -1891,7 +1891,9 @@ Namespace Widgets
             Try
                 Dim lIdeProjectPath As String = FindProjectFile()
                 If String.IsNullOrEmpty(lIdeProjectPath) Then
+                    #If DEBUG Then
                     Console.WriteLine("Project Not Found", "Could Not find *.vbproj")
+                    #End If
                     Return
                 End If
                 
@@ -1910,7 +1912,9 @@ Namespace Widgets
                     
                    
                 Else
+                    #If DEBUG Then
                     Console.WriteLine("Increment Failed", "Failed To increment Project version")
+                    #End If
                 End If
                 
             Catch ex As Exception
