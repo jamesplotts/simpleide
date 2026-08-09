@@ -73,8 +73,13 @@ Namespace Utilities
         ''' </summary>
         ''' <param name="vPrompt">The user's message</param>
         ''' <param name="vHistory">Prior turns in the conversation, oldest first</param>
+        ''' <param name="vOnChunk">If provided, the request streams and this is called with each
+        ''' incremental piece of response text as it arrives; artifact extraction and Mem0
+        ''' storage still happen once at the end against the complete accumulated text, exactly
+        ''' as they do without streaming - only how the text is delivered while in flight
+        ''' changes. Omit (or pass Nothing) for a plain non-streaming request.</param>
         ''' <returns>The provider's response, with any artifacts extracted</returns>
-        Public Async Function SendMessageWithArtifactsAsync(vPrompt As String, vHistory As List(Of ImprovedAIAssistantPanel.ChatMessage)) As Task(Of ClaudeResponse)
+        Public Async Function SendMessageWithArtifactsAsync(vPrompt As String, vHistory As List(Of ImprovedAIAssistantPanel.ChatMessage), Optional vOnChunk As Action(Of String) = Nothing) As Task(Of ClaudeResponse)
             Try
                 If pProvider Is Nothing Then
                     Throw New InvalidOperationException("No AI provider is configured. Set one up in Preferences > AI.")
@@ -94,7 +99,12 @@ Namespace Utilities
                     lHistory.Add(New AIChatMessage(lMsg.Role, lMsg.Content))
                 Next
 
-                Dim lResponseText As String = Await pProvider.SendMessageAsync(GetSystemPrompt(), lHistory, lEnhancedPrompt)
+                Dim lResponseText As String
+                If vOnChunk IsNot Nothing Then
+                    lResponseText = Await pProvider.SendMessageStreamingAsync(GetSystemPrompt(), lHistory, lEnhancedPrompt, vOnChunk)
+                Else
+                    lResponseText = Await pProvider.SendMessageAsync(GetSystemPrompt(), lHistory, lEnhancedPrompt)
+                End If
 
                 Dim lParsedResponse As New ClaudeResponse() With {
                     .Content = lResponseText,

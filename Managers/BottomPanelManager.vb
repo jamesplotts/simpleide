@@ -131,7 +131,9 @@ Namespace Managers
         ''' </summary>
         Public Sub Initialize()
             Try
+                #If DEBUG Then
                 Console.WriteLine("BottomPanelManager.Initialize: Starting")
+                #End If
                 
                 ' Create CustomDrawNotebook instead of regular Notebook
                 pNotebook = New CustomDrawNotebook(pThemeManager)
@@ -154,17 +156,29 @@ Namespace Managers
                 AddHandler lCustomNotebook.TabClosing, AddressOf OnTabClosing
                 
                 ' Create tabs using CustomDrawNotebook's AppendPage with icons
+                #If DEBUG Then
                 Console.WriteLine("  Creating Build Output tab")
+                #End If
                 CreateBuildOutputTab()
+                #If DEBUG Then
                 Console.WriteLine("  Creating Find Results tab")
+                #End If
                 CreateFindResultsTab()
+                #If DEBUG Then
                 Console.WriteLine("  Creating Todo List tab")
+                #End If
                 CreateTodoListTab()
+                #If DEBUG Then
                 Console.WriteLine("  Creating AI Assistant tab")
+                #End If
                 CreateAIAssistantTab()
+                #If DEBUG Then
                 Console.WriteLine("  Creating Git tab")
+                #End If
                 CreateGitTab()
+                #If DEBUG Then
                 Console.WriteLine("  Creating console log buffer (no tab)")
+                #End If
                 CreateConsoleTab()
                 
                 InitializeEscapeKeyHandling()
@@ -174,7 +188,9 @@ Namespace Managers
                 
                 ' Set the first tab as active
                 If lCustomNotebook.NPages > 0 Then
+                    #If DEBUG Then
                     Console.WriteLine($"  Setting tab 0 as current")
+                    #End If
                     lCustomNotebook.CurrentPage = 0
                 End If
                 
@@ -182,7 +198,9 @@ Namespace Managers
                 pNotebook.Visible = False
                 pIsVisible = False
                 
+                #If DEBUG Then
                 Console.WriteLine($"BottomPanelManager.Initialize: Completed with {lCustomNotebook.NPages} tabs")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.Initialize error: {ex.Message}")
@@ -232,7 +250,9 @@ Namespace Managers
                     AddHandler pConsoleTextView.KeyPressEvent, AddressOf OnPanelKeyPress
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("BottomPanelManager: ESC key handling initialized")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"InitializeEscapeKeyHandling error: {ex.Message}")
@@ -245,7 +265,9 @@ Namespace Managers
         ''' </summary>
         Private Sub CreateBuildOutputTab()
             Try
+                #If DEBUG Then
                 Console.WriteLine("CreateBuildOutputTab: Starting")
+                #End If
                 
                 ' Create the BuildOutputPanel
                 pBuildOutputPanel = New BuildOutputPanel(pThemeManager)
@@ -267,7 +289,9 @@ Namespace Managers
                 If TypeOf pNotebook Is CustomDrawNotebook Then
                     Dim lCustomNotebook As CustomDrawNotebook = DirectCast(pNotebook, CustomDrawNotebook)
                     Dim lIndex As Integer = lCustomNotebook.AppendPage(pBuildOutputPanel, "Build Output", "system-run")
+                    #If DEBUG Then
                     Console.WriteLine($"  Build Output tab added at index {lIndex}")
+                    #End If
                     
                     ' Ensure the panel is visible
                     pBuildOutputPanel.ShowAll()
@@ -275,7 +299,9 @@ Namespace Managers
                     pNotebook.AppendPage(pBuildOutputPanel, "Build Output")
                 End If
                 
+                #If DEBUG Then
                 Console.WriteLine("CreateBuildOutputTab: Completed")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"CreateBuildOutputTab error: {ex.Message}")
@@ -374,7 +400,9 @@ Namespace Managers
                     ' Mark event as handled
                     vArgs.RetVal = True
                     
+                    #If DEBUG Then
                     Console.WriteLine("BottomPanelManager: ESC pressed - hiding panel")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -409,7 +437,9 @@ Namespace Managers
                     HidePanel()
                     vArgs.RetVal = True
                     
+                    #If DEBUG Then
                     Console.WriteLine("BottomPanelManager: ESC pressed in TextView - hiding panel")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -430,7 +460,9 @@ Namespace Managers
                     HidePanel()
                     vArgs.RetVal = True
                     
+                    #If DEBUG Then
                     Console.WriteLine("BottomPanelManager: ESC pressed in TreeView - hiding panel")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -464,7 +496,9 @@ Namespace Managers
                     HidePanel()
                     vArgs.RetVal = True
                     
+                    #If DEBUG Then
                     Console.WriteLine("BottomPanelManager: ESC pressed in Entry - hiding panel")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -532,6 +566,7 @@ Namespace Managers
                     AIProviderFactory.CreateProvider(pSettingsManager), Nothing)
 
                 pAIAssistantPanel = New AIAssistantPanel(lProvider)
+                pAIAssistantPanel.SetSettingsManager(pSettingsManager)
 
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "chat")
@@ -697,7 +732,9 @@ Namespace Managers
         ''' <param name="vTabIndex">Index of the tab to show</param>
         Public Sub ShowTab(vTabIndex As Integer)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"ShowTab called with index: {vTabIndex}")
+                #End If
                 
                 If vTabIndex >= 0 AndAlso vTabIndex < pNotebook.NPages Then
                     ' First make sure the panel is visible
@@ -720,9 +757,13 @@ Namespace Managers
                     ' Make sure the panel is visible
                     IsVisible = True
                     
+                    #If DEBUG Then
                     Console.WriteLine($"ShowTab: Switched to tab {vTabIndex}")
+                    #End If
                 Else
+                    #If DEBUG Then
                     Console.WriteLine($"ShowTab: Invalid tab index {vTabIndex} (NPages={pNotebook.NPages})")
+                    #End If
                 End If
                 
             Catch ex As Exception
@@ -1044,7 +1085,9 @@ Namespace Managers
         Private Sub OnHidePanelRequested()
             Try
                 HidePanel()
+                #If DEBUG Then
                 Console.WriteLine("Bottom panel hide requested from CustomDrawNotebook")
+                #End If
             Catch ex As Exception
                 Console.WriteLine($"OnHidePanelRequested error: {ex.Message}")
             End Try
@@ -1057,7 +1100,9 @@ Namespace Managers
         ''' <param name="vNewIndex">New tab index</param>
         Private Sub OnTabSwitched(vOldIndex As Integer, vNewIndex As Integer)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"Bottom panel tab switched from {vOldIndex} to {vNewIndex}")
+                #End If
                 RaiseEvent TabChanged(vNewIndex)
                 
                 ' Special handling for specific tabs
@@ -1082,7 +1127,9 @@ Namespace Managers
         ''' <param name="vArgs">Event arguments containing tab information</param>
         Private Sub OnTabClosing(vSender As Object, vArgs As TabClosingEventArgs)
             Try
+                #If DEBUG Then
                 Console.WriteLine($"BottomPanelManager.OnTabClosing: Tab '{vArgs.TabLabel}' at index {vArgs.TabIndex} close button clicked")
+                #End If
                 
                 ' For the bottom panel, we want to hide the entire panel instead of removing individual tabs
                 ' So we mark the event as handled and hide the panel
@@ -1095,7 +1142,9 @@ Namespace Managers
                 ' Raise the PanelClosed event so MainWindow knows the panel was closed
                 RaiseEvent PanelClosed()
                 
+                #If DEBUG Then
                 Console.WriteLine("BottomPanelManager: Hiding panel via tab close button")
+                #End If
                 
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.OnTabClosing error: {ex.Message}")

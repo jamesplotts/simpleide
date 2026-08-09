@@ -35,6 +35,9 @@ Namespace Widgets
         Private pThemeManager As ThemeManager
         Private pChatViewCssProvider As CssProvider
         Private pPromptEntryCssProvider As CssProvider
+
+        ' Settings (used for the "Stream responses" preference)
+        Private pSettingsManager As SettingsManager
         
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
@@ -138,6 +141,13 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"AIAssistantPanel.SetThemeManager error: {ex.Message}")
             End Try
+        End Sub
+
+        ''' <summary>
+        ''' Wires up the shared SettingsManager, used to check the "Stream responses" preference
+        ''' </summary>
+        Public Sub SetSettingsManager(vSettingsManager As SettingsManager)
+            pSettingsManager = vSettingsManager
         End Sub
 
         ''' <summary>
@@ -426,30 +436,133 @@ Namespace Widgets
         Private Async Function ProcessAIRequest(vPrompt As String) As Task
             pIsProcessing = True
             UpdateUI()
-            
+
+            Dim lStreaming As Boolean = False
+
             Try
                 ' Add context about current state
                 Dim lContext As String = BuildContextPrompt()
                 Dim lFullPrompt As String = lContext & Environment.NewLine & Environment.NewLine & vPrompt
-                
-                ' Call the AI provider
-                Dim lResponse As AIChatClient.ClaudeResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
 
-                ' Parse response for actions
-                Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
+                ' "Stream responses" preference - defaults to on, matching the Preferences
+                ' checkbox's own default (see PreferencesTab.CreateAITab)
+                lStreaming = If(pSettingsManager Is Nothing, True, pSettingsManager.GetBoolean("AI.StreamResponses", True))
 
-                ' Execute actions if any
-                If lActions.Count > 0 Then
-                    Await ExecuteAIActions(lActions)
+                Dim lResponse As AIChatClient.ClaudeResponse
+
+                If lStreaming Then
+                    BeginStreamingAssistantMessage()
+                    lResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory, AddressOf OnStreamingChunkReceived)
+                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
+                    EndStreamingAssistantMessage(lResponse.Content, lActions)
+
+                    If lActions.Count > 0 Then
+                        Await ExecuteAIActions(lActions)
+                    End If
+                Else
+                    lResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
+                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
+                    AddAssistantMessage(lResponse.Content, lActions)
+
+                    If lActions.Count > 0 Then
+                        Await ExecuteAIActions(lActions)
+                    End If
                 End If
-                
+
             Catch ex As Exception
+                ' A streaming response that already started printing to the chat view still
+                ' needs its trailing newline/history entry closed off, even though it failed -
+                ' otherwise the next message would run on immediately after the partial text
+                If lStreaming AndAlso pStreamingMessageOpen Then
+                    EndStreamingAssistantMessage(pStreamingAccumulatedText.ToString(), Nothing)
+                End If
                 AddErrorMessage($"error: {ex.Message}")
             Finally
                 pIsProcessing = False
                 UpdateUI()
             End Try
         End Function
+
+        ' ===== Streaming Response Display =====
+
+        Private pStreamingMessageOpen As Boolean = False
+        Private pStreamingAccumulatedText As New StringBuilder()
+
+        ''' <summary>
+        ''' Inserts the "[HH:mm] Assistant:" header for a streaming response and leaves the
+        ''' cursor ready for incremental text - call once, before the streaming request starts
+        ''' </summary>
+        Private Sub BeginStreamingAssistantMessage()
+            Try
+                pStreamingAccumulatedText.Clear()
+                pStreamingMessageOpen = True
+
+                Dim lTimestamp As String = DateTime.Now.ToString("HH:mm")
+                Const lSenderName As String = "Assistant"
+                Dim lHeader As String = $"[{lTimestamp}] {lSenderName}:{Environment.NewLine}"
+
+                Dim lStartOffset As Integer = pChatBuffer.CharCount
+                pChatBuffer.PlaceCursor(pChatBuffer.EndIter)
+                pChatBuffer.InsertAtCursor(lHeader)
+
+                Dim lSenderStart As Integer = lStartOffset + lTimestamp.Length + 3 ' "[HH:mm] "
+                Dim lSenderEnd As Integer = lSenderStart + lSenderName.Length
+                pChatBuffer.ApplyTag("assistant", pChatBuffer.GetIterAtOffset(lSenderStart), pChatBuffer.GetIterAtOffset(lSenderEnd))
+
+                ScrollToBottom()
+
+            Catch ex As Exception
+                Console.WriteLine($"BeginStreamingAssistantMessage error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' IAIProvider.SendMessageStreamingAsync's per-chunk callback - appends the chunk to
+        ''' the chat view immediately. Marshaled through GLib.Idle.Add since the underlying
+        ''' HTTP/process read loop this is called from is not guaranteed to resume on the GTK
+        ''' main thread.
+        ''' </summary>
+        Private Sub OnStreamingChunkReceived(vChunk As String)
+            pStreamingAccumulatedText.Append(vChunk)
+            GLib.Idle.Add(Function()
+                Try
+                    pChatBuffer.PlaceCursor(pChatBuffer.EndIter)
+                    pChatBuffer.InsertAtCursor(vChunk)
+                    ScrollToBottom()
+                Catch ex As Exception
+                    Console.WriteLine($"OnStreamingChunkReceived error: {ex.Message}")
+                End Try
+                Return False
+            End Function)
+        End Sub
+
+        ''' <summary>
+        ''' Closes off a streaming response: adds the trailing blank line AddChatMessage would
+        ''' normally add, and records the complete text in pConversationHistory - call once,
+        ''' after the streaming request completes (successfully or not)
+        ''' </summary>
+        ''' <param name="vFullText">The complete accumulated response text</param>
+        ''' <param name="vActions">Actions parsed from the response, if any</param>
+        Private Sub EndStreamingAssistantMessage(vFullText As String, vActions As List(Of AIAction))
+            Try
+                pChatBuffer.PlaceCursor(pChatBuffer.EndIter)
+                pChatBuffer.InsertAtCursor(Environment.NewLine)
+
+                Dim lChatMessage As New ImprovedAIAssistantPanel.ChatMessage("assistant", vFullText)
+                If vActions IsNot Nothing Then
+                    lChatMessage.Actions = vActions
+                End If
+                pConversationHistory.Add(lChatMessage)
+
+                ScrollToBottom()
+
+            Catch ex As Exception
+                Console.WriteLine($"EndStreamingAssistantMessage error: {ex.Message}")
+            Finally
+                pStreamingMessageOpen = False
+                pStreamingAccumulatedText.Clear()
+            End Try
+        End Sub
         
         Private Function BuildContextPrompt() As String
             Dim lContext As New StringBuilder()

@@ -58,29 +58,7 @@ Namespace AI
 
         Public Async Function SendMessageAsync(vSystemPrompt As String, vHistory As List(Of AIChatMessage), vUserMessage As String) As Task(Of String) Implements IAIProvider.SendMessageAsync
             Try
-                Dim lMessages As New List(Of Object)
-
-                If Not String.IsNullOrEmpty(vSystemPrompt) Then
-                    lMessages.Add(New With {.role = "system", .content = vSystemPrompt})
-                End If
-
-                for each lMsg in vHistory
-                    lMessages.Add(New With {
-                        .role = lMsg.Role,
-                        .content = lMsg.Content
-                    })
-                Next
-
-                lMessages.Add(New With {.role = "user", .content = vUserMessage})
-
-                Dim lRequestBody As New With {
-                    .model = pModel,
-                    .messages = lMessages,
-                    .max_tokens = pMaxTokens,
-                    .temperature = pTemperature,
-                    .stream = False
-                }
-
+                Dim lRequestBody As Object = BuildRequestBody(vSystemPrompt, vHistory, vUserMessage, vStream:=False)
                 Dim lJson As String = JsonSerializer.Serialize(lRequestBody)
                 Dim lContent As New StringContent(lJson, Encoding.UTF8, "application/json")
 
@@ -95,6 +73,119 @@ Namespace AI
 
             Catch ex As Exception
                 Throw New Exception($"{pDisplayName} error: {ex.Message}", ex)
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Streams the response via the Chat Completions endpoint's SSE stream (stream: true),
+        ''' invoking vOnChunk for each delta as it arrives
+        ''' </summary>
+        ''' <remarks>
+        ''' SSE event shape (OpenAI Chat Completions streaming, also followed by OpenRouter and
+        ''' every local server tested - Ollama's /v1 shim, LM Studio, text-generation-webui,
+        ''' llama.cpp server, vLLM): "data: &lt;json&gt;" lines, each with
+        ''' choices[0].delta.content holding the next text fragment (absent/null on the final
+        ''' role-only chunk), terminated by a literal "data: [DONE]" line
+        ''' </remarks>
+        Public Async Function SendMessageStreamingAsync(vSystemPrompt As String, vHistory As List(Of AIChatMessage), vUserMessage As String, vOnChunk As Action(Of String)) As Task(Of String) Implements IAIProvider.SendMessageStreamingAsync
+            Try
+                Dim lRequestBody As Object = BuildRequestBody(vSystemPrompt, vHistory, vUserMessage, vStream:=True)
+                Dim lJson As String = JsonSerializer.Serialize(lRequestBody)
+
+                Dim lRequest As New HttpRequestMessage(HttpMethod.Post, pEndpoint)
+                lRequest.Content = New StringContent(lJson, Encoding.UTF8, "application/json")
+
+                Dim lResponse As HttpResponseMessage = Await pHttpClient.SendAsync(lRequest, HttpCompletionOption.ResponseHeadersRead)
+
+                If Not lResponse.IsSuccessStatusCode Then
+                    Dim lErrorText As String = Await lResponse.Content.ReadAsStringAsync()
+                    Throw New Exception($"{pDisplayName} error {lResponse.StatusCode}: {lErrorText}")
+                End If
+
+                Dim lFullText As New StringBuilder()
+
+                Using lStream As System.IO.Stream = Await lResponse.Content.ReadAsStreamAsync()
+                    Using lReader As New System.IO.StreamReader(lStream, Encoding.UTF8)
+                        Dim lLine As String = Await lReader.ReadLineAsync()
+                        While lLine IsNot Nothing
+                            If lLine.StartsWith("data:") Then
+                                Dim lDataJson As String = lLine.Substring(5).Trim()
+                                If lDataJson = "[DONE]" Then Exit While
+                                Dim lChunk As String = ExtractDeltaContent(lDataJson)
+                                If Not String.IsNullOrEmpty(lChunk) Then
+                                    lFullText.Append(lChunk)
+                                    vOnChunk(lChunk)
+                                End If
+                            End If
+                            lLine = Await lReader.ReadLineAsync()
+                        End While
+                    End Using
+                End Using
+
+                Return lFullText.ToString()
+
+            Catch ex As Exception
+                Throw New Exception($"{pDisplayName} error: {ex.Message}", ex)
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Builds the Chat Completions request body shared by streaming and non-streaming sends
+        ''' </summary>
+        Private Function BuildRequestBody(vSystemPrompt As String, vHistory As List(Of AIChatMessage), vUserMessage As String, vStream As Boolean) As Object
+            Dim lMessages As New List(Of Object)
+
+            If Not String.IsNullOrEmpty(vSystemPrompt) Then
+                lMessages.Add(New With {.role = "system", .content = vSystemPrompt})
+            End If
+
+            for each lMsg in vHistory
+                lMessages.Add(New With {
+                    .role = lMsg.Role,
+                    .content = lMsg.Content
+                })
+            Next
+
+            lMessages.Add(New With {.role = "user", .content = vUserMessage})
+
+            Return New With {
+                .model = pModel,
+                .messages = lMessages,
+                .max_tokens = pMaxTokens,
+                .temperature = pTemperature,
+                .stream = vStream
+            }
+        End Function
+
+        ''' <summary>
+        ''' Pulls choices[0].delta.content out of one SSE "data:" JSON payload - Nothing/empty
+        ''' if this chunk carries no text (e.g. the role-only first chunk, or a finish-reason-only
+        ''' last chunk)
+        ''' </summary>
+        Private Shared Function ExtractDeltaContent(vDataJson As String) As String
+            Try
+                If String.IsNullOrEmpty(vDataJson) Then Return ""
+
+                Using lDoc As JsonDocument = JsonDocument.Parse(vDataJson)
+                    Dim lRoot As JsonElement = lDoc.RootElement
+                    Dim lChoicesElement As JsonElement = Nothing
+                    If Not lRoot.TryGetProperty("choices", lChoicesElement) Then Return ""
+                    If lChoicesElement.ValueKind <> JsonValueKind.Array OrElse lChoicesElement.GetArrayLength() = 0 Then Return ""
+
+                    Dim lFirstChoice As JsonElement = lChoicesElement(0)
+                    Dim lDeltaElement As JsonElement = Nothing
+                    If Not lFirstChoice.TryGetProperty("delta", lDeltaElement) Then Return ""
+
+                    Dim lContentElement As JsonElement = Nothing
+                    If Not lDeltaElement.TryGetProperty("content", lContentElement) Then Return ""
+                    If lContentElement.ValueKind <> JsonValueKind.String Then Return ""
+
+                    Return lContentElement.GetString()
+                End Using
+
+            Catch ex As Exception
+                ' Malformed/partial SSE data line - skip it rather than aborting the whole stream
+                Return ""
             End Try
         End Function
 

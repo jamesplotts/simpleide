@@ -99,6 +99,78 @@ Namespace AI
         End Function
 
         ''' <summary>
+        ''' Streams the response by reading the CLI's stdout as it's written rather than waiting
+        ''' for the process to exit, invoking vOnChunk with each buffer of text as it arrives
+        ''' </summary>
+        ''' <remarks>
+        ''' Stays with --output-format text (the same format SendMessageAsync already uses
+        ''' successfully) rather than switching to an --output-format stream-json event schema
+        ''' that isn't authoritatively documented here - guessing at that shape risks silently
+        ''' mis-parsing it. Plain text output is still genuinely incremental: the CLI flushes
+        ''' stdout as it generates text, so reading the stream as it arrives (instead of
+        ''' Await-ing ReadToEndAsync, which only returns once the process closes stdout) gives
+        ''' real streamed chunks, just without token-level event boundaries
+        ''' </remarks>
+        Public Async Function SendMessageStreamingAsync(vSystemPrompt As String, vHistory As List(Of AIChatMessage), vUserMessage As String, vOnChunk As Action(Of String)) As Task(Of String) Implements IAIProvider.SendMessageStreamingAsync
+            Try
+                Dim lPrompt As String = BuildFlattenedPrompt(vSystemPrompt, vHistory, vUserMessage)
+
+                Dim lStartInfo As New ProcessStartInfo()
+                lStartInfo.FileName = pExecutablePath
+                lStartInfo.ArgumentList.Add("-p")
+                lStartInfo.ArgumentList.Add(lPrompt)
+                lStartInfo.ArgumentList.Add("--output-format")
+                lStartInfo.ArgumentList.Add("text")
+                If Not String.IsNullOrWhiteSpace(pModel) Then
+                    lStartInfo.ArgumentList.Add("--model")
+                    lStartInfo.ArgumentList.Add(pModel)
+                End If
+                If Not String.IsNullOrEmpty(pWorkingDirectory) Then
+                    lStartInfo.WorkingDirectory = pWorkingDirectory
+                End If
+                lStartInfo.UseShellExecute = False
+                lStartInfo.RedirectStandardOutput = True
+                lStartInfo.RedirectStandardError = True
+                lStartInfo.CreateNoWindow = True
+
+                Using lProcess As New Process()
+                    lProcess.StartInfo = lStartInfo
+
+                    Try
+                        lProcess.Start()
+                    Catch ex As Exception
+                        Throw New Exception($"Could not start the Claude Code CLI ('{pExecutablePath}') - is it installed and on PATH? {ex.Message}", ex)
+                    End Try
+
+                    Dim lErrorTask As Task(Of String) = lProcess.StandardError.ReadToEndAsync()
+
+                    Dim lFullOutput As New StringBuilder()
+                    Dim lBuffer(4095) As Char
+                    Dim lStdOut As System.IO.StreamReader = lProcess.StandardOutput
+                    Dim lCharsRead As Integer = Await lStdOut.ReadAsync(lBuffer, 0, lBuffer.Length)
+                    While lCharsRead > 0
+                        Dim lChunk As String = New String(lBuffer, 0, lCharsRead)
+                        lFullOutput.Append(lChunk)
+                        vOnChunk(lChunk)
+                        lCharsRead = Await lStdOut.ReadAsync(lBuffer, 0, lBuffer.Length)
+                    End While
+
+                    Await Task.Run(Sub() lProcess.WaitForExit())
+                    Dim lError As String = Await lErrorTask
+
+                    If lProcess.ExitCode <> 0 Then
+                        Throw New Exception($"Claude Code CLI exited with code {lProcess.ExitCode}: {If(String.IsNullOrWhiteSpace(lError), lFullOutput.ToString(), lError)}")
+                    End If
+
+                    Return lFullOutput.ToString().Trim()
+                End Using
+
+            Catch ex As Exception
+                Throw New Exception($"Claude Code CLI error: {ex.Message}", ex)
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Flattens the system prompt, prior turns, and the new message into a single prompt
         ''' string, since each CLI invocation here is an independent process with no memory of
         ''' earlier calls
