@@ -584,15 +584,17 @@ Namespace Editors
                         CommitCodeSenseSelection()
                         Return True
 
-                    Case Gdk.Key.space, Gdk.Key.period, Gdk.Key.parenleft, Gdk.Key.parenright
+                    Case Gdk.Key.space, Gdk.Key.period, Gdk.Key.parenleft, Gdk.Key.parenright, Gdk.Key.comma
                         ' "Commit characters" - accept the highlighted suggestion, then let
-                        ' the space/period/"("/")" itself still reach normal character handling
-                        ' below (so "Str" + space completes to "String " and "Str" + "."
+                        ' the space/period/"("/")"/"," itself still reach normal character
+                        ' handling below (so "Str" + space completes to "String " and "Str" + "."
                         ' completes to "String." and immediately opens member-list for it,
                         ' "CodeSense" + "(" completes to "CodeSenseEngine(" instead of leaving
-                        ' the word unfinished and inserting "(" into the middle of it, and
+                        ' the word unfinished and inserting "(" into the middle of it,
                         ' "vData As TokenT" + ")" completes to "vData As TokenType)" instead of
-                        ' leaving "TokenT)" behind with the popup still open).
+                        ' leaving "TokenT)" behind with the popup still open, and "vData As
+                        ' tokenty" + "," (moving on to the next parameter) completes to "vData
+                        ' As TokenType," instead of leaving "tokenty," behind).
                         ' Only commit if the highlight actually matches what was typed - see
                         ' CodeSenseSelectionMatchesTypedWord - otherwise just dismiss the popup
                         ' and let the character insert normally, so an unmatched brand-new
