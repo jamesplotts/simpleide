@@ -74,6 +74,13 @@ Namespace Editors
                     Case String.Equals(lKeyword, "Sub", StringComparison.OrdinalIgnoreCase)
                         If IsInsideInterfaceBlock(vCompletedLineIndex, lIndent) Then Return False
                         If LineAlreadyClosesBlock(lCode, "End") Then Return False
+                        ' Fix an unbalanced "(" (e.g. the closing paren got deleted) regardless
+                        ' of whether a body/End also gets inserted below - a real syntax problem
+                        ' worth correcting either way, and grounded in the actual live line text
+                        ' rather than the parsed tree DeclarationAlreadyHasClosingStatement reads
+                        ' next, which can lag behind (async parsing) or reflect a stale valid
+                        ' state from before the paren was deleted
+                        EnsureClosingParen(vCompletedLineIndex)
                         If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Sub")
                         Return True
@@ -81,6 +88,9 @@ Namespace Editors
                     Case String.Equals(lKeyword, "Function", StringComparison.OrdinalIgnoreCase)
                         If IsInsideInterfaceBlock(vCompletedLineIndex, lIndent) Then Return False
                         If LineAlreadyClosesBlock(lCode, "End") Then Return False
+                        ' See the Sub case's comment above for why this runs before the
+                        ' tree-based closing-statement check
+                        EnsureClosingParen(vCompletedLineIndex)
                         If DeclarationAlreadyHasClosingStatement(vCompletedLineIndex) Then Return False
                         InsertSimpleBody(vCompletedLineIndex, lIndent, lBodyIndent, "End Function")
                         Return True
@@ -374,6 +384,38 @@ Namespace Editors
             Next
             Return False
         End Function
+
+        ''' <summary>
+        ''' If vLineIndex's line has more "(" than ")" - e.g. the user deleted the closing
+        ''' paren of a Sub/Function's own parameter list and then pressed Enter to complete
+        ''' it - appends the missing closing paren(s) to the end of the line before the
+        ''' auto-End body gets generated, so the resulting signature is syntactically valid
+        ''' instead of permanently missing its close
+        ''' </summary>
+        ''' <param name="vLineIndex">0-based index of the declaration line to check/fix</param>
+        Private Sub EnsureClosingParen(vLineIndex As Integer)
+            Try
+                Dim lLineText As String = TextLines(vLineIndex)
+                Dim lStripped As String = StripLineComment(lLineText)
+
+                Dim lOpenCount As Integer = lStripped.Count(Function(c) c = "("c)
+                Dim lCloseCount As Integer = lStripped.Count(Function(c) c = ")"c)
+                If lOpenCount <= lCloseCount Then Return
+
+                Dim lClosers As String = New String(")"c, lOpenCount - lCloseCount)
+                Dim lInsertColumn As Integer = lLineText.Length
+
+                If pUndoRedoManager IsNot Nothing Then
+                    Dim lPos As New EditorPosition(vLineIndex, lInsertColumn)
+                    pUndoRedoManager.RecordInsertText(lPos, lClosers, New EditorPosition(vLineIndex, lInsertColumn + lClosers.Length))
+                End If
+
+                pSourceFileInfo.InsertText(vLineIndex, lInsertColumn, lClosers)
+
+            Catch ex As Exception
+                Console.WriteLine($"EnsureClosingParen error: {ex.Message}")
+            End Try
+        End Sub
 
         ''' <summary>
         ''' True if the declaration (Class/Module/Namespace/Structure/Interface/Enum/Sub/
