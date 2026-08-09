@@ -68,22 +68,6 @@ Namespace Widgets
             End Try
         End Sub    
   
-        Private Sub OnReplaceEntryKeyPress(vSender As Object, vArgs As KeyPressEventArgs)
-            Try
-                Select Case vArgs.Event.Key
-                    Case Gdk.Key.Return, Gdk.Key.KP_Enter
-                        ' Enter in replace field - perform replace and find next
-                        If pReplaceButton.Sensitive Then
-                            OnReplace(Nothing, Nothing)
-                        End If
-                        vArgs.RetVal = True
-                End Select
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnReplaceEntryKeyPress error: {ex.Message}")
-            End Try
-        End Sub
-        
         Private Sub OnFindEntryChanged(vSender As Object, vE As EventArgs)
             Try
                 ' Update button states when find text changes

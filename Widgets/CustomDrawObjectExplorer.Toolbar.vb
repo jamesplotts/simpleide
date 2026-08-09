@@ -448,18 +448,6 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles search text changes
-        ''' </summary>
-        Private Sub OnSearchTextChanged(vSender As Object, vE As EventArgs)
-            Try
-                pSearchText = pSearchEntry.Text.Trim()
-                PerformSearch()
-            Catch ex As Exception
-                Console.WriteLine($"OnSearchTextChanged error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Handles search activation (Enter pressed) - expands and navigates to found node
         ''' </summary>
         Private Sub OnSearchActivated(vSender As Object, vE As EventArgs)
@@ -657,39 +645,6 @@ Namespace Widgets
 
             Catch ex As Exception
                 Console.WriteLine($"OnSearchKeyPress error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handles search stopped (Escape pressed)
-        ''' </summary>
-        Private Sub OnSearchStopped(vSender As Object, vE As EventArgs)
-            Try
-                ClearSearch()
-            Catch ex As Exception
-                Console.WriteLine($"OnSearchStopped error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handles navigate to next search result
-        ''' </summary>
-        Private Sub OnSearchNext(vSender As Object, vE As EventArgs)
-            Try
-                NavigateToNextSearchResult()
-            Catch ex As Exception
-                Console.WriteLine($"OnSearchNext error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handles navigate to previous search result
-        ''' </summary>
-        Private Sub OnSearchPrevious(vSender As Object, vE As EventArgs)
-            Try
-                NavigateToPreviousSearchResult()
-            Catch ex As Exception
-                Console.WriteLine($"OnSearchPrevious error: {ex.Message}")
             End Try
         End Sub
         

@@ -1037,54 +1037,6 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles right-click on theme list
-        ''' </summary>
-        Private Sub OnThemeListButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
-            Try
-                ' Check for right-click
-                If vArgs.Event.Button <> 3 Then Return
-                
-'                ' Get selected row
-'                Dim lSelectedRow As ListBoxRow = pThemeListBox.SelectedRow
-'                If lSelectedRow Is Nothing Then Return
-                'Dim lIndex As Integer = pPropertyListBox.SelectedIndex()
-
-                Dim lSelectedItem As ListBoxItem = pThemeListBox.SelectedItem
-                If lSelectedItem Is Nothing Then Return
-                
-                Dim lThemeName As String =  lSelectedItem.Text
-                If String.IsNullOrEmpty(lThemeName) Then Return
-                
-                ' Check if it's a custom theme
-                Dim lIsCustom As Boolean = IsCustomTheme(lThemeName)
-                
-                ' Update menu items sensitivity
-                for each lItem As Widget in pThemeContextMenu.Children
-                    If TypeOf lItem Is MenuItem Then
-                        Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
-                        Select Case lMenuItem.Label
-                            Case "Delete Theme"
-                                ' Can only delete custom themes
-                                lMenuItem.Sensitive = lIsCustom
-                            Case "Copy Theme"
-                                ' Can copy any theme
-                                lMenuItem.Sensitive = True
-                        End Select
-                    End If
-                Next
-                
-                ' Show context menu
-                pThemeContextMenu.PopupAtPointer(vArgs.Event)
-                
-                ' Mark as handled
-                vArgs.RetVal = True
-                
-            Catch ex As Exception
-                Console.WriteLine($"ThemeEditor.OnThemeListButtonPress error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
         ''' Handles delete theme from context menu
         ''' </summary>
         Private Sub OnContextMenuDeleteTheme(vSender As Object, vArgs As EventArgs)
@@ -1459,22 +1411,6 @@ Namespace Widgets
                 Return "#000000"
             End Try
         End Function
-
-        ''' <summary>
-        ''' Handles right-click on property list to disable context menu
-        ''' </summary>
-        Private Sub OnPropertyListButtonPress(vSender As Object, vArgs As ButtonPressEventArgs)
-            Try
-                ' Check for right-click
-                If vArgs.Event.Button = 3 Then
-                    ' Consume the event to prevent default context menu
-                    vArgs.RetVal = True
-                End If
-                
-            Catch ex As Exception
-                Console.WriteLine($"ThemeEditor.OnPropertyListButtonPress error: {ex.Message}")
-            End Try
-        End Sub
 
         ''' <summary>
         ''' Handle context menu request for themes
