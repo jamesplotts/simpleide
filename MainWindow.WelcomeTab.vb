@@ -80,12 +80,13 @@ Partial Public Class MainWindow
             If pSettingsManager IsNot Nothing Then
                 Dim lRecentFiles As List(Of String) = pSettingsManager.GetRecentFiles()
                 If lRecentFiles IsNot Nothing AndAlso lRecentFiles.Count > 0 Then
-                    ' Filter to only existing files and limit to 10
+                    ' Filter to only existing files and limit to the configured count
+                    Dim lMaxRecentFiles As Integer = pSettingsManager.GetInteger("General.RecentFilesCount", 10)
                     Dim lValidRecentFiles As New List(Of String)()
                     for each lFile As String in lRecentFiles
                         If File.Exists(lFile) Then
                             lValidRecentFiles.Add(lFile)
-                            If lValidRecentFiles.Count >= 10 Then
+                            If lValidRecentFiles.Count >= lMaxRecentFiles Then
                                 Exit for
                             End If
                         End If
@@ -224,12 +225,13 @@ Partial Public Class MainWindow
                         If pSettingsManager IsNot Nothing Then
                             Dim lRecentFiles As List(Of String) = pSettingsManager.GetRecentFiles()
                             If lRecentFiles IsNot Nothing Then
-                                ' Filter to only existing files
+                                ' Filter to only existing files, limited to the configured count
+                                Dim lMaxRecentFiles As Integer = pSettingsManager.GetInteger("General.RecentFilesCount", 10)
                                 Dim lValidRecentFiles As New List(Of String)()
                                 For Each lFile As String In lRecentFiles
                                     If File.Exists(lFile) Then
                                         lValidRecentFiles.Add(lFile)
-                                        If lValidRecentFiles.Count >= 10 Then
+                                        If lValidRecentFiles.Count >= lMaxRecentFiles Then
                                             Exit For
                                         End If
                                     End If
