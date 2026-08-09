@@ -6,6 +6,7 @@ Imports System.Collections.Generic
 Imports System.IO
 Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
+Imports SimpleIDE.Managers
 
 Namespace Widgets
     
@@ -469,15 +470,147 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Shows a minimal read-only properties view for the selected node - full path,
+        ''' size/dates and a toggleable read-only flag for a file, or path/project-count
+        ''' summary for a project/solution root
+        ''' </summary>
         Private Sub OnContextMenuProperties(vSender As Object, vArgs As EventArgs)
             Try
-                ' TODO: Implement properties dialog
-                Console.WriteLine("Properties Not yet implemented")
+                If pSelectedNode?.Node Is Nothing Then Return
+                Dim lNode As ProjectNode = pSelectedNode.Node
+
+                Dim lDialog As New Dialog($"{lNode.Name} Properties",
+                                        GetTopLevelWindow(),
+                                        DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+                lDialog.SetDefaultSize(420, -1)
+                lDialog.AddButton("Close", CInt(ResponseType.Close))
+
+                Dim lGrid As New Grid()
+                lGrid.RowSpacing = 8
+                lGrid.ColumnSpacing = 12
+                lGrid.BorderWidth = 12
+                Dim lRow As Integer = 0
+
+                Dim lReadOnlyCheck As CustomDrawCheckBox = Nothing
+
+                If lNode.NodeType = ProjectNodeType.eProject OrElse lNode.NodeType = ProjectNodeType.eSolution Then
+                    AddPropertyRow(lGrid, lRow, "Name:", lNode.Name)
+                    AddPropertyRow(lGrid, lRow, "Path:", lNode.Path)
+                    AddPropertyRow(lGrid, lRow, "Type:", If(lNode.NodeType = ProjectNodeType.eSolution, "Solution", "Project"))
+
+                    If lNode.NodeType = ProjectNodeType.eSolution AndAlso pSolutionManager IsNot Nothing Then
+                        AddPropertyRow(lGrid, lRow, "Projects:", pSolutionManager.AllProjects.Count.ToString())
+                    Else
+                        Dim lOwningProject As ProjectManager = If(pSolutionManager?.GetProjectManager(lNode.Path), pProjectManager)
+                        If lOwningProject IsNot Nothing AndAlso lOwningProject.SourceFiles IsNot Nothing Then
+                            AddPropertyRow(lGrid, lRow, "Source files:", lOwningProject.SourceFiles.Count.ToString())
+                        End If
+                    End If
+                Else
+                    Dim lIsDirectory As Boolean = Not lNode.IsFile
+                    AddPropertyRow(lGrid, lRow, "Name:", lNode.Name)
+                    AddPropertyRow(lGrid, lRow, "Path:", lNode.Path)
+                    AddPropertyRow(lGrid, lRow, "Type:", If(lIsDirectory, "Folder", DescribeFileType(lNode)))
+
+                    If lIsDirectory Then
+                        If Directory.Exists(lNode.Path) Then
+                            Dim lDirInfo As New DirectoryInfo(lNode.Path)
+                            AddPropertyRow(lGrid, lRow, "Modified:", lDirInfo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"))
+                        End If
+                    ElseIf File.Exists(lNode.Path) Then
+                        Dim lFileInfo As New FileInfo(lNode.Path)
+                        AddPropertyRow(lGrid, lRow, "Size:", FormatFileSize(lFileInfo.Length))
+                        AddPropertyRow(lGrid, lRow, "Created:", lFileInfo.CreationTime.ToString("yyyy-MM-dd HH:mm:ss"))
+                        AddPropertyRow(lGrid, lRow, "Modified:", lFileInfo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"))
+
+                        lReadOnlyCheck = New CustomDrawCheckBox("Read-only")
+                        lReadOnlyCheck.ThemeManager = pThemeManager
+                        lReadOnlyCheck.Active = lFileInfo.IsReadOnly
+                        lGrid.Attach(lReadOnlyCheck, 1, lRow, 1, 1)
+                        lRow += 1
+                    Else
+                        AddPropertyRow(lGrid, lRow, "Status:", "Not found on disk")
+                    End If
+                End If
+
+                lDialog.ContentArea.PackStart(lGrid, True, True, 0)
+                lDialog.ShowAll()
+                lDialog.Run()
+
+                ' Apply the read-only toggle (if shown) on close - the checkbox only exists
+                ' for a real on-disk file, matching the branch above that created it
+                If lReadOnlyCheck IsNot Nothing AndAlso File.Exists(lNode.Path) Then
+                    Try
+                        Dim lFileInfo As New FileInfo(lNode.Path)
+                        If lReadOnlyCheck.Active <> lFileInfo.IsReadOnly Then
+                            If lReadOnlyCheck.Active Then
+                                File.SetAttributes(lNode.Path, File.GetAttributes(lNode.Path) Or FileAttributes.ReadOnly)
+                            Else
+                                File.SetAttributes(lNode.Path, File.GetAttributes(lNode.Path) And Not FileAttributes.ReadOnly)
+                            End If
+                        End If
+                    Catch exAttr As Exception
+                        Console.WriteLine($"OnContextMenuProperties: Failed to update read-only attribute: {exAttr.Message}")
+                    End Try
+                End If
+
+                lDialog.Destroy()
 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuProperties error: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Appends a "Label: value" row to a properties Grid, incrementing vRow
+        ''' </summary>
+        Private Sub AddPropertyRow(vGrid As Grid, ByRef vRow As Integer, vLabel As String, vValue As String)
+            Dim lLabelWidget As New Label(vLabel)
+            lLabelWidget.Halign = Align.End
+            vGrid.Attach(lLabelWidget, 0, vRow, 1, 1)
+
+            Dim lValueWidget As New Label(vValue)
+            lValueWidget.Halign = Align.Start
+            lValueWidget.Selectable = True
+            lValueWidget.LineWrap = True
+            lValueWidget.MaxWidthChars = 40
+            vGrid.Attach(lValueWidget, 1, vRow, 1, 1)
+
+            vRow += 1
+        End Sub
+
+        ''' <summary>
+        ''' Human-readable file-type label derived from the node's own type classification
+        ''' </summary>
+        Private Function DescribeFileType(vNode As ProjectNode) As String
+            Select Case vNode.NodeType
+                Case ProjectNodeType.eVBFile : Return "Visual Basic Source File"
+                Case ProjectNodeType.eXMLFile : Return "XML File"
+                Case ProjectNodeType.eTextFile : Return "Text File"
+                Case ProjectNodeType.eConfigFile : Return "Configuration File"
+                Case ProjectNodeType.eResourceFile : Return "Resource File"
+                Case ProjectNodeType.eImageFile : Return "Image File"
+                Case ProjectNodeType.eManifest : Return "Assembly Manifest"
+                Case ProjectNodeType.eReference : Return "Reference"
+                Case Else : Return "File"
+            End Select
+        End Function
+
+        ''' <summary>
+        ''' Formats a byte count as a human-readable size (B/KB/MB/GB)
+        ''' </summary>
+        Private Function FormatFileSize(vBytes As Long) As String
+            Dim lUnits() As String = {"B", "KB", "MB", "GB"}
+            Dim lSize As Double = vBytes
+            Dim lUnitIndex As Integer = 0
+            While lSize >= 1024 AndAlso lUnitIndex < lUnits.Length - 1
+                lSize /= 1024
+                lUnitIndex += 1
+            End While
+            If lUnitIndex = 0 Then Return $"{vBytes:N0} bytes"
+            Return $"{lSize:N1} {lUnits(lUnitIndex)} ({vBytes:N0} bytes)"
+        End Function
 
         ''' <summary>
         ''' Handles the "Solution Settings..." context menu item click
