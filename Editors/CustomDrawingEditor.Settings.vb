@@ -504,6 +504,13 @@ Namespace Editors
                         ' Visual settings changed - redraw
                         Console.WriteLine($"{vSettingName} changed: Redrawing")
                         pDrawingArea?.QueueDraw()
+
+                    Case "UndoHistorySize"
+                        ' Undo stack cap changed - apply immediately (EnforceStackLimit trims
+                        ' if shrinking; growing just raises the ceiling for future pushes)
+                        If pUndoRedoManager IsNot Nothing Then
+                            pUndoRedoManager.MaxStackSize = CInt(vNewValue)
+                        End If
                         
                     Case "CurrentTheme"
                         ' Theme changed - update colors and redraw

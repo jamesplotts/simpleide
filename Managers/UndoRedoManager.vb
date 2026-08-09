@@ -17,10 +17,34 @@ Namespace Managers
         Private pUndoStack As New Stack(Of UndoAction)()
         Private pRedoStack As New Stack(Of UndoAction)()
         Private pEditor As IEditor
-        Private pMaxStackSize As Integer = 100
+        ' 100 was far too small once every keystroke - not just every word/line - became its
+        ' own undo action (see BracketAutoClose/Keyboard.vb, which record one eInsert per
+        ' character typed): a single "Public Sub Foo(i As Integer)" declaration alone produces
+        ' 30-40 pushes, so a few lines of normal typing silently exceeded 100 and
+        ' EnforceStackLimit discarded the oldest entries - the start of what was typed -
+        ' making it permanently un-undoable and leaving stray leftover text once the (now
+        ' incomplete) history ran out. 10000 comfortably covers real editing sessions while
+        ' still bounding memory (each UndoAction is small - a handful of strings/positions).
+        ' Overridden per-editor from SettingsManager.UndoHistorySize - see
+        ' CustomDrawingEditor.UndoRedo.vb/InitializeUndoRedo and CustomDrawingEditor.Settings.vb/
+        ' OnSettingsZoomChanged's "UndoHistorySize" case - this is just the fallback used
+        ' before a SettingsManager is available (or if there isn't one)
+        Private pMaxStackSize As Integer = 10000
         Private pIsUndoingOrRedoing As Boolean = False
         Private pGroupingActions As Boolean = False
         Private pCurrentGroup As New List(Of UndoAction)()
+
+        ''' <summary>
+        ''' Nesting depth of Begin*/End* calls - only the OUTERMOST Begin call actually starts
+        ''' a new group (clearing pCurrentGroup) and only the OUTERMOST End call actually
+        ''' finalizes it (pushing it to the undo stack). Without this, a nested/re-entrant
+        ''' Begin call (or one left over from an earlier Begin whose matching End never fired -
+        ''' e.g. an exception or early Return on a call site not wrapped in Try/Finally) would
+        ''' unconditionally clear() whatever was already buffered, silently discarding every
+        ''' edit recorded since the leaked Begin - making all of it permanently un-undoable
+        ''' with no error or indication anything went wrong
+        ''' </summary>
+        Private pGroupDepth As Integer = 0
         
         ' ===== Properties =====
         
@@ -86,28 +110,76 @@ Namespace Managers
             pRedoStack.Clear()
             pCurrentGroup.Clear()
             pGroupingActions = False
-            
+
             ' Raise the state changed event
             RaiseStateChanged()
-        End Sub    
-    
+        End Sub
+
         ''' <summary>
-        ''' Begin grouping actions
+        ''' The undo action that was on top of the stack the last time the document was saved
+        ''' (or loaded) - Nothing means the clean point is an empty stack. Compared against by
+        ''' IsAtCleanPoint after every Undo/Redo so the editor's modified flag can be cleared
+        ''' when undoing lands back on exactly the saved state, not just left permanently True
+        ''' the instant anything was ever typed (see CustomDrawingEditor.UndoRedo.vb's Undo/Redo
+        ''' and CustomDrawingEditor.IO.vb's SaveContent/LoadContent, which call MarkClean())
+        ''' </summary>
+        Private pCleanMarkerAction As UndoAction = Nothing
+
+        ''' <summary>
+        ''' Marks the current top-of-undo-stack position as "clean" (matching saved content) -
+        ''' call after a successful save or load
+        ''' </summary>
+        Public Sub MarkClean()
+            pCleanMarkerAction = If(pUndoStack.Count > 0, pUndoStack.Peek(), Nothing)
+        End Sub
+
+        ''' <summary>
+        ''' True if the undo stack's current position matches the last MarkClean() call - i.e.
+        ''' undo/redo has navigated back to exactly the saved (or loaded) state
+        ''' </summary>
+        ''' <remarks>
+        ''' Reference comparison, not content comparison - undo/redo move the same UndoAction
+        ''' object between the undo and redo stacks rather than cloning it, so the object
+        ''' identity captured by MarkClean() survives any number of Undo()/Redo() round trips.
+        ''' It stops matching for good once a new edit is made after undoing past the clean
+        ''' point, since AddUndoAction discards the redo stack (and the marked action with it) -
+        ''' which is correct: the document really does differ from the saved state from then on
+        ''' </remarks>
+        Public ReadOnly Property IsAtCleanPoint As Boolean
+            Get
+                If pUndoStack.Count = 0 Then Return pCleanMarkerAction Is Nothing
+                Return pUndoStack.Peek() Is pCleanMarkerAction
+            End Get
+        End Property
+
+
+        ''' <summary>
+        ''' Begin grouping actions - safe to call while already grouping (e.g. nested inside
+        ''' another Begin*/End* pair, or if an earlier Begin's matching End never fired): only
+        ''' the OUTERMOST call actually starts a fresh group. See pGroupDepth.
         ''' </summary>
         Public Sub BeginGroup()
             If Not pIsUndoingOrRedoing Then
-                pGroupingActions = True
-                pCurrentGroup.Clear()
+                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginGroup: NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
+                If pGroupDepth = 0 Then
+                    pGroupingActions = True
+                    pCurrentGroup.Clear()
+                End If
+                pGroupDepth += 1
             End If
         End Sub
-        
+
         ''' <summary>
-        ''' End grouping actions
+        ''' End grouping actions - only the OUTERMOST matching call actually finalizes and
+        ''' pushes the group. See pGroupDepth.
         ''' </summary>
         Public Sub EndGroup()
-            If pGroupingActions AndAlso Not pIsUndoingOrRedoing Then
-                pGroupingActions = False
-                FinalizeGroup()
+            If pGroupDepth > 0 AndAlso Not pIsUndoingOrRedoing Then
+                pGroupDepth -= 1
+                If pGroupDepth = 0 Then
+                    pGroupingActions = False
+                    FinalizeGroup()
+                End If
             End If
         End Sub
 
@@ -126,6 +198,10 @@ Namespace Managers
         ''' search/replace-all, and several keyboard operations)
         ''' </remarks>
         Private Sub FinalizeGroup()
+            Console.WriteLine($"DIAG FinalizeGroup: count={pCurrentGroup.Count}")
+            for i As Integer = 0 To pCurrentGroup.Count - 1
+                Console.WriteLine($"DIAG FinalizeGroup: [{i}] {DescribeAction(pCurrentGroup(i))}")
+            Next
             If pCurrentGroup.Count = 0 Then Return
 
             If pCurrentGroup.Count = 1 Then
@@ -314,7 +390,10 @@ Namespace Managers
 
                 Dim lAction As UndoAction = pUndoStack.Pop()
 
+                Console.WriteLine($"DIAG Undo POP: {DescribeAction(lAction)}")
                 ApplyUndoAction(lAction)
+                Dim lCursorAfter As EditorPosition = pEditor.GetCursorPosition()
+                Console.WriteLine($"DIAG Undo AFTER-APPLY cursor=({lCursorAfter.Line},{lCursorAfter.Column})")
 
                 ' Add to redo stack
                 pRedoStack.Push(lAction)
@@ -370,9 +449,12 @@ Namespace Managers
 
                 Case UndoActionType.eGroup
                     If vAction.GroupedActions IsNot Nothing Then
+                        Console.WriteLine($"DIAG ApplyUndoAction: entering group of {vAction.GroupedActions.Count}")
                         for i As Integer = vAction.GroupedActions.Count - 1 To 0 Step -1
+                            Console.WriteLine($"DIAG ApplyUndoAction: group sub-action [{i}] {DescribeAction(vAction.GroupedActions(i))}")
                             ApplyUndoAction(vAction.GroupedActions(i))
                         Next
+                        Console.WriteLine("DIAG ApplyUndoAction: exiting group")
                     End If
 
             End Select
@@ -450,33 +532,62 @@ Namespace Managers
         ''' </summary>
         Private Sub AddUndoAction(vAction As UndoAction)
             If pIsUndoingOrRedoing Then Return
-            
+
+            Console.WriteLine($"DIAG AddUndoAction PUSH: {DescribeAction(vAction)}")
+
             ' Clear redo stack when new action is added
             pRedoStack.Clear()
-            
+
             ' Add to undo stack
             pUndoStack.Push(vAction)
-            
+
             ' Enforce stack size limit
             EnforceStackLimit()
         End Sub
+
+        ''' <summary>
+        ''' TEMP DIAGNOSTIC - one-line description of an action for undo/redo tracing
+        ''' </summary>
+        Private Function DescribeAction(vAction As UndoAction) As String
+            Try
+                If vAction Is Nothing Then Return "(null)"
+                Dim lTextPreview As String = If(vAction.Text, "").Replace(Environment.NewLine, "\n")
+                If lTextPreview.Length > 40 Then lTextPreview = lTextPreview.Substring(0, 40) & "..."
+                Dim lOldPreview As String = If(vAction.OldText, "").Replace(Environment.NewLine, "\n")
+                Dim lNewPreview As String = If(vAction.NewText, "").Replace(Environment.NewLine, "\n")
+                Dim lGroupInfo As String = If(vAction.GroupedActions IsNot Nothing, $" [group of {vAction.GroupedActions.Count}]", "")
+                Return $"Type={vAction.Type} Start=({vAction.StartPosition.Line},{vAction.StartPosition.Column}) End=({vAction.EndPosition.Line},{vAction.EndPosition.Column}) Cursor=({vAction.CursorPosition.Line},{vAction.CursorPosition.Column}) Text='{lTextPreview}' OldText='{lOldPreview}' NewText='{lNewPreview}'{lGroupInfo}"
+            Catch ex As Exception
+                Return $"(describe error: {ex.Message})"
+            End Try
+        End Function
         
         ''' <summary>
         ''' Enforce maximum stack size
         ''' </summary>
         Private Sub EnforceStackLimit()
             Try
-                ' Convert to array to preserve order
                 If pUndoStack.Count > pMaxStackSize Then
+                    ' Stack(Of T).ToArray() returns items in POP order - index 0 is the TOP
+                    ' (most recently pushed), the last index is the BOTTOM (oldest). The
+                    ' previous version of this code treated index 0 as the oldest (insertion
+                    ' order) instead, so it kept the OLDEST pMaxStackSize entries and discarded
+                    ' the most recent ones, then rebuilt the stack with those old entries back
+                    ' on top - meaning once any session's undo history exceeded pMaxStackSize
+                    ' (100) actions, the very next Undo() would silently pop a stale action from
+                    ' the START of the session instead of the actual last edit, with everything
+                    ' after that scrambled the same way. Keep indices [0, pMaxStackSize) - the
+                    ' actual most-recent entries - and push them back in REVERSE (oldest-of-the-
+                    ' kept-ones first, so it lands at the bottom; newest last, so it's back on
+                    ' top) to preserve the original top-to-bottom order.
                     Dim lActions() As UndoAction = pUndoStack.ToArray()
                     pUndoStack.Clear()
-                    
-                    ' Keep only the most recent actions
-                    For i As Integer = Math.Max(0, lActions.Length - pMaxStackSize) To lActions.Length - 1
+
+                    for i As Integer = Math.Min(pMaxStackSize, lActions.Length) - 1 To 0 Step -1
                         pUndoStack.Push(lActions(i))
                     Next
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"EnforceStackLimit error: {ex.Message}")
             End Try
@@ -547,50 +658,66 @@ Namespace Managers
 
 
         ''' <summary>
-        ''' Begin grouping multiple actions into a single undo operation
+        ''' Begin grouping multiple actions into a single undo operation - safe to call while
+        ''' already grouping (nested, or a leftover from an earlier Begin whose matching End
+        ''' never fired): only the OUTERMOST call actually starts a fresh group. See
+        ''' pGroupDepth. Always pair with EndUserAction() in a Try/Finally block.
         ''' </summary>
-        ''' <remarks>
-        ''' Use this when performing multiple operations that should be undone as a single unit.
-        ''' Always pair with EndUserAction() in a Try/Finally block.
-        ''' </remarks>
         Public Sub BeginUserAction()
             If Not pIsUndoingOrRedoing Then
-                pGroupingActions = True
-                pCurrentGroup.Clear()
+                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginUserAction(): NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
+                If pGroupDepth = 0 Then
+                    pGroupingActions = True
+                    pCurrentGroup.Clear()
+                End If
+                pGroupDepth += 1
             End If
         End Sub
-        
-        
+
+
         ' ===== Alternative Enhanced Version with UndoGroup =====
-        
+
         Private pCurrentUndoGroup As UndoGroup = Nothing
-        
+
         ''' <summary>
-        ''' Begin a user-defined action group with a specific type
+        ''' Begin a user-defined action group with a specific type - shares the same
+        ''' pGroupDepth nesting as the other Begin* overloads (pCurrentUndoGroup itself is
+        ''' just metadata for this specific overload's own outermost call, not part of the
+        ''' nesting/finalization decision)
         ''' </summary>
         ''' <param name="vGroupType">Type of group being created</param>
         Public Sub BeginUserAction(Optional vGroupType As UndoGroupType = UndoGroupType.eUserAction)
-            If Not pIsUndoingOrRedoing AndAlso pCurrentUndoGroup Is Nothing Then
-                pCurrentUndoGroup = New UndoGroup()
-                pCurrentUndoGroup.GroupType = vGroupType
-                pCurrentUndoGroup.StartTime = DateTime.Now
-                pGroupingActions = True
+            If Not pIsUndoingOrRedoing Then
+                If pGroupDepth > 0 Then Console.WriteLine($"DIAG BeginUserAction({vGroupType}): NESTED/LEAKED - depth was already {pGroupDepth}, {pCurrentGroup.Count} actions already buffered")
+                If pGroupDepth = 0 Then
+                    pCurrentUndoGroup = New UndoGroup()
+                    pCurrentUndoGroup.GroupType = vGroupType
+                    pCurrentUndoGroup.StartTime = DateTime.Now
+                    pGroupingActions = True
+                    pCurrentGroup.Clear()
+                End If
+                pGroupDepth += 1
             End If
         End Sub
-        
+
         ''' <summary>
-        ''' End action grouping and add to undo stack as a single group
+        ''' End action grouping and add to undo stack as a single group - only the OUTERMOST
+        ''' matching End call actually finalizes and pushes the group. See pGroupDepth.
         ''' </summary>
         ''' <remarks>
-        ''' This completes the grouping started by BeginUserAction().
-        ''' All actions recorded between Begin and End will be undone/redone together.
+        ''' This completes the grouping started by BeginUserAction() (either overload) or
+        ''' BeginGroup(). All actions recorded between Begin and End are undone/redone together
+        ''' as a single unit.
         ''' </remarks>
         Public Sub EndUserAction()
-            If pGroupingActions AndAlso Not pIsUndoingOrRedoing Then
-                pGroupingActions = False
-                FinalizeGroup()
-                pCurrentUndoGroup = Nothing
-                RaiseStateChanged()
+            If pGroupDepth > 0 AndAlso Not pIsUndoingOrRedoing Then
+                pGroupDepth -= 1
+                If pGroupDepth = 0 Then
+                    pGroupingActions = False
+                    FinalizeGroup()
+                    pCurrentUndoGroup = Nothing
+                    RaiseStateChanged()
+                End If
             End If
         End Sub
        

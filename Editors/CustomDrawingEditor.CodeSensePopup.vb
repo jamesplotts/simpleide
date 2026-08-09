@@ -525,6 +525,7 @@ Namespace Editors
                         lWordEnd += 1
                     End While
 
+                    Console.WriteLine($"DIAG CommitCodeSenseSelection: lInsertText='{lInsertText}' lWordStart={lWordStart} lWordEnd={lWordEnd} pCursorColumn={pCursorColumn}")
                     If lWordEnd > lWordStart Then
                         SetSelection(New EditorPosition(pCursorLine, lWordStart), New EditorPosition(pCursorLine, lWordEnd))
                     End If
@@ -600,6 +601,7 @@ Namespace Editors
                         ' and let the character insert normally, so an unmatched brand-new
                         ' identifier (e.g. a Sub/parameter name CodeSense doesn't know yet)
                         ' isn't clobbered by an unrelated leftover suggestion
+                        Console.WriteLine($"DIAG HandleCodeSensePopupKeyPress: commit-key vKey={vKey} matches={CodeSenseSelectionMatchesTypedWord()}")
                         If CodeSenseSelectionMatchesTypedWord() Then
                             CommitCodeSenseSelection()
                         Else

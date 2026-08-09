@@ -38,6 +38,7 @@ Namespace Widgets
         ' Editor tab controls
         Private pFontButton As FontButton
         Private pTabWidthSpin As SpinButton
+        Private pUndoHistorySizeSpin As SpinButton
         Private pUseTabsRadio As RadioButton
         Private pUseSpacesRadio As RadioButton
         Private pShowLineNumbersCheck As CheckButton
@@ -502,7 +503,20 @@ Namespace Widgets
             
             lTabFrame.Add(lTabBox)
             lBox.PackStart(lTabFrame, False, False, 0)
-            
+
+            ' Undo Settings
+            Dim lUndoFrame As New Frame("Undo Settings")
+            Dim lUndoBox As New Box(Orientation.Horizontal, 5)
+            lUndoBox.BorderWidth = 10
+
+            lUndoBox.PackStart(New Label("Undo history size:"), False, False, 0)
+            pUndoHistorySizeSpin = New SpinButton(100, 100000, 100)
+            AddHandler pUndoHistorySizeSpin.ValueChanged, AddressOf OnSettingChanged
+            lUndoBox.PackStart(pUndoHistorySizeSpin, False, False, 0)
+
+            lUndoFrame.Add(lUndoBox)
+            lBox.PackStart(lUndoFrame, False, False, 0)
+
             ' Display Settings
             Dim lDisplayFrame As New Frame("Display Settings")
             Dim lDisplayBox As New Box(Orientation.Vertical, 5)
@@ -1225,6 +1239,7 @@ Namespace Widgets
                 ' Editor
                 pFontButton.Font = pSettingsManager.EditorFont
                 pTabWidthSpin.Value = pSettingsManager.TabWidth
+                pUndoHistorySizeSpin.Value = pSettingsManager.UndoHistorySize
                 pUseTabsRadio.Active = pSettingsManager.UseTabs
                 pUseSpacesRadio.Active = Not pSettingsManager.UseTabs
                 pShowLineNumbersCheck.Active = pSettingsManager.ShowLineNumbers
@@ -1409,6 +1424,7 @@ Namespace Widgets
                 ' Editor
                 pSettingsManager.EditorFont = pFontButton.Font
                 pSettingsManager.TabWidth = CInt(pTabWidthSpin.Value)
+                pSettingsManager.UndoHistorySize = CInt(pUndoHistorySizeSpin.Value)
                 pSettingsManager.UseTabs = pUseTabsRadio.Active
                 pSettingsManager.ShowLineNumbers = pShowLineNumbersCheck.Active
                 pSettingsManager.HighlightCurrentLine = pHighlightCurrentLineCheck.Active

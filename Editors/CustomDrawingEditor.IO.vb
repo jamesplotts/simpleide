@@ -94,6 +94,7 @@ Public Function SaveContent() As Boolean Implements IEditor.SaveContent
         If lResult Then
             ' Update the editor's modified state to match SourceFileInfo
             IsModified = False
+            pUndoRedoManager?.MarkClean()
             Console.WriteLine($"CustomDrawingEditor.SaveContent: Saved and cleared modified flag for {pFilePath}")
         End If
         
@@ -134,6 +135,7 @@ Public Function LoadContent() As Boolean Implements IEditor.LoadContent
             ' Clear undo/redo history since we've reloaded from disk
             If pUndoRedoManager IsNot Nothing Then
                 pUndoRedoManager.Clear()
+                pUndoRedoManager.MarkClean()
                 RaiseEvent UndoRedoStateChanged(False, False)
             End If
             

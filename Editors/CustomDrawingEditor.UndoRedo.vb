@@ -19,6 +19,9 @@ Namespace Editors
         Private Sub InitializeUndoRedo()
             Try
                 pUndoRedoManager = New UndoRedoManager(Me)
+                If pSettingsManager IsNot Nothing Then
+                    pUndoRedoManager.MaxStackSize = pSettingsManager.UndoHistorySize
+                End If
                 AddHandler pUndoRedoManager.UndoRedoStateChanged, AddressOf OnUndoRedoStateChanged
             Catch ex As Exception
                 Console.WriteLine($"InitializeUndoRedo error: {ex.Message}")
@@ -57,6 +60,11 @@ Namespace Editors
                 ' Perform the actual undo if available
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.Undo()
+                    ' Undoing back to exactly the last saved/loaded position (see
+                    ' UndoRedoManager.MarkClean/IsAtCleanPoint) means the buffer matches disk
+                    ' again, not just "something was undone" - clear the modified flag rather
+                    ' than leaving it permanently True from the first edit onward
+                    IsModified = Not pUndoRedoManager.IsAtCleanPoint
                 End If
 
                 ' None of the low-level primitives Undo() drives (DeleteTextDirect,
@@ -82,6 +90,8 @@ Namespace Editors
 
                 If pUndoRedoManager IsNot Nothing Then
                     pUndoRedoManager.Redo()
+                    ' See the matching comment in Undo() above
+                    IsModified = Not pUndoRedoManager.IsAtCleanPoint
                 End If
 
                 ' Same reasoning as Undo - leave a plain cursor, not a stale selection

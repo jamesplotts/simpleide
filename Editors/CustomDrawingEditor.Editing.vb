@@ -261,6 +261,7 @@ Namespace Editors
                     ' Delete selection
                     DeleteSelection()
                 ElseIf pCursorColumn > 0 AndAlso IsBetweenAdjacentBracketPair(pCursorLine, pCursorColumn) Then
+                    Console.WriteLine($"DIAG HandleBackspace: SMART-PAIR at column={pCursorColumn}")
                     ' Smart pair backspace - deleting the opener of an adjacent empty pair
                     ' (e.g. "(|)", "[|]", "{|}", "|"|") also removes its matching closer,
                     ' instead of leaving an orphaned closer behind (see BracketAutoClose.vb,

@@ -358,7 +358,8 @@ Namespace Editors
                         If Not pIsReadOnly AndAlso vArgs.Event.KeyValue >= 32 AndAlso vArgs.Event.KeyValue < 127 AndAlso
                            (lModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
                             Dim lChar As Char = ChrW(vArgs.Event.KeyValue)
-                            
+                            Console.WriteLine($"DIAG KeyChar: lChar='{lChar}' KeyValue={vArgs.Event.KeyValue} lKey={lKey} pCursorColumn={pCursorColumn} pCodeSenseActive={pCodeSenseActive}")
+
                             Dim lReplacedSelection As Boolean = pHasSelection
                             If pHasSelection Then
                                 ' Delete selection first
