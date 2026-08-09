@@ -61,6 +61,18 @@ Namespace Editors
             "^(?:\s*(?:ByVal|ByRef|Optional|ParamArray)\b)*\s*$", RegexOptions.IgnoreCase)
 
         ''' <summary>
+        ''' The only keywords that can grammatically appear where a fresh parameter name is
+        ''' about to be typed (right after "(" or ", " in a declaration's own parameter list) -
+        ''' matches ParameterNameContextPattern's own modifier list. Checked first in
+        ''' SelectCodeSenseSuggestionBestMatch when IsTypingParameterName() is true, ahead of
+        ''' the general search, so a keyword that's contextually impossible here (e.g.
+        ''' "Option", valid only as a file-top Option Strict/Explicit/Compare/Infer statement)
+        ''' never wins over one that's actually valid (e.g. "Optional") just because it sorts
+        ''' first alphabetically and happens to also be a textual prefix match
+        ''' </summary>
+        Private Shared ReadOnly ParameterModifierKeywords As String() = {"ByVal", "ByRef", "Optional", "ParamArray"}
+
+        ''' <summary>
         ''' True if the cursor is currently positioned where a NEW name is being typed as part
         ''' of a declaration (Dim/field/Sub/Function/Property/Event/type/For-loop-variable),
         ''' rather than referencing something that already exists
@@ -405,7 +417,25 @@ Namespace Editors
                 ' Integer, opt" gets a phantom third parameter literally named "opt"), and
                 ' that exact match would otherwise beat a real completion like the "Optional"
                 ' keyword since exact matches are preferred over prefix matches below
-                Dim lExcludeLocals As Boolean = IsTypingParameterName() OrElse IsTypingDeclarationName()
+                Dim lIsTypingParameterName As Boolean = IsTypingParameterName()
+                Dim lExcludeLocals As Boolean = lIsTypingParameterName OrElse IsTypingDeclarationName()
+
+                ' In a fresh-parameter-name position, ByVal/ByRef/Optional/ParamArray are the
+                ' ONLY grammatically valid keyword completions - check these first so a
+                ' contextually impossible keyword (e.g. "Option", valid only at file-top)
+                ' never wins over a genuinely valid one (e.g. "Optional") just because it
+                ' happens to sort first alphabetically and is also a textual prefix match
+                If lIsTypingParameterName Then
+                    for each lModifier In ParameterModifierKeywords
+                        If Not lModifier.StartsWith(vTypedText, StringComparison.OrdinalIgnoreCase) Then Continue for
+                        for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
+                            If String.Equals(pCodeSenseSuggestions(i).Text, lModifier, StringComparison.OrdinalIgnoreCase) Then
+                                MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
+                                Return
+                            End If
+                        Next
+                    Next
+                End If
 
                 Dim lBestIndex As Integer = -1
                 for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
