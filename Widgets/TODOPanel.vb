@@ -321,7 +321,7 @@ Namespace Widgets
                 
                 ' Get menu items (assuming order matches creation)
                 Dim lItems As Widget() = pContextMenu.Children
-                If lItems.Length >= 6 Then
+                If lItems.Length >= 7 Then
                     ' Edit - only for manual TODOs
                     lItems(0).Sensitive = CBool(pSelectedTODO.SourceType = TODOItem.eSourceType.eManual)
                     
