@@ -155,30 +155,40 @@ Namespace Editors
                 Dim lCursorAtLineEnd As Boolean = pCursorColumn >= lOriginalLine.Length OrElse
                     String.IsNullOrWhiteSpace(lOriginalLine.Substring(pCursorColumn))
 
-                ' Record for undo
-                If pUndoRedoManager IsNot Nothing Then
-                    Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn)
-                    ' After newline, cursor will be at start of next line
-                    Dim lEndPos As New EditorPosition(pCursorLine + 1, 0)
-                    pUndoRedoManager.RecordInsertText(lStartPos, Environment.NewLine, lEndPos)
-                End If
-
-                ' Use atomic InsertText method for newline
-                pSourceFileInfo.InsertText(pCursorLine, pCursorColumn, Environment.NewLine)
-
-                ' Move cursor to beginning of next line
-                SetCursorPosition(pCursorLine + 1, 0)
-
-                ' Apply auto-indent if enabled - block-opening statements (Sub, Function,
-                ' Property, Class, Module, Namespace, Select Case, If...Then, For, Do,
-                ' While, Try, With, Structure, Interface, Enum) get their matching End
-                ' construct auto-inserted instead of plain indent copying - but only when Enter
-                ' completed the line for real (see lCursorAtLineEnd above)
-                If pSettingsManager IsNot Nothing AndAlso pSettingsManager.AutoIndent Then
-                    If Not (lCursorAtLineEnd AndAlso TryAutoCompleteBlockStatement(pCursorLine - 1)) Then
-                        ApplyAutoIndent(pCursorLine)
+                ' Group everything Enter does here (the newline itself, plus whatever
+                ' TryAutoCompleteBlockStatement inserts below - a missing-paren fix and/or a
+                ' generated body/End statement can each be their own separate recorded
+                ' action) into a single undo step, so one Ctrl+Z fully reverts one Enter
+                ' press instead of requiring a separate Ctrl+Z per sub-insertion
+                If pUndoRedoManager IsNot Nothing Then pUndoRedoManager.BeginUserAction()
+                Try
+                    ' Record for undo
+                    If pUndoRedoManager IsNot Nothing Then
+                        Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn)
+                        ' After newline, cursor will be at start of next line
+                        Dim lEndPos As New EditorPosition(pCursorLine + 1, 0)
+                        pUndoRedoManager.RecordInsertText(lStartPos, Environment.NewLine, lEndPos)
                     End If
-                End If
+
+                    ' Use atomic InsertText method for newline
+                    pSourceFileInfo.InsertText(pCursorLine, pCursorColumn, Environment.NewLine)
+
+                    ' Move cursor to beginning of next line
+                    SetCursorPosition(pCursorLine + 1, 0)
+
+                    ' Apply auto-indent if enabled - block-opening statements (Sub, Function,
+                    ' Property, Class, Module, Namespace, Select Case, If...Then, For, Do,
+                    ' While, Try, With, Structure, Interface, Enum) get their matching End
+                    ' construct auto-inserted instead of plain indent copying - but only when
+                    ' Enter completed the line for real (see lCursorAtLineEnd above)
+                    If pSettingsManager IsNot Nothing AndAlso pSettingsManager.AutoIndent Then
+                        If Not (lCursorAtLineEnd AndAlso TryAutoCompleteBlockStatement(pCursorLine - 1)) Then
+                            ApplyAutoIndent(pCursorLine)
+                        End If
+                    End If
+                Finally
+                    If pUndoRedoManager IsNot Nothing Then pUndoRedoManager.EndUserAction()
+                End Try
                 
                 ' Update state
                 IsModified = True

@@ -107,14 +107,40 @@ Namespace Managers
         Public Sub EndGroup()
             If pGroupingActions AndAlso Not pIsUndoingOrRedoing Then
                 pGroupingActions = False
-                If pCurrentGroup.Count > 0 Then
-                    ' Add all grouped actions as individual actions
-                    For Each lAction In pCurrentGroup
-                        AddUndoAction(lAction)
-                    Next
-                    pCurrentGroup.Clear()
-                End If
+                FinalizeGroup()
             End If
+        End Sub
+
+        ''' <summary>
+        ''' Pushes the buffered pCurrentGroup actions onto the undo stack as a single unit -
+        ''' the lone action directly if only one was recorded (no need for eGroup wrapping in
+        ''' the common single-edit case), or one real eGroup action wrapping all of them so
+        ''' Undo/Redo can replay or reverse the whole set atomically in a single Ctrl+Z/Ctrl+Y
+        ''' </summary>
+        ''' <remarks>
+        ''' Previously, both BeginGroup/EndGroup and BeginUserAction/EndUserAction just pushed
+        ''' every buffered action individually - despite doc comments and the "Usage Examples"
+        ''' below claiming they'd undo/redo together as one unit, they never actually did,
+        ''' silently requiring one Ctrl+Z per sub-action for any multi-step edit anywhere in
+        ''' the app that used this grouping (clipboard paste, drag-drop, comment toggling,
+        ''' search/replace-all, and several keyboard operations)
+        ''' </remarks>
+        Private Sub FinalizeGroup()
+            If pCurrentGroup.Count = 0 Then Return
+
+            If pCurrentGroup.Count = 1 Then
+                AddUndoAction(pCurrentGroup(0))
+            Else
+                Dim lGroupAction As New UndoAction()
+                lGroupAction.Type = UndoActionType.eGroup
+                lGroupAction.StartPosition = pCurrentGroup(0).StartPosition
+                lGroupAction.EndPosition = pCurrentGroup(pCurrentGroup.Count - 1).EndPosition
+                lGroupAction.CursorPosition = pCurrentGroup(pCurrentGroup.Count - 1).CursorPosition
+                lGroupAction.GroupedActions = New List(Of UndoAction)(pCurrentGroup)
+                AddUndoAction(lGroupAction)
+            End If
+
+            pCurrentGroup.Clear()
         End Sub
         
         ''' <summary>
@@ -282,51 +308,22 @@ Namespace Managers
         ''' </summary>
         Public Function Undo() As Boolean
             If Not CanUndo Then Return False
-            
+
             Try
                 pIsUndoingOrRedoing = True
-                
+
                 Dim lAction As UndoAction = pUndoStack.Pop()
-                
-                Select Case lAction.Type
-                    Case UndoActionType.eInsert
-                        ' Undo insert by deleting
-                        pEditor.DeleteTextDirect(lAction.StartPosition, lAction.EndPosition)
-                        pEditor.SetCursorPosition(lAction.StartPosition)
-                        
-                    Case UndoActionType.eDelete
-                        ' Undo delete by inserting. Cursor goes to EndPosition (right after
-                        ' the reinserted text), not CursorPosition - CursorPosition is where
-                        ' the cursor ended up AFTER the original delete (i.e. right BEFORE
-                        ' the text being restored here), which would leave the cursor
-                        ' stranded ahead of text the user just watched get undone
-                        pEditor.InsertTextAtPosition(lAction.StartPosition, lAction.Text)
-                        pEditor.SetCursorPosition(lAction.EndPosition)
 
-                    Case UndoActionType.eReplace
-                        ' Undo replace: the buffer currently holds NewText, spanning
-                        ' [StartPosition, CursorPosition) - CursorPosition was recorded as
-                        ' "position right after NewText" when the replace was originally
-                        ' performed. That (not EndPosition, which is the OLD text's span
-                        ' end) is the range that must be handed to ReplaceText so it
-                        ' deletes exactly what's really there. Cursor then lands at
-                        ' EndPosition - right after the just-restored OldText
-                        pEditor.ReplaceText(lAction.StartPosition, lAction.CursorPosition, lAction.OldText)
-                        pEditor.SetCursorPosition(lAction.EndPosition)
+                ApplyUndoAction(lAction)
 
-                    Case UndoActionType.eDragDrop
-                        HandleDragDropUndo(lAction)
-                        
-                End Select
-                
                 ' Add to redo stack
                 pRedoStack.Push(lAction)
-                
+
                 ' Raise the state changed event
                 RaiseStateChanged()
-                
+
                 Return True
-                
+
             Catch ex As Exception
                 Console.WriteLine($"Undo error: {ex.Message}")
                 Return False
@@ -334,47 +331,74 @@ Namespace Managers
                 pIsUndoingOrRedoing = False
             End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Applies the undo (reverse) effect of a single action to the editor - shared by
+        ''' Undo() for the top-level popped action and, recursively, for each sub-action of
+        ''' an eGroup action, applied in REVERSE order (undoing the most-recently-applied
+        ''' sub-action first, matching how the group's edits were actually made)
+        ''' </summary>
+        Private Sub ApplyUndoAction(vAction As UndoAction)
+            Select Case vAction.Type
+                Case UndoActionType.eInsert
+                    ' Undo insert by deleting
+                    pEditor.DeleteTextDirect(vAction.StartPosition, vAction.EndPosition)
+                    pEditor.SetCursorPosition(vAction.StartPosition)
+
+                Case UndoActionType.eDelete
+                    ' Undo delete by inserting. Cursor goes to EndPosition (right after
+                    ' the reinserted text), not CursorPosition - CursorPosition is where
+                    ' the cursor ended up AFTER the original delete (i.e. right BEFORE
+                    ' the text being restored here), which would leave the cursor
+                    ' stranded ahead of text the user just watched get undone
+                    pEditor.InsertTextAtPosition(vAction.StartPosition, vAction.Text)
+                    pEditor.SetCursorPosition(vAction.EndPosition)
+
+                Case UndoActionType.eReplace
+                    ' Undo replace: the buffer currently holds NewText, spanning
+                    ' [StartPosition, CursorPosition) - CursorPosition was recorded as
+                    ' "position right after NewText" when the replace was originally
+                    ' performed. That (not EndPosition, which is the OLD text's span
+                    ' end) is the range that must be handed to ReplaceText so it
+                    ' deletes exactly what's really there. Cursor then lands at
+                    ' EndPosition - right after the just-restored OldText
+                    pEditor.ReplaceText(vAction.StartPosition, vAction.CursorPosition, vAction.OldText)
+                    pEditor.SetCursorPosition(vAction.EndPosition)
+
+                Case UndoActionType.eDragDrop
+                    HandleDragDropUndo(vAction)
+
+                Case UndoActionType.eGroup
+                    If vAction.GroupedActions IsNot Nothing Then
+                        for i As Integer = vAction.GroupedActions.Count - 1 To 0 Step -1
+                            ApplyUndoAction(vAction.GroupedActions(i))
+                        Next
+                    End If
+
+            End Select
+        End Sub
+
         ''' <summary>
         ''' Perform redo operation
         ''' </summary>
         Public Function Redo() As Boolean
             If Not CanRedo Then Return False
-            
+
             Try
                 pIsUndoingOrRedoing = True
-                
+
                 Dim lAction As UndoAction = pRedoStack.Pop()
-                
-                Select Case lAction.Type
-                    Case UndoActionType.eInsert
-                        ' Redo insert
-                        pEditor.InsertTextAtPosition(lAction.StartPosition, lAction.Text)
-                        pEditor.SetCursorPosition(lAction.EndPosition)
-                        
-                    Case UndoActionType.eDelete
-                        ' Redo delete
-                        pEditor.DeleteTextDirect(lAction.StartPosition, lAction.EndPosition)
-                        pEditor.SetCursorPosition(lAction.CursorPosition)
-                        
-                    Case UndoActionType.eReplace
-                        ' Redo replace
-                        pEditor.ReplaceText(lAction.StartPosition, lAction.EndPosition, lAction.NewText)
-                        pEditor.SetCursorPosition(lAction.CursorPosition)
-                        
-                    Case UndoActionType.eDragDrop
-                        HandleDragDropRedo(lAction)
-                        
-                End Select
-                
+
+                ApplyRedoAction(lAction)
+
                 ' Add back to undo stack
                 pUndoStack.Push(lAction)
-                
+
                 ' Raise the state changed event
                 RaiseStateChanged()
-                
+
                 Return True
-                
+
             Catch ex As Exception
                 Console.WriteLine($"Redo error: {ex.Message}")
                 Return False
@@ -382,6 +406,42 @@ Namespace Managers
                 pIsUndoingOrRedoing = False
             End Try
         End Function
+
+        ''' <summary>
+        ''' Applies the redo (re-apply) effect of a single action to the editor - shared by
+        ''' Redo() for the top-level popped action and, recursively, for each sub-action of
+        ''' an eGroup action, applied in FORWARD order (replaying the sub-actions in the same
+        ''' order they were originally made)
+        ''' </summary>
+        Private Sub ApplyRedoAction(vAction As UndoAction)
+            Select Case vAction.Type
+                Case UndoActionType.eInsert
+                    ' Redo insert
+                    pEditor.InsertTextAtPosition(vAction.StartPosition, vAction.Text)
+                    pEditor.SetCursorPosition(vAction.EndPosition)
+
+                Case UndoActionType.eDelete
+                    ' Redo delete
+                    pEditor.DeleteTextDirect(vAction.StartPosition, vAction.EndPosition)
+                    pEditor.SetCursorPosition(vAction.CursorPosition)
+
+                Case UndoActionType.eReplace
+                    ' Redo replace
+                    pEditor.ReplaceText(vAction.StartPosition, vAction.EndPosition, vAction.NewText)
+                    pEditor.SetCursorPosition(vAction.CursorPosition)
+
+                Case UndoActionType.eDragDrop
+                    HandleDragDropRedo(vAction)
+
+                Case UndoActionType.eGroup
+                    If vAction.GroupedActions IsNot Nothing Then
+                        for each lSubAction In vAction.GroupedActions
+                            ApplyRedoAction(lSubAction)
+                        Next
+                    End If
+
+            End Select
+        End Sub
         
         ' ===== Private Helper Methods =====
         
@@ -501,40 +561,6 @@ Namespace Managers
         End Sub
         
         
-        ''' <summary>
-        ''' Creates a composite action from a group of actions
-        ''' </summary>
-        Private Function CreateGroupAction(vActions As List(Of UndoAction)) As UndoAction
-            If vActions.Count = 0 Then Return Nothing
-            
-            Dim lGroupAction As New UndoAction()
-            lGroupAction.Type = UndoActionType.eGroup  ' Add this to enum if not present
-            
-            ' Set start position from first action
-            lGroupAction.StartPosition = vActions(0).StartPosition
-            
-            ' Set end position from last action
-            lGroupAction.EndPosition = vActions(vActions.Count - 1).EndPosition
-            
-            ' Set cursor position from last action
-            lGroupAction.CursorPosition = vActions(vActions.Count - 1).CursorPosition
-            
-            ' Store all text operations (for complex undo/redo)
-            Dim lTextBuilder As New System.Text.StringBuilder()
-            For Each lAction In vActions
-                If Not String.IsNullOrEmpty(lAction.Text) Then
-                    lTextBuilder.Append(lAction.Text)
-                End If
-            Next
-            lGroupAction.Text = lTextBuilder.ToString()
-            
-            ' Store the group of actions for complex undo/redo
-            ' You might want to add a GroupedActions property to UndoAction
-            ' Or handle this differently based on your needs
-            
-            Return lGroupAction
-        End Function
-        
         ' ===== Alternative Enhanced Version with UndoGroup =====
         
         Private pCurrentUndoGroup As UndoGroup = Nothing
@@ -562,15 +588,9 @@ Namespace Managers
         Public Sub EndUserAction()
             If pGroupingActions AndAlso Not pIsUndoingOrRedoing Then
                 pGroupingActions = False
-                If pCurrentGroup.Count > 0 Then
-                    ' Add all grouped actions as individual actions
-                    For Each lAction In pCurrentGroup
-                        AddUndoAction(lAction)
-                    Next
-                    pCurrentGroup.Clear()
-                    ' Raise state changed event after completing the group
-                    RaiseStateChanged()
-                End If
+                FinalizeGroup()
+                pCurrentUndoGroup = Nothing
+                RaiseStateChanged()
             End If
         End Sub
        

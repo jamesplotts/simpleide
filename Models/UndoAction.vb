@@ -1,5 +1,6 @@
 ' Models/UndoAction.vb - Undo/Redo action using EditorPosition
 Imports System
+Imports System.Collections.Generic
 Imports SimpleIDE.Interfaces
 Imports SimpleIDE.Utilities
 
@@ -62,7 +63,16 @@ Namespace Models
         ''' Selection end position (if selection existed)
         ''' </summary>
         Public Property SelectionEnd As EditorPosition = New EditorPosition(-1, -1)
-        
+
+        ''' <summary>
+        ''' The sub-actions this action represents when Type = eGroup - lets several separate
+        ''' text mutations recorded for one logical user action (e.g. auto-completing a
+        ''' Sub declaration's missing ")" and then generating its body/End Sub, both from a
+        ''' single Enter press) undo/redo together as one step instead of requiring a
+        ''' separate Ctrl+Z for each sub-mutation. Nothing for any other Type.
+        ''' </summary>
+        Public Property GroupedActions As List(Of UndoAction) = Nothing
+
         ' ===== Helper Properties =====
         
         ''' <summary>
@@ -191,6 +201,7 @@ Namespace Models
             lClone.CursorPosition = Me.CursorPosition
             lClone.SelectionStart = Me.SelectionStart
             lClone.SelectionEnd = Me.SelectionEnd
+            lClone.GroupedActions = If(Me.GroupedActions Is Nothing, Nothing, New List(Of UndoAction)(Me.GroupedActions))
             Return lClone
         End Function
         
