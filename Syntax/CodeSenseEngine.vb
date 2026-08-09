@@ -1529,19 +1529,30 @@ Namespace Syntax
         End Sub
         
         ''' <summary>
-        ''' Add types from the project syntax tree
+        ''' Add types from the project - Class/Interface/Module/Structure/Enum suggestions come
+        ''' from ProjectManager's live, per-file symbol index (Managers/ProjectManager.
+        ''' SymbolIndex.vb), which stays current on every keystroke with no whole-project
+        ''' rebuild required; Namespace suggestions still come from the merged project tree
+        ''' (pProjectSyntaxTree), since namespace declarations change far less often during a
+        ''' session than types/methods do and aren't tracked by the symbol index
         ''' </summary>
         Private Sub AddProjectTypeSuggestions(vSuggestions As List(Of CodeSenseSuggestion))
             Try
-                If pProjectSyntaxTree Is Nothing Then Return
-
                 ' Track names already added - partial classes (mandatory pattern in this
                 ' project, e.g. the MainWindow.*.vb files) contribute one node per declaring
                 ' file, so without this the same class name would be suggested once per file
                 Dim lSeenNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
 
-                ' Walk the tree looking for types
-                AddProjectTypesRecursive(pProjectSyntaxTree, vSuggestions, lSeenNames)
+                Dim lProjectManager As Managers.ProjectManager = GetProjectManager()
+                If lProjectManager IsNot Nothing Then
+                    for each lNode In lProjectManager.GetAllIndexedDefinitionNodes()
+                        AddProjectTypeSuggestionForNode(lNode, vSuggestions, lSeenNames)
+                    Next
+                End If
+
+                If pProjectSyntaxTree IsNot Nothing Then
+                    AddProjectNamespaceSuggestionsRecursive(pProjectSyntaxTree, vSuggestions, lSeenNames)
+                End If
 
             Catch ex As Exception
                 Console.WriteLine($"AddProjectTypeSuggestions error: {ex.Message}")
@@ -1549,11 +1560,12 @@ Namespace Syntax
         End Sub
 
         ''' <summary>
-        ''' Recursively add project types
+        ''' Adds a suggestion for vNode if it's a Class/Interface/Module/Structure/Enum node,
+        ''' the type-suggestion half of AddProjectTypeSuggestions
         ''' </summary>
-        Private Sub AddProjectTypesRecursive(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion), vSeenNames As HashSet(Of String))
+        Private Sub AddProjectTypeSuggestionForNode(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion), vSeenNames As HashSet(Of String))
             Try
-                If vNode Is Nothing Then Return
+                If vNode Is Nothing OrElse String.IsNullOrEmpty(vNode.Name) Then Return
 
                 Select Case vNode.NodeType
                     Case CodeNodeType.eClass
@@ -1591,10 +1603,7 @@ Namespace Syntax
 
                     Case CodeNodeType.eEnum
                         ' Matches AddNamespaceMemberSuggestions's existing enum -> eSnippet
-                        ' convention - CodeSenseSuggestionKind has no distinct Enum kind.
-                        ' Without this case, project-defined Enums (e.g. TokenType in
-                        ' Syntax/Token.vb) never appeared in "As <Type>" suggestions, even
-                        ' though the tree-walk itself reaches them fine
+                        ' convention - CodeSenseSuggestionKind has no distinct Enum kind
                         If vSeenNames.Add(vNode.Name) Then
                             Dim lSuggestion As New CodeSenseSuggestion()
                             lSuggestion.Text = vNode.Name
@@ -1603,30 +1612,45 @@ Namespace Syntax
                             lSuggestion.Description = $"Enum {vNode.Name}"
                             vSuggestions.Add(lSuggestion)
                         End If
-
-                    Case CodeNodeType.eNamespace
-                        ' Includes the project's own root namespace (synthesized as an
-                        ' eNamespace node by ProjectManager - see GetProjectSyntaxTree) as
-                        ' well as any explicit sub-namespaces (e.g. "Namespace Editors")
-                        If vSeenNames.Add(vNode.Name) Then
-                            Dim lSuggestion As New CodeSenseSuggestion()
-                            lSuggestion.Text = vNode.Name
-                            lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
-                            lSuggestion.Icon = "namespace"
-                            lSuggestion.Description = $"Namespace {vNode.Name}"
-                            vSuggestions.Add(lSuggestion)
-                        End If
                 End Select
 
-                ' Recursively process children
+            Catch ex As Exception
+                Console.WriteLine($"AddProjectTypeSuggestionForNode error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Recursively adds Namespace suggestions from the merged project tree - the
+        ''' Namespace half of AddProjectTypeSuggestions (Class/Interface/Module/Structure/Enum
+        ''' suggestions come from the live symbol index instead - see
+        ''' AddProjectTypeSuggestionForNode)
+        ''' </summary>
+        Private Sub AddProjectNamespaceSuggestionsRecursive(vNode As SyntaxNode, vSuggestions As List(Of CodeSenseSuggestion), vSeenNames As HashSet(Of String))
+            Try
+                If vNode Is Nothing Then Return
+
+                If vNode.NodeType = CodeNodeType.eNamespace Then
+                    ' Includes the project's own root namespace (synthesized as an eNamespace
+                    ' node by ProjectManager - see GetProjectSyntaxTree) as well as any
+                    ' explicit sub-namespaces (e.g. "Namespace Editors")
+                    If vSeenNames.Add(vNode.Name) Then
+                        Dim lSuggestion As New CodeSenseSuggestion()
+                        lSuggestion.Text = vNode.Name
+                        lSuggestion.Kind = CodeSenseSuggestionKind.eNamespace
+                        lSuggestion.Icon = "namespace"
+                        lSuggestion.Description = $"Namespace {vNode.Name}"
+                        vSuggestions.Add(lSuggestion)
+                    End If
+                End If
+
                 If vNode.Children IsNot Nothing Then
                     for each lChild in vNode.Children
-                        AddProjectTypesRecursive(lChild, vSuggestions, vSeenNames)
+                        AddProjectNamespaceSuggestionsRecursive(lChild, vSuggestions, vSeenNames)
                     Next
                 End If
 
             Catch ex As Exception
-                Console.WriteLine($"AddProjectTypesRecursive error: {ex.Message}")
+                Console.WriteLine($"AddProjectNamespaceSuggestionsRecursive error: {ex.Message}")
             End Try
         End Sub
         

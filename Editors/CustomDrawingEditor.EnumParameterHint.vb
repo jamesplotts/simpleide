@@ -156,49 +156,24 @@ Namespace Editors
         End Sub
 
         ''' <summary>
-        ''' Recursively finds the first Enum node named vName, trying the current file's own
-        ''' up-to-date SyntaxTree before falling back to the project-wide merged tree
+        ''' Finds the first Enum node named vName via ProjectManager's live, per-file symbol
+        ''' index (Managers/ProjectManager.SymbolIndex.vb)
         ''' </summary>
         ''' <remarks>
         ''' Same staleness reasoning as FindCallableMemberNode in CustomDrawingEditor.
-        ''' ParameterHint.vb - ProjectManager.GetProjectSyntaxTree() is only merged once (at
-        ''' project load) and never reflects an Enum added to the file being edited during this
-        ''' session until the project is reloaded, whereas SourceFileInfo.SyntaxTree for the
-        ''' current file is kept current on every keystroke
+        ''' ParameterHint.vb - ProjectManager.GetProjectSyntaxTree()'s merged tree is only built
+        ''' once (at project load) and never reflects an Enum added anywhere in the project
+        ''' during this session, whereas the symbol index is kept current incrementally on
+        ''' every reparse of any file, with no whole-project rebuild and no reload needed
         ''' </remarks>
         Private Function FindEnumNodeByName(vName As String) As SyntaxNode
-            If String.IsNullOrEmpty(vName) Then Return Nothing
-            Dim lTrimmedName As String = vName.Trim()
+            If String.IsNullOrEmpty(vName) OrElse pProjectManager Is Nothing Then Return Nothing
 
-            If pSourceFileInfo IsNot Nothing AndAlso pSourceFileInfo.SyntaxTree IsNot Nothing Then
-                Dim lLocalResult As SyntaxNode = FindEnumNodeRecursive(pSourceFileInfo.SyntaxTree, lTrimmedName)
-                If lLocalResult IsNot Nothing Then Return lLocalResult
-            End If
+            Dim lCandidates As List(Of SyntaxNode) = pProjectManager.FindDefinitionNodesByName(vName.Trim())
+            for each lCandidate As SyntaxNode in lCandidates
+                If lCandidate.NodeType = CodeNodeType.eEnum Then Return lCandidate
+            Next
 
-            If pProjectManager Is Nothing Then Return Nothing
-            Dim lTree As SyntaxNode = pProjectManager.GetProjectSyntaxTree()
-            If lTree Is Nothing Then Return Nothing
-            Return FindEnumNodeRecursive(lTree, lTrimmedName)
-        End Function
-
-        Private Function FindEnumNodeRecursive(vNode As SyntaxNode, vName As String) As SyntaxNode
-            If vNode Is Nothing Then Return Nothing
-            Try
-                If vNode.NodeType = CodeNodeType.eEnum AndAlso
-                   String.Equals(vNode.Name, vName, StringComparison.OrdinalIgnoreCase) Then
-                    Return vNode
-                End If
-
-                If vNode.Children IsNot Nothing Then
-                    for each lChild As SyntaxNode in vNode.Children
-                        Dim lResult As SyntaxNode = FindEnumNodeRecursive(lChild, vName)
-                        If lResult IsNot Nothing Then Return lResult
-                    Next
-                End If
-
-            Catch ex As Exception
-                Console.WriteLine($"FindEnumNodeRecursive error: {ex.Message}")
-            End Try
             Return Nothing
         End Function
 

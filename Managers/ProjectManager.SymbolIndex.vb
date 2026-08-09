@@ -199,6 +199,60 @@ Namespace Managers
             Return If(pCurrentProjectInfo?.GetEffectiveRootNamespace(), "SimpleIDE")
         End Function
 
+        ''' <summary>
+        ''' Looks up all project-defined definition nodes (classes/methods/properties/fields/
+        ''' etc. - see IsDefinitionNode) sharing the given bare name
+        ''' </summary>
+        ''' <remarks>
+        ''' Unlike GetProjectSyntaxTree()'s merged tree (built once at project load and never
+        ''' re-merged as files are edited - see BuildProjectSyntaxTree), this index is kept
+        ''' current incrementally on every reparse of any file via ReindexFile, so callers that
+        ''' need up-to-date results (e.g. CustomDrawingEditor's parameter-hint and Enum-popup
+        ''' lookups) should prefer this over walking GetProjectSyntaxTree()
+        ''' </remarks>
+        ''' <param name="vName">Bare (unqualified) name to look up, matched case-insensitively</param>
+        ''' <returns>A snapshot copy of the matching nodes (one per file/partial declaration
+        ''' that defines something by this name), or an empty list if none are indexed</returns>
+        Public Function FindDefinitionNodesByName(vName As String) As List(Of SyntaxNode)
+            Try
+                If Not String.IsNullOrEmpty(vName) Then
+                    SyncLock pSymbolIndexLock
+                        Dim lBucket As List(Of SyntaxNode) = Nothing
+                        If pSymbolIndex.TryGetValue(vName, lBucket) Then
+                            Return New List(Of SyntaxNode)(lBucket) ' snapshot while still under the lock
+                        End If
+                    End SyncLock
+                End If
+
+                Return New List(Of SyntaxNode)()
+
+            Catch ex As Exception
+                Console.WriteLine($"FindDefinitionNodesByName error: {ex.Message}")
+                Return New List(Of SyntaxNode)()
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Returns a snapshot of every definition node currently in the project-wide symbol
+        ''' index, across every file - the live, incrementally-maintained alternative to
+        ''' walking GetProjectSyntaxTree()'s once-built merged tree when a caller needs to
+        ''' enumerate all project types rather than look one up by name
+        ''' </summary>
+        Public Function GetAllIndexedDefinitionNodes() As List(Of SyntaxNode)
+            Dim lResult As New List(Of SyntaxNode)()
+            Try
+                SyncLock pSymbolIndexLock
+                    for each lBucket in pSymbolIndex.Values
+                        lResult.AddRange(lBucket)
+                    Next
+                End SyncLock
+
+            Catch ex As Exception
+                Console.WriteLine($"GetAllIndexedDefinitionNodes error: {ex.Message}")
+            End Try
+            Return lResult
+        End Function
+
     End Class
 
 End Namespace
