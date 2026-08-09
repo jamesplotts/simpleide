@@ -748,13 +748,21 @@ Namespace Widgets
                 ' Read file content
                 Dim lContent As String = System.IO.File.ReadAllText(vFilePath)
                 Dim lLines() As String = lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
-                
+
                 Dim lMatchCount As Integer = 0
-                
+
+                ' Built once per file rather than once per line - this fallback path (no
+                ' ProjectManager available) still needs to stay correct for large files
+                Dim lRegex As Regex = Nothing
+                If pLastSearchOptions.UseRegex Then
+                    lRegex = New Regex(pLastSearchOptions.SearchText,
+                        If(pLastSearchOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
+                End If
+
                 ' Search each line
                 for lLineIndex As Integer = 0 To lLines.Length - 1
                     Dim lLine As String = lLines(lLineIndex)
-                    Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions)
+                    Dim lMatches As List(Of Integer) = FindMatchesInLine(lLine, pLastSearchOptions, lRegex)
                     
                     for each lColumn in lMatches
                         Dim lResult As New FindResult with {
@@ -779,15 +787,17 @@ Namespace Widgets
             End Try
         End Function
         
-        Private Function FindMatchesInLine(vLine As String, vOptions As SearchOptions) As List(Of Integer)
+        Private Function FindMatchesInLine(vLine As String, vOptions As SearchOptions, Optional vRegex As Regex = Nothing) As List(Of Integer)
             Dim lMatches As New List(Of Integer)()
-            
+
             Try
                 If vOptions.UseRegex Then
-                    ' Regex search
-                    Dim lRegex As New Regex(vOptions.SearchText, 
-                        If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase))
-                    
+                    ' Regex search - reuse a caller-supplied pre-built Regex when available
+                    ' (SearchFile builds it once per file, not once per line); build one
+                    ' locally otherwise so other/future callers stay correct
+                    Dim lRegex As Regex = If(vRegex, New Regex(vOptions.SearchText,
+                        If(vOptions.MatchCase, RegexOptions.None, RegexOptions.IgnoreCase)))
+
                     for each lMatch As Match in lRegex.Matches(vLine)
                         lMatches.Add(lMatch.Index)
                     Next
