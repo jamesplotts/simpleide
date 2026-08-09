@@ -603,13 +603,17 @@ Module Program
         
         ' Check if we should maximize (from settings or command line)
         Dim lSettingsManager As SettingsManager = lMainWindow.GetSettingsManager()
-        If lSettingsManager IsNot Nothing AndAlso Not lShouldMinimize Then
+        ' "Restore window layout on startup" (General tab) gates whether the *saved*
+        ' maximized/size state gets applied at all - it was previously saved correctly
+        ' but never actually consulted here, so toggling it off had zero effect
+        Dim lRestoreLayout As Boolean = lSettingsManager Is Nothing OrElse lSettingsManager.GetBoolean("General.RestoreLayout", True)
+        If lSettingsManager IsNot Nothing AndAlso Not lShouldMinimize AndAlso lRestoreLayout Then
             lShouldMaximize = lShouldMaximize OrElse lSettingsManager.WindowMaximized
         End If
-        
+
         ' Show all widgets FIRST
         lMainWindow.ShowAll()
-        
+
         ' Use a single idle handler to restore window state after GTK initialization
         GLib.Idle.Add(Function()
             Try
@@ -620,8 +624,13 @@ Module Program
                 ElseIf lShouldMaximize Then
                     lMainWindow.Maximize()
                     Console.WriteLine("Window maximized")
-                Else
+                ElseIf lRestoreLayout Then
                     RestoreWindowSizeAndState(lMainWindow, False)
+                Else
+                    ' Restore disabled - use the same reasonable default size/position
+                    ' RestoreWindowSizeAndState itself falls back to on error/first run
+                    lMainWindow.Resize(1024, 768)
+                    lMainWindow.SetPosition(WindowPosition.Center)
                 End If
                 
                 ' Open any additional files that were specified
