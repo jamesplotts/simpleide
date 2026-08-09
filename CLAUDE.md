@@ -8,7 +8,7 @@ You are assisting with the development of **SimpleIDE** - a lightweight, profess
 - Multi-file tabbed editor with VB.NET syntax highlighting
 - Project Explorer with .vbproj file parsing
 - Build system integration with async dotnet CLI operations
-- Dockable build output panel with error/warning navigation
+- Toggleable bottom panel (Build Output, Git, TODO List, Console, AI Assistant tabs) with error/warning navigation
 - Line numbers with click-to-select and drag-to-select functionality
 - Settings window with theme support and persistence
 - Enhanced status bar with cursor position, language mode, and encoding
