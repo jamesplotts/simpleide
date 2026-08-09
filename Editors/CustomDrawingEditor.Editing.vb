@@ -121,6 +121,19 @@ Namespace Editors
                     DeleteSelection()
                 End If
                 
+                ' Capture whether the cursor sits at the genuine end of the line (nothing but
+                ' whitespace after it) BEFORE splitting it. Auto-block-completion only makes
+                ' sense when Enter is completing a finished statement - if there's real
+                ' trailing content (e.g. Enter pressed just before an already-typed ")" in
+                ' "Sub stuff(vData As TokenType|)"), that content moves onto the new line below,
+                ' and TryAutoCompleteBlockStatement has no idea it's there: it treated the
+                ' truncated first line as a complete "Sub stuff(...TokenType" header and
+                ' inserted "End Sub" at the cursor - which by then sat right before the
+                ' relocated ")" - producing a nonsensical "End Sub)" line
+                Dim lOriginalLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                Dim lCursorAtLineEnd As Boolean = pCursorColumn >= lOriginalLine.Length OrElse
+                    String.IsNullOrWhiteSpace(lOriginalLine.Substring(pCursorColumn))
+
                 ' Record for undo
                 If pUndoRedoManager IsNot Nothing Then
                     Dim lStartPos As New EditorPosition(pCursorLine, pCursorColumn)
@@ -128,19 +141,20 @@ Namespace Editors
                     Dim lEndPos As New EditorPosition(pCursorLine + 1, 0)
                     pUndoRedoManager.RecordInsertText(lStartPos, Environment.NewLine, lEndPos)
                 End If
-                
+
                 ' Use atomic InsertText method for newline
                 pSourceFileInfo.InsertText(pCursorLine, pCursorColumn, Environment.NewLine)
-                
+
                 ' Move cursor to beginning of next line
                 SetCursorPosition(pCursorLine + 1, 0)
-                
+
                 ' Apply auto-indent if enabled - block-opening statements (Sub, Function,
                 ' Property, Class, Module, Namespace, Select Case, If...Then, For, Do,
                 ' While, Try, With, Structure, Interface, Enum) get their matching End
-                ' construct auto-inserted instead of plain indent copying
+                ' construct auto-inserted instead of plain indent copying - but only when Enter
+                ' completed the line for real (see lCursorAtLineEnd above)
                 If pSettingsManager IsNot Nothing AndAlso pSettingsManager.AutoIndent Then
-                    If Not TryAutoCompleteBlockStatement(pCursorLine - 1) Then
+                    If Not (lCursorAtLineEnd AndAlso TryAutoCompleteBlockStatement(pCursorLine - 1)) Then
                         ApplyAutoIndent(pCursorLine)
                     End If
                 End If

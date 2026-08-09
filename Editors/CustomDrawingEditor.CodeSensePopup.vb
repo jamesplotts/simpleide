@@ -567,8 +567,17 @@ Namespace Editors
 
                     Case Gdk.Key.Return, Gdk.Key.KP_Enter
                         ' Commit the selection, then let Enter still reach normal handling
-                        ' below so it also inserts a newline rather than just finishing the word
-                        CommitCodeSenseSelection()
+                        ' below so it also inserts a newline rather than just finishing the word.
+                        ' Same unmatched-highlight guard as the other commit keys (space/period/
+                        ' parens/operators) - without it, pressing Enter right after a fully-typed
+                        ' word CodeSense doesn't recognize as a match (e.g. completing "TokenType"
+                        ' at a cursor position where the popup's selection never moved onto it)
+                        ' force-committed whatever was highlighted instead, silently replacing it
+                        If CodeSenseSelectionMatchesTypedWord() Then
+                            CommitCodeSenseSelection()
+                        Else
+                            HideCodeSensePopup()
+                        End If
                         Return False
 
                     Case Gdk.Key.Tab, Gdk.Key.ISO_Left_Tab
