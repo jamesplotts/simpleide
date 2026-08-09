@@ -182,10 +182,21 @@ Partial Public Class MainWindow
                 Dim lUserName As String = pSettingsManager.GetString("Git.UserName", "")
                 Dim lEmail As String = pSettingsManager.GetString("Git.Email", "")
                 
-                ' Apply Git config if values are provided
+                ' Apply Git config if values are provided - --local (this repo's own
+                ' .git/config) only, never --global, so this never silently rewrites the
+                ' user's system-wide git identity
                 If Not String.IsNullOrEmpty(lUserName) AndAlso Not String.IsNullOrEmpty(lEmail) Then
-                    ' Could call git config commands here if needed
-                    Console.WriteLine($"Git config: {lUserName} <{lEmail}>")
+                    Dim lRepoDir As String = GetActiveGitRepositoryDirectory()
+                    If Not String.IsNullOrEmpty(lRepoDir) Then
+                        Dim lEscapedName As String = lUserName.Replace("""", """""")
+                        Dim lEscapedEmail As String = lEmail.Replace("""", """""")
+                        ExecuteGitCommand($"config --local user.name ""{lEscapedName}""", lRepoDir, Sub(lNameOutput, lNameExitCode)
+                            If lNameExitCode <> 0 Then Console.WriteLine($"ApplyGitSettings: Failed to set user.name: {lNameOutput}")
+                        End Sub)
+                        ExecuteGitCommand($"config --local user.email ""{lEscapedEmail}""", lRepoDir, Sub(lEmailOutput, lEmailExitCode)
+                            If lEmailExitCode <> 0 Then Console.WriteLine($"ApplyGitSettings: Failed to set user.email: {lEmailOutput}")
+                        End Sub)
+                    End If
                 End If
                 
                 ' Update auto-fetch settings
