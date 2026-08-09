@@ -122,7 +122,35 @@ Partial Public Class MainWindow
             ShowError("Find failed", ex.Message)
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Handles Ctrl+Shift+F (Find in Files) - shows the Find panel pre-set to "entire
+    ''' project" scope (now solution-wide when multiple projects are loaded) rather than
+    ''' the default "current file" scope ShowFindPanel leaves it at
+    ''' </summary>
+    Public Sub FindInFiles()
+        Try
+            If Not pBottomPanelVisible Then
+                ToggleBottomPanel()
+            End If
+
+            If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                pBottomPanelManager.ShowTabForPanel(pFindPanel)
+            End If
+
+            If Not String.IsNullOrEmpty(pCurrentProject) Then
+                pFindPanel.SetProjectRoot(System.IO.Path.GetDirectoryName(pCurrentProject))
+            End If
+
+            pFindPanel.SetSearchScope(FindReplacePanel.SearchScope.eProject)
+            pFindPanel.FocusSearchEntry()
+
+        Catch ex As Exception
+            Console.WriteLine($"FindInFiles error: {ex.Message}")
+            ShowError("Find in Files failed", ex.Message)
+        End Try
+    End Sub
+
     ' Show find panel with specific text
     Public Sub ShowFindPanelWithText(vSearchText As String)
         Try

@@ -313,10 +313,10 @@ Partial Public Class MainWindow
                         
                     Case "f"
                         ' Ctrl+Shift+F - Find in Files
-                        ' TODO: OnFindInFiles(Nothing, Nothing)
+                        FindInFiles()
                         vArgs.RetVal = True
                         Return
-                        
+
                     Case "b"
                         ' Ctrl+Shift+B - Build Solution
                         OnBuildSolution(Nothing, Nothing)
