@@ -73,6 +73,74 @@ Namespace Editors
         Private Shared ReadOnly ParameterModifierKeywords As String() = {"ByVal", "ByRef", "Optional", "ParamArray"}
 
         ''' <summary>
+        ''' Matches the position right after Private/Public/Protected/Friend (+ optional
+        ''' Shared/ReadOnly) with NOTHING else typed yet - i.e. the very first name/keyword
+        ''' slot of a member declaration led by an access modifier, before any comma.
+        ''' Deliberately excludes Dim and Const, unlike DeclarationNamePatterns' own first
+        ''' entry: those can only ever be followed by a plain variable/constant name, never a
+        ''' keyword like Sub/Class/Function - "Dim Sub"/"Const Sub" aren't valid VB, so there's
+        ''' no ambiguity to be lenient about there. Once a comma appears (a second/later name
+        ''' in a multi-name field list) it can only ever be a plain variable name too -
+        ''' DeclarationNamePatterns' own first entry still covers that case unconditionally
+        ''' </summary>
+        Private Shared ReadOnly FirstDeclarationNamePattern As New Regex(
+            "^\s*(?:Private|Public|Protected|Friend)\s+(?:Shared\s+)?(?:ReadOnly\s+)?$", RegexOptions.IgnoreCase)
+
+        ''' <summary>
+        ''' Keywords that can legally follow Private/Public/Protected/Friend in that first
+        ''' name/keyword slot (e.g. "Public Sub", "Private Class", "Friend Shared Function")
+        ''' - checked by IsTypingPostModifierKeyword so CodeSense can still helpfully suggest
+        ''' these while there's a chance that's what's being typed, and by
+        ''' SelectCodeSenseSuggestionBestMatch so one of these is preferred over an unrelated
+        ''' type/keyword that merely happens to sort first and also prefix-match (the same
+        ''' "Option beats Optional" class of bug ParameterModifierKeywords fixes for parameter
+        ''' lists)
+        ''' </summary>
+        Private Shared ReadOnly PostModifierDeclarationKeywords As String() = {
+            "Sub", "Function", "Property", "Class", "Module", "Structure", "Interface", "Enum",
+            "Event", "Const", "WithEvents", "Declare",
+            "Shared", "ReadOnly", "WriteOnly", "Overrides", "Overridable", "MustOverride",
+            "NotOverridable", "MustInherit", "NotInheritable", "Partial", "Default", "Static",
+            "Overloads", "Shadows", "Async", "Iterator"
+        }
+
+        ''' <summary>
+        ''' True if the cursor sits in the first name/keyword slot right after Private/Public/
+        ''' Protected/Friend (see FirstDeclarationNamePattern), AND the word being
+        ''' typed there is still a plausible prefix of one of PostModifierDeclarationKeywords -
+        ''' i.e. it might still turn into "Sub"/"Class"/"Function"/etc. rather than a plain new
+        ''' field/variable name (e.g. "Public stationkeeper")
+        ''' </summary>
+        Private Function IsTypingPostModifierKeyword() As Boolean
+            Try
+                If pSourceFileInfo Is Nothing OrElse pCursorLine >= pSourceFileInfo.TextLines.Count Then Return False
+
+                Dim lLine As String = pSourceFileInfo.TextLines(pCursorLine)
+                If pCursorColumn > lLine.Length Then Return False
+
+                Dim lWordStart As Integer = pCursorColumn
+                While lWordStart > 0 AndAlso (Char.IsLetterOrDigit(lLine(lWordStart - 1)) OrElse lLine(lWordStart - 1) = "_"c)
+                    lWordStart -= 1
+                End While
+                Dim lBeforeWord As String = lLine.Substring(0, lWordStart)
+
+                If Not FirstDeclarationNamePattern.IsMatch(lBeforeWord) Then Return False
+
+                Dim lWord As String = GetCurrentWord()
+                If String.IsNullOrEmpty(lWord) Then Return True
+
+                for each lKeyword In PostModifierDeclarationKeywords
+                    If lKeyword.StartsWith(lWord, StringComparison.OrdinalIgnoreCase) Then Return True
+                Next
+                Return False
+
+            Catch ex As Exception
+                Console.WriteLine($"IsTypingPostModifierKeyword error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
         ''' True if the cursor is currently positioned where a NEW name is being typed as part
         ''' of a declaration (Dim/field/Sub/Function/Property/Event/type/For-loop-variable),
         ''' rather than referencing something that already exists
@@ -81,7 +149,11 @@ Namespace Editors
         ''' CheckCodeSenseTrigger's generic per-character trigger doesn't distinguish "typing a
         ''' brand-new identifier" from "typing a reference to an existing one" - popping a
         ''' completion list open while naming a new Dim/Sub/Property/etc. is just noise, since
-        ''' there's nothing meaningful to complete against yet
+        ''' there's nothing meaningful to complete against yet. The one exception is the first
+        ''' name/keyword slot right after Private/Public/Protected/Friend, which is genuinely
+        ''' ambiguous between a new field name and a keyword like Sub/Class/Function -
+        ''' see IsTypingPostModifierKeyword, which keeps CodeSense available there for as long
+        ''' as what's typed could still become one of those keywords
         ''' </remarks>
         Private Function IsTypingDeclarationName() As Boolean
             Try
@@ -96,6 +168,10 @@ Namespace Editors
                     lWordStart -= 1
                 End While
                 Dim lBeforeWord As String = lLine.Substring(0, lWordStart)
+
+                If FirstDeclarationNamePattern.IsMatch(lBeforeWord) Then
+                    Return Not IsTypingPostModifierKeyword()
+                End If
 
                 for each lPattern As Regex in DeclarationNamePatterns
                     If lPattern.IsMatch(lBeforeWord) Then Return True
@@ -357,16 +433,25 @@ Namespace Editors
                     Case Else
                         ' Regular characters update the suggestion list immediately - but not
                         ' while typing a brand-new declaration name (nothing yet to complete
-                        ' against), a brand-new parameter name in a Sub/Function/Property/
-                        ' Event's own parameter list (same reasoning - must be unique, not a
-                        ' reference to anything existing), or the "As" keyword itself (the
-                        ' only grammatically valid token there - a popup would just be noise;
-                        ' InsertCharacter's CorrectKeywordEndingAt call still capitalizes it
-                        ' once typed)
-                        If (Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c) AndAlso
-                           Not IsTypingDeclarationName() AndAlso Not IsTypingAsKeyword() AndAlso
-                           Not IsTypingParameterName() Then
-                            TriggerCodeSenseForCurrentWord()
+                        ' against - see IsTypingDeclarationName, which stays lenient for as
+                        ' long as what's typed could still become Sub/Class/Function/etc.
+                        ' right after Private/Public/Protected/Friend), a brand-new
+                        ' parameter name in a Sub/Function/Property/Event's own parameter list
+                        ' (same reasoning - must be unique, not a reference to anything
+                        ' existing), or the "As" keyword itself (the only grammatically valid
+                        ' token there - a popup would just be noise; InsertCharacter's
+                        ' CorrectKeywordEndingAt call still capitalizes it once typed)
+                        If Char.IsLetterOrDigit(vChar) OrElse vChar = "_"c Then
+                            If IsTypingDeclarationName() OrElse IsTypingAsKeyword() OrElse IsTypingParameterName() Then
+                                ' Typing has diverged from anything CodeSense could still be
+                                ' suggesting (e.g. "opt" was a plausible "Optional" prefix, but
+                                ' "station" no longer prefixes any keyword) - if a popup from
+                                ' an earlier, still-plausible keystroke is showing, it's now
+                                ' stale and should go away rather than linger uselessly
+                                If pCodeSenseActive Then CancelCodeSense()
+                            Else
+                                TriggerCodeSenseForCurrentWord()
+                            End If
                         End If
                 End Select
 
@@ -418,7 +503,8 @@ Namespace Editors
                 ' that exact match would otherwise beat a real completion like the "Optional"
                 ' keyword since exact matches are preferred over prefix matches below
                 Dim lIsTypingParameterName As Boolean = IsTypingParameterName()
-                Dim lExcludeLocals As Boolean = lIsTypingParameterName OrElse IsTypingDeclarationName()
+                Dim lIsTypingPostModifierKeyword As Boolean = IsTypingPostModifierKeyword()
+                Dim lExcludeLocals As Boolean = lIsTypingParameterName OrElse IsTypingDeclarationName() OrElse lIsTypingPostModifierKeyword
 
                 ' In a fresh-parameter-name position, ByVal/ByRef/Optional/ParamArray are the
                 ' ONLY grammatically valid keyword completions - check these first so a
@@ -430,6 +516,22 @@ Namespace Editors
                         If Not lModifier.StartsWith(vTypedText, StringComparison.OrdinalIgnoreCase) Then Continue for
                         for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
                             If String.Equals(pCodeSenseSuggestions(i).Text, lModifier, StringComparison.OrdinalIgnoreCase) Then
+                                MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
+                                Return
+                            End If
+                        Next
+                    Next
+                End If
+
+                ' Same reasoning for the first name/keyword slot right after Private/Public/
+                ' Protected/Friend - Sub/Function/Class/etc. are the intended
+                ' targets there, not whatever type/keyword happens to sort first and also
+                ' prefix-match (e.g. typing "s" shouldn't land on some unrelated "S..." type)
+                If lIsTypingPostModifierKeyword Then
+                    for each lKeyword In PostModifierDeclarationKeywords
+                        If Not lKeyword.StartsWith(vTypedText, StringComparison.OrdinalIgnoreCase) Then Continue for
+                        for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
+                            If String.Equals(pCodeSenseSuggestions(i).Text, lKeyword, StringComparison.OrdinalIgnoreCase) Then
                                 MoveCodeSenseSelection(i - pCodeSenseSelectedIndex)
                                 Return
                             End If
