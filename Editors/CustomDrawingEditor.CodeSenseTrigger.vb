@@ -394,10 +394,25 @@ Namespace Editors
             Try
                 If Not pCodeSenseActive OrElse String.IsNullOrEmpty(vTypedText) OrElse pCodeSenseSuggestions Is Nothing Then Return
 
+                ' While typing a brand-new name (e.g. a parameter being declared, not
+                ' referenced - Ctrl+Space can force the popup open here even though the
+                ' automatic per-keystroke trigger stays suppressed, see IsTypingParameterName),
+                ' an EXACT-name match against an eLocalVariable/eParameter suggestion is never
+                ' the right completion target - it can only be a self-referential parse
+                ' artifact of the identifier currently being typed. The live, still-mid-edit
+                ' parse's error recovery can treat an incomplete trailing parameter as if it
+                ' were already a real, complete one (e.g. "Sub stuff(vData As TokenType, i As
+                ' Integer, opt" gets a phantom third parameter literally named "opt"), and
+                ' that exact match would otherwise beat a real completion like the "Optional"
+                ' keyword since exact matches are preferred over prefix matches below
+                Dim lExcludeLocals As Boolean = IsTypingParameterName() OrElse IsTypingDeclarationName()
+
                 Dim lBestIndex As Integer = -1
                 for i As Integer = 0 To pCodeSenseSuggestions.Count - 1
-                    Dim lText As String = pCodeSenseSuggestions(i).Text
+                    Dim lSuggestion As CodeSenseSuggestion = pCodeSenseSuggestions(i)
+                    Dim lText As String = lSuggestion.Text
                     If lText Is Nothing Then Continue For
+                    If lExcludeLocals AndAlso (lSuggestion.Kind = CodeSenseSuggestionKind.eLocalVariable OrElse lSuggestion.Kind = CodeSenseSuggestionKind.eParameter) Then Continue For
 
                     If String.Equals(lText, vTypedText, StringComparison.OrdinalIgnoreCase) Then
                         lBestIndex = i
