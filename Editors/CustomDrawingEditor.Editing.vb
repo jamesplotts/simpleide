@@ -121,6 +121,27 @@ Namespace Editors
                     DeleteSelection()
                 End If
                 
+                ' If the cursor sits right before nothing but closing paren(s) - optionally
+                ' with trailing whitespace - that finish an already-complete parameter list
+                ' (e.g. "...= 13|)" - nothing left to type, just the Sub's own closing paren),
+                ' those parens belong on THIS line, completing the signature, rather than
+                ' being orphaned alone on the new line below with no body/End generated at
+                ' all. Absorb them by advancing the cursor past them first, so the rest of
+                ' this method (including lCursorAtLineEnd below) sees the line as what it
+                ' actually is: a complete, closed declaration ready for Enter to complete.
+                Dim lLineBeforeSplit As String = pSourceFileInfo.TextLines(pCursorLine)
+                Dim lTrimmedTrailing As String = lLineBeforeSplit.Substring(pCursorColumn).Trim()
+                Dim lTrailingIsOnlyCloseParens As Boolean = lTrimmedTrailing.Length > 0
+                for each lTrailingChar As Char in lTrimmedTrailing
+                    If lTrailingChar <> ")"c Then
+                        lTrailingIsOnlyCloseParens = False
+                        Exit for
+                    End If
+                Next
+                If lTrailingIsOnlyCloseParens Then
+                    pCursorColumn = lLineBeforeSplit.Length
+                End If
+
                 ' Capture whether the cursor sits at the genuine end of the line (nothing but
                 ' whitespace after it) BEFORE splitting it. Auto-block-completion only makes
                 ' sense when Enter is completing a finished statement - if there's real
