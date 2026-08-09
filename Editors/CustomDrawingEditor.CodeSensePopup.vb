@@ -473,7 +473,25 @@ Namespace Editors
                 If String.IsNullOrEmpty(lTypedWord) Then Return True
 
                 Dim lText As String = pCodeSenseSuggestions(pCodeSenseSelectedIndex).Text
-                Return lText IsNot Nothing AndAlso lText.StartsWith(lTypedWord, StringComparison.OrdinalIgnoreCase)
+                If lText Is Nothing Then Return False
+
+                If lText.StartsWith(lTypedWord, StringComparison.OrdinalIgnoreCase) Then Return True
+
+                ' Enum-value suggestions are rendered as "EnumName.MemberName" (see
+                ' CustomDrawingEditor.EnumParameterHint.vb AddEnumSuggestion) so the user can
+                ' see/insert the qualified name, but they only type the bare member (e.g. "ei"
+                ' for "eIdentifier") - TryShowEnumParameterSuggestions already filters/narrows
+                ' the list by that bare prefix before it's ever shown, so also matching against
+                ' the text after the suggestion's last "." lets the commit-character keys fire
+                ' on that already-correct match instead of demanding "TokenType.ei" be typed
+                ' out in full
+                Dim lDotIndex As Integer = lText.LastIndexOf("."c)
+                If lDotIndex >= 0 AndAlso lDotIndex + 1 < lText.Length Then
+                    Dim lMemberPart As String = lText.Substring(lDotIndex + 1)
+                    If lMemberPart.StartsWith(lTypedWord, StringComparison.OrdinalIgnoreCase) Then Return True
+                End If
+
+                Return False
 
             Catch ex As Exception
                 Console.WriteLine($"CodeSenseSelectionMatchesTypedWord error: {ex.Message}")
