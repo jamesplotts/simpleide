@@ -232,15 +232,22 @@ Partial Public Class MainWindow
             ' Use a small delay to ensure all widgets are properly initialized
             GLib.Timeout.Add(100, Function()
                 Try
+                    ' Replace ThemeManager's construction-time "System Colors" placeholder with
+                    ' real colors sampled from the now-realized main window's GtkStyleContext -
+                    ' see ThemeManager.RefreshSystemColorsTheme's remarks for why this couldn't
+                    ' happen any earlier. Harmless no-op if System Colors isn't the active theme
+                    ' and isn't otherwise being displayed anywhere yet.
+                    pThemeManager.RefreshSystemColorsTheme()
+
                     ' Apply the theme
                     pThemeManager.ApplyCurrentTheme()
-                    
+
                     ' Apply to all editors
                     ApplyThemeToAllEditors()
-                    
+
                     ' Update the theme menu to reflect current theme
                     UpdateThemeMenuSelection()
-                    
+
                 Catch ex As Exception
                     Console.WriteLine($"Delayed theme application error: {ex.Message}")
                 End Try
