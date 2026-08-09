@@ -536,8 +536,10 @@ Partial Public Class MainWindow
     
     Private Sub OnProjectProperties(vSender As Object, vArgs As EventArgs)
         Try
-            ' TODO: Implement project properties dialog
-            ShowInfo("Project Properties", "Project properties dialog Not yet implemented.")
+            ' AssemblySettingsEditor (Title/Description/Company/Version/OutputType/
+            ' TargetFramework/etc.) already covers what this menu item promises - it was
+            ' otherwise completely unreachable from any menu, button, or shortcut
+            ShowAssemblySettings()
         Catch ex As Exception
             Console.WriteLine($"OnProjectProperties error: {ex.Message}")
         End Try
