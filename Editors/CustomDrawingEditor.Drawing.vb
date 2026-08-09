@@ -368,6 +368,28 @@ Namespace Editors
                         Pango.CairoHelper.ShowLayout(vContext, lLayout)
                         lIndicatorPattern.Dispose()
                     End If
+
+                    ' Show an end-of-line marker when the "Show end of line" setting is on -
+                    ' drawn one column past the line's own text (and past any fold indicator
+                    ' just drawn above, so it never overlaps the "{...}" hint)
+                    If pShowEndOfLine AndAlso lLine.Length >= lFirstColumn Then
+                        Dim lEolColumnIndex As Integer = lLine.Length - lFirstColumn
+                        If lFoldedNode IsNot Nothing AndAlso Not lFoldedNode.IsExpanded Then
+                            lEolColumnIndex += " {...}".Length
+                        End If
+                        Dim lEolX As Integer = pLeftPadding + (lEolColumnIndex * pCharWidth)
+
+                        ' Reuses the line-number color (already the theme's de-emphasized
+                        ' indicator color) rather than adding a new EditorTheme.Tags entry
+                        Dim lEolColor As Cairo.Color = lCurrentTheme.CairoColor(EditorTheme.Tags.eLineNumberColor)
+                        Dim lEolPattern As New Cairo.SolidPattern(lEolColor.R, lEolColor.G, lEolColor.B)
+                        vContext.SetSource(lEolPattern)
+                        vContext.MoveTo(lEolX, lY)
+                        lLayout.FontDescription = pFontDescription
+                        lLayout.SetText("¶")
+                        Pango.CairoHelper.ShowLayout(vContext, lLayout)
+                        lEolPattern.Dispose()
+                    End If
                 Next
                 Dim lCursorColor As Cairo.Color
                 

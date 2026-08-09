@@ -30,7 +30,6 @@ Namespace Editors
         Private pFindHighlightColor As String = "#515C6A"
         'Private pHighlightCurrentLine As Boolean = True
         'Private pShowWhitespace As Boolean = False
-        Private pShowEndOfLine As Boolean = False
         Private pCurrentLineColor As String = "#D4D4D4"
         
         ' ===== Events =====

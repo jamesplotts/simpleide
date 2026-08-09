@@ -107,6 +107,17 @@ Namespace Editors
                 Return If(pSettingsManager?.ShowWhitespace, False)
             End Get
         End Property
+
+        ''' <summary>
+        ''' Gets show-end-of-line setting from settings - saved via
+        ''' PreferencesTab.CreateEditorTab as "Editor.ShowEndOfLine", not a dedicated typed
+        ''' SettingsManager property like ShowWhitespace/AutoIndent
+        ''' </summary>
+        Private ReadOnly Property pShowEndOfLine() As Boolean
+            Get
+                Return If(pSettingsManager?.GetBoolean("Editor.ShowEndOfLine", False), False)
+            End Get
+        End Property
         
         ''' <summary>
         ''' Gets current zoom level from settings
