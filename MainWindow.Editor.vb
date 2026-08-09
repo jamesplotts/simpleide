@@ -196,10 +196,23 @@ Partial Public Class MainWindow
             If lCurrentTab IsNot Nothing Then
                 CloseTab(lCurrentTab)
             End If
-            
+
         Catch ex As Exception
             Console.WriteLine($"OnCloseFile error: {ex.Message}")
             ShowError("Close File Error", ex.Message)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the File menu's "Close All" item
+    ''' </summary>
+    Public Sub OnCloseAll(vSender As Object, vArgs As EventArgs)
+        Try
+            CloseAllTabs()
+
+        Catch ex As Exception
+            Console.WriteLine($"OnCloseAll error: {ex.Message}")
+            ShowError("Close All Error", ex.Message)
         End Try
     End Sub
     

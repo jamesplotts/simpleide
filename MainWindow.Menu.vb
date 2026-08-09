@@ -162,7 +162,7 @@ Partial Public Class MainWindow
             
             ' Close All
             Dim lCloseAll As New MenuItem("Close _All")
-            ' TODO: AddHandler lCloseAll.Activated, AddressOf OnCloseAll
+            AddHandler lCloseAll.Activated, AddressOf OnCloseAll
             lFileMenu.Append(lCloseAll)
             
             lFileMenu.Append(New SeparatorMenuItem())
