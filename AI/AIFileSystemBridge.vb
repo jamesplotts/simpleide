@@ -3,18 +3,22 @@ Imports System
 Imports System.Collections.Generic
 Imports System.IO
 Imports System.Xml
-Imports System.Text 
+Imports System.Text
 Imports SimpleIDE.Utilities.ProjectFileParser
+Imports SimpleIDE.Managers
+Imports SimpleIDE.Models
+Imports SimpleIDE.Syntax
 
 Namespace Utilities
     Public Class AIFileSystemBridge
-        
+
         Private pProjectRoot As String
+        Private pProjectManager As ProjectManager
         Private pAllowedExtensions As New HashSet(Of String) From {
-            ".vb", ".xml", ".xaml", ".json", ".config", ".resx", 
+            ".vb", ".xml", ".xaml", ".json", ".config", ".resx",
             ".txt", ".md", ".gitignore", ".vbproj", ".sln"
         }
-        
+
         Public Property ProjectRoot As String
             Get
                 Return pProjectRoot
@@ -23,6 +27,110 @@ Namespace Utilities
                 pProjectRoot = Value
             End Set
         End Property
+
+        ''' <summary>
+        ''' Wires up the ProjectManager whose symbol index/parsed source FindSymbolLocations and
+        ''' GetSymbolSource read from - without this, those two methods report "no project is open"
+        ''' </summary>
+        Public Sub SetProjectManager(vProjectManager As ProjectManager)
+            pProjectManager = vProjectManager
+        End Sub
+
+        ''' <summary>
+        ''' Finds every project-defined symbol (class/method/property/field/event/etc.) whose
+        ''' bare name matches vName, reporting each match's file, line, and declaration
+        ''' signature - the AI-facing equivalent of "Go to Definition" (F12), but by name rather
+        ''' than cursor position, and returning every match project-wide rather than one
+        ''' </summary>
+        ''' <param name="vName">Bare (unqualified) symbol name, matched case-insensitively</param>
+        Public Function FindSymbolLocations(vName As String) As String
+            Try
+                If pProjectManager Is Nothing Then Return "No project is currently open."
+                If String.IsNullOrWhiteSpace(vName) Then Return "No symbol name was given."
+
+                Dim lNodes As List(Of SyntaxNode) = pProjectManager.FindDefinitionNodesByName(vName.Trim())
+                If lNodes Is Nothing OrElse lNodes.Count = 0 Then
+                    Return $"No symbol named '{vName}' was found in the project."
+                End If
+
+                Dim lBuilder As New StringBuilder()
+                lBuilder.AppendLine($"Found {lNodes.Count} match(es) for '{vName}':")
+                For Each lNode In lNodes
+                    ' StartLine is 0-based internally; report 1-based to match what the editor itself displays
+                    lBuilder.AppendLine($"- {lNode.NodeType}: {GetRelativePath(lNode.FilePath)}:{lNode.StartLine + 1} - {lNode.GetFullDeclaration()}")
+                Next
+
+                Return lBuilder.ToString().TrimEnd()
+
+            Catch ex As Exception
+                Return $"error finding symbol '{vName}': {ex.Message}"
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Returns the full source text (declaration through its closing statement) of every
+        ''' project-defined symbol matching vName. More than one match (overloads, partial-class
+        ''' members, or unrelated same-named symbols in different types) are all returned,
+        ''' labeled by file and line, so the caller can tell them apart
+        ''' </summary>
+        ''' <param name="vName">Bare (unqualified) symbol name, matched case-insensitively</param>
+        Public Function GetSymbolSource(vName As String) As String
+            Try
+                If pProjectManager Is Nothing Then Return "No project is currently open."
+                If String.IsNullOrWhiteSpace(vName) Then Return "No symbol name was given."
+
+                Dim lNodes As List(Of SyntaxNode) = pProjectManager.FindDefinitionNodesByName(vName.Trim())
+                If lNodes Is Nothing OrElse lNodes.Count = 0 Then
+                    Return $"No symbol named '{vName}' was found in the project."
+                End If
+
+                Dim lBuilder As New StringBuilder()
+                For Each lNode In lNodes
+                    Dim lSource As String = GetNodeSourceText(lNode)
+                    lBuilder.AppendLine($"--- {GetRelativePath(lNode.FilePath)}:{lNode.StartLine + 1} ---")
+                    lBuilder.AppendLine("```vb")
+                    lBuilder.AppendLine(If(String.IsNullOrEmpty(lSource), lNode.GetFullDeclaration(), lSource))
+                    lBuilder.AppendLine("```")
+                    lBuilder.AppendLine()
+                Next
+
+                Return lBuilder.ToString().TrimEnd()
+
+            Catch ex As Exception
+                Return $"error getting source for '{vName}': {ex.Message}"
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Joins vNode's owning file's source lines from StartLine to EndLine (both 0-based,
+        ''' indexing directly into SourceFileInfo.TextLines with no adjustment - same convention
+        ''' CustomDrawingEditor.Helpers.GetTextInRangeFromLines relies on). Reads via
+        ''' ProjectManager.GetSourceFileInfo rather than an open editor tab, since the file in
+        ''' question may not have one
+        ''' </summary>
+        Private Function GetNodeSourceText(vNode As SyntaxNode) As String
+            Try
+                If String.IsNullOrEmpty(vNode.FilePath) Then Return ""
+
+                Dim lFile As SourceFileInfo = pProjectManager.GetSourceFileInfo(vNode.FilePath)
+                If lFile Is Nothing OrElse lFile.TextLines Is Nothing Then Return ""
+
+                Dim lLines As List(Of String) = lFile.TextLines
+                Dim lStart As Integer = Math.Max(0, vNode.StartLine)
+                Dim lEnd As Integer = Math.Min(lLines.Count - 1, vNode.EndLine)
+                If lStart > lEnd Then Return ""
+
+                Dim lResult As New List(Of String)
+                For i As Integer = lStart To lEnd
+                    lResult.Add(lLines(i))
+                Next
+                Return String.Join(Environment.NewLine, lResult)
+
+            Catch ex As Exception
+                Console.WriteLine($"AIFileSystemBridge.GetNodeSourceText error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
         
         ''' <summary>
         ''' Scaffolds a new VB.NET project - shares the exact StringResources templates

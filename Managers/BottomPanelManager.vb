@@ -17,6 +17,8 @@ Namespace Managers
         Private pIsVisible As Boolean = False
         Private pProjectRoot As String
         Private pThemeManager As ThemeManager
+        ''' <summary>Set via SetProjectManager - forwarded to the AI Assistant panel's symbol-lookup capability, see SetProjectManager</summary>
+        Private pProjectManager As ProjectManager
         
         ' Tab panels
         Private pBuildOutputPanel As BuildOutputPanel
@@ -579,6 +581,9 @@ Namespace Managers
 
                 pAIAssistantPanel = New AIAssistantPanel(lProvider, lMem0ApiKey)
                 pAIAssistantPanel.SetSettingsManager(pSettingsManager)
+                If pProjectManager IsNot Nothing Then
+                    pAIAssistantPanel.SetProjectManager(pProjectManager)
+                End If
 
                 AddHandler pAIAssistantPanel.FixErrorsRequested,
                     Sub()
@@ -1076,6 +1081,19 @@ Namespace Managers
                 Return False
             End Try
         End Function
+
+        ''' <summary>
+        ''' Sets the ProjectManager the AI Assistant panel's symbol-lookup capability (see
+        ''' AIAssistantPanel.SetProjectManager) reads from - forwarded immediately if that panel
+        ''' already exists, since it's created lazily and may not yet when this runs
+        ''' </summary>
+        ''' <param name="vProjectManager">The shared ProjectManager instance</param>
+        Public Sub SetProjectManager(vProjectManager As ProjectManager)
+            pProjectManager = vProjectManager
+            If pAIAssistantPanel IsNot Nothing Then
+                pAIAssistantPanel.SetProjectManager(pProjectManager)
+            End If
+        End Sub
 
         ''' <summary>
         ''' Sets the ThemeManager for all panels that need theme support

@@ -27,6 +27,17 @@ Namespace Utilities
         Private pProjectContext As String = ""
         Private pUserContext As String = ""
 
+        ''' <summary>Caps how many automatic "```lookup``` block -> execute -> continue" round trips a single SendMessageWithArtifactsAsync call will do, so a model that keeps requesting lookups can't loop forever</summary>
+        Private Const MAX_LOOKUP_ROUNDS As Integer = 3
+
+        ''' <summary>
+        ''' Executes a "```lookup```" block the model emitted - (queryType, name) in, result
+        ''' text out. Wired by AIAssistantPanel to AIFileSystemBridge's symbol-index methods;
+        ''' Nothing (the default) means the model is never told about the capability at all,
+        ''' since BuildEnhancedPrompt only advertises it when this is set
+        ''' </summary>
+        Public Property SymbolLookupHandler As Func(Of String, String, String)
+
         ' ===== Response Classes =====
         Public Class ClaudeResponse
             Public Property Content As String
@@ -109,6 +120,37 @@ Namespace Utilities
                 Else
                     lResponseText = Await pProvider.SendMessageAsync(GetSystemPrompt(), lHistory, lEnhancedPrompt)
                 End If
+
+                ' Resolve up to MAX_LOOKUP_ROUNDS "```lookup```" requests (see BuildEnhancedPrompt)
+                ' before treating the response as final - each round feeds the lookup result back
+                ' as the next turn and re-asks the same provider, so the model can use it to
+                ' finish answering. A lookup-only turn's raw block still passes through vOnChunk
+                ' like any other streamed text (it's rare - only when the model actually needs a
+                ' lookup - and matches how ```artifact``` blocks aren't hidden from the chat view
+                ' today either), but the caller only ever sees this function's *final* lResponseText.
+                Dim lLookupRounds As Integer = 0
+                While SymbolLookupHandler IsNot Nothing AndAlso lLookupRounds < MAX_LOOKUP_ROUNDS
+                    Dim lQueryType As String = Nothing
+                    Dim lSymbolName As String = Nothing
+                    If Not TryExtractLookupRequest(lResponseText, lQueryType, lSymbolName) Then Exit While
+
+                    Dim lLookupResult As String = SymbolLookupHandler(lQueryType, lSymbolName)
+                    Dim lFollowUpPrompt As String =
+                        $"SYMBOL LOOKUP RESULT for {lQueryType} '{lSymbolName}':{Environment.NewLine}{lLookupResult}" &
+                        $"{Environment.NewLine}{Environment.NewLine}Continue your response to the user's original " &
+                        "request using this information. Do not mention that a lookup was performed."
+
+                    lHistory.Add(New AIChatMessage("assistant", lResponseText))
+                    lHistory.Add(New AIChatMessage("user", lFollowUpPrompt))
+
+                    If vOnChunk IsNot Nothing Then
+                        lResponseText = Await pProvider.SendMessageStreamingAsync(GetSystemPrompt(), lHistory, "", vOnChunk)
+                    Else
+                        lResponseText = Await pProvider.SendMessageAsync(GetSystemPrompt(), lHistory, "")
+                    End If
+
+                    lLookupRounds += 1
+                End While
 
                 Dim lParsedResponse As New ClaudeResponse() With {
                     .Content = lResponseText,
@@ -219,6 +261,24 @@ Namespace Utilities
             lBuilder.AppendLine("To delete a file, set FilePath to it, add a Delete: true line, and leave Content empty.")
             lBuilder.AppendLine()
 
+            If SymbolLookupHandler IsNot Nothing Then
+                lBuilder.AppendLine("If you need to find where a class/method/property/field/event is defined in " &
+                                     "this project, or need to see its exact declaration or full body before you can " &
+                                     "answer accurately, respond with ONLY this block (nothing else in that response " &
+                                     "- no other text, no artifacts) and you will be given the result and asked to " &
+                                     "continue:")
+                lBuilder.AppendLine("```lookup")
+                lBuilder.AppendLine("Query: FindLocation")
+                lBuilder.AppendLine("Name: BareSymbolName")
+                lBuilder.AppendLine("```")
+                lBuilder.AppendLine("FindLocation reports every match's file, line, and declaration signature. Use " &
+                                     "Query: GetSource instead of FindLocation to get a match's full source text " &
+                                     "(declaration through its closing statement) rather than just its location. " &
+                                     "Name is always the bare (unqualified) symbol name, e.g. 'JoinLines' not " &
+                                     "'CustomDrawingEditor.JoinLines'.")
+                lBuilder.AppendLine()
+            End If
+
             ' Add project context if available
             If Not String.IsNullOrEmpty(pProjectContext) Then
                 lBuilder.AppendLine("project Context:")
@@ -262,6 +322,37 @@ Namespace Utilities
             Catch ex As Exception
                 Console.WriteLine($"AddMem0Context error: {ex.Message}")
                 Return vPrompt
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Looks for a "```lookup```" block (see BuildEnhancedPrompt) in a response and parses
+        ''' its Query:/Name: lines
+        ''' </summary>
+        ''' <returns>True if a well-formed lookup request was found (both vQueryType and vName populated)</returns>
+        Private Function TryExtractLookupRequest(vResponseText As String, ByRef vQueryType As String, ByRef vName As String) As Boolean
+            Try
+                If String.IsNullOrEmpty(vResponseText) Then Return False
+
+                Dim lMatch As System.Text.RegularExpressions.Match = System.Text.RegularExpressions.Regex.Match(
+                    vResponseText, "```lookup\s*\n(.*?)```", System.Text.RegularExpressions.RegexOptions.Singleline)
+                If Not lMatch.Success Then Return False
+
+                Dim lLines As String() = lMatch.Groups(1).Value.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries)
+                For Each lLine In lLines
+                    Dim lTrimmed As String = lLine.Trim()
+                    If lTrimmed.StartsWith("Query:") Then
+                        vQueryType = lTrimmed.Substring(6).Trim()
+                    ElseIf lTrimmed.StartsWith("Name:") Then
+                        vName = lTrimmed.Substring(5).Trim()
+                    End If
+                Next
+
+                Return Not String.IsNullOrEmpty(vQueryType) AndAlso Not String.IsNullOrEmpty(vName)
+
+            Catch ex As Exception
+                Console.WriteLine($"TryExtractLookupRequest error: {ex.Message}")
+                Return False
             End Try
         End Function
 

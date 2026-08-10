@@ -40,6 +40,9 @@ Namespace Widgets
 
         ' Settings (used for the "Stream responses" preference)
         Private pSettingsManager As SettingsManager
+
+        ''' <summary>Set via SetProjectManager - reapplied to pFileSystemBridge/pApiClient whenever either is (re)created, since it feeds the "```lookup```" symbol-search capability</summary>
+        Private pProjectManager As ProjectManager
         
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
@@ -85,6 +88,7 @@ Namespace Widgets
             ' error rather than failing to construct the panel at all
             pApiClient = New AIChatClient(vProvider, vMem0ApiKey)
             pFileSystemBridge = New AIFileSystemBridge()
+            ApplySymbolLookupWiring()
             LoadMem0UserContext()
 
             BuildUI()
@@ -105,8 +109,51 @@ Namespace Widgets
         Public Sub Initialize(vProvider As IAIProvider, Optional vMem0ApiKey As String = "")
             pApiClient = New AIChatClient(vProvider, vMem0ApiKey)
             pFileSystemBridge = New AIFileSystemBridge()
+            ApplySymbolLookupWiring()
             LoadMem0UserContext()
         End Sub
+
+        ''' <summary>
+        ''' Wires up the shared ProjectManager, whose symbol index backs the "```lookup```"
+        ''' capability the AI can use to find a symbol's location or pull its declaration/full
+        ''' source (see AIChatClient.BuildEnhancedPrompt / AIFileSystemBridge.FindSymbolLocations
+        ''' / GetSymbolSource) - called from MainWindow via BottomPanelManager once at startup
+        ''' </summary>
+        Public Sub SetProjectManager(vProjectManager As ProjectManager)
+            pProjectManager = vProjectManager
+            ApplySymbolLookupWiring()
+        End Sub
+
+        ''' <summary>
+        ''' (Re)applies pProjectManager to pFileSystemBridge and wires pApiClient.
+        ''' SymbolLookupHandler - called after any of pFileSystemBridge, pApiClient, or
+        ''' pProjectManager is (re)assigned, since New/Initialize/SetProjectManager can each run
+        ''' independently and in any order
+        ''' </summary>
+        Private Sub ApplySymbolLookupWiring()
+            pFileSystemBridge.SetProjectManager(pProjectManager)
+            pApiClient.SymbolLookupHandler = AddressOf HandleSymbolLookup
+        End Sub
+
+        ''' <summary>
+        ''' AIChatClient.SymbolLookupHandler implementation - dispatches a "```lookup```"
+        ''' block's Query type to the matching AIFileSystemBridge method
+        ''' </summary>
+        Private Function HandleSymbolLookup(vQueryType As String, vName As String) As String
+            Try
+                Select Case vQueryType.Trim().ToLowerInvariant()
+                    Case "findlocation"
+                        Return pFileSystemBridge.FindSymbolLocations(vName)
+                    Case "getsource"
+                        Return pFileSystemBridge.GetSymbolSource(vName)
+                    Case Else
+                        Return $"Unknown lookup Query type '{vQueryType}' - use FindLocation or GetSource."
+                End Select
+            Catch ex As Exception
+                Console.WriteLine($"AIAssistantPanel.HandleSymbolLookup error: {ex.Message}")
+                Return $"error performing lookup: {ex.Message}"
+            End Try
+        End Function
 
         ''' <summary>
         ''' Fires off AIChatClient.LoadUserContext() in the background so previously-stored Mem0
