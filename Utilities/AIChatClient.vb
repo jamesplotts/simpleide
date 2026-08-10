@@ -445,7 +445,16 @@ Namespace Utilities
 
         Private Function ParseArtifact(vArtifactContent As String) As ClaudeArtifact
             Try
-                Dim lLines As String() = vArtifactContent.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries)
+                ' Normalize line endings to a single vbLf first, then split with no entry
+                ' removal - splitting directly on {vbCr, vbLf} with RemoveEmptyEntries (the
+                ' previous approach) silently deleted every genuinely blank line in the artifact
+                ' body along with the empty entries CRLF splitting produces between \r and \n,
+                ' since both look identical to Split. That corrupted any created/modified file's
+                ' blank lines, and - worse - made the EXPECTED-content safety check (ReplaceLinesAsync/
+                ' ModifyFileAsync) compare a blank-line-stripped reconstruction against the real
+                ' file's actual (blank-line-containing) text, so it would almost never match and
+                ' every legitimate replace/modify would be refused as "content doesn't match"
+                Dim lLines As String() = vArtifactContent.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf).Split(vbLf)
                 If lLines.Length < 2 Then Return Nothing
 
                 Dim lArtifact As New ClaudeArtifact()

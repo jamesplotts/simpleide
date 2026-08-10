@@ -590,6 +590,9 @@ Namespace Managers
                 If pProjectManager IsNot Nothing Then
                     pAIAssistantPanel.SetProjectManager(pProjectManager)
                 End If
+                If Not String.IsNullOrEmpty(pProjectRoot) Then
+                    pAIAssistantPanel.ProjectRoot = System.IO.Path.GetDirectoryName(pProjectRoot)
+                End If
                 If pOpenTabLineReplaceHandler IsNot Nothing Then
                     pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)
                 End If
@@ -692,6 +695,9 @@ Namespace Managers
                     End If
                     pFindPanel?.SetProjectRoot(lProjectDirectory)
                     pTodoPanel?.SetProjectRoot(lProjectDirectory)
+                    If pAIAssistantPanel IsNot Nothing Then
+                        pAIAssistantPanel.ProjectRoot = lProjectDirectory
+                    End If
                 End If
             Catch ex As Exception
                 Console.WriteLine($"BottomPanelManager.SetProjectRoot error: {ex.Message}")

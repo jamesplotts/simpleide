@@ -14,10 +14,6 @@ Namespace Utilities
 
         Private pProjectRoot As String
         Private pProjectManager As ProjectManager
-        Private pAllowedExtensions As New HashSet(Of String) From {
-            ".vb", ".xml", ".xaml", ".json", ".config", ".resx",
-            ".txt", ".md", ".gitignore", ".vbproj", ".sln"
-        }
 
         Public Property ProjectRoot As String
             Get
@@ -221,35 +217,6 @@ Namespace Utilities
             End Try
         End Function
         
-        ' Create a file with content
-        Public Function CreateFile(vRelativePath As String, vContent As String) As Boolean
-            Try
-                If Not IsValidFileName(vRelativePath) Then
-                    Throw New Exception($"Invalid file extension for: {vRelativePath}")
-                End If
-                
-                Dim lFullPath As String = GetFullPath(vRelativePath)
-                Dim lDirectory As String = Path.GetDirectoryName(lFullPath)
-                
-                If Not Directory.Exists(lDirectory) Then
-                    Directory.CreateDirectory(lDirectory)
-                End If
-                
-                File.WriteAllText(lFullPath, vContent)
-                
-                ' Add to project file if it's a VB file
-                If Path.GetExtension(vRelativePath).ToLower() = ".vb" Then
-                    AddFileToProject(vRelativePath)
-                End If
-                
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"error creating file: {ex.Message}")
-                Return False
-            End Try
-        End Function
-        
         ' Read file content
         ''' <summary>
         ''' Reads a project file's CURRENT content. If the file is open in an editor tab, that
@@ -281,58 +248,6 @@ Namespace Utilities
 
             Catch ex As Exception
                 Return $"error reading file: {ex.Message}"
-            End Try
-        End Function
-        
-        ' Modify existing file
-        Public Function ModifyFile(vRelativePath As String, vNewContent As String) As Boolean
-            Try
-                If Not IsValidFileName(vRelativePath) Then
-                    Throw New Exception($"Invalid file extension for: {vRelativePath}")
-                End If
-                
-                Dim lFullPath As String = GetFullPath(vRelativePath)
-                
-                If Not File.Exists(lFullPath) Then
-                    Throw New Exception($"File not found: {vRelativePath}")
-                End If
-                
-                ' Create backup
-                Dim lBackupPath As String = lFullPath & ".bak"
-                File.Copy(lFullPath, lBackupPath, True)
-                
-                ' Write new content
-                File.WriteAllText(lFullPath, vNewContent)
-                
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"error modifying file: {ex.Message}")
-                Return False
-            End Try
-        End Function
-        
-        ' Delete a file
-        Public Function DeleteFile(vRelativePath As String) As Boolean
-            Try
-                Dim lFullPath As String = GetFullPath(vRelativePath)
-                
-                If File.Exists(lFullPath) Then
-                    File.Delete(lFullPath)
-                    
-                    ' Remove from project file if it's a VB file
-                    If Path.GetExtension(vRelativePath).ToLower() = ".vb" Then
-                        RemoveFileFromProject(vRelativePath)
-                    End If
-                    
-                    Return True
-                End If
-                
-                Return False
-                
-            Catch ex As Exception
-                Console.WriteLine($"error deleting file: {ex.Message}")
-                Return False
             End Try
         End Function
         
@@ -413,37 +328,6 @@ Namespace Utilities
             Next
         End Sub
         
-        Private Function AddFileToProject(vRelativePath As String) As Boolean
-            Try
-                ' Find project file
-                Dim lProjectFiles() As String = Directory.GetFiles(pProjectRoot, "*.vbproj")
-                If lProjectFiles.Length = 0 Then Return False
-                
-                Dim lProjectFile As String = lProjectFiles(0)
-                Dim lDoc As New XmlDocument()
-                lDoc.Load(lProjectFile)
-                
-                ' Check if already included
-                Dim lNodes As XmlNodeList = lDoc.SelectNodes($"//Compile[@Include='{vRelativePath}']")
-                If lNodes.Count > 0 Then Return True
-                
-                ' Add compile item
-                ' For SDK-style projects, files are automatically included
-                ' For older projects, we'd need to add the Compile element
-                
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"error adding file To project: {ex.Message}")
-                Return False
-            End Try
-        End Function
-        
-        Private Function RemoveFileFromProject(vRelativePath As String) As Boolean
-            ' Implementation for removing file from project
-            Return True
-        End Function
-        
         Private Function GetFullPath(vRelativePath As String) As String
             If String.IsNullOrEmpty(pProjectRoot) Then
                 Throw New Exception("No project root Set")
@@ -463,10 +347,6 @@ Namespace Utilities
             Return Uri.UnescapeDataString(lUri1.MakeRelativeUri(lUri2).ToString()).Replace("/"c, Path.DirectorySeparatorChar)
         End Function
         
-        Private Function IsValidFileName(vFileName As String) As Boolean
-            Dim lExtension As String = Path.GetExtension(vFileName).ToLower()
-            Return pAllowedExtensions.Contains(lExtension)
-        End Function
 
 
         ''' <summary>

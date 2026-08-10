@@ -921,6 +921,10 @@ Namespace Widgets
 
                     Catch ex As Exception
                         Console.WriteLine($"error modifying file on disk: {ex.Message}")
+                        GLib.Idle.Add(Function()
+                            AddErrorMessage($"Failed to modify '{vAction.FilePath}': {ex.Message}")
+                            Return False
+                        End Function)
                     End Try
                 End Sub)
 
@@ -965,6 +969,10 @@ Namespace Widgets
                         End Function)
                     Catch ex As Exception
                         Console.WriteLine($"error deleting file: {ex.Message}")
+                        GLib.Idle.Add(Function()
+                            AddErrorMessage($"Failed to delete '{vAction.FilePath}': {ex.Message}")
+                            Return False
+                        End Function)
                     End Try
                 End Sub)
 
@@ -1052,6 +1060,10 @@ Namespace Widgets
 
                     Catch ex As Exception
                         Console.WriteLine($"error replacing lines on disk: {ex.Message}")
+                        GLib.Idle.Add(Function()
+                            AddErrorMessage($"Failed to replace lines in '{vAction.FilePath}': {ex.Message}")
+                            Return False
+                        End Function)
                     End Try
                 End Sub)
 
@@ -1087,6 +1099,10 @@ Namespace Widgets
                     End Function)
                 Catch ex As Exception
                     Console.WriteLine($"error creating project: {ex.Message}")
+                    GLib.Idle.Add(Function()
+                        AddErrorMessage($"Failed to create project '{vAction.FilePath}': {ex.Message}")
+                        Return False
+                    End Function)
                 End Try
             End Sub)
         End Function
@@ -1148,8 +1164,20 @@ Namespace Widgets
             SaveConversationHistory()
         End Sub
         
+        ''' <summary>
+        ''' Displays an error/refusal in the chat AND records it into pConversationHistory as a
+        ''' "user" turn, so the model actually sees it on the next message - without this, an
+        ''' action refusal (e.g. an EXPECTED-content mismatch) was only ever visible to the
+        ''' human; the model's own history still showed its rejected artifact as the unremarked-
+        ''' upon final turn, so the system prompt's "look it up again and retry" instruction had
+        ''' nothing to trigger it. "user" role matches how the ```lookup``` round-trip already
+        ''' feeds results back (AIChatClient.SendMessageWithArtifactsAsync), keeping consistent
+        ''' user/assistant alternation for providers that expect it.
+        ''' </summary>
         Private Sub AddErrorMessage(vMessage As String)
             AddChatMessage("error", vMessage, "error")
+            pConversationHistory.Add(New ChatHistoryMessage("user", $"[Action failed: {vMessage}]"))
+            SaveConversationHistory()
         End Sub
         
         Private Sub AddActionMessage(vMessage As String)

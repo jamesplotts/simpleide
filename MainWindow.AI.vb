@@ -757,8 +757,8 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Full path to the file the AI overwrote</param>
     Private Sub OnAIFileModified(vFilePath As String)
         Try
-            If pOpenTabs.ContainsKey(vFilePath) Then
-                Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
+            Dim lTabInfo As TabInfo = FindOpenTabForAIAction(vFilePath)
+            If lTabInfo IsNot Nothing Then
                 lTabInfo.Editor.SourceFileInfo.LoadContent()
             ElseIf pSettingsManager.GetBoolean("AI.ShowArtifacts", True) Then
                 OpenFile(vFilePath)
@@ -796,8 +796,9 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Full path to the file the AI deleted</param>
     Private Sub OnAIFileDeleted(vFilePath As String)
         Try
-            If pOpenTabs.ContainsKey(vFilePath) Then
-                CloseTab(pOpenTabs(vFilePath))
+            Dim lTabInfo As TabInfo = FindOpenTabForAIAction(vFilePath)
+            If lTabInfo IsNot Nothing Then
+                CloseTab(lTabInfo)
             End If
             RefreshProjectExplorer()
             UpdateStatusBar($"AI deleted file: {System.IO.Path.GetFileName(vFilePath)}")
@@ -805,6 +806,35 @@ Partial Public Class MainWindow
             Console.WriteLine($"OnAIFileDeleted error: {ex.Message}")
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Looks up an open tab by path for the three OnAIOpenTab* handlers below, tolerant of
+    ''' formatting differences (e.g. a leading "./", or a differently-built but equivalent path)
+    ''' between however the AI's FilePath was combined with the project root and however the
+    ''' tab's own key in pOpenTabs was originally set by OpenFile - neither side is guaranteed
+    ''' already canonical, so both are normalized via Path.GetFullPath before comparing. A silent
+    ''' miss here would report a live, open, unsaved-changes-eligible file as "not open" and let
+    ''' an AI action fall through to a disk write that force-reloads (or worse, silently
+    ''' desyncs) that same tab. Comparison is case-sensitive, matching Linux filesystem semantics.
+    ''' </summary>
+    Private Function FindOpenTabForAIAction(vFilePath As String) As TabInfo
+        Try
+            Dim lTabInfo As TabInfo = Nothing
+            If pOpenTabs.TryGetValue(vFilePath, lTabInfo) Then Return lTabInfo
+
+            Dim lNormalizedTarget As String = System.IO.Path.GetFullPath(vFilePath)
+            For Each lKvp In pOpenTabs
+                If String.Equals(System.IO.Path.GetFullPath(lKvp.Key), lNormalizedTarget, StringComparison.Ordinal) Then
+                    Return lKvp.Value
+                End If
+            Next
+            Return Nothing
+
+        Catch ex As Exception
+            Console.WriteLine($"FindOpenTabForAIAction error: {ex.Message}")
+            Return Nothing
+        End Try
+    End Function
 
     ''' <summary>
     ''' AIAssistantPanel.OpenTabLineReplaceHandler implementation (wired via BottomPanelManager.
@@ -822,11 +852,12 @@ Partial Public Class MainWindow
     ''' <param name="vNewText">Text to replace the range with</param>
     Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vExpectedContent As String, vNewText As String) As AIAssistantPanel.TabActionOutcome
         Try
-            If Not pOpenTabs.ContainsKey(vFilePath) Then
+            Dim lTabInfo As TabInfo = FindOpenTabForAIAction(vFilePath)
+            If lTabInfo Is Nothing Then
                 Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
             End If
 
-            Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
+            Dim lEditor As IEditor = lTabInfo.Editor
             Dim lTextLines As List(Of String) = lEditor.SourceFileInfo.TextLines
             Dim lLineCount As Integer = lTextLines.Count
 
@@ -874,11 +905,12 @@ Partial Public Class MainWindow
     ''' <param name="vNewContent">Text to replace the whole file's content with</param>
     Private Function OnAIOpenTabWholeFileReplace(vFilePath As String, vExpectedContent As String, vNewContent As String) As AIAssistantPanel.TabActionOutcome
         Try
-            If Not pOpenTabs.ContainsKey(vFilePath) Then
+            Dim lTabInfo As TabInfo = FindOpenTabForAIAction(vFilePath)
+            If lTabInfo Is Nothing Then
                 Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
             End If
 
-            Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
+            Dim lEditor As IEditor = lTabInfo.Editor
             Dim lActualContent As String = String.Join(Environment.NewLine, lEditor.SourceFileInfo.TextLines)
 
             If AIAssistantPanel.NormalizeForLineCompare(lActualContent) <> AIAssistantPanel.NormalizeForLineCompare(vExpectedContent) Then
@@ -908,11 +940,11 @@ Partial Public Class MainWindow
     ''' <param name="vFilePath">Full path to the file the AI wants to delete</param>
     Private Function OnAIOpenTabDeleteGuard(vFilePath As String) As AIAssistantPanel.TabActionOutcome
         Try
-            If Not pOpenTabs.ContainsKey(vFilePath) Then
+            Dim lTabInfo As TabInfo = FindOpenTabForAIAction(vFilePath)
+            If lTabInfo Is Nothing Then
                 Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
             End If
 
-            Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
             If lTabInfo.Modified Then
                 Return New AIAssistantPanel.TabActionOutcome With {
                     .WasOpen = True, .Success = False,
