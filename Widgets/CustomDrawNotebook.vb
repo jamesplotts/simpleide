@@ -987,26 +987,33 @@ Namespace Widgets
         ''' <param name="vTabIndex">Index of the tab</param>
         ''' <returns>Required width in pixels</returns>
         Private Function CalculateTabWidth(vTabIndex As Integer) As Integer
+            ' Declared outside the Try so Finally below can dispose them regardless of where an
+            ' exception is thrown - both were previously never disposed at all. This method runs
+            ' once per tab on every CalculateTotalTabWidth()/RefreshLayout() call (tab add/
+            ' remove/rename/label-change/current-tab-switch), so this leaked a Pango.Layout and
+            ' FontDescription per tab on every such layout pass - continuous under normal use
+            Dim lLayout As Pango.Layout = Nothing
+            Dim lFontDesc As Pango.FontDescription = Nothing
             Try
                 If vTabIndex < 0 OrElse vTabIndex >= pTabs.Count Then
                     Return pTabMinWidth
                 End If
-                
+
                 Dim lTab As TabData = pTabs(vTabIndex)
                 Dim lWidth As Integer = TAB_PADDING * 2 ' Left and right padding
-                
+
                 ' Add icon width if present
                 If Not String.IsNullOrEmpty(lTab.IconName) Then
                     lWidth += ICON_SIZE + ICON_TEXT_GAP
                 End If
-                
+
                 ' Add modified indicator width if modified
                 If lTab.Modified Then
                     lWidth += MODIFIED_DOT_SIZE + 4
                 End If
-                
+
                 ' Calculate text width with markup support
-                Dim lLayout As Pango.Layout = pTabBar.CreatePangoLayout("")
+                lLayout = pTabBar.CreatePangoLayout("")
                 
                 ' Check if the label contains markup
                 Dim lHasMarkup As Boolean = lTab.Label.Contains("<span") OrElse lTab.Label.Contains("<b>") OrElse 
@@ -1026,7 +1033,7 @@ Namespace Widgets
                 End If
                 
                 ' Set font
-                Dim lFontDesc As New Pango.FontDescription()
+                lFontDesc = New Pango.FontDescription()
                 lFontDesc.Family = "Sans"
                 lFontDesc.Size = Pango.Units.FromPixels(10)
                 
@@ -1063,6 +1070,9 @@ Namespace Widgets
             Catch ex As Exception
                 Console.WriteLine($"CalculateTabWidth error: {ex.Message}")
                 Return pTabMaxWidth
+            Finally
+                lLayout?.Dispose()
+                lFontDesc?.Dispose()
             End Try
         End Function
         
@@ -1073,6 +1083,15 @@ Namespace Widgets
         ''' <param name="vThemeManager">The theme manager instance</param>
         Public Sub SetThemeManager(vThemeManager As ThemeManager)
             Try
+                ' Unsubscribe from the previous ThemeManager (if any) before switching - this is
+                ' called from more than one place over the widget's lifetime (BottomPanelManager.
+                ' SetThemeManager forwards here from two separate call sites), and without this,
+                ' a second call left OnThemeChanged double-subscribed, so every theme change
+                ' redrew/recalculated the tab bar twice
+                If pThemeManager IsNot Nothing Then
+                    RemoveHandler pThemeManager.ThemeChanged, AddressOf OnThemeChanged
+                End If
+
                 pThemeManager = vThemeManager
 
                 ' Subscribe to theme change events if available

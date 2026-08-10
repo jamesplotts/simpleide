@@ -419,9 +419,13 @@ Namespace Widgets
                 
                 Dim lTab As TabData = pTabs(vFromIndex)
                 pTabs.RemoveAt(vFromIndex)
-                
+
+                ' Removing the tab at vFromIndex shifts everything after it down by one, so a
+                ' rightward move's target index needs to be decremented by one to compensate -
+                ' both branches previously inserted at the same vToIndex, landing the tab one
+                ' position further right than intended on every rightward drag-reorder
                 If vToIndex > vFromIndex Then
-                    pTabs.Insert(vToIndex, lTab)
+                    pTabs.Insert(vToIndex - 1, lTab)
                 Else
                     pTabs.Insert(vToIndex, lTab)
                 End If

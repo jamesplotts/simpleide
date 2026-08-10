@@ -357,9 +357,27 @@ Namespace Widgets
                 If pSelectedRowIndex >= pRows.Count Then
                     pSelectedRowIndex = pRows.Count - 1
                 End If
-                
+
+                ' pSelectedRows (multi-select) also needs re-indexing - it wasn't being touched
+                ' here at all, so after removing an unselected row, every selected index after it
+                ' still pointed at its old (now shifted) position, and GetSelectedRows() would
+                ' return the wrong rows for any subsequent bulk operation on the selection
+                If pSelectedRows.Count > 0 Then
+                    Dim lAdjustedSelection As New HashSet(Of Integer)
+                    for each lIndex in pSelectedRows
+                        If lIndex = vRowIndex Then
+                            Continue for
+                        ElseIf lIndex > vRowIndex Then
+                            lAdjustedSelection.Add(lIndex - 1)
+                        Else
+                            lAdjustedSelection.Add(lIndex)
+                        End If
+                    Next
+                    pSelectedRows = lAdjustedSelection
+                End If
+
                 UpdateLayout()
-                
+
             Catch ex As Exception
                 Console.WriteLine($"CustomDrawDataGrid.RemoveRow error: {ex.Message}")
             End Try
