@@ -30,7 +30,6 @@ Partial Public Class MainWindow
     Private pCodeSenseEngine As CodeSenseEngine
     Private pCodeSenseManager As CodeSenseManager
     Private pFileSystemWatcher As Utilities.FileSystemWatcher
-    Private pMemoryManifest As MemoryManifest
     Private pProjectManager As ProjectManager
     
     ' UI Components
@@ -83,7 +82,6 @@ Partial Public Class MainWindow
             pProjectManager = New ProjectManager()
             pThemeManager = New ThemeManager(pSettingsManager)
 
-            pMemoryManifest = New MemoryManifest(pSettingsManager)
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsChanged
             AddHandler pSettingsManager.SettingsChanged, AddressOf OnSettingsManagerSettingsChanged_WelcomeTab
 
@@ -477,6 +475,7 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.FixErrorsRequested, Sub() OnFixBuildErrors(Nothing, EventArgs.Empty)
             AddHandler pBottomPanelManager.AIFileCreated, AddressOf OnAIFileCreated
             AddHandler pBottomPanelManager.AIFileModified, AddressOf OnAIFileModified
+            AddHandler pBottomPanelManager.AIProjectCreated, AddressOf OnAIProjectCreated
 
             ' Hook up notebook fix after window is realized
             AddHandler Me.Realized, AddressOf OnWindowRealizedForNotebooks            

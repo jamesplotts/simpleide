@@ -28,6 +28,7 @@ Partial Public Class MainWindow
     Private Sub InitializeAI()
         Try
             Dim lProvider As IAIProvider = AIProviderFactory.CreateProvider(pSettingsManager)
+            Dim lMem0ApiKey As String = AIProviderFactory.GetMem0ApiKey(pSettingsManager)
 
             pAIFileSystemBridge = New AIFileSystemBridge()
 
@@ -36,7 +37,7 @@ Partial Public Class MainWindow
             ' error the first time the user tries to send a message rather than refusing to
             ' initialize at all
             If pAIAssistantPanel IsNot Nothing Then
-                pAIAssistantPanel.Initialize(lProvider)
+                pAIAssistantPanel.Initialize(lProvider, lMem0ApiKey)
             End If
 
         Catch ex As Exception
@@ -45,7 +46,10 @@ Partial Public Class MainWindow
     End Sub
     
     ''' <summary>
-    ''' Update project knowledge base for AI context
+    ''' Rescans the current project's structure and target framework/output type and folds
+    ''' them into the AI Assistant panel's context (see AIAssistantPanel.UpdateProjectContext /
+    ''' BuildContextPrompt) - a directory-tree scan, so it's run on demand from the AI menu
+    ''' rather than automatically on every prompt
     ''' </summary>
     Public Sub UpdateProjectKnowledge()
         Try
@@ -53,10 +57,26 @@ Partial Public Class MainWindow
                 ShowError("No project", "Please open a project before updating AI knowledge.")
                 Return
             End If
-            
-            ' Placeholder for knowledge base update logic
+
+            If pAIAssistantPanel Is Nothing Then
+                ShowError("AI Not Configured", "Please configure AI settings first.")
+                Return
+            End If
+
+            pAIFileSystemBridge.ProjectRoot = System.IO.Path.GetDirectoryName(pCurrentProject)
+            Dim lProjectInfo As ProjectFileParser.ProjectInfo = ProjectFileParser.ParseProjectFileEnhanced(pCurrentProject)
+
+            Dim lKnowledge As New StringBuilder()
+            lKnowledge.AppendLine($"Project: {System.IO.Path.GetFileNameWithoutExtension(pCurrentProject)}")
+            lKnowledge.AppendLine($"Target Framework: {lProjectInfo.TargetFramework}")
+            lKnowledge.AppendLine($"Output Type: {lProjectInfo.OutputType}")
+            lKnowledge.AppendLine("Structure:")
+            lKnowledge.AppendLine(pAIFileSystemBridge.GetProjectStructure())
+
+            pAIAssistantPanel.UpdateProjectContext(lKnowledge)
+
             UpdateStatusBar("Project knowledge updated")
-            
+
         Catch ex As Exception
             Console.WriteLine($"UpdateProjectKnowledge error: {ex.Message}")
             ShowError("Update Knowledge Failed", ex.Message)
@@ -738,6 +758,23 @@ Partial Public Class MainWindow
             End If
         Catch ex As Exception
             Console.WriteLine($"OnAIFileModified error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles a project the AI assistant scaffolded on disk (via BottomPanelManager.
+    ''' AIProjectCreated, relayed from AIAssistantPanel.ProjectCreated) - refreshes the explorer
+    ''' so a sibling project shows up if the current project is part of a solution, without
+    ''' switching away from whatever the user is currently working on the way opening it with
+    ''' LoadProjectEnhanced would
+    ''' </summary>
+    ''' <param name="vProjectFilePath">Full path to the new project's .vbproj file</param>
+    Private Sub OnAIProjectCreated(vProjectFilePath As String)
+        Try
+            RefreshProjectExplorer()
+            UpdateStatusBar($"AI created project: {vProjectFilePath}")
+        Catch ex As Exception
+            Console.WriteLine($"OnAIProjectCreated error: {ex.Message}")
         End Try
     End Sub
 

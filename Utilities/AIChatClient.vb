@@ -42,6 +42,8 @@ Namespace Utilities
             Public Property Content As String
             Public Property Language As String
             Public Property FilePath As String
+            ''' <summary>"Console", "Library", or "Gtk" - only meaningful when Type = "project"</summary>
+            Public Property ProjectType As String
         End Class
 
         Public Class UsageInfo
@@ -208,6 +210,10 @@ Namespace Utilities
                                  "new path relative to the project root when creating a file. Omit FilePath entirely " &
                                  "for exploratory snippets or explanations that shouldn't touch disk.")
             lBuilder.AppendLine()
+            lBuilder.AppendLine("To scaffold an entire new VB.NET project (not just one file), use Type: project, " &
+                                 "set FilePath to the new project's folder name (created directly under the current " &
+                                 "project root), add a ProjectType: Console|Library|Gtk line, and leave Content empty.")
+            lBuilder.AppendLine()
 
             ' Add project context if available
             If Not String.IsNullOrEmpty(pProjectContext) Then
@@ -331,6 +337,8 @@ Namespace Utilities
                         lArtifact.Language = lLine.Substring(9).Trim()
                     ElseIf lLine.StartsWith("FilePath:") Then
                         lArtifact.FilePath = lLine.Substring(9).Trim()
+                    ElseIf lLine.StartsWith("ProjectType:") Then
+                        lArtifact.ProjectType = lLine.Substring(12).Trim()
                     End If
                 Next
 

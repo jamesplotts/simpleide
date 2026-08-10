@@ -58,6 +58,23 @@ Namespace AI
         End Function
 
         ''' <summary>
+        ''' Reads the Mem0 API key for AIChatClient's persistent-memory context, if the "Enable
+        ''' Mem0 memory system" checkbox in Preferences' AI tab is on and a key has been saved
+        ''' </summary>
+        ''' <param name="vSettingsManager">Settings to read the Mem0 enabled flag from</param>
+        ''' <returns>The saved Mem0 API key, or "" if Mem0 is disabled or no key is set</returns>
+        Public Shared Function GetMem0ApiKey(vSettingsManager As SettingsManager) As String
+            Try
+                If Not vSettingsManager.GetBoolean("AI.Mem0.Enabled", False) Then Return ""
+                Return BuildCredentialManager(vSettingsManager).RetrieveCredential("SimpleIDE-AI", "Mem0")
+
+            Catch ex As Exception
+                Console.WriteLine($"AIProviderFactory.GetMem0ApiKey error: {ex.Message}")
+                Return ""
+            End Try
+        End Function
+
+        ''' <summary>
         ''' Builds a CredentialManager using whichever secure-storage backend was selected in
         ''' Preferences' Git Credentials tab - that choice is really a machine-level "how do I
         ''' store secrets" preference rather than something Git-specific, so AI credentials

@@ -24,7 +24,16 @@ Namespace Utilities
             End Set
         End Property
         
-        ' Create a new VB.NET project
+        ''' <summary>
+        ''' Scaffolds a new VB.NET project - shares the exact StringResources templates
+        ''' MainWindow.CreateNewProject uses for the "Project > New Project..." menu command,
+        ''' rather than hand-building the .vbproj/Program.vb text here, so an AI-created project
+        ''' builds with `dotnet build` exactly as a menu-created one does
+        ''' </summary>
+        ''' <param name="vProjectName">Project and root namespace name</param>
+        ''' <param name="vProjectPath">Directory the project folder is created under</param>
+        ''' <param name="vProjectType">"Console", "Library", or anything else for a GTK app</param>
+        ''' <returns>The full path to the created .vbproj file, or an "error: ..." string</returns>
         Public Function CreateProject(vProjectName As String, vProjectPath As String, vProjectType As String) As String
             Try
                 ' Create project directory
@@ -32,29 +41,73 @@ Namespace Utilities
                 If Directory.Exists(lProjectDir) Then
                     Return $"error: Directory already exists: {lProjectDir}"
                 End If
-                
+
                 Directory.CreateDirectory(lProjectDir)
-                
+
                 ' Create project file
                 Dim lProjectFile As String = Path.Combine(lProjectDir, $"{vProjectName}.vbproj")
-                CreateProjectFile(lProjectFile, vProjectName, vProjectType)
-                
+
+                Dim lOutputType As String = ""
+                Dim lPackageReferences As String = ""
+                Select Case vProjectType
+                    Case "Console"
+                        lOutputType = "Exe"
+                    Case "Library"
+                        lOutputType = "Library"
+                    Case Else
+                        lOutputType = "Exe"
+                        lPackageReferences = StringResources.Instance.GetString(StringResources.KEY_GTK_PACKAGE_REFERENCE)
+                End Select
+
+                ' Explicit Compile items - EnableDefaultCompileItems is False in the template,
+                ' so every source file created below must be listed here or it will be invisible
+                ' to both SimpleIDE's ProjectFileParser and a real dotnet build
+                Dim lCompileItems As String = "<Compile Include=""My project/AssemblyInfo.vb"" />" & Environment.NewLine &
+                    "    <Compile Include=""Program.vb"" />"
+
+                Dim lProjectParams As New Dictionary(Of String, String) From {
+                    {"OutputType", lOutputType},
+                    {"RootNamespace", vProjectName},
+                    {"PackageReferences", lPackageReferences},
+                    {"CompileItems", lCompileItems}
+                }
+                File.WriteAllText(lProjectFile, StringResources.Instance.GetTemplate(StringResources.KEY_VBPROJ_TEMPLATE, lProjectParams))
+
                 ' Create standard directories
                 Directory.CreateDirectory(Path.Combine(lProjectDir, "My project"))
                 Directory.CreateDirectory(Path.Combine(lProjectDir, "Resources"))
-                
-                ' Create Program.vb
-                CreateProgramFile(lProjectDir, vProjectName, vProjectType)
-                
+
                 ' Create AssemblyInfo.vb
-                CreateAssemblyInfo(lProjectDir, vProjectName)
-                
+                Dim lAssemblyParams As New Dictionary(Of String, String) From {
+                    {"ProjectName", vProjectName},
+                    {"Description", $"{vProjectName} application"},
+                    {"Company", ""},
+                    {"Year", DateTime.Now.Year.ToString()}
+                }
+                File.WriteAllText(Path.Combine(lProjectDir, "My project", "AssemblyInfo.vb"),
+                    StringResources.Instance.GetTemplate(StringResources.KEY_ASSEMBLYINFO_TEMPLATE, lAssemblyParams))
+
+                ' Create Program.vb
+                Dim lProgramContent As String
+                Select Case vProjectType
+                    Case "Console"
+                        lProgramContent = StringResources.Instance.GetTemplate(StringResources.KEY_CONSOLE_PROJECT_TEMPLATE,
+                            New Dictionary(Of String, String) From {{"ProjectName", vProjectName}})
+                    Case "Library"
+                        lProgramContent = StringResources.Instance.GetTemplate(StringResources.KEY_LIBRARY_PROJECT_TEMPLATE,
+                            New Dictionary(Of String, String) From {{"ProjectName", vProjectName}, {"ClassName", "Class1"}})
+                    Case Else
+                        lProgramContent = StringResources.Instance.GetTemplate(StringResources.KEY_GTK_PROJECT_TEMPLATE,
+                            New Dictionary(Of String, String) From {{"ProjectName", vProjectName}})
+                End Select
+                File.WriteAllText(Path.Combine(lProjectDir, "Program.vb"), lProgramContent)
+
                 ' Create .gitignore
                 GitIgnoreHelper.CreateGitIgnore(lProjectDir)
-                
+
                 pProjectRoot = lProjectDir
                 Return lProjectFile
-                
+
             Catch ex As Exception
                 Return $"error creating project: {ex.Message}"
             End Try
@@ -232,95 +285,6 @@ Namespace Utilities
                 Dim lIsLastItem As Boolean = (i = lFiles.Length - 1)
                 vBuilder.AppendLine($"{vIndent}{If(lIsLastItem, "└── ", "├── ")}{lFileName}")
             Next
-        End Sub
-        
-        Private Function CreateProjectFile(vProjectFile As String, vProjectName As String, vProjectType As String) As Boolean
-            Try
-                Dim lContent As String = $"<project Sdk=""Microsoft.NET.Sdk"">" + Environment.NewLine
-                lContent += "  <PropertyGroup>" + Environment.NewLine
-                lContent += "      <OutputType>{If(vProjectType = ""Console"", ""Exe"", ""WinExe"")}</OutputType>" + Environment.NewLine
-                lContent += "      <RootNamespace>{vProjectName}</RootNamespace>" + Environment.NewLine
-                lContent += "      <TargetFramework>net8.0</TargetFramework>" + Environment.NewLine
-                lContent += "      <OptionExplicit>On</OptionExplicit>" + Environment.NewLine
-                lContent += "      <OptionCompare>Binary</OptionCompare>" + Environment.NewLine
-                lContent += "      <OptionStrict>On</OptionStrict>" + Environment.NewLine
-                lContent += "      <OptionInfer>On</OptionInfer>" + Environment.NewLine
-                lContent += "    </PropertyGroup>" + Environment.NewLine
-                lContent += "  </project>"
-                
-                File.WriteAllText(vProjectFile, lContent)
-                Return True
-                
-            Catch ex As Exception
-                Console.WriteLine($"error creating project file: {ex.Message}")
-                Return False
-            End Try
-        End Function
-        
-        Private Sub CreateProgramFile(vProjectDir As String, vProjectName As String, vProjectType As String)
-            Dim lProgramFile As String = Path.Combine(vProjectDir, "Program.vb")
-            Dim lContent As String = ""
-            
-            Select Case vProjectType
-                Case "Console"
-                    lContent = $"' {vProjectName} - Console Application
-Imports System
-
-Module Program
-    Sub Main(args As String())
-        Console.WriteLine(""Hello, World!"")
-        Console.WriteLine(""Press any key To Exit..."")
-        Console.ReadKey()
-    End Sub
-End Module"
-                
-                Case "Library"
-                    lContent = $"' {vProjectName} - Class Library
-Imports System
-
-Namespace {vProjectName}
-    Public Class Class1
-        ' TODO: Add your class implementation here
-    End Class
-End Namespace"
-                
-                Case Else ' Windows/GTK application
-                    lContent = $"' {vProjectName} - Application Entry Point
-Imports System
-
-Module Program
-    Sub Main(args As String())
-        ' TODO: Initialize your application here
-        Console.WriteLine(""Application started"")
-    End Sub
-End Module"
-            End Select
-            
-            File.WriteAllText(lProgramFile, lContent)
-        End Sub
-        
-        Private Sub CreateAssemblyInfo(vProjectDir As String, vProjectName As String)
-            Dim lAssemblyInfoFile As String = Path.Combine(vProjectDir, "My project", "AssemblyInfo.vb")
-            Dim lContent As String = $"Imports System.Reflection
-Imports System.Runtime.InteropServices
-
-' General Information about an assembly
-<Assembly: AssemblyTitle(""{vProjectName}"")>
-<Assembly: AssemblyDescription("""")>
-<Assembly: AssemblyConfiguration("""")>
-<Assembly: AssemblyCompany("""")>
-<Assembly: AssemblyProduct(""{vProjectName}"")>
-<Assembly: AssemblyCopyright(""Copyright © {DateTime.Now.Year}"")>
-<Assembly: AssemblyTrademark("""")>
-
-' Version information
-<Assembly: AssemblyVersion(""1.0.0.0"")>
-<Assembly: AssemblyFileVersion(""1.0.0.0"")>
-
-' COM visibility
-<Assembly: ComVisible(False)>"
-            
-            File.WriteAllText(lAssemblyInfoFile, lContent)
         End Sub
         
         Private Function AddFileToProject(vRelativePath As String) As Boolean

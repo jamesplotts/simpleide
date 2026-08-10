@@ -76,6 +76,9 @@ Namespace Widgets
         Private pShowArtifactsCheck As CheckButton
         Private pAutoContextCheck As CheckButton
         Private pMem0EnabledCheck As CheckButton
+        Private pMem0ApiKeyLabel As Label
+        Private pMem0ApiKeyEntry As CustomDrawTextBox
+        Private pMem0ApiKeyVisibleCheck As CheckButton
         Private pAIProviderCombo As CustomDrawComboBox
         Private pAIProviderHelpLabel As Label
         Private pApiKeyLabel As Label
@@ -859,8 +862,24 @@ Namespace Widgets
             
             pMem0EnabledCheck = New CheckButton("Enable Mem0 memory system")
             pMem0EnabledCheck.MarginStart = 20
-            AddHandler pMem0EnabledCheck.Toggled, AddressOf OnSettingChanged
+            AddHandler pMem0EnabledCheck.Toggled, AddressOf OnMem0EnabledToggled
             lConfigBox.PackStart(pMem0EnabledCheck, False, False, 0)
+
+            Dim lMem0KeyBox As New Box(Orientation.Horizontal, 10)
+            lMem0KeyBox.MarginStart = 20
+            pMem0ApiKeyLabel = New Label("Mem0 API key:")
+            lMem0KeyBox.PackStart(pMem0ApiKeyLabel, False, False, 0)
+            pMem0ApiKeyEntry = New CustomDrawTextBox()
+            pMem0ApiKeyEntry.ThemeManager = pThemeManager
+            pMem0ApiKeyEntry.InnerEntry.Visibility = False ' Hide API key by default
+            pMem0ApiKeyEntry.TooltipText = "Your Mem0.ai API key - get one at https://app.mem0.ai"
+            AddHandler pMem0ApiKeyEntry.Changed, AddressOf OnSettingChanged
+            lMem0KeyBox.PackStart(pMem0ApiKeyEntry, True, True, 0)
+
+            pMem0ApiKeyVisibleCheck = New CheckButton("Show")
+            AddHandler pMem0ApiKeyVisibleCheck.Toggled, AddressOf OnMem0ApiKeyVisibleToggled
+            lMem0KeyBox.PackStart(pMem0ApiKeyVisibleCheck, False, False, 0)
+            lConfigBox.PackStart(lMem0KeyBox, False, False, 0)
 
             lConfigFrame.Add(lConfigBox)
             lBox.PackStart(lConfigFrame, False, False, 0)
@@ -1320,6 +1339,9 @@ Namespace Widgets
                 pShowArtifactsCheck.Active = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
                 pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", False)
                 pMem0EnabledCheck.Active = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
+                If pCredentialManager IsNot Nothing Then
+                    pMem0ApiKeyEntry.Text = pCredentialManager.RetrieveCredential("SimpleIDE-AI", "Mem0")
+                End If
 
                 Dim lProviderName As String = pSettingsManager.GetString("AI.Provider", "ClaudeAPI")
                 Select Case lProviderName
@@ -1358,6 +1380,7 @@ Namespace Widgets
                 pShowArtifactsCheck.Sensitive = lAIEnabled
                 pAutoContextCheck.Sensitive = lAIEnabled
                 pMem0EnabledCheck.Sensitive = lAIEnabled
+                UpdateMem0KeySensitivity()
                 pAIProviderCombo.Sensitive = lAIEnabled
                 pAIModelEntry.Sensitive = lAIEnabled
                 pMaxTokensSpin.Sensitive = lAIEnabled
@@ -1479,6 +1502,16 @@ Namespace Widgets
                 pSettingsManager.SetBoolean("AI.ShowArtifacts", pShowArtifactsCheck.Active)
                 pSettingsManager.SetBoolean("AI.AutoContext", pAutoContextCheck.Active)
                 pSettingsManager.SetBoolean("AI.Mem0.Enabled", pMem0EnabledCheck.Active)
+
+                ' Mem0 API key is stored securely via CredentialManager, same as the provider keys
+                If pCredentialManager IsNot Nothing Then
+                    Dim lMem0ApiKey As String = pMem0ApiKeyEntry.Text.Trim()
+                    If Not String.IsNullOrEmpty(lMem0ApiKey) Then
+                        pCredentialManager.StoreCredential("SimpleIDE-AI", "Mem0", lMem0ApiKey)
+                    Else
+                        pCredentialManager.DeleteCredential("SimpleIDE-AI", "Mem0")
+                    End If
+                End If
 
                 Dim lProviderName As String
                 Select Case pAIProviderCombo.Active
@@ -1672,7 +1705,34 @@ Namespace Widgets
             pAutoSuggestCheck.Sensitive = lEnabled
             pSaveHistoryCheck.Sensitive = lEnabled
             pHistoryLimitSpin.Sensitive = lEnabled AndAlso pSaveHistoryCheck.Active
+            UpdateMem0KeySensitivity()
             OnAIProviderChanged(vSender, vArgs)
+        End Sub
+
+        ''' <summary>
+        ''' Handles Mem0 enabled checkbox toggle
+        ''' </summary>
+        Private Sub OnMem0EnabledToggled(vSender As Object, vArgs As EventArgs)
+            UpdateMem0KeySensitivity()
+            OnSettingChanged(vSender, vArgs)
+        End Sub
+
+        ''' <summary>
+        ''' Keeps the Mem0 API key field's sensitivity in sync with both the AI-enabled and
+        ''' Mem0-enabled checkboxes
+        ''' </summary>
+        Private Sub UpdateMem0KeySensitivity()
+            Dim lEnabled As Boolean = pAIEnabledCheck.Active AndAlso pMem0EnabledCheck.Active
+            pMem0ApiKeyLabel.Sensitive = lEnabled
+            pMem0ApiKeyEntry.Sensitive = lEnabled
+            pMem0ApiKeyVisibleCheck.Sensitive = lEnabled
+        End Sub
+
+        ''' <summary>
+        ''' Handles the Mem0 API key show/hide checkbox toggle
+        ''' </summary>
+        Private Sub OnMem0ApiKeyVisibleToggled(vSender As Object, vArgs As EventArgs)
+            pMem0ApiKeyEntry.InnerEntry.Visibility = pMem0ApiKeyVisibleCheck.Active
         End Sub
 
         ''' <summary>

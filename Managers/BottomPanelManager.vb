@@ -42,6 +42,8 @@ Namespace Managers
         Public Event AIFileCreated(vFilePath As String)
         ''' <summary>Relayed from AIAssistantPanel.FileModified - a file the AI overwrote on disk via an artifact action</summary>
         Public Event AIFileModified(vFilePath As String)
+        ''' <summary>Relayed from AIAssistantPanel.ProjectCreated - path to the .vbproj the AI scaffolded via a "create_project" artifact action</summary>
+        Public Event AIProjectCreated(vProjectFilePath As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
         Public Event BuildRequested()
@@ -570,8 +572,10 @@ Namespace Managers
             Try
                 Dim lProvider As IAIProvider = If(pSettingsManager IsNot Nothing,
                     AIProviderFactory.CreateProvider(pSettingsManager), Nothing)
+                Dim lMem0ApiKey As String = If(pSettingsManager IsNot Nothing,
+                    AIProviderFactory.GetMem0ApiKey(pSettingsManager), "")
 
-                pAIAssistantPanel = New AIAssistantPanel(lProvider)
+                pAIAssistantPanel = New AIAssistantPanel(lProvider, lMem0ApiKey)
                 pAIAssistantPanel.SetSettingsManager(pSettingsManager)
 
                 AddHandler pAIAssistantPanel.FixErrorsRequested,
@@ -587,6 +591,11 @@ Namespace Managers
                 AddHandler pAIAssistantPanel.FileModified,
                     Sub(vFilePath As String)
                         RaiseEvent AIFileModified(vFilePath)
+                    End Sub
+
+                AddHandler pAIAssistantPanel.ProjectCreated,
+                    Sub(vProjectFilePath As String)
+                        RaiseEvent AIProjectCreated(vProjectFilePath)
                     End Sub
 
                 ' Add to notebook with icon

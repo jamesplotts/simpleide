@@ -25,6 +25,8 @@ Namespace Widgets
         Private pSendButton As CustomDrawButton
         Private pActionButtons As New Dictionary(Of String, CustomDrawButton)
         Private pProjectRoot As String
+        ''' <summary>Set via UpdateProjectContext - project-wide structure/reference knowledge folded into BuildContextPrompt</summary>
+        Private pProjectKnowledge As String = ""
         Private pCurrentTab As TabInfo
         Private pApiClient As AIChatClient
         Private pFileSystemBridge As AIFileSystemBridge
@@ -63,21 +65,26 @@ Namespace Widgets
         
         ' AI action structure
         Public Class AIAction
-            Public Property Type As String ' "create_file", "modify_file", "delete_file", etc.
+            Public Property Type As String ' "create_file", "modify_file", "delete_file", "create_project"
             Public Property FilePath As String
             Public Property Content As String
             Public Property Description As String
+            ''' <summary>"Console", "Library", or "Gtk" - only set when Type = "create_project"</summary>
+            Public Property ProjectType As String
             Public Property Executed As Boolean = False
         End Class
         
-        Public Sub New(vProvider As IAIProvider)
+        ''' <param name="vProvider">The configured AI backend, or Nothing if none is usable yet</param>
+        ''' <param name="vMem0ApiKey">Optional Mem0 API key (see AIProviderFactory.GetMem0ApiKey) to enable persistent memory context</param>
+        Public Sub New(vProvider As IAIProvider, Optional vMem0ApiKey As String = "")
             MyBase.New(Orientation.Vertical, 0)
 
             ' Initialize API client - vProvider may be Nothing if AI isn't configured yet
             ' (no key set for the selected provider); SendMessage below surfaces that as an
             ' error rather than failing to construct the panel at all
-            pApiClient = New AIChatClient(vProvider)
+            pApiClient = New AIChatClient(vProvider, vMem0ApiKey)
             pFileSystemBridge = New AIFileSystemBridge()
+            LoadMem0UserContext()
 
             BuildUI()
             ConnectEvents()
@@ -92,9 +99,25 @@ Namespace Widgets
         ''' are saved
         ''' </summary>
         ''' <param name="vProvider">The configured AI backend, or Nothing if none is usable yet</param>
-        Public Sub Initialize(vProvider As IAIProvider)
-            pApiClient = New AIChatClient(vProvider)
+        ''' <param name="vMem0ApiKey">Optional Mem0 API key (see AIProviderFactory.GetMem0ApiKey) to enable persistent memory context</param>
+        Public Sub Initialize(vProvider As IAIProvider, Optional vMem0ApiKey As String = "")
+            pApiClient = New AIChatClient(vProvider, vMem0ApiKey)
             pFileSystemBridge = New AIFileSystemBridge()
+            LoadMem0UserContext()
+        End Sub
+
+        ''' <summary>
+        ''' Fires off AIChatClient.LoadUserContext() in the background so previously-stored Mem0
+        ''' user preferences/code patterns are folded into the prompt context (see
+        ''' AIChatClient.BuildEnhancedPrompt) for every message sent afterwards - a no-op if Mem0
+        ''' wasn't enabled/configured, since pApiClient's own Mem0 client is then Nothing
+        ''' </summary>
+        Private Async Sub LoadMem0UserContext()
+            Try
+                Await pApiClient.LoadUserContext()
+            Catch ex As Exception
+                Console.WriteLine($"AIAssistantPanel.LoadMem0UserContext error: {ex.Message}")
+            End Try
         End Sub
 
         ''' <summary>
@@ -309,8 +332,15 @@ Namespace Widgets
             End Try
         End Function
 
+        ''' <summary>
+        ''' Replaces the project-wide knowledge (structure, references, etc.) folded into every
+        ''' prompt's context - called from MainWindow.UpdateProjectKnowledge, wired to the AI
+        ''' menu's "Update Project Knowledge" item, since that's a potentially large/slow scan
+        ''' the user asks for explicitly rather than something rebuilt on every keystroke
+        ''' </summary>
+        ''' <param name="vKnowledgeBuilder">The freshly-gathered project knowledge text, or Nothing to clear it</param>
         Public Sub UpdateProjectContext(vKnowledgeBuilder As StringBuilder)
-            ' TODO: Implement
+            pProjectKnowledge = If(vKnowledgeBuilder Is Nothing, "", vKnowledgeBuilder.ToString())
         End Sub
         
         Private Function CreateActionButton(vLabel As String, vIcon As String, Optional vIconSize As Integer = 24) As CustomDrawButton
@@ -571,7 +601,12 @@ Namespace Widgets
                     lContext.AppendLine("```")
                 End If
             End If
-            
+
+            If Not String.IsNullOrEmpty(pProjectKnowledge) Then
+                lContext.AppendLine("- project knowledge:")
+                lContext.AppendLine(pProjectKnowledge)
+            End If
+
             Return lContext.ToString()
         End Function
         
@@ -592,6 +627,16 @@ Namespace Widgets
 
                 If String.IsNullOrEmpty(pProjectRoot) Then
                     AddErrorMessage($"Cannot write '{lArtifact.FilePath}': no project is open.")
+                    Continue For
+                End If
+
+                If String.Equals(lArtifact.Type, "project", StringComparison.OrdinalIgnoreCase) Then
+                    lActions.Add(New AIAction With {
+                        .Type = "create_project",
+                        .FilePath = lArtifact.FilePath,
+                        .ProjectType = If(String.IsNullOrWhiteSpace(lArtifact.ProjectType), "Console", lArtifact.ProjectType),
+                        .Description = lArtifact.Title
+                    })
                     Continue For
                 End If
 
@@ -682,20 +727,28 @@ Namespace Widgets
             End Sub)
         End Function
         
+        ''' <summary>
+        ''' Scaffolds a whole new VB.NET project via AIFileSystemBridge.CreateProject - the same
+        ''' StringResources-driven templates MainWindow.CreateNewProject uses, so the result
+        ''' builds with `dotnet build` like any project created through the New Project dialog
+        ''' </summary>
+        ''' <param name="vAction">A "create_project" action - FilePath is the new project's
+        ''' folder name (created directly under pProjectRoot), ProjectType is Console/Library/Gtk</param>
         Private Async Function CreateProjectAsync(vAction As AIAction) As Task
             Await Task.Run(Sub()
                 Try
-                    ' Implementation for project creation
-                    Dim lProjectPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
-                    
-                    ' Create project structure
-                    Directory.CreateDirectory(lProjectPath)
-                    
-                    ' Create .vbproj file, etc.
-                    ' ... implementation details ...
-                    
+                    Dim lResult As String = pFileSystemBridge.CreateProject(vAction.FilePath, pProjectRoot, vAction.ProjectType)
+
+                    If lResult.StartsWith("error", StringComparison.OrdinalIgnoreCase) Then
+                        GLib.Idle.Add(Function()
+                            AddErrorMessage(lResult)
+                            Return False
+                        End Function)
+                        Return
+                    End If
+
                     GLib.Idle.Add(Function()
-                        RaiseEvent ProjectCreated(lProjectPath)
+                        RaiseEvent ProjectCreated(lResult)
                         AddActionMessage($"Created project: {vAction.FilePath}")
                         Return False
                     End Function)
@@ -844,8 +897,29 @@ Namespace Widgets
             AddAssistantMessage("Conversation cleared. How can i help you?")
         End Sub
         
+        ''' <summary>
+        ''' Saves the visible chat transcript (the same text shown in pChatView, timestamps and
+        ''' all) to a plain-text file the user picks
+        ''' </summary>
         Private Sub OnSaveConversation(vSender As Object, vE As EventArgs)
-            ' Save conversation to file
+            Dim lDialog As FileChooserDialog = Nothing
+            Try
+                Dim lParentWindow As Window = TryCast(Me.Toplevel, Window)
+                Dim lDefaultName As String = $"AI Conversation - {DateTime.Now:yyyy-MM-dd HHmm}.txt"
+                lDialog = FileOperations.CreateExportDialog(lParentWindow, lDefaultName)
+                If lDialog Is Nothing Then Return
+
+                If lDialog.Run() = CInt(ResponseType.Accept) Then
+                    File.WriteAllText(lDialog.Filename, pChatBuffer.Text)
+                    AddActionMessage($"Conversation saved to {lDialog.Filename}")
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"OnSaveConversation error: {ex.Message}")
+                AddErrorMessage($"Failed to save conversation: {ex.Message}")
+            Finally
+                lDialog?.Destroy()
+            End Try
         End Sub
         
         ' Public properties
