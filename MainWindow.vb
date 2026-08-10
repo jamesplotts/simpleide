@@ -144,10 +144,11 @@ Partial Public Class MainWindow
                 pProjectExplorer.SetProjectManager(pProjectManager)
                 
                 ' Wire up ProjectManager events to refresh Project Explorer
-                AddHandler pProjectManager.FileAdded, AddressOf OnProjectManagerFileAdded
-                AddHandler pProjectManager.FileRemoved, AddressOf OnProjectManagerFileRemoved
                 AddHandler pProjectManager.FileRenamed, AddressOf OnProjectManagerFileRenamed
-                ' Note: OnProjectManagerProjectModified is already wired up elsewhere
+                ' Note: OnProjectManagerProjectModified, FileAdded, and FileRemoved are already
+                ' wired up above (lines 105-111) - re-registering FileAdded/FileRemoved here too
+                ' (as this block previously did) meant both fired their handler twice on every
+                ' file add/remove, each rebuilding the Project Explorer and Object Explorer trees
                 
                 #If DEBUG Then
                 Console.WriteLine("ProjectExplorer integrated with ProjectManager")

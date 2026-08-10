@@ -177,7 +177,14 @@ Partial Public Class MainWindow
                             ' Perform commit - Amend/Sign-off checkboxes previously had zero
                             ' effect on the actual git invocation; now threaded through as the
                             ' real --amend/--signoff flags
-                            Dim lCommand As String = $"commit -m ""{lMessage.Replace("""", """""")}"""
+
+                            ' ExecuteGitCommand hands this whole string to Process.StartInfo.
+                            ' Arguments, which .NET parses using backslash-escaping (\") for a
+                            ' quote embedded inside a quoted argument - NOT string-literal-style
+                            ' doubling (""), which the previous code used here. A commit message
+                            ' containing a literal double-quote would have corrupted the argument
+                            Dim lEscapedMessage As String = lMessage.Replace(Chr(34), "\" & Chr(34))
+                            Dim lCommand As String = $"commit -m ""{lEscapedMessage}"""
                             If lDialog.AmendCommit Then lCommand &= " --amend"
                             If lDialog.SignOff Then lCommand &= " --signoff"
 

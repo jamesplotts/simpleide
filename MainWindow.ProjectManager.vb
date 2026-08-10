@@ -1265,23 +1265,36 @@ Partial Public Class MainWindow
     ''' </summary>
     Private Sub UpdateTabsForRenamedFile(vOldPath As String, vNewPath As String)
         Try
-            ' Find and update any tabs with the old file path
-            For Each lTab As TabInfo In pOpenTabs.Values
-                If lTab.FilePath = vOldPath Then
-                    lTab.FilePath = vNewPath
-                    Dim lNewFileName as String = System.IO.Path.GetFileName(vNewPath)
-                    
-                    ' Update tab label
-                    Dim lLabel As Label = lTab.TabLabel
-                    If lLabel IsNot Nothing Then lLabel.Text = lNewFileName
-                    
-                    ' Update the SourceFileInfo in the editor
-                    If lTab.Editor IsNot Nothing AndAlso lTab.Editor.SourceFileInfo IsNot Nothing Then
-                        lTab.Editor.SourceFileInfo.FilePath = vNewPath
-                    End If
-                End If
+            ' Find matches first - pOpenTabs itself gets re-keyed below, which can't happen
+            ' while enumerating .Values directly (the collection would be modified mid-iteration)
+            Dim lMatches As New List(Of String)
+            For Each lKvp In pOpenTabs
+                If lKvp.Value.FilePath = vOldPath Then lMatches.Add(lKvp.Key)
             Next
-            
+
+            For Each lOldKey In lMatches
+                Dim lTab As TabInfo = pOpenTabs(lOldKey)
+                lTab.FilePath = vNewPath
+                Dim lNewFileName as String = System.IO.Path.GetFileName(vNewPath)
+
+                ' Update tab label
+                Dim lLabel As Label = lTab.TabLabel
+                If lLabel IsNot Nothing Then lLabel.Text = lNewFileName
+
+                ' Update the SourceFileInfo in the editor
+                If lTab.Editor IsNot Nothing AndAlso lTab.Editor.SourceFileInfo IsNot Nothing Then
+                    lTab.Editor.SourceFileInfo.FilePath = vNewPath
+                End If
+
+                ' pOpenTabs is keyed by file path - re-key it to match, otherwise it stays
+                ' indexed under the old path while .FilePath now reads the new one: OpenFile's
+                ' "already open" check would miss it (creating a duplicate tab on reopen), and
+                ' CloseTab's removal-by-FilePath would silently no-op, leaving a disposed
+                ' TabInfo permanently stuck in the dictionary
+                pOpenTabs.Remove(lOldKey)
+                pOpenTabs(vNewPath) = lTab
+            Next
+
         Catch ex As Exception
             Console.WriteLine($"UpdateTabsForRenamedFile error: {ex.Message}")
         End Try

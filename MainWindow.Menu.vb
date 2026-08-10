@@ -824,7 +824,14 @@ Partial Public Class MainWindow
             
             pThemeMenu.ShowAll()
             
-            ' Subscribe to theme list changes
+            ' Subscribe to theme list changes - RemoveHandler first since UpdateThemeMenu is
+            ' called repeatedly over the window's lifetime (MainWindow.Menu.vb:400, Theme.vb:331,
+            ' and OnThemeListChanged itself below). Without this, each call stacked another
+            ' subscription on top of the last, so OnThemeListChanged's own call back into
+            ' UpdateThemeMenu caused the handler count to compound with every theme-list change -
+            ' 1 firing became 2, 2 became 4, trending toward a UI freeze after just a few edits
+            ' in the Theme Editor
+            RemoveHandler pThemeManager.ThemeListChanged, AddressOf OnThemeListChanged
             AddHandler pThemeManager.ThemeListChanged, AddressOf OnThemeListChanged
             
         Catch ex As Exception
