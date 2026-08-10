@@ -395,7 +395,7 @@ Namespace Widgets
             ' Installed indicator
             Dim lInstalledRenderer As New CellRendererText()
             lInstalledRenderer.Weight = 700 ' Bold
-            pNuGetSearchTreeView.AppendColumn("Installed", lInstalledRenderer, "Text", 5)
+            pNuGetSearchTreeView.AppendColumn("Installed", lInstalledRenderer, "text", 5)
 
             ' Selection handler
             AddHandler pNuGetSearchTreeView.Selection.Changed, AddressOf OnNuGetSearchSelectionChanged
@@ -1137,8 +1137,14 @@ Namespace Widgets
                     lVersion = lPackage.Version
                 End If
 
-                ' Add package reference
-                If pReferenceManager.AddPackageReference(pProjectFile, lPackage.Id, lVersion) Then
+                ' Add package reference - through ProjectManager, not pReferenceManager
+                ' directly, since only ProjectManager.AddPackageReference refreshes its own
+                ' ProjectReferences cache afterward. LoadInstalledPackages() below only re-
+                ' filters this tab's pCurrentReferences field, which LoadCurrentReferences()
+                ' populates FROM that cache - calling pReferenceManager directly left both
+                ' stale, so the newly-installed package never actually appeared in the list
+                ' despite the success message and the comment below's stated intent
+                If pProjectManager.AddPackageReference(lPackage.Id, lVersion) Then
                     ShowInfo($"Installed {lPackage.Id} {lVersion}")
                     RaiseEvent ReferencesChanged()
 
@@ -1152,8 +1158,9 @@ Namespace Widgets
                     pNuGetAddButton.Sensitive = False
                     pNuGetRemoveButton.Sensitive = False
 
-                    ' Refresh the top list so the newly-installed package shows up there
-                    LoadInstalledPackages()
+                    ' Refresh the top list so the newly-installed package shows up there -
+                    ' LoadCurrentReferences() already calls LoadInstalledPackages() itself
+                    LoadCurrentReferences()
                 End If
 
             Catch ex As Exception
@@ -1173,18 +1180,31 @@ Namespace Widgets
 
                 If String.IsNullOrEmpty(lVersion) Then Return
 
-                ' Update package reference
+                ' Update package reference - ProjectManager has no UpdatePackageReference
+                ' wrapper (unlike Add/Remove), so this still calls pReferenceManager directly;
+                ' but that means pProjectManager's own ProjectReferences cache is never told
+                ' about the change either (see OnInstallPackage's comment on the same root
+                ' cause), so LoadProjectReferences() forces that refresh explicitly here
                 If pReferenceManager.UpdatePackageReference(pProjectFile, lPackage.Id, lVersion) Then
                     ShowInfo($"updated {lPackage.Id} to {lVersion}")
                     RaiseEvent ReferencesChanged()
 
-                    ' Update UI
+                    ' Update UI - must happen BEFORE LoadProjectReferences()/LoadCurrentReferences()
+                    ' below, since the latter rebuilds pNuGetInstalledListStore from scratch
+                    ' (via LoadInstalledPackages()) and would invalidate lIter if run first
                     lPackage.InstalledVersion = lVersion
                     pNuGetInstalledListStore.SetValue(lIter, 1, lVersion)
                     pNuGetInstalledListStore.SetValue(lIter, 5, lVersion)
                     pNuGetUpdateButton.Sensitive = False
 
                     RefreshSearchRowInstalledState(lPackage.Id, True, lVersion)
+
+                    ' Force pProjectManager's own ProjectReferences cache to pick up the change -
+                    ' unlike Add/Remove, there's no ProjectManager.UpdatePackageReference wrapper
+                    ' to do this automatically, so without it the cache (and anything reading
+                    ' pCurrentReferences afterward) would still show the pre-update version
+                    pProjectManager.LoadProjectReferences()
+                    LoadCurrentReferences()
                 End If
 
             Catch ex As Exception
@@ -1200,16 +1220,19 @@ Namespace Widgets
 
                 Dim lPackage As NuGetClient.PackageInfo = pNuGetSelectedPackage
 
-                ' Remove package reference
-                If pReferenceManager.RemoveReference(pProjectFile, lPackage.Id, ReferenceManager.ReferenceType.ePackage) Then
+                ' Remove package reference - through ProjectManager, not pReferenceManager
+                ' directly; see OnInstallPackage's comment on why the direct call left
+                ' pCurrentReferences (and so LoadInstalledPackages()'s filtering of it) stale
+                If pProjectManager.RemoveReference(lPackage.Id, ReferenceManager.ReferenceType.ePackage) Then
                     ShowInfo($"Uninstalled {lPackage.Id}")
                     RaiseEvent ReferencesChanged()
 
                     RefreshSearchRowInstalledState(lPackage.Id, False, "")
 
-                    ' Refresh the top list (removes this row) and reset the button bar
-                    LoadInstalledPackages()
-                    ClearNuGetSelectionState()
+                    ' Refresh the top list (removes this row) and reset the button bar -
+                    ' LoadCurrentReferences() already calls LoadInstalledPackages() and
+                    ' ClearNuGetSelectionState() itself
+                    LoadCurrentReferences()
                 End If
 
             Catch ex As Exception

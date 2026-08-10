@@ -1850,7 +1850,7 @@ Namespace Widgets
                     for each lChild in lBox.Children
                         If TypeOf lChild Is Frame Then
                             Dim lFrame As Frame = CType(lChild, Frame)
-                            If lFrame.Label = "Git Credentials" Then
+                            If lFrame.Label = "Git Credentials (for Push/Pull)" Then
                                 Dim lCredBox As Widget = lFrame.Child
                                 If lCredBox IsNot Nothing AndAlso TypeOf lCredBox Is Box Then
                                     Dim lChildren = CType(lCredBox, Box).Children
