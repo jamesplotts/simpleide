@@ -44,6 +44,8 @@ Namespace Managers
         Public Event AIFileModified(vFilePath As String)
         ''' <summary>Relayed from AIAssistantPanel.ProjectCreated - path to the .vbproj the AI scaffolded via a "create_project" artifact action</summary>
         Public Event AIProjectCreated(vProjectFilePath As String)
+        ''' <summary>Relayed from AIAssistantPanel.FileDeleted - a file the AI removed from disk via a "delete_file" artifact action</summary>
+        Public Event AIFileDeleted(vFilePath As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
         Public Event BuildRequested()
@@ -596,6 +598,11 @@ Namespace Managers
                 AddHandler pAIAssistantPanel.ProjectCreated,
                     Sub(vProjectFilePath As String)
                         RaiseEvent AIProjectCreated(vProjectFilePath)
+                    End Sub
+
+                AddHandler pAIAssistantPanel.FileDeleted,
+                    Sub(vFilePath As String)
+                        RaiseEvent AIFileDeleted(vFilePath)
                     End Sub
 
                 ' Add to notebook with icon

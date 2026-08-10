@@ -729,13 +729,18 @@ Partial Public Class MainWindow
     ''' <summary>
     ''' Handles a file the AI assistant created on disk (via BottomPanelManager.AIFileCreated,
     ''' relayed from AIAssistantPanel.FileCreated) - brings the new file into view the same way
-    ''' any other newly-created file would be
+    ''' any other newly-created file would be, unless "Automatically show AI artifacts in tabs"
+    ''' (AI.ShowArtifacts) is off, in which case it's just reported on the status bar
     ''' </summary>
     ''' <param name="vFilePath">Full path to the file the AI wrote</param>
     Private Sub OnAIFileCreated(vFilePath As String)
         Try
             RefreshProjectExplorer()
-            OpenFile(vFilePath)
+            If pSettingsManager.GetBoolean("AI.ShowArtifacts", True) Then
+                OpenFile(vFilePath)
+            Else
+                UpdateStatusBar($"AI created file: {System.IO.Path.GetFileName(vFilePath)}")
+            End If
         Catch ex As Exception
             Console.WriteLine($"OnAIFileCreated error: {ex.Message}")
         End Try
@@ -743,9 +748,11 @@ Partial Public Class MainWindow
 
     ''' <summary>
     ''' Handles a file the AI assistant overwrote on disk (via BottomPanelManager.AIFileModified,
-    ''' relayed from AIAssistantPanel.FileModified) - if the file has an open tab, its buffer is
-    ''' now stale (the write went straight to disk, bypassing the editor), so it's reloaded from
-    ''' disk; otherwise the file is opened so the change is visible
+    ''' relayed from AIAssistantPanel.FileModified). If the file has an open tab, its buffer is
+    ''' now stale (the write went straight to disk, bypassing the editor) so it's always reloaded
+    ''' from disk regardless of the setting below - leaving it stale would be worse than showing
+    ''' it. Otherwise, whether the file is opened to reveal the change or just reported on the
+    ''' status bar follows "Automatically show AI artifacts in tabs" (AI.ShowArtifacts)
     ''' </summary>
     ''' <param name="vFilePath">Full path to the file the AI overwrote</param>
     Private Sub OnAIFileModified(vFilePath As String)
@@ -753,8 +760,10 @@ Partial Public Class MainWindow
             If pOpenTabs.ContainsKey(vFilePath) Then
                 Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
                 lTabInfo.Editor.SourceFileInfo.LoadContent()
-            Else
+            ElseIf pSettingsManager.GetBoolean("AI.ShowArtifacts", True) Then
                 OpenFile(vFilePath)
+            Else
+                UpdateStatusBar($"AI modified file: {System.IO.Path.GetFileName(vFilePath)}")
             End If
         Catch ex As Exception
             Console.WriteLine($"OnAIFileModified error: {ex.Message}")
@@ -775,6 +784,25 @@ Partial Public Class MainWindow
             UpdateStatusBar($"AI created project: {vProjectFilePath}")
         Catch ex As Exception
             Console.WriteLine($"OnAIProjectCreated error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles a file the AI assistant deleted from disk (via BottomPanelManager.AIFileDeleted,
+    ''' relayed from AIAssistantPanel.FileDeleted) - closes its tab if it was open (CloseTab
+    ''' still prompts to save first if the buffer had unsaved changes, which effectively offers
+    ''' to recreate the file) and refreshes the explorer either way
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI deleted</param>
+    Private Sub OnAIFileDeleted(vFilePath As String)
+        Try
+            If pOpenTabs.ContainsKey(vFilePath) Then
+                CloseTab(pOpenTabs(vFilePath))
+            End If
+            RefreshProjectExplorer()
+            UpdateStatusBar($"AI deleted file: {System.IO.Path.GetFileName(vFilePath)}")
+        Catch ex As Exception
+            Console.WriteLine($"OnAIFileDeleted error: {ex.Message}")
         End Try
     End Sub
 

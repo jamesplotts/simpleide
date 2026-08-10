@@ -55,6 +55,7 @@ Namespace Widgets
         ' Events
         Public Event FileCreated(vFilePath As String)
         Public Event FileModified(vFilePath As String)
+        Public Event FileDeleted(vFilePath As String)
         Public Event ProjectCreated(vProjectPath As String)
         Public Event BuildRequested()
         Public Event StatusUpdate(vMessage As String)
@@ -89,8 +90,9 @@ Namespace Widgets
             BuildUI()
             ConnectEvents()
 
-            ' Add welcome message
-            AddAssistantMessage("Hello! i'm your AI coding assistant. i can help you create projects, write code, fix Errors, and more. What would you like to work on today?")
+            ' The welcome message (or a restored conversation in its place) is added from
+            ' SetSettingsManager instead of here - AI.SaveHistory can't be checked until
+            ' pSettingsManager is wired up, which happens right after construction
         End Sub
 
         ''' <summary>
@@ -156,10 +158,18 @@ Namespace Widgets
         End Sub
 
         ''' <summary>
-        ''' Wires up the shared SettingsManager, used to check the "Stream responses" preference
+        ''' Wires up the shared SettingsManager, used to check the "Stream responses"/"Save
+        ''' history"/"Include project context automatically" preferences. Also where the initial
+        ''' chat content is decided - a restored conversation (if AI.SaveHistory is on and one
+        ''' was saved) or the generic welcome message otherwise - since AI.SaveHistory can't be
+        ''' checked until this runs
         ''' </summary>
         Public Sub SetSettingsManager(vSettingsManager As SettingsManager)
             pSettingsManager = vSettingsManager
+
+            If Not LoadConversationHistory() Then
+                AddAssistantMessage("Hello! i'm your AI coding assistant. i can help you create projects, write code, fix Errors, and more. What would you like to work on today?")
+            End If
         End Sub
 
         ''' <summary>
@@ -459,8 +469,10 @@ Namespace Widgets
             Dim lStreaming As Boolean = False
 
             Try
-                ' Add context about current state
-                Dim lContext As String = BuildContextPrompt()
+                ' "Include project context automatically" preference - defaults to on (matching
+                ' the behavior before this was wired to a setting at all)
+                Dim lAutoContext As Boolean = If(pSettingsManager Is Nothing, True, pSettingsManager.GetBoolean("AI.AutoContext", True))
+                Dim lContext As String = If(lAutoContext, BuildContextPrompt(), "")
                 Dim lFullPrompt As String = lContext & Environment.NewLine & Environment.NewLine & vPrompt
 
                 ' "Stream responses" preference - defaults to on, matching the Preferences
@@ -572,6 +584,7 @@ Namespace Widgets
                     lChatMessage.Actions = vActions
                 End If
                 pConversationHistory.Add(lChatMessage)
+                SaveConversationHistory()
 
                 ScrollToBottom()
 
@@ -635,6 +648,15 @@ Namespace Widgets
                         .Type = "create_project",
                         .FilePath = lArtifact.FilePath,
                         .ProjectType = If(String.IsNullOrWhiteSpace(lArtifact.ProjectType), "Console", lArtifact.ProjectType),
+                        .Description = lArtifact.Title
+                    })
+                    Continue For
+                End If
+
+                If lArtifact.IsDelete Then
+                    lActions.Add(New AIAction With {
+                        .Type = "delete_file",
+                        .FilePath = lArtifact.FilePath,
                         .Description = lArtifact.Title
                     })
                     Continue For
@@ -715,8 +737,9 @@ Namespace Widgets
                     Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
                     If File.Exists(lFullPath) Then
                         File.Delete(lFullPath)
-                        
+
                         GLib.Idle.Add(Function()
+                            RaiseEvent FileDeleted(lFullPath)
                             AddActionMessage($"Deleted file: {vAction.FilePath}")
                             Return False
                         End Function)
@@ -771,19 +794,22 @@ Namespace Widgets
                 AddErrorMessage("No file Is currently open.")
                 Return
             End If
-            
-            ' Get selected text or all text
-            Dim lCode As String = ""
-            Dim lStartIter As TextIter = Nothing
-            Dim lEndIter As TextIter = Nothing
-            
-            lCode = pCurrentTab.Editor.GetSelectedText
-            
-            If Not String.IsNullOrEmpty(lCode) Then
-                Dim lPrompt As String = $"Please explain this VB.NET code:{Environment.NewLine}```vb{Environment.NewLine}{lCode}{Environment.NewLine}```"
-                pPromptEntry.Buffer.Text = lPrompt
-                OnSendMessage(Nothing, Nothing)
+
+            ' Explain the selection if there is one, otherwise fall back to the whole file
+            ' rather than silently doing nothing
+            Dim lCode As String = pCurrentTab.Editor.GetSelectedText
+            If String.IsNullOrEmpty(lCode) Then
+                lCode = pCurrentTab.Editor.Text
             End If
+
+            If String.IsNullOrEmpty(lCode) Then
+                AddErrorMessage("Nothing to explain - the current file is empty.")
+                Return
+            End If
+
+            Dim lPrompt As String = $"Please explain this VB.NET code:{Environment.NewLine}```vb{Environment.NewLine}{lCode}{Environment.NewLine}```"
+            pPromptEntry.Buffer.Text = lPrompt
+            OnSendMessage(Nothing, Nothing)
         End Sub
         
         Private Sub OnFixErrors(vSender As Object, vE As EventArgs)
@@ -798,16 +824,18 @@ Namespace Widgets
         Private Sub AddUserMessage(vMessage As String)
             AddChatMessage("You", vMessage, "user")
             pConversationHistory.Add(New ChatHistoryMessage("user", vMessage))
+            SaveConversationHistory()
         End Sub
-        
+
         Private Sub AddAssistantMessage(vMessage As String, Optional vActions As List(Of AIAction) = Nothing)
             AddChatMessage("Assistant", vMessage, "assistant")
-            
+
             Dim lChatMessage As New ChatHistoryMessage("assistant", vMessage)
             If vActions IsNot Nothing Then
                 lChatMessage.Actions = vActions
             End If
             pConversationHistory.Add(lChatMessage)
+            SaveConversationHistory()
         End Sub
         
         Private Sub AddErrorMessage(vMessage As String)
@@ -894,7 +922,95 @@ Namespace Widgets
         Private Sub OnClearConversation(vSender As Object, vE As EventArgs)
             pChatBuffer.Text = ""
             pConversationHistory.Clear()
+            DeleteConversationHistory()
             AddAssistantMessage("Conversation cleared. How can i help you?")
+        End Sub
+
+        ''' <summary>One persisted conversation turn - Role/Content/Timestamp only, no Actions/Artifacts (those aren't safe to silently re-execute on restore)</summary>
+        Private Class PersistedMessage
+            Public Property Role As String
+            Public Property Content As String
+            Public Property Timestamp As DateTime
+        End Class
+
+        Private Function GetHistoryFilePath() As String
+            Dim lAppDataPath As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
+            Return System.IO.Path.Combine(lAppDataPath, "SimpleIDE", "ai_conversation_history.json")
+        End Function
+
+        ''' <summary>
+        ''' Restores a previously-saved conversation from disk into the chat view and
+        ''' pConversationHistory, if AI.SaveHistory is enabled and a saved conversation exists
+        ''' </summary>
+        ''' <returns>True if any messages were restored - the caller skips the generic welcome message in that case</returns>
+        Private Function LoadConversationHistory() As Boolean
+            Try
+                If pSettingsManager Is Nothing OrElse Not pSettingsManager.GetBoolean("AI.SaveHistory", True) Then Return False
+
+                Dim lPath As String = GetHistoryFilePath()
+                If Not File.Exists(lPath) Then Return False
+
+                Dim lJson As String = File.ReadAllText(lPath)
+                If String.IsNullOrWhiteSpace(lJson) Then Return False
+
+                Dim lMessages As List(Of PersistedMessage) = JsonSerializer.Deserialize(Of List(Of PersistedMessage))(lJson)
+                If lMessages Is Nothing OrElse lMessages.Count = 0 Then Return False
+
+                Dim lLimit As Integer = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
+                If lMessages.Count > lLimit Then
+                    lMessages = lMessages.Skip(lMessages.Count - lLimit).ToList()
+                End If
+
+                For Each lMessage In lMessages
+                    Dim lIsUser As Boolean = String.Equals(lMessage.Role, "user", StringComparison.OrdinalIgnoreCase)
+                    AddChatMessage(If(lIsUser, "You", "Assistant"), lMessage.Content, If(lIsUser, "user", "assistant"))
+                    pConversationHistory.Add(New ChatHistoryMessage(lMessage.Role, lMessage.Content))
+                Next
+
+                Return True
+
+            Catch ex As Exception
+                Console.WriteLine($"LoadConversationHistory error: {ex.Message}")
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Persists the current conversation to disk, trimmed to AI.HistoryLimit messages -
+        ''' called after every message is added; a no-op unless AI.SaveHistory is enabled
+        ''' </summary>
+        Private Sub SaveConversationHistory()
+            Try
+                If pSettingsManager Is Nothing OrElse Not pSettingsManager.GetBoolean("AI.SaveHistory", True) Then Return
+
+                Dim lLimit As Integer = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
+                Dim lToSave As List(Of ChatHistoryMessage) = pConversationHistory
+                If lToSave.Count > lLimit Then
+                    lToSave = lToSave.Skip(lToSave.Count - lLimit).ToList()
+                End If
+
+                Dim lPersisted As List(Of PersistedMessage) = lToSave.Select(
+                    Function(m) New PersistedMessage With {.Role = m.Role, .Content = m.Content, .Timestamp = m.Timestamp}).ToList()
+
+                Dim lPath As String = GetHistoryFilePath()
+                Dim lDir As String = System.IO.Path.GetDirectoryName(lPath)
+                If Not Directory.Exists(lDir) Then Directory.CreateDirectory(lDir)
+
+                File.WriteAllText(lPath, JsonSerializer.Serialize(lPersisted))
+
+            Catch ex As Exception
+                Console.WriteLine($"SaveConversationHistory error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>Deletes the saved conversation file, if any - called from OnClearConversation so a cleared chat doesn't come back on next launch</summary>
+        Private Sub DeleteConversationHistory()
+            Try
+                Dim lPath As String = GetHistoryFilePath()
+                If File.Exists(lPath) Then File.Delete(lPath)
+            Catch ex As Exception
+                Console.WriteLine($"DeleteConversationHistory error: {ex.Message}")
+            End Try
         End Sub
         
         ''' <summary>

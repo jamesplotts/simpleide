@@ -476,6 +476,7 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.AIFileCreated, AddressOf OnAIFileCreated
             AddHandler pBottomPanelManager.AIFileModified, AddressOf OnAIFileModified
             AddHandler pBottomPanelManager.AIProjectCreated, AddressOf OnAIProjectCreated
+            AddHandler pBottomPanelManager.AIFileDeleted, AddressOf OnAIFileDeleted
 
             ' Hook up notebook fix after window is realized
             AddHandler Me.Realized, AddressOf OnWindowRealizedForNotebooks            

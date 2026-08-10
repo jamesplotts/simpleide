@@ -1337,7 +1337,7 @@ Namespace Widgets
                 ' AI
                 pAIEnabledCheck.Active = pSettingsManager.GetBoolean("AI.Enabled", False)
                 pShowArtifactsCheck.Active = pSettingsManager.GetBoolean("AI.ShowArtifacts", True)
-                pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", False)
+                pAutoContextCheck.Active = pSettingsManager.GetBoolean("AI.AutoContext", True)
                 pMem0EnabledCheck.Active = pSettingsManager.GetBoolean("AI.Mem0.Enabled", False)
                 If pCredentialManager IsNot Nothing Then
                     pMem0ApiKeyEntry.Text = pCredentialManager.RetrieveCredential("SimpleIDE-AI", "Mem0")

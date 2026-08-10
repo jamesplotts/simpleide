@@ -44,6 +44,8 @@ Namespace Utilities
             Public Property FilePath As String
             ''' <summary>"Console", "Library", or "Gtk" - only meaningful when Type = "project"</summary>
             Public Property ProjectType As String
+            ''' <summary>True if this artifact means "delete the file at FilePath" rather than write Content to it</summary>
+            Public Property IsDelete As Boolean
         End Class
 
         Public Class UsageInfo
@@ -214,6 +216,8 @@ Namespace Utilities
                                  "set FilePath to the new project's folder name (created directly under the current " &
                                  "project root), add a ProjectType: Console|Library|Gtk line, and leave Content empty.")
             lBuilder.AppendLine()
+            lBuilder.AppendLine("To delete a file, set FilePath to it, add a Delete: true line, and leave Content empty.")
+            lBuilder.AppendLine()
 
             ' Add project context if available
             If Not String.IsNullOrEmpty(pProjectContext) Then
@@ -339,6 +343,8 @@ Namespace Utilities
                         lArtifact.FilePath = lLine.Substring(9).Trim()
                     ElseIf lLine.StartsWith("ProjectType:") Then
                         lArtifact.ProjectType = lLine.Substring(12).Trim()
+                    ElseIf lLine.StartsWith("Delete:") Then
+                        lArtifact.IsDelete = String.Equals(lLine.Substring(7).Trim(), "true", StringComparison.OrdinalIgnoreCase)
                     End If
                 Next
 
