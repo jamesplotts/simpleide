@@ -14,6 +14,10 @@ Namespace Utilities
         
         ' ===== Private Fields =====
         Private pWatchers As New Dictionary(Of String, System.IO.FileSystemWatcher)()
+        ' Number of currently-watched files per directory - a directory's underlying
+        ' System.IO.FileSystemWatcher covers every file in it, so closing one watched file
+        ' must not tear down watching for sibling files still open from the same directory
+        Private pWatcherRefCounts As New Dictionary(Of String, Integer)()
         Private pSettingsManager As SettingsManager
         Private pDebounceTimer As System.Timers.Timer
         Private pPendingChanges As New Dictionary(Of String, DateTime)()
@@ -53,29 +57,32 @@ Namespace Utilities
                 Dim lDirectory As String = Path.GetDirectoryName(vFilePath)
                 Dim lFileName As String = Path.GetFileName(vFilePath)
                 
-                ' Check if we're already watching this directory
+                ' Check if we're already watching this directory - just bump the ref count
+                ' so a later UnwatchFile for one file doesn't stop watching for others
                 If pWatchers.ContainsKey(lDirectory) Then
+                    pWatcherRefCounts(lDirectory) = pWatcherRefCounts(lDirectory) + 1
                     Return
                 End If
-                
+
                 ' Create new watcher for the directory
                 Dim lWatcher As New System.IO.FileSystemWatcher(lDirectory)
                 lWatcher.Filter = "*.*"
                 lWatcher.NotifyFilter = NotifyFilters.LastWrite Or NotifyFilters.FileName Or NotifyFilters.Size
                 lWatcher.IncludeSubdirectories = False
-                
+
                 ' Wire up events
                 AddHandler lWatcher.Changed, AddressOf OnFileChanged
                 AddHandler lWatcher.Deleted, AddressOf OnFileDeleted
                 AddHandler lWatcher.Renamed, AddressOf OnFileRenamed
                 AddHandler lWatcher.Error, AddressOf OnWatcherError
-                
+
                 ' Start watching
                 lWatcher.EnableRaisingEvents = True
-                
+
                 ' Add to dictionary
                 pWatchers(lDirectory) = lWatcher
-                
+                pWatcherRefCounts(lDirectory) = 1
+
                 #If DEBUG Then
                 Console.WriteLine($"Now watching directory: {lDirectory}")
                 #End If
@@ -91,13 +98,22 @@ Namespace Utilities
                 If String.IsNullOrEmpty(vFilePath) Then Return
                 
                 Dim lDirectory As String = Path.GetDirectoryName(vFilePath)
-                
+
                 If pWatchers.ContainsKey(lDirectory) Then
+                    ' Only tear down the directory's watcher once no other watched file
+                    ' still needs it
+                    Dim lRemaining As Integer = pWatcherRefCounts(lDirectory) - 1
+                    If lRemaining > 0 Then
+                        pWatcherRefCounts(lDirectory) = lRemaining
+                        Return
+                    End If
+
                     Dim lWatcher As System.IO.FileSystemWatcher = pWatchers(lDirectory)
                     lWatcher.EnableRaisingEvents = False
                     lWatcher.Dispose()
                     pWatchers.Remove(lDirectory)
-                    
+                    pWatcherRefCounts.Remove(lDirectory)
+
                     #If DEBUG Then
                     Console.WriteLine($"Stopped watching directory: {lDirectory}")
                     #End If
@@ -117,7 +133,8 @@ Namespace Utilities
                 Next
                 
                 pWatchers.Clear()
-                
+                pWatcherRefCounts.Clear()
+
             Catch ex As Exception
                 Console.WriteLine($"StopAll error: {ex.Message}")
             End Try

@@ -41,7 +41,10 @@ Namespace Utilities
         Private pPackageBaseUrl As String = "https://api.nuget.org/v3-flatcontainer/"
         Private pCache As New Dictionary(Of String, SearchResult)
         Private pCacheTimeout As TimeSpan = TimeSpan.FromMinutes(5)
-        Private pLastCacheTime As DateTime = DateTime.MinValue
+        ' Per-cache-key timestamp - a single shared pLastCacheTime would let any unrelated
+        ' search (a different query/skip/take) keep every older cached entry looking fresh
+        ' forever, since it's only ever compared to "now", never to the entry it gates
+        Private pCacheTimes As New Dictionary(Of String, DateTime)
         
         Public Sub New()
             pHttpClient = New HttpClient()
@@ -107,7 +110,8 @@ Namespace Utilities
             Try
                 ' Check cache first
                 Dim lCacheKey As String = $"{vQuery}_{vSkip}_{vTake}"
-                If Not vBypassCache AndAlso pCache.ContainsKey(lCacheKey) AndAlso (DateTime.Now - pLastCacheTime) < pCacheTimeout Then
+                If Not vBypassCache AndAlso pCache.ContainsKey(lCacheKey) AndAlso pCacheTimes.ContainsKey(lCacheKey) AndAlso
+                   (DateTime.Now - pCacheTimes(lCacheKey)) < pCacheTimeout Then
                     Return pCache(lCacheKey)
                 End If
                 
@@ -183,7 +187,7 @@ Namespace Utilities
                 
                 ' Update cache
                 pCache(lCacheKey) = lResult
-                pLastCacheTime = DateTime.Now
+                pCacheTimes(lCacheKey) = DateTime.Now
                 
                 Return lResult
                 

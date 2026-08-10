@@ -117,10 +117,12 @@ Partial Public Class MainWindow
             ' Update UI
             UpdateWindowTitle()
             
-            ' Update file watcher
-            If pFileSystemWatcher IsNot Nothing Then
-                ' FileSystemWatcher doesn't have RemoveWatch/AddWatch methods
-                ' The watcher will automatically track the renamed file
+            ' Update file watcher - a rename into a different directory needs its own
+            ' Watch/Unwatch pair, since each directory has its own underlying watcher
+            If pFileSystemWatcher IsNot Nothing AndAlso
+               Not String.Equals(System.IO.Path.GetDirectoryName(vOldPath), System.IO.Path.GetDirectoryName(vNewPath), StringComparison.Ordinal) Then
+                pFileSystemWatcher.UnwatchFile(vOldPath)
+                pFileSystemWatcher.WatchFile(vNewPath)
             End If
             
             ' Show notification

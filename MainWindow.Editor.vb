@@ -440,7 +440,12 @@ Partial Public Class MainWindow
 
             ' Add to open tabs dictionary
             pOpenTabs(vFilePath) = lTabInfo
-            
+
+            ' Watch the file on disk so external changes/deletes/renames raise the
+            ' OnExternalFile* handlers (SetupFileSystemWatcher only wires the events -
+            ' nothing actually starts watching without this call)
+            pFileSystemWatcher?.WatchFile(vFilePath)
+
             ' Switch to new tab
             pNotebook.CurrentPage = pNotebook.NPages - 1
             
@@ -771,6 +776,7 @@ Partial Public Class MainWindow
             #End If
             If pOpenTabs.ContainsKey(vTabInfo.FilePath) Then
                 pOpenTabs.Remove(vTabInfo.FilePath)
+                pFileSystemWatcher?.UnwatchFile(vTabInfo.FilePath)
                 #If DEBUG Then
                 Console.WriteLine($"    Removed {vTabInfo.FilePath}")
                 #End If
@@ -909,6 +915,8 @@ Private Function SaveFileAs(vTabInfo As TabInfo) As Boolean
                 If lOldPath <> vTabInfo.FilePath Then
                     pOpenTabs.Remove(lOldPath)
                     pOpenTabs(vTabInfo.FilePath) = vTabInfo
+                    pFileSystemWatcher?.UnwatchFile(lOldPath)
+                    pFileSystemWatcher?.WatchFile(vTabInfo.FilePath)
                 End If
                 
                 ' Update tab label to show new filename
@@ -1737,6 +1745,10 @@ End Function
                 
                 ' Remove from pOpenTabs dictionary
                 pOpenTabs.Remove(lKeyToRemove)
+                If Not lKeyToRemove.StartsWith("scratchpad:") AndAlso Not lKeyToRemove.StartsWith("help:") AndAlso
+                   Not lKeyToRemove.StartsWith("ai-artifact:") Then
+                    pFileSystemWatcher?.UnwatchFile(lKeyToRemove)
+                End If
                 #If DEBUG Then
                 Console.WriteLine($"  Removed {lKeyToRemove} from pOpenTabs")
                 #End If
