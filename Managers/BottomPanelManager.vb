@@ -19,7 +19,9 @@ Namespace Managers
         Private pThemeManager As ThemeManager
         ''' <summary>Set via SetProjectManager - forwarded to the AI Assistant panel's symbol-lookup capability, see SetProjectManager</summary>
         Private pProjectManager As ProjectManager
-        
+        ''' <summary>Set via SetOpenTabLineReplaceHandler - forwarded to the AI Assistant panel's undo-safe line-replace path, see SetOpenTabLineReplaceHandler</summary>
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, AIAssistantPanel.LineReplaceOutcome)
+
         ' Tab panels
         Private pBuildOutputPanel As BuildOutputPanel
         Private pFindPanel As FindReplacePanel
@@ -584,6 +586,9 @@ Namespace Managers
                 If pProjectManager IsNot Nothing Then
                     pAIAssistantPanel.SetProjectManager(pProjectManager)
                 End If
+                If pOpenTabLineReplaceHandler IsNot Nothing Then
+                    pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)
+                End If
 
                 AddHandler pAIAssistantPanel.FixErrorsRequested,
                     Sub()
@@ -1092,6 +1097,19 @@ Namespace Managers
             pProjectManager = vProjectManager
             If pAIAssistantPanel IsNot Nothing Then
                 pAIAssistantPanel.SetProjectManager(pProjectManager)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Sets the handler the AI Assistant panel's "replace_lines" action tries first, so an
+        ''' AI edit to an already-open file goes through the live editor (undo-able via Ctrl+Z)
+        ''' rather than only ever writing straight to disk - forwarded immediately if that panel
+        ''' already exists, since it's created lazily and may not yet when this runs
+        ''' </summary>
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, AIAssistantPanel.LineReplaceOutcome))
+            pOpenTabLineReplaceHandler = vHandler
+            If pAIAssistantPanel IsNot Nothing Then
+                pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)
             End If
         End Sub
 

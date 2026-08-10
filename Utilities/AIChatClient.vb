@@ -57,6 +57,10 @@ Namespace Utilities
             Public Property ProjectType As String
             ''' <summary>True if this artifact means "delete the file at FilePath" rather than write Content to it</summary>
             Public Property IsDelete As Boolean
+            ''' <summary>1-based inclusive start line - only set when a Lines: line was present, meaning Content replaces just this range rather than the whole file</summary>
+            Public Property StartLine As Integer
+            ''' <summary>1-based inclusive end line - see StartLine</summary>
+            Public Property EndLine As Integer
         End Class
 
         Public Class UsageInfo
@@ -260,6 +264,13 @@ Namespace Utilities
             lBuilder.AppendLine()
             lBuilder.AppendLine("To delete a file, set FilePath to it, add a Delete: true line, and leave Content empty.")
             lBuilder.AppendLine()
+            lBuilder.AppendLine("To replace a specific range of lines in an EXISTING file instead of rewriting the " &
+                                 "whole file, set FilePath to it and add a Lines: line giving the 1-based inclusive " &
+                                 "range, e.g. 'Lines: 34-39' - Content then replaces exactly those lines (and only " &
+                                 "those; the rest of the file is untouched). Get the exact current line numbers " &
+                                 "first (e.g. via a ```lookup``` FindLocation/GetSource query) if you aren't already " &
+                                 "certain - a Lines: replace targeting the wrong range will corrupt the file.")
+            lBuilder.AppendLine()
 
             If SymbolLookupHandler IsNot Nothing Then
                 lBuilder.AppendLine("If you need to find where a class/method/property/field/event is defined in " &
@@ -436,6 +447,15 @@ Namespace Utilities
                         lArtifact.ProjectType = lLine.Substring(12).Trim()
                     ElseIf lLine.StartsWith("Delete:") Then
                         lArtifact.IsDelete = String.Equals(lLine.Substring(7).Trim(), "true", StringComparison.OrdinalIgnoreCase)
+                    ElseIf lLine.StartsWith("Lines:") Then
+                        Dim lRangeParts As String() = lLine.Substring(6).Trim().Split("-"c)
+                        If lRangeParts.Length = 2 Then
+                            Dim lStart As Integer, lEnd As Integer
+                            If Integer.TryParse(lRangeParts(0).Trim(), lStart) AndAlso Integer.TryParse(lRangeParts(1).Trim(), lEnd) Then
+                                lArtifact.StartLine = lStart
+                                lArtifact.EndLine = lEnd
+                            End If
+                        End If
                     End If
                 Next
 

@@ -43,7 +43,17 @@ Namespace Widgets
 
         ''' <summary>Set via SetProjectManager - reapplied to pFileSystemBridge/pApiClient whenever either is (re)created, since it feeds the "```lookup```" symbol-search capability</summary>
         Private pProjectManager As ProjectManager
-        
+
+        ''' <summary>
+        ''' Set via SetOpenTabLineReplaceHandler (wired by MainWindow through BottomPanelManager)
+        ''' - given (fullFilePath, 1-based startLine, 1-based endLine, newText), performs the
+        ''' replace through the live editor if that file is open (so it's undo-able via Ctrl+Z
+        ''' and the buffer/redraw stay in sync) and reports the outcome; Nothing (the default,
+        ''' or if the file isn't open) means ReplaceLinesAsync falls back to splicing the range
+        ''' directly on disk instead
+        ''' </summary>
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, LineReplaceOutcome)
+
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
         Private pAddFileButton As CustomDrawButton
@@ -69,13 +79,27 @@ Namespace Widgets
         
         ' AI action structure
         Public Class AIAction
-            Public Property Type As String ' "create_file", "modify_file", "delete_file", "create_project"
+            Public Property Type As String ' "create_file", "modify_file", "delete_file", "create_project", "replace_lines"
             Public Property FilePath As String
             Public Property Content As String
             Public Property Description As String
             ''' <summary>"Console", "Library", or "Gtk" - only set when Type = "create_project"</summary>
             Public Property ProjectType As String
+            ''' <summary>1-based inclusive line range - only set when Type = "replace_lines"</summary>
+            Public Property StartLine As Integer
+            ''' <summary>1-based inclusive line range - see StartLine</summary>
+            Public Property EndLine As Integer
             Public Property Executed As Boolean = False
+        End Class
+
+        ''' <summary>Result of AIAssistantPanel.OpenTabLineReplaceHandler - see SetOpenTabLineReplaceHandler</summary>
+        Public Class LineReplaceOutcome
+            ''' <summary>True if the target file had an open tab (whether or not the replace itself succeeded)</summary>
+            Public Property WasOpen As Boolean
+            ''' <summary>Only meaningful when WasOpen is True</summary>
+            Public Property Success As Boolean
+            ''' <summary>Only meaningful when WasOpen is True and Success is False</summary>
+            Public Property ErrorMessage As String
         End Class
         
         ''' <param name="vProvider">The configured AI backend, or Nothing if none is usable yet</param>
@@ -122,6 +146,15 @@ Namespace Widgets
         Public Sub SetProjectManager(vProjectManager As ProjectManager)
             pProjectManager = vProjectManager
             ApplySymbolLookupWiring()
+        End Sub
+
+        ''' <summary>
+        ''' Wires up the open-tab, undo-safe line-replace path a "replace_lines" action tries
+        ''' before falling back to an on-disk splice - see pOpenTabLineReplaceHandler and
+        ''' ReplaceLinesAsync
+        ''' </summary>
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, LineReplaceOutcome))
+            pOpenTabLineReplaceHandler = vHandler
         End Sub
 
         ''' <summary>
@@ -709,6 +742,18 @@ Namespace Widgets
                     Continue For
                 End If
 
+                If lArtifact.StartLine > 0 AndAlso lArtifact.EndLine > 0 Then
+                    lActions.Add(New AIAction With {
+                        .Type = "replace_lines",
+                        .FilePath = lArtifact.FilePath,
+                        .Content = lArtifact.Content,
+                        .StartLine = lArtifact.StartLine,
+                        .EndLine = lArtifact.EndLine,
+                        .Description = lArtifact.Title
+                    })
+                    Continue For
+                End If
+
                 Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, lArtifact.FilePath)
                 lActions.Add(New AIAction With {
                     .Type = If(File.Exists(lFullPath), "modify_file", "create_file"),
@@ -733,6 +778,8 @@ Namespace Widgets
                             Await DeleteFileAsync(lAction)
                         Case "create_project"
                             Await CreateProjectAsync(lAction)
+                        Case "replace_lines"
+                            Await ReplaceLinesAsync(lAction)
                     End Select
                     
                     lAction.Executed = True
@@ -796,7 +843,73 @@ Namespace Widgets
                 End Try
             End Sub)
         End Function
-        
+
+        ''' <summary>
+        ''' Replaces vAction.StartLine..vAction.EndLine (1-based, inclusive) in vAction.FilePath
+        ''' with vAction.Content. Tries pOpenTabLineReplaceHandler first (runs on this calling
+        ''' thread, not inside Task.Run, since it touches live editor/UI state) so an open file
+        ''' is edited through the editor itself - undo-able via Ctrl+Z, buffer/redraw stay in
+        ''' sync. Falls back to splicing the range directly on disk when the file isn't open (or
+        ''' no handler is wired) - there's no live document open in that case for undo to apply to
+        ''' </summary>
+        Private Async Function ReplaceLinesAsync(vAction As AIAction) As Task
+            Try
+                Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
+
+                If Not File.Exists(lFullPath) Then
+                    AddErrorMessage($"Cannot replace lines in '{vAction.FilePath}': file does not exist.")
+                    Return
+                End If
+
+                If pOpenTabLineReplaceHandler IsNot Nothing Then
+                    Dim lOutcome As LineReplaceOutcome = pOpenTabLineReplaceHandler(lFullPath, vAction.StartLine, vAction.EndLine, vAction.Content)
+                    If lOutcome IsNot Nothing AndAlso lOutcome.WasOpen Then
+                        If lOutcome.Success Then
+                            AddActionMessage($"Replaced lines {vAction.StartLine}-{vAction.EndLine} in: {vAction.FilePath}")
+                        Else
+                            AddErrorMessage($"Failed to replace lines in '{vAction.FilePath}': {lOutcome.ErrorMessage}")
+                        End If
+                        Return
+                    End If
+                End If
+
+                Await Task.Run(Sub()
+                    Try
+                        Dim lLines As List(Of String) = File.ReadAllLines(lFullPath).ToList()
+                        Dim lStartIndex As Integer = vAction.StartLine - 1
+                        Dim lEndIndex As Integer = vAction.EndLine - 1
+
+                        If lStartIndex < 0 OrElse lEndIndex >= lLines.Count OrElse lStartIndex > lEndIndex Then
+                            GLib.Idle.Add(Function()
+                                AddErrorMessage($"Cannot replace lines {vAction.StartLine}-{vAction.EndLine} in '{vAction.FilePath}': file has {lLines.Count} lines.")
+                                Return False
+                            End Function)
+                            Return
+                        End If
+
+                        Dim lNewLines As New List(Of String)
+                        lNewLines.AddRange(lLines.Take(lStartIndex))
+                        lNewLines.AddRange(vAction.Content.Replace(vbCrLf, vbLf).Split(vbLf))
+                        lNewLines.AddRange(lLines.Skip(lEndIndex + 1))
+
+                        File.WriteAllText(lFullPath, String.Join(Environment.NewLine, lNewLines))
+
+                        GLib.Idle.Add(Function()
+                            RaiseEvent FileModified(lFullPath)
+                            AddActionMessage($"Replaced lines {vAction.StartLine}-{vAction.EndLine} in: {vAction.FilePath}")
+                            Return False
+                        End Function)
+
+                    Catch ex As Exception
+                        Console.WriteLine($"error replacing lines on disk: {ex.Message}")
+                    End Try
+                End Sub)
+
+            Catch ex As Exception
+                Console.WriteLine($"error replacing lines: {ex.Message}")
+            End Try
+        End Function
+
         ''' <summary>
         ''' Scaffolds a whole new VB.NET project via AIFileSystemBridge.CreateProject - the same
         ''' StringResources-driven templates MainWindow.CreateNewProject uses, so the result

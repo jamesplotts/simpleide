@@ -806,4 +806,46 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' AIAssistantPanel.OpenTabLineReplaceHandler implementation (wired via BottomPanelManager.
+    ''' SetOpenTabLineReplaceHandler) - if vFilePath has an open tab, replaces vStartLine..
+    ''' vEndLine (1-based, inclusive) with vNewText through the editor's own ReplaceText, so the
+    ''' change is undo-able (Ctrl+Z) and the live buffer/redraw stay correct, instead of the AI
+    ''' writing straight to disk and the tab being force-reloaded
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI wants to edit</param>
+    ''' <param name="vStartLine">1-based inclusive first line to replace</param>
+    ''' <param name="vEndLine">1-based inclusive last line to replace</param>
+    ''' <param name="vNewText">Text to replace the range with</param>
+    Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vNewText As String) As AIAssistantPanel.LineReplaceOutcome
+        Try
+            If Not pOpenTabs.ContainsKey(vFilePath) Then
+                Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = False}
+            End If
+
+            Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
+            Dim lLineCount As Integer = lEditor.SourceFileInfo.TextLines.Count
+
+            ' The AI's line numbers are 1-based inclusive; EditorPosition/ReplaceText are 0-based
+            Dim lStartLine As Integer = vStartLine - 1
+            Dim lEndLine As Integer = vEndLine - 1
+
+            If lStartLine < 0 OrElse lEndLine >= lLineCount OrElse lStartLine > lEndLine Then
+                Return New AIAssistantPanel.LineReplaceOutcome With {
+                    .WasOpen = True, .Success = False,
+                    .ErrorMessage = $"Lines {vStartLine}-{vEndLine} requested, but the open file has {lLineCount} lines."
+                }
+            End If
+
+            Dim lEndColumn As Integer = lEditor.SourceFileInfo.TextLines(lEndLine).Length
+            lEditor.ReplaceText(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, lEndColumn), vNewText)
+
+            Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = True, .Success = True}
+
+        Catch ex As Exception
+            Console.WriteLine($"OnAIOpenTabLineReplace error: {ex.Message}")
+            Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = True, .Success = False, .ErrorMessage = ex.Message}
+        End Try
+    End Function
+
 End Class
