@@ -264,25 +264,31 @@ Namespace Utilities
                                  "set FilePath to the new project's folder name (created directly under the current " &
                                  "project root), add a ProjectType: Console|Library|Gtk line, and leave Content empty.")
             lBuilder.AppendLine()
-            lBuilder.AppendLine("To delete a file, set FilePath to it, add a Delete: true line, and leave Content empty.")
+            lBuilder.AppendLine("To delete a file, set FilePath to it, add a Delete: true line, and leave Content empty. " &
+                                 "This is refused if the file is open with unsaved changes - tell the user to save or " &
+                                 "discard them first.")
             lBuilder.AppendLine()
             lBuilder.AppendLine("To replace a specific range of lines in an EXISTING file instead of rewriting the " &
-                                 "whole file, set FilePath to it and add a Lines: line giving the 1-based inclusive " &
-                                 "range, e.g. 'Lines: 34-39'. The content between --- and the closing ``` must then " &
-                                 "be in exactly this form:")
+                                 "whole file, add a Lines: line giving the 1-based inclusive range, e.g. 'Lines: 34-39'.")
+            lBuilder.AppendLine()
+            lBuilder.AppendLine("Whenever FilePath points at a file that ALREADY EXISTS - a whole-file modify (no " &
+                                 "Lines:) or a Lines: range replace - the content between --- and the closing ``` " &
+                                 "must be split into what you expect is currently there and the new text, in exactly " &
+                                 "this form:")
             lBuilder.AppendLine("<<<<<<< EXPECTED")
-            lBuilder.AppendLine("exact current text of lines 34-39, copied verbatim from a FRESH GetSource/ReadFile/")
-            lBuilder.AppendLine("FindLocation lookup made just before writing this - not from memory or from")
-            lBuilder.AppendLine("earlier in this conversation")
+            lBuilder.AppendLine("exact current text (the whole file, or just the Lines: range), copied verbatim from a")
+            lBuilder.AppendLine("FRESH GetSource/ReadFile/FindLocation lookup made just before writing this - not from")
+            lBuilder.AppendLine("memory or from earlier in this conversation")
             lBuilder.AppendLine("=======")
             lBuilder.AppendLine("the new text to replace it with")
             lBuilder.AppendLine(">>>>>>>")
-            lBuilder.AppendLine("The replace is refused (and reported back to you as an error) if EXPECTED doesn't " &
-                                 "exactly match the file's real content at that range at the moment it's applied - " &
-                                 "this is deliberate: it means the user changed that code (possibly while you were " &
-                                 "generating this response) and blindly applying the range would corrupt the wrong " &
-                                 "text. If a replace is refused for this reason, look the range up again and retry " &
-                                 "with the current line numbers and content - never guess or reconstruct EXPECTED " &
+            lBuilder.AppendLine("This is refused (and reported back to you as an error) if EXPECTED doesn't exactly " &
+                                 "match the file's real content at the moment it's applied - deliberate: it means " &
+                                 "the user changed that code, possibly while you were generating this response, and " &
+                                 "blindly overwriting it would destroy their change. A brand new file (create, not " &
+                                 "modify) needs no EXPECTED block at all - there's no existing content to verify " &
+                                 "against. If a modify/replace is refused for this reason, look the file/range up " &
+                                 "again and retry with the current content - never guess or reconstruct EXPECTED " &
                                  "from memory to work around a refusal.")
             lBuilder.AppendLine()
 
@@ -487,22 +493,19 @@ Namespace Utilities
                         lContentLines.Add(lLines(i))
                     Next
 
-                    If lArtifact.StartLine > 0 AndAlso lArtifact.EndLine > 0 Then
-                        ' A Lines: replace must split its content into what the model expects is
-                        ' currently there (verified before the replace is applied) and the new
-                        ' text, using conflict-marker-style delimiters - see BuildEnhancedPrompt.
-                        ' Left unsplit (ExpectedContent stays empty), ReplaceLinesAsync treats
-                        ' the replace as unverifiable and refuses it rather than applying it blind
-                        Dim lExpectedStart As Integer = lContentLines.FindIndex(Function(l) l.Trim() = "<<<<<<< EXPECTED")
-                        Dim lDivider As Integer = lContentLines.FindIndex(Function(l) l.Trim() = "=======")
-                        Dim lExpectedEnd As Integer = lContentLines.FindIndex(Function(l) l.Trim().StartsWith(">>>>>>>"))
+                    ' Content may be split into what the model expects is currently at FilePath -
+                    ' verified before a whole-file modify or a Lines: range replace is applied
+                    ' (see AIAssistantPanel.ModifyFileAsync/ReplaceLinesAsync) - and the new text,
+                    ' using conflict-marker-style delimiters (see BuildEnhancedPrompt). A create
+                    ' (new file) or an artifact with no FilePath has nothing existing to verify
+                    ' against, so it has no reason to contain these markers and simply won't
+                    Dim lExpectedStart As Integer = lContentLines.FindIndex(Function(l) l.Trim() = "<<<<<<< EXPECTED")
+                    Dim lDivider As Integer = lContentLines.FindIndex(Function(l) l.Trim() = "=======")
+                    Dim lExpectedEnd As Integer = lContentLines.FindIndex(Function(l) l.Trim().StartsWith(">>>>>>>"))
 
-                        If lExpectedStart >= 0 AndAlso lDivider > lExpectedStart AndAlso lExpectedEnd > lDivider Then
-                            lArtifact.ExpectedContent = String.Join(Environment.NewLine, lContentLines.GetRange(lExpectedStart + 1, lDivider - lExpectedStart - 1))
-                            lArtifact.Content = String.Join(Environment.NewLine, lContentLines.GetRange(lDivider + 1, lExpectedEnd - lDivider - 1))
-                        Else
-                            lArtifact.Content = String.Join(Environment.NewLine, lContentLines)
-                        End If
+                    If lExpectedStart >= 0 AndAlso lDivider > lExpectedStart AndAlso lExpectedEnd > lDivider Then
+                        lArtifact.ExpectedContent = String.Join(Environment.NewLine, lContentLines.GetRange(lExpectedStart + 1, lDivider - lExpectedStart - 1))
+                        lArtifact.Content = String.Join(Environment.NewLine, lContentLines.GetRange(lDivider + 1, lExpectedEnd - lDivider - 1))
                     Else
                         lArtifact.Content = String.Join(Environment.NewLine, lContentLines)
                     End If

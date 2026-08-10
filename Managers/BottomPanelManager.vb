@@ -20,7 +20,11 @@ Namespace Managers
         ''' <summary>Set via SetProjectManager - forwarded to the AI Assistant panel's symbol-lookup capability, see SetProjectManager</summary>
         Private pProjectManager As ProjectManager
         ''' <summary>Set via SetOpenTabLineReplaceHandler - forwarded to the AI Assistant panel's undo-safe line-replace path, see SetOpenTabLineReplaceHandler</summary>
-        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.LineReplaceOutcome)
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.TabActionOutcome)
+        ''' <summary>Set via SetOpenTabWholeFileReplaceHandler - forwarded to the AI Assistant panel's undo-safe whole-file-modify path, see SetOpenTabWholeFileReplaceHandler</summary>
+        Private pOpenTabWholeFileReplaceHandler As Func(Of String, String, String, AIAssistantPanel.TabActionOutcome)
+        ''' <summary>Set via SetOpenTabDeleteGuardHandler - forwarded to the AI Assistant panel's unsaved-changes delete guard, see SetOpenTabDeleteGuardHandler</summary>
+        Private pOpenTabDeleteGuardHandler As Func(Of String, AIAssistantPanel.TabActionOutcome)
 
         ' Tab panels
         Private pBuildOutputPanel As BuildOutputPanel
@@ -589,6 +593,12 @@ Namespace Managers
                 If pOpenTabLineReplaceHandler IsNot Nothing Then
                     pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)
                 End If
+                If pOpenTabWholeFileReplaceHandler IsNot Nothing Then
+                    pAIAssistantPanel.SetOpenTabWholeFileReplaceHandler(pOpenTabWholeFileReplaceHandler)
+                End If
+                If pOpenTabDeleteGuardHandler IsNot Nothing Then
+                    pAIAssistantPanel.SetOpenTabDeleteGuardHandler(pOpenTabDeleteGuardHandler)
+                End If
 
                 AddHandler pAIAssistantPanel.FixErrorsRequested,
                     Sub()
@@ -1106,10 +1116,36 @@ Namespace Managers
         ''' rather than only ever writing straight to disk - forwarded immediately if that panel
         ''' already exists, since it's created lazily and may not yet when this runs
         ''' </summary>
-        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.LineReplaceOutcome))
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.TabActionOutcome))
             pOpenTabLineReplaceHandler = vHandler
             If pAIAssistantPanel IsNot Nothing Then
                 pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Sets the handler the AI Assistant panel's "modify_file" action tries first, so an
+        ''' AI whole-file edit to an already-open file goes through the live editor (undo-able
+        ''' via Ctrl+Z) rather than only ever writing straight to disk - forwarded immediately
+        ''' if that panel already exists, since it's created lazily and may not yet when this runs
+        ''' </summary>
+        Public Sub SetOpenTabWholeFileReplaceHandler(vHandler As Func(Of String, String, String, AIAssistantPanel.TabActionOutcome))
+            pOpenTabWholeFileReplaceHandler = vHandler
+            If pAIAssistantPanel IsNot Nothing Then
+                pAIAssistantPanel.SetOpenTabWholeFileReplaceHandler(pOpenTabWholeFileReplaceHandler)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Sets the handler the AI Assistant panel's "delete_file" action checks first, so
+        ''' deleting a file open with unsaved changes is refused instead of silently discarding
+        ''' them - forwarded immediately if that panel already exists, since it's created lazily
+        ''' and may not yet when this runs
+        ''' </summary>
+        Public Sub SetOpenTabDeleteGuardHandler(vHandler As Func(Of String, AIAssistantPanel.TabActionOutcome))
+            pOpenTabDeleteGuardHandler = vHandler
+            If pAIAssistantPanel IsNot Nothing Then
+                pAIAssistantPanel.SetOpenTabDeleteGuardHandler(pOpenTabDeleteGuardHandler)
             End If
         End Sub
 

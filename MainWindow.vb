@@ -460,6 +460,8 @@ Partial Public Class MainWindow
             pBottomPanelManager = New BottomPanelManager(pSettingsManager, pThemeManager)
             pBottomPanelManager.SetProjectManager(pProjectManager)
             pBottomPanelManager.SetOpenTabLineReplaceHandler(AddressOf OnAIOpenTabLineReplace)
+            pBottomPanelManager.SetOpenTabWholeFileReplaceHandler(AddressOf OnAIOpenTabWholeFileReplace)
+            pBottomPanelManager.SetOpenTabDeleteGuardHandler(AddressOf OnAIOpenTabDeleteGuard)
 
             ' Connect bottom panel events
             AddHandler pBottomPanelManager.FindResultSelected, AddressOf OnFindResultSelected

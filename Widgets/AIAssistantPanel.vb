@@ -53,7 +53,24 @@ Namespace Widgets
         ''' or if the file isn't open) means ReplaceLinesAsync falls back to splicing the range
         ''' directly on disk instead
         ''' </summary>
-        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, LineReplaceOutcome)
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, TabActionOutcome)
+
+        ''' <summary>
+        ''' Set via SetOpenTabWholeFileReplaceHandler - given (fullFilePath, expectedContent,
+        ''' newContent), performs a whole-file modify through the live editor's ReplaceAllText
+        ''' if that file is open (undo-able via Ctrl+Z), refusing if expectedContent doesn't
+        ''' match the file's real current content; Nothing or "not open" means ModifyFileAsync
+        ''' falls back to writing the file directly on disk instead
+        ''' </summary>
+        Private pOpenTabWholeFileReplaceHandler As Func(Of String, String, String, TabActionOutcome)
+
+        ''' <summary>
+        ''' Set via SetOpenTabDeleteGuardHandler - given fullFilePath, refuses (Success = False)
+        ''' if that file is open with unsaved changes, otherwise closes its tab (if open) and
+        ''' reports success so DeleteFileAsync can safely delete it from disk; Nothing or
+        ''' "not open" means there's no tab to worry about either way
+        ''' </summary>
+        Private pOpenTabDeleteGuardHandler As Func(Of String, TabActionOutcome)
 
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
@@ -95,8 +112,8 @@ Namespace Widgets
             Public Property Executed As Boolean = False
         End Class
 
-        ''' <summary>Result of AIAssistantPanel.OpenTabLineReplaceHandler - see SetOpenTabLineReplaceHandler</summary>
-        Public Class LineReplaceOutcome
+        ''' <summary>Result of an open-tab handler (SetOpenTabLineReplaceHandler, SetOpenTabWholeFileReplaceHandler, SetOpenTabDeleteGuardHandler) checking/acting on a file that might be open in an editor tab</summary>
+        Public Class TabActionOutcome
             ''' <summary>True if the target file had an open tab (whether or not the replace itself succeeded)</summary>
             Public Property WasOpen As Boolean
             ''' <summary>Only meaningful when WasOpen is True</summary>
@@ -156,8 +173,25 @@ Namespace Widgets
         ''' before falling back to an on-disk splice - see pOpenTabLineReplaceHandler and
         ''' ReplaceLinesAsync
         ''' </summary>
-        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, LineReplaceOutcome))
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, TabActionOutcome))
             pOpenTabLineReplaceHandler = vHandler
+        End Sub
+
+        ''' <summary>
+        ''' Wires up the open-tab, undo-safe whole-file-replace path a "modify_file" action tries
+        ''' before falling back to an on-disk write - see pOpenTabWholeFileReplaceHandler and
+        ''' ModifyFileAsync
+        ''' </summary>
+        Public Sub SetOpenTabWholeFileReplaceHandler(vHandler As Func(Of String, String, String, TabActionOutcome))
+            pOpenTabWholeFileReplaceHandler = vHandler
+        End Sub
+
+        ''' <summary>
+        ''' Wires up the open-tab unsaved-changes guard a "delete_file" action checks before
+        ''' deleting a file from disk - see pOpenTabDeleteGuardHandler and DeleteFileAsync
+        ''' </summary>
+        Public Sub SetOpenTabDeleteGuardHandler(vHandler As Func(Of String, TabActionOutcome))
+            pOpenTabDeleteGuardHandler = vHandler
         End Sub
 
         ''' <summary>
@@ -778,6 +812,7 @@ Namespace Widgets
                     .Type = If(File.Exists(lFullPath), "modify_file", "create_file"),
                     .FilePath = lArtifact.FilePath,
                     .Content = lArtifact.Content,
+                    .ExpectedContent = lArtifact.ExpectedContent,
                     .Description = lArtifact.Title
                 })
             Next
@@ -828,27 +863,99 @@ Namespace Widgets
             End Sub)
         End Function
         
+        ''' <summary>
+        ''' Overwrites an EXISTING file (a whole-file "modify_file" action; see CreateFileAsync
+        ''' for new files). Tries pOpenTabWholeFileReplaceHandler first (runs on this calling
+        ''' thread, not inside Task.Run, since it touches live editor/UI state) so an open file
+        ''' is edited through the editor itself - undo-able via Ctrl+Z. Requires
+        ''' vAction.ExpectedContent and refuses outright without it (same reasoning as
+        ''' ReplaceLinesAsync); when writing directly to disk (file not open, or no handler
+        ''' wired), verifies ExpectedContent against the real current content immediately before
+        ''' overwriting, so a file the user changed since the AI last looked isn't silently
+        ''' clobbered
+        ''' </summary>
         Private Async Function ModifyFileAsync(vAction As AIAction) As Task
-            Await Task.Run(Sub()
+            Try
                 Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
-                
-                If File.Exists(lFullPath) Then
-                    File.WriteAllText(lFullPath, vAction.Content)
-                    
-                    GLib.Idle.Add(Function()
-                        RaiseEvent FileModified(lFullPath)
-                        AddActionMessage($"Modified file: {vAction.FilePath}")
-                        Return False
-                    End Function)
+
+                If Not File.Exists(lFullPath) Then
+                    AddErrorMessage($"Cannot modify '{vAction.FilePath}': file does not exist.")
+                    Return
                 End If
-            End Sub)
+
+                If String.IsNullOrEmpty(vAction.ExpectedContent) Then
+                    AddErrorMessage($"Refused to modify '{vAction.FilePath}': no EXPECTED content was given to verify against.")
+                    Return
+                End If
+
+                If pOpenTabWholeFileReplaceHandler IsNot Nothing Then
+                    Dim lOutcome As TabActionOutcome = pOpenTabWholeFileReplaceHandler(lFullPath, vAction.ExpectedContent, vAction.Content)
+                    If lOutcome IsNot Nothing AndAlso lOutcome.WasOpen Then
+                        If lOutcome.Success Then
+                            AddActionMessage($"Modified file: {vAction.FilePath}")
+                        Else
+                            AddErrorMessage($"Failed to modify '{vAction.FilePath}': {lOutcome.ErrorMessage}")
+                        End If
+                        Return
+                    End If
+                End If
+
+                Await Task.Run(Sub()
+                    Try
+                        Dim lActualContent As String = File.ReadAllText(lFullPath)
+                        If NormalizeForLineCompare(lActualContent) <> NormalizeForLineCompare(vAction.ExpectedContent) Then
+                            GLib.Idle.Add(Function()
+                                AddErrorMessage($"Refused to modify '{vAction.FilePath}': the file's current content doesn't match what the AI expected (it may have changed since the AI last looked).")
+                                Return False
+                            End Function)
+                            Return
+                        End If
+
+                        File.WriteAllText(lFullPath, vAction.Content)
+
+                        GLib.Idle.Add(Function()
+                            RaiseEvent FileModified(lFullPath)
+                            AddActionMessage($"Modified file: {vAction.FilePath}")
+                            Return False
+                        End Function)
+
+                    Catch ex As Exception
+                        Console.WriteLine($"error modifying file on disk: {ex.Message}")
+                    End Try
+                End Sub)
+
+            Catch ex As Exception
+                Console.WriteLine($"error modifying file: {ex.Message}")
+            End Try
         End Function
-        
+
+        ''' <summary>
+        ''' Deletes a file. Tries pOpenTabDeleteGuardHandler first (runs on this calling thread,
+        ''' not inside Task.Run, since it touches live editor/UI state) - if the file is open
+        ''' with unsaved changes, the delete is refused outright rather than discarding them;
+        ''' otherwise the handler closes the tab (if any) before the disk delete below runs
+        ''' </summary>
         Private Async Function DeleteFileAsync(vAction As AIAction) As Task
-            Await Task.Run(Sub()
-                Try
-                    Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
-                    If File.Exists(lFullPath) Then
+            Try
+                Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, vAction.FilePath)
+
+                If Not File.Exists(lFullPath) Then
+                    AddErrorMessage($"Cannot delete '{vAction.FilePath}': file does not exist.")
+                    Return
+                End If
+
+                If pOpenTabDeleteGuardHandler IsNot Nothing Then
+                    Dim lOutcome As TabActionOutcome = pOpenTabDeleteGuardHandler(lFullPath)
+                    If lOutcome IsNot Nothing AndAlso lOutcome.WasOpen AndAlso Not lOutcome.Success Then
+                        AddErrorMessage($"Refused to delete '{vAction.FilePath}': {lOutcome.ErrorMessage}")
+                        Return
+                    End If
+                    ' WasOpen AndAlso Success: the guard already closed the tab, safe to delete.
+                    ' Not WasOpen: no tab to worry about either way - also safe to delete.
+                End If
+
+                Await Task.Run(Sub()
+                    Try
                         File.Delete(lFullPath)
 
                         GLib.Idle.Add(Function()
@@ -856,11 +963,14 @@ Namespace Widgets
                             AddActionMessage($"Deleted file: {vAction.FilePath}")
                             Return False
                         End Function)
-                    End If
-                Catch ex As Exception
-                    Console.WriteLine($"error deleting file: {ex.Message}")
-                End Try
-            End Sub)
+                    Catch ex As Exception
+                        Console.WriteLine($"error deleting file: {ex.Message}")
+                    End Try
+                End Sub)
+
+            Catch ex As Exception
+                Console.WriteLine($"error deleting file: {ex.Message}")
+            End Try
         End Function
 
         ''' <summary>
@@ -889,7 +999,7 @@ Namespace Widgets
                 End If
 
                 If pOpenTabLineReplaceHandler IsNot Nothing Then
-                    Dim lOutcome As LineReplaceOutcome = pOpenTabLineReplaceHandler(lFullPath, vAction.StartLine, vAction.EndLine, vAction.ExpectedContent, vAction.Content)
+                    Dim lOutcome As TabActionOutcome = pOpenTabLineReplaceHandler(lFullPath, vAction.StartLine, vAction.EndLine, vAction.ExpectedContent, vAction.Content)
                     If lOutcome IsNot Nothing AndAlso lOutcome.WasOpen Then
                         If lOutcome.Success Then
                             AddActionMessage($"Replaced lines {vAction.StartLine}-{vAction.EndLine} in: {vAction.FilePath}")

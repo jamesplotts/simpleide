@@ -820,10 +820,10 @@ Partial Public Class MainWindow
     ''' <param name="vEndLine">1-based inclusive last line to replace</param>
     ''' <param name="vExpectedContent">What the AI expects lines vStartLine-vEndLine currently contain</param>
     ''' <param name="vNewText">Text to replace the range with</param>
-    Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vExpectedContent As String, vNewText As String) As AIAssistantPanel.LineReplaceOutcome
+    Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vExpectedContent As String, vNewText As String) As AIAssistantPanel.TabActionOutcome
         Try
             If Not pOpenTabs.ContainsKey(vFilePath) Then
-                Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = False}
+                Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
             End If
 
             Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
@@ -835,7 +835,7 @@ Partial Public Class MainWindow
             Dim lEndLine As Integer = vEndLine - 1
 
             If lStartLine < 0 OrElse lEndLine >= lLineCount OrElse lStartLine > lEndLine Then
-                Return New AIAssistantPanel.LineReplaceOutcome With {
+                Return New AIAssistantPanel.TabActionOutcome With {
                     .WasOpen = True, .Success = False,
                     .ErrorMessage = $"Lines {vStartLine}-{vEndLine} requested, but the open file has {lLineCount} lines."
                 }
@@ -843,7 +843,7 @@ Partial Public Class MainWindow
 
             Dim lActualRange As String = String.Join(Environment.NewLine, lTextLines.GetRange(lStartLine, lEndLine - lStartLine + 1))
             If AIAssistantPanel.NormalizeForLineCompare(lActualRange) <> AIAssistantPanel.NormalizeForLineCompare(vExpectedContent) Then
-                Return New AIAssistantPanel.LineReplaceOutcome With {
+                Return New AIAssistantPanel.TabActionOutcome With {
                     .WasOpen = True, .Success = False,
                     .ErrorMessage = "The file's current content there doesn't match what the AI expected (it may have changed since the AI last looked)."
                 }
@@ -852,11 +852,81 @@ Partial Public Class MainWindow
             Dim lEndColumn As Integer = lTextLines(lEndLine).Length
             lEditor.ReplaceText(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, lEndColumn), vNewText)
 
-            Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = True, .Success = True}
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = True}
 
         Catch ex As Exception
             Console.WriteLine($"OnAIOpenTabLineReplace error: {ex.Message}")
-            Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = True, .Success = False, .ErrorMessage = ex.Message}
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = False, .ErrorMessage = ex.Message}
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' AIAssistantPanel.OpenTabWholeFileReplaceHandler implementation (wired via
+    ''' BottomPanelManager.SetOpenTabWholeFileReplaceHandler) - if vFilePath has an open tab,
+    ''' verifies vExpectedContent still matches the live buffer's real current full text
+    ''' (refusing if not - the user may have edited it, possibly while the AI was still
+    ''' generating this response), then replaces it with vNewContent through the editor's own
+    ''' ReplaceAllText, so the change is undo-able (Ctrl+Z) instead of the AI writing straight
+    ''' to disk and the tab being force-reloaded
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI wants to modify</param>
+    ''' <param name="vExpectedContent">What the AI expects the file currently contains</param>
+    ''' <param name="vNewContent">Text to replace the whole file's content with</param>
+    Private Function OnAIOpenTabWholeFileReplace(vFilePath As String, vExpectedContent As String, vNewContent As String) As AIAssistantPanel.TabActionOutcome
+        Try
+            If Not pOpenTabs.ContainsKey(vFilePath) Then
+                Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
+            End If
+
+            Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
+            Dim lActualContent As String = String.Join(Environment.NewLine, lEditor.SourceFileInfo.TextLines)
+
+            If AIAssistantPanel.NormalizeForLineCompare(lActualContent) <> AIAssistantPanel.NormalizeForLineCompare(vExpectedContent) Then
+                Return New AIAssistantPanel.TabActionOutcome With {
+                    .WasOpen = True, .Success = False,
+                    .ErrorMessage = "The file's current content doesn't match what the AI expected (it may have changed since the AI last looked)."
+                }
+            End If
+
+            lEditor.ReplaceAllText(vNewContent)
+
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = True}
+
+        Catch ex As Exception
+            Console.WriteLine($"OnAIOpenTabWholeFileReplace error: {ex.Message}")
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = False, .ErrorMessage = ex.Message}
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' AIAssistantPanel.OpenTabDeleteGuardHandler implementation (wired via BottomPanelManager.
+    ''' SetOpenTabDeleteGuardHandler) - if vFilePath has an open tab with unsaved changes, refuses
+    ''' rather than letting DeleteFileAsync silently discard them; otherwise closes the tab (it
+    ''' won't prompt, since it's not modified) so the disk delete that follows doesn't leave a
+    ''' tab open on a file that no longer exists
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI wants to delete</param>
+    Private Function OnAIOpenTabDeleteGuard(vFilePath As String) As AIAssistantPanel.TabActionOutcome
+        Try
+            If Not pOpenTabs.ContainsKey(vFilePath) Then
+                Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = False}
+            End If
+
+            Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
+            If lTabInfo.Modified Then
+                Return New AIAssistantPanel.TabActionOutcome With {
+                    .WasOpen = True, .Success = False,
+                    .ErrorMessage = "The file is open with unsaved changes - save or discard them first."
+                }
+            End If
+
+            CloseTab(lTabInfo)
+
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = True}
+
+        Catch ex As Exception
+            Console.WriteLine($"OnAIOpenTabDeleteGuard error: {ex.Message}")
+            Return New AIAssistantPanel.TabActionOutcome With {.WasOpen = True, .Success = False, .ErrorMessage = ex.Message}
         End Try
     End Function
 
