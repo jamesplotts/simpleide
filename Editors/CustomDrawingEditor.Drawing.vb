@@ -105,12 +105,19 @@ Namespace Editors
         ''' FIXED: Space characters now properly show selection background.
         ''' </remarks>
         Private Sub DrawContent(vContext As Cairo.Context)
+            ' Declared outside the Try so Finally below can dispose it regardless of where an
+            ' exception is thrown - lLayout previously was Dim'd inside Try and only disposed as
+            ' the last statement before Catch, so any exception anywhere in this method's long,
+            ' complex body (a bad theme color key, a stale index during a fast edit+redraw race,
+            ' etc.) skipped disposal entirely and leaked a Pango.Layout; this runs on every
+            ' single redraw, so a persistently-triggering condition would leak continuously
+            Dim lLayout As Pango.Layout = Nothing
             Try
                 Dim lTopOffset As Integer = 0
                 Dim lBarLengthHalf As Integer = 4
-                
+
                 ' Create a layout for text rendering
-                Dim lLayout As Pango.Layout = Pango.CairoHelper.CreateLayout(vContext)
+                lLayout = Pango.CairoHelper.CreateLayout(vContext)
                 lLayout.FontDescription = pFontDescription
                 
                 ' Ensure color cache is initialized
@@ -446,11 +453,10 @@ Namespace Editors
                     DrawCodeSensePopup(vContext)
                 End If
 
-				            ' Clean up
-                lLayout?.Dispose()
-                
             Catch ex As Exception
                 Console.WriteLine($"DrawContent error: {ex.Message}")
+            Finally
+                lLayout?.Dispose()
             End Try
         End Sub
 

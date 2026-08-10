@@ -399,6 +399,31 @@ Namespace Editors
                             ' (including its own cursor movement) when applicable; falls
                             ' through to normal single-character insertion otherwise
                             If Not HandleBracketAutoClose(lChar) Then
+                                ' Overwrite mode (Insert key toggle, see pInsertMode) - replace
+                                ' the character already at the cursor instead of inserting ahead
+                                ' of it, matching HandleKeypadCharacter's identical handling for
+                                ' keypad-typed characters. This was the only character-insertion
+                                ' path that never checked pInsertMode at all, so toggling
+                                ' Overwrite via the Insert key had no effect on normal typing.
+                                ' Doesn't apply when a selection was just replaced above (that's
+                                ' already an exact replace of the selected text) or at end of
+                                ' line (nothing there to overwrite)
+                                Dim lOverwriting As Boolean = Not pInsertMode AndAlso Not lReplacedSelection AndAlso
+                                    pCursorColumn < pSourceFileInfo.TextLines(pCursorLine).Length
+
+                                If lOverwriting Then
+                                    Dim lOverwrittenChar As String = pSourceFileInfo.TextLines(pCursorLine)(pCursorColumn).ToString()
+                                    Dim lOverwriteStart As New EditorPosition(pCursorLine, pCursorColumn)
+                                    Dim lOverwriteEnd As New EditorPosition(pCursorLine, pCursorColumn + 1)
+
+                                    If pUndoRedoManager IsNot Nothing Then
+                                        pUndoRedoManager.BeginUserAction()
+                                        pUndoRedoManager.RecordDeleteText(lOverwriteStart, lOverwriteEnd, lOverwrittenChar, lOverwriteStart)
+                                    End If
+
+                                    pSourceFileInfo.DeleteText(pCursorLine, pCursorColumn, pCursorLine, pCursorColumn + 1)
+                                End If
+
                                 ' Record for undo BEFORE the operation
                                 If pUndoRedoManager IsNot Nothing Then
                                     Dim lUndoStartPos As New EditorPosition(pCursorLine, pCursorColumn)
@@ -411,6 +436,10 @@ Namespace Editors
 
                                 ' Move cursor forward
                                 SetCursorPosition(pCursorLine, pCursorColumn + 1)
+
+                                If lOverwriting AndAlso pUndoRedoManager IsNot Nothing Then
+                                    pUndoRedoManager.EndUserAction()
+                                End If
                             End If
 
                             If lReplacedSelection AndAlso pUndoRedoManager IsNot Nothing Then

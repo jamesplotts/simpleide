@@ -649,7 +649,14 @@ Namespace Editors
         Public Sub ReplaceSelection(vText As String) Implements IEditor.ReplaceSelection
             Try
                 If pIsReadOnly OrElse pSourceFileInfo Is Nothing Then Return
-                
+
+                ' Every other insertion method in this file guards vText against Nothing before
+                ' touching it; this one didn't, and unconditionally calls vText.Contains/.Split/
+                ' .Length below - not reachable today (the one live caller, CustomDrawingEditor.
+                ' Search.vb's Find & Replace, always passes a GTK Entry.Text, which is never
+                ' Nothing) but latent and inconsistent with the rest of the file's convention
+                If vText Is Nothing Then vText = ""
+
                 If pHasSelection Then
                     ' Get selection bounds
                     Dim lStart As EditorPosition = GetSelectionStart()
