@@ -808,23 +808,27 @@ Partial Public Class MainWindow
 
     ''' <summary>
     ''' AIAssistantPanel.OpenTabLineReplaceHandler implementation (wired via BottomPanelManager.
-    ''' SetOpenTabLineReplaceHandler) - if vFilePath has an open tab, replaces vStartLine..
-    ''' vEndLine (1-based, inclusive) with vNewText through the editor's own ReplaceText, so the
+    ''' SetOpenTabLineReplaceHandler) - if vFilePath has an open tab, verifies vExpectedContent
+    ''' still matches the live buffer's real current text at vStartLine..vEndLine (refusing if
+    ''' not - the user may have edited it, possibly while the AI was still generating this
+    ''' response), then replaces it with vNewText through the editor's own ReplaceText, so the
     ''' change is undo-able (Ctrl+Z) and the live buffer/redraw stay correct, instead of the AI
     ''' writing straight to disk and the tab being force-reloaded
     ''' </summary>
     ''' <param name="vFilePath">Full path to the file the AI wants to edit</param>
     ''' <param name="vStartLine">1-based inclusive first line to replace</param>
     ''' <param name="vEndLine">1-based inclusive last line to replace</param>
+    ''' <param name="vExpectedContent">What the AI expects lines vStartLine-vEndLine currently contain</param>
     ''' <param name="vNewText">Text to replace the range with</param>
-    Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vNewText As String) As AIAssistantPanel.LineReplaceOutcome
+    Private Function OnAIOpenTabLineReplace(vFilePath As String, vStartLine As Integer, vEndLine As Integer, vExpectedContent As String, vNewText As String) As AIAssistantPanel.LineReplaceOutcome
         Try
             If Not pOpenTabs.ContainsKey(vFilePath) Then
                 Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = False}
             End If
 
             Dim lEditor As IEditor = pOpenTabs(vFilePath).Editor
-            Dim lLineCount As Integer = lEditor.SourceFileInfo.TextLines.Count
+            Dim lTextLines As List(Of String) = lEditor.SourceFileInfo.TextLines
+            Dim lLineCount As Integer = lTextLines.Count
 
             ' The AI's line numbers are 1-based inclusive; EditorPosition/ReplaceText are 0-based
             Dim lStartLine As Integer = vStartLine - 1
@@ -837,7 +841,15 @@ Partial Public Class MainWindow
                 }
             End If
 
-            Dim lEndColumn As Integer = lEditor.SourceFileInfo.TextLines(lEndLine).Length
+            Dim lActualRange As String = String.Join(Environment.NewLine, lTextLines.GetRange(lStartLine, lEndLine - lStartLine + 1))
+            If AIAssistantPanel.NormalizeForLineCompare(lActualRange) <> AIAssistantPanel.NormalizeForLineCompare(vExpectedContent) Then
+                Return New AIAssistantPanel.LineReplaceOutcome With {
+                    .WasOpen = True, .Success = False,
+                    .ErrorMessage = "The file's current content there doesn't match what the AI expected (it may have changed since the AI last looked)."
+                }
+            End If
+
+            Dim lEndColumn As Integer = lTextLines(lEndLine).Length
             lEditor.ReplaceText(New EditorPosition(lStartLine, 0), New EditorPosition(lEndLine, lEndColumn), vNewText)
 
             Return New AIAssistantPanel.LineReplaceOutcome With {.WasOpen = True, .Success = True}

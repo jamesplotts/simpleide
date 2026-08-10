@@ -20,7 +20,7 @@ Namespace Managers
         ''' <summary>Set via SetProjectManager - forwarded to the AI Assistant panel's symbol-lookup capability, see SetProjectManager</summary>
         Private pProjectManager As ProjectManager
         ''' <summary>Set via SetOpenTabLineReplaceHandler - forwarded to the AI Assistant panel's undo-safe line-replace path, see SetOpenTabLineReplaceHandler</summary>
-        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, AIAssistantPanel.LineReplaceOutcome)
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.LineReplaceOutcome)
 
         ' Tab panels
         Private pBuildOutputPanel As BuildOutputPanel
@@ -1106,7 +1106,7 @@ Namespace Managers
         ''' rather than only ever writing straight to disk - forwarded immediately if that panel
         ''' already exists, since it's created lazily and may not yet when this runs
         ''' </summary>
-        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, AIAssistantPanel.LineReplaceOutcome))
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, AIAssistantPanel.LineReplaceOutcome))
             pOpenTabLineReplaceHandler = vHandler
             If pAIAssistantPanel IsNot Nothing Then
                 pAIAssistantPanel.SetOpenTabLineReplaceHandler(pOpenTabLineReplaceHandler)

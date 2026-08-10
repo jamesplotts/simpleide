@@ -46,13 +46,14 @@ Namespace Widgets
 
         ''' <summary>
         ''' Set via SetOpenTabLineReplaceHandler (wired by MainWindow through BottomPanelManager)
-        ''' - given (fullFilePath, 1-based startLine, 1-based endLine, newText), performs the
-        ''' replace through the live editor if that file is open (so it's undo-able via Ctrl+Z
-        ''' and the buffer/redraw stay in sync) and reports the outcome; Nothing (the default,
+        ''' - given (fullFilePath, 1-based startLine, 1-based endLine, expectedContent, newText),
+        ''' performs the replace through the live editor if that file is open (so it's undo-able
+        ''' via Ctrl+Z and the buffer/redraw stay in sync) and reports the outcome, refusing if
+        ''' expectedContent doesn't match the range's real current text; Nothing (the default,
         ''' or if the file isn't open) means ReplaceLinesAsync falls back to splicing the range
         ''' directly on disk instead
         ''' </summary>
-        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, LineReplaceOutcome)
+        Private pOpenTabLineReplaceHandler As Func(Of String, Integer, Integer, String, String, LineReplaceOutcome)
 
         ' Action buttons
         Private pCreateProjectButton As CustomDrawButton
@@ -89,6 +90,8 @@ Namespace Widgets
             Public Property StartLine As Integer
             ''' <summary>1-based inclusive line range - see StartLine</summary>
             Public Property EndLine As Integer
+            ''' <summary>Only set when Type = "replace_lines" - the text the AI expects StartLine-EndLine currently contain; verified against the real content before the replace is applied</summary>
+            Public Property ExpectedContent As String
             Public Property Executed As Boolean = False
         End Class
 
@@ -153,9 +156,22 @@ Namespace Widgets
         ''' before falling back to an on-disk splice - see pOpenTabLineReplaceHandler and
         ''' ReplaceLinesAsync
         ''' </summary>
-        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, LineReplaceOutcome))
+        Public Sub SetOpenTabLineReplaceHandler(vHandler As Func(Of String, Integer, Integer, String, String, LineReplaceOutcome))
             pOpenTabLineReplaceHandler = vHandler
         End Sub
+
+        ''' <summary>
+        ''' Normalizes text for the EXPECTED-content safety check (see ReplaceLinesAsync /
+        ''' MainWindow.OnAIOpenTabLineReplace): unifies line endings and trims trailing
+        ''' whitespace per line, since that's a common source of spurious mismatches that
+        ''' doesn't actually indicate the file changed underneath the AI. Leading whitespace
+        ''' (indentation) is deliberately left significant.
+        ''' </summary>
+        Public Shared Function NormalizeForLineCompare(vText As String) As String
+            If String.IsNullOrEmpty(vText) Then Return ""
+            Dim lLines As String() = vText.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf).Split(vbLf)
+            Return String.Join(vbLf, lLines.Select(Function(l) l.TrimEnd()))
+        End Function
 
         ''' <summary>
         ''' (Re)applies pProjectManager to pFileSystemBridge and wires pApiClient.
@@ -749,6 +765,7 @@ Namespace Widgets
                         .Type = "replace_lines",
                         .FilePath = lArtifact.FilePath,
                         .Content = lArtifact.Content,
+                        .ExpectedContent = lArtifact.ExpectedContent,
                         .StartLine = lArtifact.StartLine,
                         .EndLine = lArtifact.EndLine,
                         .Description = lArtifact.Title
@@ -863,8 +880,16 @@ Namespace Widgets
                     Return
                 End If
 
+                ' Refuse outright rather than applying blind if the model didn't include a
+                ' well-formed EXPECTED block (see AIChatClient.BuildEnhancedPrompt/ParseArtifact)
+                ' - there's nothing here to verify the replace is still targeting the right code
+                If String.IsNullOrEmpty(vAction.ExpectedContent) Then
+                    AddErrorMessage($"Refused to replace lines {vAction.StartLine}-{vAction.EndLine} in '{vAction.FilePath}': no EXPECTED content was given to verify against.")
+                    Return
+                End If
+
                 If pOpenTabLineReplaceHandler IsNot Nothing Then
-                    Dim lOutcome As LineReplaceOutcome = pOpenTabLineReplaceHandler(lFullPath, vAction.StartLine, vAction.EndLine, vAction.Content)
+                    Dim lOutcome As LineReplaceOutcome = pOpenTabLineReplaceHandler(lFullPath, vAction.StartLine, vAction.EndLine, vAction.ExpectedContent, vAction.Content)
                     If lOutcome IsNot Nothing AndAlso lOutcome.WasOpen Then
                         If lOutcome.Success Then
                             AddActionMessage($"Replaced lines {vAction.StartLine}-{vAction.EndLine} in: {vAction.FilePath}")
@@ -884,6 +909,19 @@ Namespace Widgets
                         If lStartIndex < 0 OrElse lEndIndex >= lLines.Count OrElse lStartIndex > lEndIndex Then
                             GLib.Idle.Add(Function()
                                 AddErrorMessage($"Cannot replace lines {vAction.StartLine}-{vAction.EndLine} in '{vAction.FilePath}': file has {lLines.Count} lines.")
+                                Return False
+                            End Function)
+                            Return
+                        End If
+
+                        ' Verify the file's real current content at this range still matches what
+                        ' the AI expected before touching anything - if the user (or anything
+                        ' else) changed it since the AI last looked, this range no longer means
+                        ' what the AI thinks it means
+                        Dim lActualRange As String = String.Join(Environment.NewLine, lLines.GetRange(lStartIndex, lEndIndex - lStartIndex + 1))
+                        If NormalizeForLineCompare(lActualRange) <> NormalizeForLineCompare(vAction.ExpectedContent) Then
+                            GLib.Idle.Add(Function()
+                                AddErrorMessage($"Refused to replace lines {vAction.StartLine}-{vAction.EndLine} in '{vAction.FilePath}': the file's current content there doesn't match what the AI expected (it may have changed since the AI last looked).")
                                 Return False
                             End Function)
                             Return
