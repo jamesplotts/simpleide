@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1507.0</AssemblyVersion>
-    <FileVersion>1.1.1507.0</FileVersion>
+    <AssemblyVersion>1.1.1527.0</AssemblyVersion>
+    <FileVersion>1.1.1527.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1507</Version>
+    <Version>1.1.1527</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -306,6 +306,7 @@
     <Compile Include="Dialogs/GitCommitDialog.vb" />
     <Compile Include="Dialogs/GitBranchDialog.vb" />
     <Compile Include="Dialogs/DefinitionPickerDialog.vb" />
+    <Compile Include="Dialogs/QuickOpenDialog.vb" />
     <!-- Syntax and Language Support -->
     <Compile Include="Syntax/CodeSenseEngine.vb" />
     <Compile Include="Syntax/CodeSenseSuggestion.vb" />

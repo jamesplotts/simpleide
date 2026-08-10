@@ -1471,6 +1471,16 @@ End Sub
         Public Sub MarkDirty()
             pIsDirty = True
         End Sub
+
+        ''' <summary>
+        ''' Marks the project as having no unsaved changes - the counterpart to MarkDirty(),
+        ''' for callers (e.g. MainWindow.Build.vb's UpdateProjectDirtyState) that determine
+        ''' cleanliness themselves rather than through OnDocumentModifiedStateChanged's own
+        ''' per-document tracking
+        ''' </summary>
+        Public Sub MarkClean()
+            pIsDirty = False
+        End Sub
    
         ''' <summary>
         ''' Gets the count of loaded source files

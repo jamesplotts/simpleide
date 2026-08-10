@@ -384,12 +384,11 @@ Partial Public Class MainWindow
             
             ' Fire project modified event for other components
             OnProjectModified()
-            
-            ' TODO: Could add auto-save logic here if enabled in settings
-            ' If pSettingsManager.GetSetting("Project.AutoSave", "False") = "True" Then
-            '     SaveProject()
-            ' End If
-            
+
+            ' NOTE: Auto-save (General.AutoSave/General.AutoSaveInterval) is already handled by
+            ' a proper interval timer (MainWindow.Preferences.vb's StartAutoSaveTimer), not a
+            ' per-modification trigger here - doing it here too would double-save on every edit
+
         Catch ex As Exception
             Console.WriteLine($"MarkProjectModified error: {ex.Message}")
         End Try

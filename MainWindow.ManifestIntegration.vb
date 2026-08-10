@@ -174,8 +174,8 @@ Partial Public Class MainWindow
         Try
             If String.IsNullOrEmpty(pCurrentProject) Then Return
             
-            Dim lVersionManager As New AssemblyVersionManager(pCurrentProject)
-            
+            Dim lVersionManager As New AssemblyVersionManager(pCurrentProject, pSettingsManager)
+
             If vEmbed Then
                 ' Ensure manifest exists
                 If Not ManifestExists() Then

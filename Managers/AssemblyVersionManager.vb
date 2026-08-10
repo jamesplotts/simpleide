@@ -18,13 +18,17 @@ Namespace Managers
         Private pProjectFile As String
         Private pIsSdkStyleProject As Boolean
         Private pUsesAssemblyInfo As Boolean
-        
+        Private pSettingsManager As SettingsManager
+
         ''' <summary>
         ''' Initializes a new instance of the AssemblyVersionManager class
         ''' </summary>
         ''' <param name="vProjectFile">Path to the .vbproj file</param>
-        Public Sub New(vProjectFile As String)
+        ''' <param name="vSettingsManager">Optional - used by IsAutoIncrementEnabled as a fallback
+        ''' when the project itself has no explicit AutoIncrementVersion setting</param>
+        Public Sub New(vProjectFile As String, Optional vSettingsManager As SettingsManager = Nothing)
             pProjectFile = vProjectFile
+            pSettingsManager = vSettingsManager
             DetectProjectStyle()
         End Sub
         
@@ -594,10 +598,13 @@ Namespace Managers
                 If lNode IsNot Nothing Then
                     Return lNode.InnerText.Equals("true", StringComparison.OrdinalIgnoreCase)
                 End If
-                
-                ' TODO: Could also check user settings for a global auto-increment preference
-                
-                ' For now, default to False
+
+                ' No per-project setting - fall back to the global Preferences > Version
+                ' auto-increment preference (SettingsManager.AutoIncrementVersion)
+                If pSettingsManager IsNot Nothing Then
+                    Return pSettingsManager.AutoIncrementVersion
+                End If
+
                 Return False
                 
             Catch ex As Exception

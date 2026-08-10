@@ -279,40 +279,144 @@ Namespace Widgets
         
         Private Sub OnContextMenuCut(vSender As Object, vArgs As EventArgs)
             Try
-                ' TODO: Implement cut functionality
+                If pSelectedNode?.Node Is Nothing OrElse String.IsNullOrEmpty(pSelectedNode.Node.Path) Then Return
+                pClipboardPath = pSelectedNode.Node.Path
+                pClipboardIsCut = True
                 #If DEBUG Then
-                Console.WriteLine("Cut not yet implemented")
+                Console.WriteLine($"Cut: {pClipboardPath}")
                 #End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuCut error: {ex.Message}")
             End Try
         End Sub
-        
+
         Private Sub OnContextMenuCopy(vSender As Object, vArgs As EventArgs)
             Try
-                ' TODO: Implement copy functionality
+                If pSelectedNode?.Node Is Nothing OrElse String.IsNullOrEmpty(pSelectedNode.Node.Path) Then Return
+                pClipboardPath = pSelectedNode.Node.Path
+                pClipboardIsCut = False
                 #If DEBUG Then
-                Console.WriteLine("Copy not yet implemented")
+                Console.WriteLine($"Copy: {pClipboardPath}")
                 #End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuCopy error: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Copies or moves (per pClipboardIsCut) whatever OnContextMenuCut/Copy last set into
+        ''' the currently selected folder (or that folder's own parent if a file is selected -
+        ''' same resolution GetSelectedFolderPath uses for "Add New Item")
+        ''' </summary>
         Private Sub OnContextMenuPaste(vSender As Object, vArgs As EventArgs)
             Try
-                ' TODO: Implement paste functionality
+                If String.IsNullOrEmpty(pClipboardPath) Then Return
+
+                Dim lIsSourceDirectory As Boolean = Directory.Exists(pClipboardPath)
+                If Not lIsSourceDirectory AndAlso Not File.Exists(pClipboardPath) Then
+                    ' Source no longer exists (e.g. deleted since being cut) - clear stale clipboard
+                    pClipboardPath = ""
+                    Return
+                End If
+
+                Dim lTargetDir As String = ResolvePasteTargetDirectory()
+                If String.IsNullOrEmpty(lTargetDir) Then Return
+
+                Dim lSourceName As String = System.IO.Path.GetFileName(pClipboardPath.TrimEnd(System.IO.Path.DirectorySeparatorChar))
+                Dim lDestPath As String = System.IO.Path.Combine(lTargetDir, lSourceName)
+
+                If String.Equals(System.IO.Path.GetFullPath(pClipboardPath).TrimEnd(System.IO.Path.DirectorySeparatorChar),
+                                  System.IO.Path.GetFullPath(lDestPath).TrimEnd(System.IO.Path.DirectorySeparatorChar),
+                                  StringComparison.OrdinalIgnoreCase) Then
+                    ' Pasting into the same location it's already in - nothing to do
+                    Return
+                End If
+
+                If File.Exists(lDestPath) OrElse Directory.Exists(lDestPath) Then
+                    ShowErrorDialog($"'{lSourceName}' already exists in the destination folder.")
+                    Return
+                End If
+
+                If lIsSourceDirectory Then
+                    CopyDirectoryRecursive(pClipboardPath, lDestPath)
+                    for each lFile As String In ProjectFileScanner.GetVBFiles(lDestPath)
+                        pProjectManager?.AddFileToProject(lFile)
+                    Next
+                Else
+                    File.Copy(pClipboardPath, lDestPath)
+                    pProjectManager?.AddFileToProject(lDestPath)
+                End If
+
+                If pClipboardIsCut Then
+                    If lIsSourceDirectory Then
+                        for each lFile As String In ProjectFileScanner.GetVBFiles(pClipboardPath)
+                            pProjectManager?.RemoveFileFromProject(lFile)
+                        Next
+                        Directory.Delete(pClipboardPath, True)
+                    Else
+                        pProjectManager?.RemoveFileFromProject(pClipboardPath)
+                        File.Delete(pClipboardPath)
+                    End If
+                    ' A cut is a one-time move - once pasted, there's nothing left to paste again
+                    pClipboardPath = ""
+                End If
+
+                RefreshProject()
+                RaiseEvent ProjectModified()
+
                 #If DEBUG Then
-                Console.WriteLine("Paste not yet implemented")
+                Console.WriteLine($"Pasted '{lSourceName}' into {lTargetDir}")
                 #End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuPaste error: {ex.Message}")
+                ShowErrorDialog($"Failed to paste: {ex.Message}")
             End Try
         End Sub
-        
+
+        ''' <summary>
+        ''' Resolves the absolute directory Paste should target - the selected node itself if
+        ''' it's a folder, its parent if a file, or the project directory if nothing's selected.
+        ''' Same resolution logic as GetSelectedFolderPath (CustomDrawProjectExplorer.
+        ''' AddNewItem.vb), just returning an absolute path instead of one relative to the
+        ''' project root
+        ''' </summary>
+        Private Function ResolvePasteTargetDirectory() As String
+            Try
+                If pSelectedNode?.Node Is Nothing Then Return pProjectDirectory
+
+                Dim lNode As ProjectNode = pSelectedNode.Node
+                If lNode.IsFile Then
+                    Return System.IO.Path.GetDirectoryName(lNode.Path)
+                End If
+                Return lNode.Path
+
+            Catch ex As Exception
+                Console.WriteLine($"ResolvePasteTargetDirectory error: {ex.Message}")
+                Return pProjectDirectory
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Recursively copies vSourceDir's full contents (files and subfolders) to vDestDir,
+        ''' creating vDestDir and any needed subfolders along the way
+        ''' </summary>
+        Private Sub CopyDirectoryRecursive(vSourceDir As String, vDestDir As String)
+            Directory.CreateDirectory(vDestDir)
+
+            for each lFilePath As String In Directory.GetFiles(vSourceDir)
+                Dim lDestFile As String = System.IO.Path.Combine(vDestDir, System.IO.Path.GetFileName(lFilePath))
+                File.Copy(lFilePath, lDestFile)
+            Next
+
+            for each lSubDir As String In Directory.GetDirectories(vSourceDir)
+                Dim lDestSubDir As String = System.IO.Path.Combine(vDestDir, System.IO.Path.GetFileName(lSubDir))
+                CopyDirectoryRecursive(lSubDir, lDestSubDir)
+            Next
+        End Sub
+
 
         ''' <summary>
         ''' Handles the Delete context menu item activation
@@ -415,15 +519,34 @@ Namespace Widgets
             End Try
         End Sub
         
+        ''' <summary>
+        ''' Removes the selected file (or every .vb file under the selected folder) from the
+        ''' project file, without touching anything on disk - the opposite of Delete
+        ''' </summary>
         Private Sub OnContextMenuExclude(vSender As Object, vArgs As EventArgs)
             Try
-                ' TODO: Implement exclude from project
-                ' Not raising ProjectModified here - this handler doesn't actually change
-                ' anything yet, so it shouldn't mark the project dirty (that previously made
-                ' the title bar/tab show unsaved changes for an action that did nothing)
-                #If DEBUG Then
-                Console.WriteLine("Exclude from project Not yet implemented")
-                #End If
+                If pSelectedNode?.Node Is Nothing OrElse pProjectManager Is Nothing Then Return
+
+                Dim lNode As ProjectNode = pSelectedNode.Node
+                Dim lExcludedAny As Boolean = False
+
+                If lNode.IsFile Then
+                    If Not String.IsNullOrEmpty(lNode.Path) AndAlso pProjectManager.RemoveFileFromProject(lNode.Path) Then
+                        lExcludedAny = True
+                    End If
+                ElseIf Directory.Exists(lNode.Path) Then
+                    for each lFile As String In ProjectFileScanner.GetVBFiles(lNode.Path)
+                        If pProjectManager.RemoveFileFromProject(lFile) Then lExcludedAny = True
+                    Next
+                End If
+
+                If lExcludedAny Then
+                    RefreshProject()
+                    RaiseEvent ProjectModified()
+                    #If DEBUG Then
+                    Console.WriteLine($"Excluded '{lNode.Name}' from project (kept on disk)")
+                    #End If
+                End If
 
             Catch ex As Exception
                 Console.WriteLine($"OnContextMenuExclude error: {ex.Message}")

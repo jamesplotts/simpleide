@@ -223,6 +223,17 @@ Partial Public Class MainWindow
     
     ' ===== Format Document =====
     
+    ''' <summary>
+    ''' Handles the Edit menu's "Format Document" item
+    ''' </summary>
+    Public Sub OnFormatDocument(vSender As Object, vArgs As EventArgs)
+        Try
+            FormatDocument()
+        Catch ex As Exception
+            Console.WriteLine($"OnFormatDocument error: {ex.Message}")
+        End Try
+    End Sub
+
     ' Format entire document
     Public Sub FormatDocument()
         Try

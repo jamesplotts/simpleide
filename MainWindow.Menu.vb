@@ -267,7 +267,7 @@ Partial Public Class MainWindow
             
             ' Format Document
             Dim lFormatDoc As New MenuItem("Format _Document")
-            ' TODO: AddHandler lFormatDoc.Activated, AddressOf OnFormatDocument
+            AddHandler lFormatDoc.Activated, AddressOf OnFormatDocument
             lEditMenu.Append(lFormatDoc)
             
             lEditMenu.Append(New SeparatorMenuItem())
@@ -655,29 +655,29 @@ Partial Public Class MainWindow
             
             ' Update Project Knowledge
             Dim lUpdateKnowledge As New MenuItem("_Update project Knowledge")
-            ' TODO: AddHandler lUpdateKnowledge.Activated, AddressOf OnUpdateProjectKnowledge
+            AddHandler lUpdateKnowledge.Activated, AddressOf OnUpdateProjectKnowledge
             lAIMenu.Append(lUpdateKnowledge)
             
             lAIMenu.Append(New SeparatorMenuItem())
             
             ' Ask AI Assistant
             Dim lAskAI As New MenuItem("_Ask AI Assistant...")
-            ' TODO: AddHandler lAskAI.Activated, AddressOf OnAskAIAssistant
+            AddHandler lAskAI.Activated, AddressOf OnAskAIAssistant
             lAIMenu.Append(lAskAI)
-            
+
             ' Explain Code
             Dim lExplainCode As New MenuItem("_Explain Selected code")
-            ' TODO: AddHandler lExplainCode.Activated, AddressOf OnExplainCode
+            AddHandler lExplainCode.Activated, AddressOf OnExplainCode
             lAIMenu.Append(lExplainCode)
-            
+
             ' Fix Build Errors
             Dim lFixErrors As New MenuItem("_Fix Build Errors")
-            ' TODO: AddHandler lFixErrors.Activated, AddressOf OnFixBuildErrors
+            AddHandler lFixErrors.Activated, AddressOf OnFixBuildErrors
             lAIMenu.Append(lFixErrors)
             
             ' Generate Code
             Dim lGenerateCode As New MenuItem("_Generate code...")
-            ' TODO: AddHandler lGenerateCode.Activated, AddressOf OnGenerateCode
+            AddHandler lGenerateCode.Activated, AddressOf OnGenerateCode
             lAIMenu.Append(lGenerateCode)
             
             lAIMenu.Append(New SeparatorMenuItem())
@@ -701,12 +701,12 @@ Partial Public Class MainWindow
             
             ' View Help
             Dim lViewHelp As MenuItem = CreateMenuItemWithIcon("_View Help", "help-browser")
-            ' TODO: AddHandler lViewHelp.Activated, AddressOf OnViewHelp
+            AddHandler lViewHelp.Activated, AddressOf OnViewHelp
             lHelpMenu.Append(lViewHelp)
-            
+
             ' API Documentation
             Dim lApiDocs As New MenuItem("_API documentation")
-            ' TODO: AddHandler lApiDocs.Activated, AddressOf OnApiDocumentation
+            AddHandler lApiDocs.Activated, AddressOf OnApiDocumentation
             lHelpMenu.Append(lApiDocs)
             
             lHelpMenu.Append(New SeparatorMenuItem())

@@ -611,6 +611,62 @@ Partial Public Class MainWindow
     End Sub
 
     ''' <summary>
+    ''' Handles the AI menu's "Ask AI Assistant..." item - shows the AI panel, ready for the
+    ''' user to type a question
+    ''' </summary>
+    Public Sub OnAskAIAssistant(vSender As Object, vArgs As EventArgs)
+        Try
+            If pAIAssistantPanel Is Nothing Then
+                ShowError("AI Not Configured", "Please configure AI settings first.")
+                Return
+            End If
+
+            pBottomPanelManager?.ShowTabByType(pBottomPanelManager.BottomPanelTab.eAIAssistant)
+
+        Catch ex As Exception
+            Console.WriteLine($"OnAskAIAssistant error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the AI menu's "Explain Selected Code" item - same action as the AI panel's own
+    ''' Explain button
+    ''' </summary>
+    Public Sub OnExplainCode(vSender As Object, vArgs As EventArgs)
+        Try
+            If pAIAssistantPanel Is Nothing Then
+                ShowError("AI Not Configured", "Please configure AI settings first.")
+                Return
+            End If
+
+            pAIAssistantPanel.TriggerExplainCode()
+            pBottomPanelManager?.ShowTabByType(pBottomPanelManager.BottomPanelTab.eAIAssistant)
+
+        Catch ex As Exception
+            Console.WriteLine($"OnExplainCode error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles the AI menu's "Fix Build Errors" item - reuses the exact same errors-to-AI
+    ''' flow as the Build Output panel's own "Send to AI" button (OnSendBuildErrorsToAI)
+    ''' </summary>
+    Public Sub OnFixBuildErrors(vSender As Object, vArgs As EventArgs)
+        Try
+            Dim lErrorsText As String = pBottomPanelManager?.BuildOutputPanel?.FormatErrorsForClipboard()
+            If String.IsNullOrEmpty(lErrorsText) Then
+                ShowInfo("No Build Errors", "There are no build errors or warnings to send.")
+                Return
+            End If
+
+            OnSendBuildErrorsToAI(lErrorsText)
+
+        Catch ex As Exception
+            Console.WriteLine($"OnFixBuildErrors error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
     ''' Handle sending TODO item to AI assistant
     ''' </summary>
     Private Sub OnSendTodoToAI(vTodo As TODOItem)

@@ -23,15 +23,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
-    ' Helper method to update debug button states
-    Private Sub UpdateDebugButtonStates()
-        Try
-            ' TODO: Update toolbar button states based on debug state
-        Catch ex As Exception
-            Console.WriteLine($"UpdateDebugButtonStates error: {ex.Message}")
-        End Try
-    End Sub
-
 End Class
 
 

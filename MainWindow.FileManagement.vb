@@ -254,39 +254,65 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Index into the current build's error list of the last error navigated to via
+    ''' NavigateToNextError/NavigateToPreviousError, -1 meaning "none yet" (the next call
+    ''' lands on the first error). Deliberately not reset on rebuild - GetErrors() always
+    ''' reflects the latest build, and the modulo wraparound in both navigators tolerates
+    ''' the list having shrunk or grown since this index was last set
+    ''' </summary>
+    Private pCurrentErrorIndex As Integer = -1
+
     Private Sub NavigateToNextError()
         Try
-            If pBuildOutputPanel IsNot Nothing Then
-                ' Get current error position
-                Dim lErrors = pBuildOutputPanel.GetErrors()
-                If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
-                    ' Navigate to next error
-                    ' This would need implementation in BuildOutputPanel
-                    #If DEBUG Then
-                    Console.WriteLine("Navigate to next error")
-                    #End If
-                End If
+            If pBuildOutputPanel Is Nothing Then Return
+
+            Dim lErrors As List(Of BuildError) = pBuildOutputPanel.GetErrors()
+            If lErrors Is Nothing OrElse lErrors.Count = 0 Then
+                UpdateStatusBar("No build errors")
+                Return
             End If
+
+            pCurrentErrorIndex = ((pCurrentErrorIndex + 1) Mod lErrors.Count + lErrors.Count) Mod lErrors.Count
+            NavigateToBuildError(lErrors(pCurrentErrorIndex), lErrors.Count)
+
         Catch ex As Exception
             Console.WriteLine($"NavigateToNextError error: {ex.Message}")
         End Try
     End Sub
-    
+
     Private Sub NavigateToPreviousError()
         Try
-            If pBuildOutputPanel IsNot Nothing Then
-                ' Get current error position
-                Dim lErrors = pBuildOutputPanel.GetErrors()
-                If lErrors IsNot Nothing AndAlso lErrors.Count > 0 Then
-                    ' Navigate to previous error
-                    ' This would need implementation in BuildOutputPanel
-                    #If DEBUG Then
-                    Console.WriteLine("Navigate to previous error")
-                    #End If
-                End If
+            If pBuildOutputPanel Is Nothing Then Return
+
+            Dim lErrors As List(Of BuildError) = pBuildOutputPanel.GetErrors()
+            If lErrors Is Nothing OrElse lErrors.Count = 0 Then
+                UpdateStatusBar("No build errors")
+                Return
             End If
+
+            pCurrentErrorIndex = ((pCurrentErrorIndex - 1) Mod lErrors.Count + lErrors.Count) Mod lErrors.Count
+            NavigateToBuildError(lErrors(pCurrentErrorIndex), lErrors.Count)
+
         Catch ex As Exception
             Console.WriteLine($"NavigateToPreviousError error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Opens (or switches to) the tab for a build error and places the cursor at its
+    ''' location, reusing the same navigation logic OnFindResultSelected already uses for
+    ''' Find Results
+    ''' </summary>
+    Private Sub NavigateToBuildError(vError As BuildError, vTotalCount As Integer)
+        Try
+            If String.IsNullOrEmpty(vError.FilePath) Then Return
+
+            OnFindResultSelected(vError.FilePath, vError.Line, vError.Column)
+            UpdateStatusBar($"Error {pCurrentErrorIndex + 1} of {vTotalCount}: {vError.Message}")
+
+        Catch ex As Exception
+            Console.WriteLine($"NavigateToBuildError error: {ex.Message}")
         End Try
     End Sub
     

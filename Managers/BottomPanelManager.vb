@@ -36,6 +36,8 @@ Namespace Managers
         Public Event BuildErrorWarningSelected(vFilePath As String, vLine As Integer, vColumn As Integer)
         Public Event SendTodoToAI(vTodo As TODOItem)
         Public Event SendErrorsToAI(vErrorsText As String)
+        ''' <summary>Relayed from AIAssistantPanel.FixErrorsRequested (its own panel-local Fix Errors button)</summary>
+        Public Event FixErrorsRequested()
         Public Event ErrorDoubleClicked(vError As BuildError)
         ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
         Public Event BuildRequested()
@@ -567,6 +569,11 @@ Namespace Managers
 
                 pAIAssistantPanel = New AIAssistantPanel(lProvider)
                 pAIAssistantPanel.SetSettingsManager(pSettingsManager)
+
+                AddHandler pAIAssistantPanel.FixErrorsRequested,
+                    Sub()
+                        RaiseEvent FixErrorsRequested()
+                    End Sub
 
                 ' Add to notebook with icon
                 pNotebook.AppendPage(pAIAssistantPanel, "AI Assistant", "chat")

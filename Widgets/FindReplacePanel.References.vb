@@ -105,6 +105,28 @@ Namespace Widgets
             End Try
         End Sub
 
+        ''' <summary>
+        ''' Renames every whole-word occurrence of vOldName to vNewName across the current
+        ''' project, reusing the existing project-wide Replace All machinery (confirmation
+        ''' prompt, open-tab-aware in-memory replace for files with an open editor tab,
+        ''' immediate save for files that aren't open)
+        ''' </summary>
+        ''' <param name="vOldName">The identifier to replace</param>
+        ''' <param name="vNewName">The new identifier text</param>
+        Public Sub RenameSymbol(vOldName As String, vNewName As String)
+            Try
+                pFindEntry.Text = vOldName
+                pReplaceEntry.Text = vNewName
+                pWholeWordCheck.Active = True
+                pInProjectRadio.Active = True
+
+                ReplaceAllInProject()
+
+            Catch ex As Exception
+                Console.WriteLine($"RenameSymbol error: {ex.Message}")
+            End Try
+        End Sub
+
     End Class
 
 End Namespace

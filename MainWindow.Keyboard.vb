@@ -232,9 +232,15 @@ Partial Public Class MainWindow
                         GoToDefinition()
                         vArgs.RetVal = True
                         Return
+
+                    Case "F8"
+                        ' F8 - Next Build Error
+                        NavigateToNextCompilationError()
+                        vArgs.RetVal = True
+                        Return
                 End Select
             End If
-            
+
             ' ===== Handle Shift + Function Key combinations =====
             If (lCleanModifiers and ModifierType.ShiftMask) = ModifierType.ShiftMask AndAlso
                (lCleanModifiers and ModifierType.ControlMask) <> ModifierType.ControlMask Then
@@ -257,6 +263,18 @@ Partial Public Class MainWindow
                     Case "F12"
                         ' Shift+F12 - Find All References
                         FindAllReferences()
+                        vArgs.RetVal = True
+                        Return
+
+                    Case "F6"
+                        ' Shift+F6 - Rename Symbol
+                        RenameSymbol()
+                        vArgs.RetVal = True
+                        Return
+
+                    Case "F8"
+                        ' Shift+F8 - Previous Build Error
+                        NavigateToPreviousError()
                         vArgs.RetVal = True
                         Return
                 End Select
@@ -314,6 +332,12 @@ Partial Public Class MainWindow
                     Case "e"
                         ' Ctrl+E - Toggle Project Explorer
                         ToggleProjectExplorer()
+                        vArgs.RetVal = True
+                        Return
+
+                    Case "p"
+                        ' Ctrl+P - Quick Open (go to file)
+                        ShowQuickOpen()
                         vArgs.RetVal = True
                         Return
 
@@ -482,61 +506,111 @@ Partial Public Class MainWindow
     ' ===== Stub Methods for New Features =====
     ' These can be implemented as needed
     
-    Private Sub ShowFindInFilesDialog()
-        #If DEBUG Then
-        Console.WriteLine("Find in Files - Not yet implemented")
-        #End If
-        ' TODO: Implement find in files dialog
-    End Sub
-    
-    
     Private Sub ToggleComment()
         Try
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then
-                ' TODO: Implement toggle comment in editor
-                #If DEBUG Then
-                Console.WriteLine("Toggle Comment - Not yet implemented")
-                #End If
+                lEditor.ToggleCommentBlock()
             End If
         Catch ex As Exception
             Console.WriteLine($"ToggleComment error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Inserts a copy of the current line directly below it, moving the cursor down to the
+    ''' duplicate at the same column
+    ''' </summary>
     Private Sub DuplicateLine()
         Try
             Dim lEditor As IEditor = GetCurrentEditor()
-            If lEditor IsNot Nothing Then
-                ' TODO: Implement duplicate line in editor
-                #If DEBUG Then
-                Console.WriteLine("Duplicate Line - Not yet implemented")
-                #End If
-            End If
+            If lEditor Is Nothing Then Return
+
+            Dim lCursor As EditorPosition = lEditor.GetCursorPosition()
+            Dim lLineText As String = lEditor.GetLineText(lCursor.Line)
+
+            lEditor.InsertTextAtPosition(New EditorPosition(lCursor.Line, lLineText.Length), Environment.NewLine & lLineText)
+            lEditor.SetCursorPosition(New EditorPosition(lCursor.Line + 1, lCursor.Column))
+
         Catch ex As Exception
             Console.WriteLine($"DuplicateLine error: {ex.Message}")
         End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' Deletes the entire current line, including its line break, so the lines below shift up
+    ''' </summary>
     Private Sub DeleteLine()
         Try
             Dim lEditor As IEditor = GetCurrentEditor()
-            If lEditor IsNot Nothing Then
-                ' TODO: Implement delete line in editor
-                #If DEBUG Then
-                Console.WriteLine("Delete Line - Not yet implemented")
-                #End If
+            If lEditor Is Nothing Then Return
+
+            Dim lCursor As EditorPosition = lEditor.GetCursorPosition()
+            Dim lLine As Integer = lCursor.Line
+
+            If lEditor.LineCount <= 1 Then
+                ' Only line in the file - nothing to remove it "into", so just clear it
+                Dim lLineText As String = lEditor.GetLineText(lLine)
+                lEditor.DeleteRange(New EditorPosition(lLine, 0), New EditorPosition(lLine, lLineText.Length))
+                lEditor.SetCursorPosition(New EditorPosition(lLine, 0))
+                Return
             End If
+
+            If lLine < lEditor.LineCount - 1 Then
+                ' Delete the line plus its trailing line break - the next line slides up to
+                ' become this line
+                lEditor.DeleteRange(New EditorPosition(lLine, 0), New EditorPosition(lLine + 1, 0))
+                lEditor.SetCursorPosition(New EditorPosition(lLine, 0))
+            Else
+                ' Last line has no trailing line break to eat - remove the preceding one instead
+                ' so a line actually disappears, landing the cursor at the end of what's now the
+                ' last line
+                Dim lPrevLineLength As Integer = lEditor.GetLineText(lLine - 1).Length
+                Dim lLineText As String = lEditor.GetLineText(lLine)
+                lEditor.DeleteRange(New EditorPosition(lLine - 1, lPrevLineLength), New EditorPosition(lLine, lLineText.Length))
+                lEditor.SetCursorPosition(New EditorPosition(lLine - 1, lPrevLineLength))
+            End If
+
         Catch ex As Exception
             Console.WriteLine($"DeleteLine error: {ex.Message}")
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Ctrl+P - "quick open" file switcher: lists every compiled source file in the
+    ''' current project (every project in a loaded solution, when one is loaded),
+    ''' live-filtered by filename substring as the user types
+    ''' </summary>
     Private Sub ShowQuickOpen()
-        #If DEBUG Then
-        Console.WriteLine("Quick Open - Not yet implemented")
-        #End If
-        ' TODO: Implement quick open/command palette
+        Try
+            Dim lFileSet As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            Dim lFiles As New List(Of String)
+
+            If pSolutionManager IsNot Nothing AndAlso pSolutionManager.AllProjects.Count > 0 Then
+                for each lProject in pSolutionManager.AllProjects
+                    for each lFile in lProject.GetProjectSourceFiles()
+                        If lFileSet.Add(lFile) Then lFiles.Add(lFile)
+                    Next
+                Next
+            ElseIf pProjectManager IsNot Nothing Then
+                lFiles.AddRange(pProjectManager.GetProjectSourceFiles())
+            End If
+
+            If lFiles.Count = 0 Then
+                UpdateStatusBar("Quick Open: No project files to search")
+                Return
+            End If
+
+            Using lDialog As New Dialogs.QuickOpenDialog(Me, lFiles, pThemeManager)
+                If lDialog.Run() = CInt(ResponseType.Ok) AndAlso Not String.IsNullOrEmpty(lDialog.SelectedFile) Then
+                    OpenFile(lDialog.SelectedFile)
+                    SwitchToTab(lDialog.SelectedFile)
+                End If
+            End Using
+
+        Catch ex As Exception
+            Console.WriteLine($"ShowQuickOpen error: {ex.Message}")
+        End Try
     End Sub
     
     ''' <summary>
@@ -604,20 +678,6 @@ Partial Public Class MainWindow
         ' TODO: Implement quick fix/show properties
     End Sub
     
-    Private Sub NavigateToPreviousHighlight()
-        #If DEBUG Then
-        Console.WriteLine("Previous Highlight - Not yet implemented")
-        #End If
-        ' TODO: Implement navigate to previous highlight
-    End Sub
-    
-    Private Sub NavigateToNextHighlight()
-        #If DEBUG Then
-        Console.WriteLine("Next Highlight - Not yet implemented")
-        #End If
-        ' TODO: Implement navigate to next highlight
-    End Sub
-    
     ''' <summary>
     ''' Shift+F12 - finds every whole-word occurrence of the symbol at the cursor across
     ''' every project in a loaded solution (or just the current project when none is
@@ -652,18 +712,55 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
+    ''' <summary>
+    ''' Shift+F6 - prompts for a new name and renames every whole-word occurrence of the
+    ''' symbol at the cursor across the current project, reusing the same project-wide
+    ''' Replace All machinery the Find/Replace panel's own UI uses
+    ''' (FindReplacePanel.RenameSymbol). This is a textual, whole-word rename - same
+    ''' scope-blindness as FindAllReferences/Shift+F12 - not a semantically-aware one,
+    ''' since there's no symbol table with reference tracking in this codebase
+    ''' </summary>
     Private Sub RenameSymbol()
-        #If DEBUG Then
-        Console.WriteLine("Rename Symbol - Not yet implemented")
-        #End If
-        ' TODO: Implement rename symbol
+        Try
+            Dim lEditor As IEditor = GetCurrentEditor()
+            If lEditor Is Nothing Then
+                UpdateStatusBar("Rename Symbol: No active editor")
+                Return
+            End If
+
+            Dim lOldName As String = lEditor.GetWordAtCursor()
+            If String.IsNullOrWhiteSpace(lOldName) Then
+                UpdateStatusBar("Rename Symbol: No symbol at cursor")
+                Return
+            End If
+
+            Using lInput As New InputDialog(Me, "Rename Symbol", $"Rename '{lOldName}' to:", lOldName, pThemeManager)
+                If lInput.Run() = CInt(ResponseType.Ok) Then
+                    Dim lNewName As String = lInput.Text.Trim()
+                    If Not String.IsNullOrEmpty(lNewName) AndAlso lNewName <> lOldName Then
+                        If Not pBottomPanelVisible Then
+                            ToggleBottomPanel()
+                        End If
+                        If pBottomPanelManager IsNot Nothing AndAlso pFindPanel IsNot Nothing Then
+                            pBottomPanelManager.ShowTabForPanel(pFindPanel)
+                        End If
+                        pFindPanel?.RenameSymbol(lOldName, lNewName)
+                    End If
+                End If
+            End Using
+
+        Catch ex As Exception
+            Console.WriteLine($"RenameSymbol error: {ex.Message}")
+        End Try
     End Sub
-    
+
+    ''' <summary>
+    ''' F8 - jumps to the next build error, wrapping to the first after the last. Delegates
+    ''' to NavigateToNextError (MainWindow.FileManagement.vb), the real implementation
+    ''' shared with the Build menu/toolbar
+    ''' </summary>
     Private Sub NavigateToNextCompilationError()
-        #If DEBUG Then
-        Console.WriteLine("Next Compilation Error - Not yet implemented")
-        #End If
-        ' TODO: Navigate to next compilation error
+        NavigateToNextError()
     End Sub
     
     Private Sub ToggleBreakpoint()
@@ -839,6 +936,10 @@ Partial Public Class MainWindow
         lText.AppendLine("  F3              Find Next")
         lText.AppendLine("  Shift+F3        Find Previous")
         lText.AppendLine("  Ctrl+G          Go to Line")
+        lText.AppendLine("  Ctrl+P          Quick Open (Go to File)")
+        lText.AppendLine("  Shift+F6        Rename Symbol")
+        lText.AppendLine("  F8              Next Build Error")
+        lText.AppendLine("  Shift+F8        Previous Build Error")
         lText.AppendLine()
         
         lText.AppendLine("Build/Debug Operations:")

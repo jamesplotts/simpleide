@@ -1897,7 +1897,7 @@ Namespace Widgets
                     Return
                 End If
                 
-                Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath)
+                Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath, pSettingsManager)
                 Dim lCurrentVersion As Version = lVersionManager.GetCurrentVersion()
                 
                 Dim lNewVersion As New Version(

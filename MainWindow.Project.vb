@@ -200,10 +200,10 @@ Partial Public Class MainWindow
             
             ' Save all open files
             SaveAllFiles()
-            
-            ' Save project file if needed
-            ' TODO: Implement project file saving
-            
+
+            ' NOTE: The .vbproj file itself doesn't need saving here - ProjectManager.
+            ' SaveProjectFile already writes it immediately whenever a reference or item is
+            ' added/removed (see ProjectManager.vb), so it's always already up to date on disk
             ShowInfo("Project Saved", "Project and all files have been saved.")
             
         Catch ex As Exception
@@ -290,18 +290,6 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Open a file in the editor
-    Private Sub OpenFileInEditor(vFilePath As String)
-        Try
-            ' TODO: Implement file opening in editor
-            #If DEBUG Then
-            Console.WriteLine($"Opening file: {vFilePath}")
-            #End If
-            
-        Catch ex As Exception
-            Console.WriteLine($"OpenFileInEditor error: {ex.Message}")
-        End Try
-    End Sub
     
     ''' <summary>
     ''' Updates the window title to show project, current file, and their modified states
@@ -329,7 +317,7 @@ Partial Public Class MainWindow
                 
                 ' Add project version if available
                 Try
-                    Dim lVersionManager As New AssemblyVersionManager(pCurrentProject)
+                    Dim lVersionManager As New AssemblyVersionManager(pCurrentProject, pSettingsManager)
                     Dim lProjectVersion As Version = lVersionManager.GetCurrentVersion()
                     If lProjectVersion IsNot Nothing AndAlso lProjectVersion.ToString() <> "1.0.0.0" Then
                         lTitle &= $" (v{lProjectVersion.Major}.{lProjectVersion.Minor}.{lProjectVersion.Build})"

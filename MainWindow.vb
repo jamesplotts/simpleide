@@ -175,10 +175,10 @@ Partial Public Class MainWindow
             InitializeProjectManagerReferences()
 
             ' Setup window state tracking
-            ' TODO: SetupWindowStateTracking()
-            
-            ' ADD THIS LINE: Setup window focus handling
-            ' TODO: SetupWindowFocusHandling()
+            SetupWindowStateTracking()
+
+            ' Setup window focus handling
+            SetupWindowFocusHandling()
             
             ' Show welcome tab on startup (only if no pending project)
             If String.IsNullOrEmpty(pPendingProjectFile) Then
@@ -474,6 +474,7 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.BuildRequested, AddressOf OnBuildOutputPanelBuildRequested
             AddHandler pBottomPanelManager.RunRequested, AddressOf OnBuildOutputPanelRunRequested
             AddHandler pBottomPanelManager.StopRequested, AddressOf OnBuildOutputPanelStopRequested
+            AddHandler pBottomPanelManager.FixErrorsRequested, Sub() OnFixBuildErrors(Nothing, EventArgs.Empty)
 
             ' Hook up notebook fix after window is realized
             AddHandler Me.Realized, AddressOf OnWindowRealizedForNotebooks            
@@ -649,7 +650,16 @@ Partial Public Class MainWindow
                         
                         ' Update Object Explorer if needed
                         UpdateObjectExplorerForActiveTab()
-                        
+
+                        ' Keep the AI Assistant panel's notion of "the current file" in sync -
+                        ' without this it never learns which tab is active at all (CurrentTab
+                        ' has a public setter but nothing was ever calling it), so both its own
+                        ' "Explain Code" button and BuildContextPrompt's "current file"/"current
+                        ' code" context silently had nothing to work with
+                        If pAIAssistantPanel IsNot Nothing Then
+                            pAIAssistantPanel.CurrentTab = lTabInfo
+                        End If
+
                         ' Focus the editor
                         If lTabInfo.Editor IsNot Nothing Then
                             lTabInfo.Editor.GrabFocus()

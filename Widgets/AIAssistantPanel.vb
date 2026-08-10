@@ -56,6 +56,10 @@ Namespace Widgets
         Public Event ProjectCreated(vProjectPath As String)
         Public Event BuildRequested()
         Public Event StatusUpdate(vMessage As String)
+        ''' <summary>Raised by the Fix Errors button - MainWindow relays the current build
+        ''' errors back in via the same flow as its AI menu's "Fix Build Errors" item
+        ''' (OnFixBuildErrors), since this panel has no direct reference to BuildOutputPanel</summary>
+        Public Event FixErrorsRequested()
         
         ' Chat message structure
         Public Class ChatMessage
@@ -704,6 +708,14 @@ Namespace Widgets
             End Sub)
         End Function
         
+        ''' <summary>
+        ''' Public entry point for the MainWindow AI menu's "Explain Selected Code" item - same
+        ''' action as clicking the panel's own Explain button
+        ''' </summary>
+        Public Sub TriggerExplainCode()
+            OnExplainCode(Me, EventArgs.Empty)
+        End Sub
+
         Private Sub OnExplainCode(vSender As Object, vE As EventArgs)
             If pCurrentTab Is Nothing Then
                 AddErrorMessage("No file Is currently open.")
@@ -725,8 +737,7 @@ Namespace Widgets
         End Sub
         
         Private Sub OnFixErrors(vSender As Object, vE As EventArgs)
-            ' Get build errors if any
-            ' Send to AI for fixes
+            RaiseEvent FixErrorsRequested()
         End Sub
         
         Private Sub SendPredefinedPrompt(vPrompt As String)

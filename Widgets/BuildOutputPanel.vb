@@ -779,7 +779,12 @@ Namespace Widgets
         ''' <summary>
         ''' Formats errors and warnings for clipboard
         ''' </summary>
-        Private Function FormatErrorsForClipboard() As String
+        ''' <remarks>
+        ''' Public so MainWindow's AI menu "Fix Build Errors" item (which has no button of its
+        ''' own to click) can reuse the exact same formatting the panel's own "Send to AI"
+        ''' button uses, via OnSendBuildErrorsToAI - see MainWindow.AI.vb
+        ''' </remarks>
+        Public Function FormatErrorsForClipboard() As String
             Try
                 Dim lBuilder As New System.Text.StringBuilder()
                 

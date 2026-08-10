@@ -496,20 +496,52 @@ Namespace Managers
             Return lRelativePath.Replace("/"c, System.IO.Path.DirectorySeparatorChar)
         End Function
         
+        ''' <summary>
+        ''' True if adding a reference from vProjectFile to vTargetProject would create a
+        ''' circular dependency - checks the whole transitive reference graph reachable from
+        ''' vTargetProject, not just its direct references
+        ''' </summary>
         Private Function CheckCircularReference(vProjectFile As String, vTargetProject As String) As Boolean
-            ' Simple check: see if target project references our project
-            Dim lTargetRefs As List(Of ReferenceInfo) = GetAllReferences(vTargetProject)
-            Dim lOurProjectName As String = System.IO.Path.GetFileNameWithoutExtension(vProjectFile)
-            
-            For Each lRef In lTargetRefs.Where(Function(r) r.Type = ReferenceType.eProject)
-                Dim lRefProjectName As String = System.IO.Path.GetFileNameWithoutExtension(lRef.Path)
-                If lRefProjectName.Equals(lOurProjectName, StringComparison.OrdinalIgnoreCase) Then
-                    Return True
-                End If
-            Next
-            
-            ' TODO: Implement deeper circular reference checking
-            Return False
+            Dim lOurProjectPath As String = System.IO.Path.GetFullPath(vProjectFile)
+            Dim lVisited As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            Return WouldCreateCycle(vTargetProject, lOurProjectPath, lVisited)
+        End Function
+
+        ''' <summary>
+        ''' True if vOriginalProjectPath is reachable, directly or transitively, from
+        ''' vTargetProject's own project references - i.e. adding a reference somewhere that
+        ''' eventually reaches vOriginalProjectPath again would close a cycle
+        ''' </summary>
+        ''' <param name="vTargetProject">Project whose reference graph to walk</param>
+        ''' <param name="vOriginalProjectPath">Full path of the project the cycle would return to</param>
+        ''' <param name="vVisited">Full paths already walked, so an unrelated pre-existing cycle
+        ''' elsewhere in the graph can't cause infinite recursion</param>
+        Private Function WouldCreateCycle(vTargetProject As String, vOriginalProjectPath As String, vVisited As HashSet(Of String)) As Boolean
+            Try
+                Dim lTargetPath As String = System.IO.Path.GetFullPath(vTargetProject)
+                If Not vVisited.Add(lTargetPath) Then Return False
+
+                Dim lTargetRefs As List(Of ReferenceInfo) = GetAllReferences(lTargetPath)
+                Dim lTargetDir As String = System.IO.Path.GetDirectoryName(lTargetPath)
+
+                For Each lRef In lTargetRefs.Where(Function(r) r.Type = ReferenceType.eProject)
+                    Dim lRefPath As String = System.IO.Path.GetFullPath(System.IO.Path.Combine(lTargetDir, lRef.Path))
+
+                    If String.Equals(lRefPath, vOriginalProjectPath, StringComparison.OrdinalIgnoreCase) Then
+                        Return True
+                    End If
+
+                    If File.Exists(lRefPath) AndAlso WouldCreateCycle(lRefPath, vOriginalProjectPath, vVisited) Then
+                        Return True
+                    End If
+                Next
+
+                Return False
+
+            Catch ex As Exception
+                Console.WriteLine($"WouldCreateCycle error: {ex.Message}")
+                Return False
+            End Try
         End Function
 
     End Class

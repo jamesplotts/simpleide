@@ -139,6 +139,12 @@ Namespace Widgets
         Private pSelectedNode As VisualProjectNode
         Private pHoveredNode As VisualProjectNode
         Private pNodeCache As New Dictionary(Of String, VisualProjectNode)
+
+        ' ===== Private Fields - Cut/Copy/Paste (see ContextMenu.vb) =====
+        ''' <summary>Full path of the file/folder last Cut or Copied, or "" if nothing is pending</summary>
+        Private pClipboardPath As String = ""
+        ''' <summary>True if pClipboardPath was Cut (move on paste, then clear source) rather than Copied</summary>
+        Private pClipboardIsCut As Boolean = False
         
         ' ===== Private Fields - Special Nodes =====
         Private pReferencesNode As ProjectNode

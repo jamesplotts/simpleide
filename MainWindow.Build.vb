@@ -457,8 +457,8 @@ Partial Public Class MainWindow
             If String.IsNullOrEmpty(pCurrentProject) Then Return
             
             ' Create version manager for current project
-            Dim lVersionManager As New AssemblyVersionManager(pCurrentProject)
-            
+            Dim lVersionManager As New AssemblyVersionManager(pCurrentProject, pSettingsManager)
+
             ' Try to increment (will only do so if auto-increment is enabled)
             If lVersionManager.IncrementBuildNumberIfEnabled() Then
                 #If DEBUG Then
@@ -502,8 +502,8 @@ Partial Public Class MainWindow
             End If
             
             ' Create version manager for project
-            Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath)
-            
+            Dim lVersionManager As New AssemblyVersionManager(lIdeProjectPath, pSettingsManager)
+
             ' Get current version
             Dim lCurrentVersion As Version = lVersionManager.GetCurrentVersion()
             
@@ -1048,12 +1048,10 @@ Partial Public Class MainWindow
             Else
                 ' Mark project as clean if all files are saved
                 If pProjectManager.IsDirty Then
-                    ' Note: We may need to add a MarkClean method to ProjectManager
-                    ' For now, we'll set IsDirty through reflection or add the method
+                    pProjectManager.MarkClean()
                     #If DEBUG Then
-                    Console.WriteLine("UpdateProjectDirtyState: All files saved, project should be clean")
+                    Console.WriteLine("UpdateProjectDirtyState: All files saved, project marked clean")
                     #End If
-                    ' TODO: Add pProjectManager.MarkClean() method
                 End If
             End If
             

@@ -171,12 +171,11 @@ Namespace Syntax
                     End If
                 End If
                 
-                ' Update our syntax tree if we got a valid node
+                ' Update our syntax tree if we got a valid node - always a single document's
+                ' tree here (vIsProjectTree=False), never the whole-project tree (that's the
+                ' separate ProjectSyntaxTree branch below) - not something that depends on
+                ' whether vFile happens to be the currently-active editor tab
                 If lSyntaxNode IsNot Nothing Then
-                    ' Check if this is for the current document
-                    Dim lIsCurrentDocument As Boolean = False
-                    ' TODO: Determine if this is the current document based on vFile
-                    
                     UpdateFromSyntaxTree(lSyntaxNode, False)
                     
                     #If DEBUG Then

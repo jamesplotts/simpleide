@@ -442,14 +442,20 @@ Partial Public Class MainWindow
     ''' <summary>
     ''' Set the enabled state of run-related buttons
     ''' </summary>
+    ''' <remarks>
+    ''' Menu items (Run Without Building / Stop in the Build menu) aren't updated here - they're
+    ''' local to CreateBuildMenu with no stored field to reach, but RunProject/RunProjectAsync
+    ''' already guard against a re-entrant run (shows "Already Running" instead), so leaving
+    ''' them always-clickable is a minor polish gap, not a correctness one
+    ''' </remarks>
     Private Sub SetRunButtonsEnabled(vEnabled As Boolean)
         Try
-            ' Update toolbar buttons if they exist
-            ' TODO: Update Run button to Stop button when running
-            
-            ' Update menu items if they exist
-            ' TODO: Update menu items
-            
+            ' pIsDebugging (despite the name, this is what pStopButton's sensitivity - and
+            ' nothing else - is keyed on; see MainWindow.Toolbar.vb's UpdateToolbarButtons) was
+            ' never actually set anywhere, so the Stop toolbar button was permanently disabled
+            pIsDebugging = Not vEnabled
+            UpdateToolbarButtons()
+
         Catch ex As Exception
             Console.WriteLine($"SetRunButtonsEnabled error: {ex.Message}")
         End Try
