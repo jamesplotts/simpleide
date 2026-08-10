@@ -879,8 +879,7 @@ Namespace Widgets
         Private Sub ApplyFontSettings()
             Try
                 ' Apply monospace font for code snippets
-                Dim lFontDesc As Pango.FontDescription = Pango.FontDescription.FromString("Monospace 10")
-                CssHelper.ApplyCssToWidget(pTextView, "textview { font-family: ...; }", CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+                CssHelper.ApplyCssToWidget(pTextView, "textview { font-family: Monospace; font-size: 10pt; }", CssHelper.STYLE_PROVIDER_PRIORITY_USER)
                 
             Catch ex As Exception
                 Console.WriteLine($"ApplyFontSettings error: {ex.Message}")

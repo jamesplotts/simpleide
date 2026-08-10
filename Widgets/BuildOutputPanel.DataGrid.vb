@@ -60,8 +60,9 @@ Namespace Widgets
                 
                 ' Handle events
                 AddHandler pErrorsDataGrid.SelectionChanged, AddressOf OnErrorSelectionChanged
+                AddHandler pErrorsDataGrid.RowDoubleClicked, AddressOf OnErrorGridRowDoubleClicked
                 AddHandler pErrorsDataGrid.RenderIcon, AddressOf OnErrorGridRenderIcon
-                
+
                 ' Add directly to notebook (no ScrolledWindow wrapper)
                 pNotebook.AppendPage(pErrorsDataGrid,  "Errors (0)")
                 
@@ -90,9 +91,9 @@ Namespace Widgets
                 
                 ' Handle events
                 AddHandler pWarningsDataGrid.SelectionChanged, AddressOf OnWarningSelectionChanged
+                AddHandler pWarningsDataGrid.RowDoubleClicked, AddressOf OnWarningGridRowDoubleClicked
                 AddHandler pWarningsDataGrid.RenderIcon, AddressOf OnWarningGridRenderIcon
-                
-                
+
                 ' Add directly to notebook (no ScrolledWindow wrapper)
                 pNotebook.AppendPage(pWarningsDataGrid, "Warnings (0)")
                 

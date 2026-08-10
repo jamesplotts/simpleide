@@ -340,12 +340,12 @@ Namespace Widgets
                             Else
                                 lMatches.Add(lIndex)
                             End If
-                            
-                            lIndex += 1
+
+                            lIndex += lSearchText.Length
                         End If
                     End While
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"FindMatchesInLineOptimized error: {ex.Message}")
             End Try

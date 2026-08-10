@@ -817,11 +817,11 @@ Namespace Widgets
                             If Not vOptions.WholeWord OrElse IsWholeWordMatch(vLine, lIndex, vOptions.SearchText) Then
                                 lMatches.Add(lIndex)
                             End If
-                            lIndex += 1
+                            lIndex += vOptions.SearchText.Length
                         End If
                     End While
                 End If
-                
+
             Catch ex As Exception
                 Console.WriteLine($"FindMatchesInLine error: {ex.Message}")
             End Try
