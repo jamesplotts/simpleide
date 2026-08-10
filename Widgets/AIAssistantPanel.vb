@@ -1267,7 +1267,7 @@ Namespace Widgets
                 If lMessages Is Nothing OrElse lMessages.Count = 0 Then Return False
 
                 Dim lLimit As Integer = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
-                If lMessages.Count > lLimit Then
+                If lLimit > 0 AndAlso lMessages.Count > lLimit Then
                     lMessages = lMessages.Skip(lMessages.Count - lLimit).ToList()
                 End If
 
@@ -1295,7 +1295,7 @@ Namespace Widgets
 
                 Dim lLimit As Integer = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
                 Dim lToSave As List(Of ChatHistoryMessage) = pConversationHistory
-                If lToSave.Count > lLimit Then
+                If lLimit > 0 AndAlso lToSave.Count > lLimit Then
                     lToSave = lToSave.Skip(lToSave.Count - lLimit).ToList()
                 End If
 

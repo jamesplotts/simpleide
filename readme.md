@@ -45,9 +45,8 @@ Syntax *errors* (as opposed to highlighting) are not flagged inline in the edito
 - **Choice of AI backend**: Anthropic's Claude API, the locally-installed Claude Code CLI (uses its own login, no API key needed), OpenRouter, or any local LLM server speaking the OpenAI-compatible chat completions API (Ollama, LM Studio, etc.) - configured in Preferences > AI
 - **Claude AI assistant panel** for code generation, refactoring, explaining code, and generating documentation, with a per-message prompt built from the current file's content
 - **Artifact extraction** - code/doc blocks in the AI's response are parsed out and can be applied to a file or opened in a diff view
+- **Streaming responses** and **persistent conversation history** (restored across restarts, capped via a configurable limit in Preferences) - one continuous, disk-persisted conversation, not scoped per-project and without a multi-conversation browser yet
 - API keys are stored via the OS keyring (or an encrypted-file fallback), never in plain settings
-
-Not yet implemented, despite having settings for them in Preferences: response streaming ("Stream responses" has no effect yet), saved/persistent conversation history across restarts (the "Save conversation" button is currently a no-op), and auto-suggestions while typing. Each conversation is a single in-memory session for now - there's no multi-conversation history browser.
 
 ### User Interface
 - **Several built-in color themes** (Default Dark, Monokai, Solarized Dark/Light, Dracula, GitHub Dark, One Dark, and more), plus a **System Colors** theme that follows the desktop/GTK theme's actual background, text, and accent colors (re-sampled each time it's selected, not just once at startup) - all switched manually from the Themes menu or Preferences

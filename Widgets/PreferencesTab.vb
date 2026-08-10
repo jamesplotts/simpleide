@@ -92,7 +92,6 @@ Namespace Widgets
         Private pMaxTokensSpin As SpinButton
         Private pTemperatureSpin As SpinButton
         Private pStreamResponsesCheck As CheckButton
-        Private pAutoSuggestCheck As CheckButton
         Private pSaveHistoryCheck As CheckButton
         Private pHistoryLimitSpin As SpinButton
         
@@ -1000,10 +999,6 @@ Namespace Widgets
             Dim lConvBox As New Box(Orientation.Vertical, 5)
             lConvBox.BorderWidth = 10
 
-            pAutoSuggestCheck = New CheckButton("Enable auto-suggestions while typing")
-            AddHandler pAutoSuggestCheck.Toggled, AddressOf OnSettingChanged
-            lConvBox.PackStart(pAutoSuggestCheck, False, False, 0)
-
             pSaveHistoryCheck = New CheckButton("Save conversation history")
             AddHandler pSaveHistoryCheck.Toggled, AddressOf OnSaveHistoryToggled
             lConvBox.PackStart(pSaveHistoryCheck, False, False, 0)
@@ -1013,7 +1008,7 @@ Namespace Widgets
             pHistoryLimitSpin = New SpinButton(0, 100, 1)
             AddHandler pHistoryLimitSpin.ValueChanged, AddressOf OnSettingChanged
             lHistoryBox.PackStart(pHistoryLimitSpin, False, False, 0)
-            Dim lHistoryHelp As New Label("<small>conversations (0 = unlimited)</small>")
+            Dim lHistoryHelp As New Label("<small>messages (0 = unlimited)</small>")
             lHistoryHelp.UseMarkup = True
             lHistoryHelp.Xalign = 0
             lHistoryBox.PackStart(lHistoryHelp, True, True, 0)
@@ -1371,7 +1366,6 @@ Namespace Widgets
                 pMaxTokensSpin.Value = pSettingsManager.GetInteger("AI.MaxTokens", 4096)
                 pTemperatureSpin.Value = pSettingsManager.GetDouble("AI.Temperature", 0.7)
                 pStreamResponsesCheck.Active = pSettingsManager.GetBoolean("AI.StreamResponses", True)
-                pAutoSuggestCheck.Active = pSettingsManager.GetBoolean("AI.AutoSuggest", False)
                 pSaveHistoryCheck.Active = pSettingsManager.GetBoolean("AI.SaveHistory", True)
                 pHistoryLimitSpin.Value = pSettingsManager.GetInteger("AI.HistoryLimit", 20)
 
@@ -1386,7 +1380,6 @@ Namespace Widgets
                 pMaxTokensSpin.Sensitive = lAIEnabled
                 pTemperatureSpin.Sensitive = lAIEnabled
                 pStreamResponsesCheck.Sensitive = lAIEnabled
-                pAutoSuggestCheck.Sensitive = lAIEnabled
                 pSaveHistoryCheck.Sensitive = lAIEnabled
                 pHistoryLimitSpin.Sensitive = lAIEnabled AndAlso pSaveHistoryCheck.Active
 
@@ -1554,7 +1547,6 @@ Namespace Widgets
                 pSettingsManager.SetInteger("AI.MaxTokens", CInt(pMaxTokensSpin.Value))
                 pSettingsManager.SetDouble("AI.Temperature", pTemperatureSpin.Value)
                 pSettingsManager.SetBoolean("AI.StreamResponses", pStreamResponsesCheck.Active)
-                pSettingsManager.SetBoolean("AI.AutoSuggest", pAutoSuggestCheck.Active)
                 pSettingsManager.SetBoolean("AI.SaveHistory", pSaveHistoryCheck.Active)
                 pSettingsManager.SetInteger("AI.HistoryLimit", CInt(pHistoryLimitSpin.Value))
 
@@ -1702,7 +1694,6 @@ Namespace Widgets
             pMaxTokensSpin.Sensitive = lEnabled
             pTemperatureSpin.Sensitive = lEnabled
             pStreamResponsesCheck.Sensitive = lEnabled
-            pAutoSuggestCheck.Sensitive = lEnabled
             pSaveHistoryCheck.Sensitive = lEnabled
             pHistoryLimitSpin.Sensitive = lEnabled AndAlso pSaveHistoryCheck.Active
             UpdateMem0KeySensitivity()
