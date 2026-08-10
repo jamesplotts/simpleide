@@ -67,7 +67,7 @@ Namespace Syntax
                     
                     ' Check for REM comment
                     If i + 2 < lLength AndAlso vLine.Substring(i, 3).Equals("REM", StringComparison.OrdinalIgnoreCase) Then
-                        If i = 0 OrElse Char.IsWhiteSpace(vLine(i - 1)) Then
+                        If i = 0 OrElse Char.IsWhiteSpace(vLine(i - 1)) OrElse vLine(i - 1) = ":"c Then
                             If i + 3 >= lLength OrElse Char.IsWhiteSpace(vLine(i + 3)) Then
                                 ' Rest of line after REM is a comment
                                 Dim lCommentText As String = vLine.Substring(i)

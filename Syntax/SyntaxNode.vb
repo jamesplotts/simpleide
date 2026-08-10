@@ -243,12 +243,13 @@ Namespace Syntax
             lClone.NodeType = NodeType
             lClone.Name = Name
             lClone.FullName = FullName
+            lClone.InitialValue = InitialValue
             lClone.StartLine = StartLine
             lClone.EndLine = EndLine
             lClone.StartColumn = StartColumn
             lClone.EndColumn = EndColumn
             lClone.Level = Level
-            
+
             ' Copy flags
             lClone.IsPartial = IsPartial
             lClone.IsPublic = IsPublic
@@ -262,11 +263,26 @@ Namespace Syntax
             lClone.IsNotOverridable = IsNotOverridable
             lClone.IsMustInherit = IsMustInherit
             lClone.IsNotInheritable = IsNotInheritable
-            
+            lClone.IsReadOnly = IsReadOnly
+            lClone.IsWriteOnly = IsWriteOnly
+            lClone.IsConst = IsConst
+            lClone.IsSealed = IsSealed
+            lClone.IsAbstract = IsAbstract
+            lClone.IsIterator = IsIterator
+            lClone.IsShadows = IsShadows
+            lClone.IsAsync = IsAsync
+            lClone.IsWithEvents = IsWithEvents
+            lClone.IsStatic = IsStatic
+            lClone.IsAutoImplemented = IsAutoImplemented
+
             ' Copy additional properties
+            lClone.Visibility = Visibility
+            lClone.FilePath = FilePath
+            lClone.DataType = DataType
             lClone.ReturnType = ReturnType
             lClone.BaseType = BaseType
-            
+            lClone.XmlDocumentation = XmlDocumentation
+
             ' Copy collections (shallow)
             for each lAttr in Attributes
                 lClone.Attributes.Add(lAttr.key, lAttr.Value)

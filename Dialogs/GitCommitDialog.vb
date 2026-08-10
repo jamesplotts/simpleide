@@ -20,6 +20,9 @@ Namespace Dialogs
         Private pCommitButton As CustomDrawButton
         Private pAmendCheck As CheckButton
         Private pSignOffCheck As CheckButton
+        ''' <summary>The message the user had typed before checking "Amend previous commit",
+        ''' restored if they uncheck it again rather than being discarded</summary>
+        Private pMessageBeforeAmend As String = ""
         
         ' Properties
         Public ReadOnly Property CommitMessage As String
@@ -139,10 +142,10 @@ Namespace Dialogs
                     
                     ' Warn if first line is too long (convention is 50 chars)
                     Dim lFirstLine As String = pMessageBuffer.Text.Split({Environment.NewLine, vbLf}, StringSplitOptions.None)(0)
-                    If lFirstLine.Length > 50 Then
-                        lCharCountLabel.Markup = $"<span foreground=""orange"">{lCount} characters (first Line: {lFirstLine.Length}/50)</span>"
-                    ElseIf lFirstLine.Length > 72 Then
+                    If lFirstLine.Length > 72 Then
                         lCharCountLabel.Markup = $"<span foreground=""red"">{lCount} characters (first Line too long: {lFirstLine.Length}/50)</span>"
+                    ElseIf lFirstLine.Length > 50 Then
+                        lCharCountLabel.Markup = $"<span foreground=""orange"">{lCount} characters (first Line: {lFirstLine.Length}/50)</span>"
                     End If
                 End Sub
                 
@@ -266,6 +269,7 @@ Namespace Dialogs
         Private Sub OnAmendToggled(vSender As Object, vArgs As EventArgs)
             Try
                 If pAmendCheck.Active Then
+                    pMessageBeforeAmend = pMessageBuffer.Text
                     pMessageBuffer.Text = ""
                     If pGitManager Is Nothing Then Return
 
@@ -294,7 +298,7 @@ Namespace Dialogs
                             End Function)
                         End Sub)
                 Else
-                    pMessageBuffer.Text = ""
+                    pMessageBuffer.Text = pMessageBeforeAmend
                 End If
 
             Catch ex As Exception

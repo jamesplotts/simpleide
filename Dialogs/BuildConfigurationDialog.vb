@@ -214,7 +214,7 @@ Namespace Dialogs
                         pConfigurationCombo.Active = 0
                     Case "release"
                         pConfigurationCombo.Active = 1
-                    Case "Test"
+                    Case "test"
                         pConfigurationCombo.Active = 2
                     Case Else
                         pConfigurationCombo.Active = 0
