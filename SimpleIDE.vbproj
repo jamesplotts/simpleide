@@ -12,12 +12,12 @@
     </PlatformTarget>
     <LangVersion>Latest</LangVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyVersion>1.1.1527.0</AssemblyVersion>
-    <FileVersion>1.1.1527.0</FileVersion>
+    <AssemblyVersion>1.1.1535.0</AssemblyVersion>
+    <FileVersion>1.1.1535.0</FileVersion>
     <AutoIncrementVersion>true</AutoIncrementVersion>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
-    <Version>1.1.1527</Version>
+    <Version>1.1.1535</Version>
     <ApplicationIcon>Resources/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
@@ -169,7 +169,6 @@
     <Compile Include="Editors/CustomDrawingEditor.Zoom.vb" />
     <Compile Include="Editors/FileComparisonPanel.vb" />
     <Compile Include="Editors/ManifestEditor.vb" />
-    <Compile Include="Editors/PngEditor.vb" />
     <!-- Interfaces -->
     <Compile Include="Interfaces/IEditor.vb" />
     <Compile Include="Interfaces/IObjectExplorer.vb" />
@@ -282,7 +281,7 @@
     <Compile Include="Widgets/GitPanel.vb" />
     <Compile Include="Widgets/GitPanel.RefreshStatus.vb" />
     <Compile Include="Widgets/HelpBrowser.vb" />
-    <Compile Include="Widgets/ImprovedAIAssistantPanel.vb" />
+    <Compile Include="Widgets/ChatHistoryMessage.vb" />
     <Compile Include="Widgets/LineNumberWidget.vb" />
     <Compile Include="Widgets/NavigationDropdownPopup.vb" />
     <Compile Include="Widgets/NavigationDropdowns.vb" />
@@ -292,6 +291,7 @@
     <Compile Include="Widgets/ScratchpadPanel.vb" />
     <Compile Include="Widgets/SolutionSettingsTab.vb" />
     <Compile Include="Widgets/ReferenceManagerTab.vb" />
+    <Compile Include="Widgets/ResxEditor.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Animation.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Compatibility.vb" />
     <Compile Include="Widgets/CustomDrawNotebook.Drawing.vb" />

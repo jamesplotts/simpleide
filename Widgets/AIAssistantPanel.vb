@@ -29,7 +29,7 @@ Namespace Widgets
         Private pApiClient As AIChatClient
         Private pFileSystemBridge As AIFileSystemBridge
         Private pIsProcessing As Boolean = False
-        Private pConversationHistory As New List(Of ImprovedAIAssistantPanel.ChatMessage)
+        Private pConversationHistory As New List(Of ChatHistoryMessage)
 
         ' Theme support
         Private pThemeManager As ThemeManager
@@ -60,21 +60,6 @@ Namespace Widgets
         ''' errors back in via the same flow as its AI menu's "Fix Build Errors" item
         ''' (OnFixBuildErrors), since this panel has no direct reference to BuildOutputPanel</summary>
         Public Event FixErrorsRequested()
-        
-        ' Chat message structure
-        Public Class ChatMessage
-            Public Property Role As String ' "user" or "assistant"
-            Public Property Content As String
-            Public Property Timestamp As DateTime
-            Public Property Actions As List(Of AIAction)
-            
-            Public Sub New(vRole As String, vContent As String)
-                Role = vRole
-                Content = vContent
-                Timestamp = DateTime.Now
-                Actions = New List(Of AIAction)
-            End Sub
-        End Class
         
         ' AI action structure
         Public Class AIAction
@@ -552,7 +537,7 @@ Namespace Widgets
                 pChatBuffer.PlaceCursor(pChatBuffer.EndIter)
                 pChatBuffer.InsertAtCursor(Environment.NewLine)
 
-                Dim lChatMessage As New ImprovedAIAssistantPanel.ChatMessage("assistant", vFullText)
+                Dim lChatMessage As New ChatHistoryMessage("assistant", vFullText)
                 If vActions IsNot Nothing Then
                     lChatMessage.Actions = vActions
                 End If
@@ -747,13 +732,13 @@ Namespace Widgets
         
         Private Sub AddUserMessage(vMessage As String)
             AddChatMessage("You", vMessage, "user")
-            pConversationHistory.Add(New ImprovedAIAssistantPanel.ChatMessage("user", vMessage))
+            pConversationHistory.Add(New ChatHistoryMessage("user", vMessage))
         End Sub
         
         Private Sub AddAssistantMessage(vMessage As String, Optional vActions As List(Of AIAction) = Nothing)
             AddChatMessage("Assistant", vMessage, "assistant")
             
-            Dim lChatMessage As New ImprovedAIAssistantPanel.ChatMessage("assistant", vMessage)
+            Dim lChatMessage As New ChatHistoryMessage("assistant", vMessage)
             If vActions IsNot Nothing Then
                 lChatMessage.Actions = vActions
             End If

@@ -50,6 +50,10 @@ Namespace Widgets
         Private pAssemblyAddButton As CustomDrawButton
         Private pAssemblyRemoveButton As CustomDrawButton
         Private pBrowseAssemblyButton As CustomDrawButton
+        ''' <summary>Unfiltered backing list for the Assembly tab's search box, so filtering
+        ''' as you type re-slices this instead of re-scanning the runtime directory on every
+        ''' keystroke</summary>
+        Private pAllRuntimeAssemblies As New List(Of AssemblyBrowser.AssemblyInfo)
 
         ' NuGet tab components - split into an "Installed" list (top) and a searchable
         ' "Available" list (bottom), so browsing/searching the full NuGet index never hides
@@ -68,6 +72,10 @@ Namespace Widgets
         Private pNuGetSpinner As Spinner
         Private pNuGetStatusLabel As Label
         Private pCurrentSearchTask As Task(Of NuGetClient.SearchResult)
+        ''' <summary>Bumped on every RunNuGetSearch call so OnNuGetSearchComplete can tell a
+        ''' stale (superseded) search's completion apart from the latest one - see
+        ''' RunNuGetSearch's remarks</summary>
+        Private pNuGetSearchGeneration As Integer = 0
 
         ' Tracks whichever of the two NuGet lists currently owns the "active" selection, so
         ' the single shared button bar (Install/Update/Uninstall) knows what to act on.
@@ -609,16 +617,29 @@ Namespace Widgets
         ' Load runtime assemblies
         Private Sub LoadRuntimeAssemblies()
             Try
+                pAllRuntimeAssemblies = AssemblyBrowser.GetRuntimeAssemblies()
+                PopulateAssemblyList(pAllRuntimeAssemblies)
+
+            Catch ex As Exception
+                Console.WriteLine($"error loading Runtime assemblies: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Rebuilds pAssemblyListStore's rows from the given assembly list, preserving
+        ''' whichever rows were checked before the rebuild (so filtering as you type doesn't
+        ''' silently lose a selection made before typing)
+        ''' </summary>
+        Private Sub PopulateAssemblyList(vAssemblies As List(Of AssemblyBrowser.AssemblyInfo))
+            Try
+                Dim lPreviouslySelected As New HashSet(Of String)(GetSelectedAssemblyNames())
                 pAssemblyListStore.Clear()
 
-                ' Get runtime assemblies
-                Dim lAssemblies As List(Of AssemblyBrowser.AssemblyInfo) = AssemblyBrowser.GetRuntimeAssemblies()
+                for each lAssembly in vAssemblies
+                    Dim lIsReferenced As Boolean = lPreviouslySelected.Contains(lAssembly.Name) OrElse
+                        pCurrentReferences.any(Function(r) r.Type = ReferenceManager.ReferenceType.eAssembly AndAlso r.Name = lAssembly.Name)
 
-                for each lAssembly in lAssemblies
-                    ' Check if already referenced
-                    Dim lIsReferenced As Boolean = pCurrentReferences.any(Function(r) r.Type = ReferenceManager.ReferenceType.eAssembly AndAlso r.Name = lAssembly.Name)
-
-                    Dim lIter As TreeIter = pAssemblyListStore.AppendValues(
+                    pAssemblyListStore.AppendValues(
                         lIsReferenced,
                         lAssembly.Name,
                         lAssembly.Version,
@@ -629,17 +650,42 @@ Namespace Widgets
                 Next
 
             Catch ex As Exception
-                Console.WriteLine($"error loading Runtime assemblies: {ex.Message}")
+                Console.WriteLine($"error populating assembly list: {ex.Message}")
             End Try
         End Sub
+
+        ''' <summary>
+        ''' Gets the names of every currently-checked row in pAssemblyListStore
+        ''' </summary>
+        Private Function GetSelectedAssemblyNames() As List(Of String)
+            Dim lNames As New List(Of String)
+            Try
+                Dim lIter As TreeIter
+                If pAssemblyListStore.GetIterFirst(lIter) Then
+                    Do
+                        If CBool(pAssemblyListStore.GetValue(lIter, 0)) Then
+                            lNames.Add(CStr(pAssemblyListStore.GetValue(lIter, 1)))
+                        End If
+                    Loop While pAssemblyListStore.IterNext(lIter)
+                End If
+
+            Catch ex As Exception
+                Console.WriteLine($"error getting Selected assembly names: {ex.Message}")
+            End Try
+            Return lNames
+        End Function
 
         ' Assembly search changed
         Private Sub OnAssemblySearchChanged(vSender As Object, vE As EventArgs)
             Try
-                Dim lFilter As String = pAssemblySearchEntry.Text.ToLower()
+                Dim lFilter As String = pAssemblySearchEntry.Text.Trim()
 
-                ' TODO: Implement filtering
-                ' For now, just update button state
+                Dim lFiltered As List(Of AssemblyBrowser.AssemblyInfo) = If(
+                    String.IsNullOrEmpty(lFilter),
+                    pAllRuntimeAssemblies,
+                    pAllRuntimeAssemblies.Where(Function(a) a.Name.IndexOf(lFilter, StringComparison.OrdinalIgnoreCase) >= 0).ToList())
+
+                PopulateAssemblyList(lFiltered)
                 UpdateAssemblyButtons()
 
             Catch ex As Exception
@@ -717,7 +763,30 @@ Namespace Widgets
                     ' Add the selected assembly
                     Dim lAssemblyPath As String = lDialog.FileName
 
-                    ' TODO: Add to list and mark as selected
+                    Dim lInfo As AssemblyBrowser.AssemblyInfo = AssemblyBrowser.GetAssemblyInfo(lAssemblyPath)
+                    If lInfo IsNot Nothing Then
+                        If Not pAllRuntimeAssemblies.any(Function(a) a.Name = lInfo.Name) Then
+                            pAllRuntimeAssemblies.Add(lInfo)
+                        End If
+
+                        pAssemblySearchEntry.Text = ""
+                        PopulateAssemblyList(pAllRuntimeAssemblies)
+
+                        ' Mark the newly-browsed assembly as selected
+                        Dim lIter As TreeIter
+                        If pAssemblyListStore.GetIterFirst(lIter) Then
+                            Do
+                                If CStr(pAssemblyListStore.GetValue(lIter, 1)) = lInfo.Name Then
+                                    pAssemblyListStore.SetValue(lIter, 0, True)
+                                    Exit Do
+                                End If
+                            Loop While pAssemblyListStore.IterNext(lIter)
+                        End If
+
+                        UpdateAssemblyButtons()
+                    Else
+                        ShowError($"'{System.IO.Path.GetFileName(lAssemblyPath)}' is not a valid .NET assembly")
+                    End If
 
                     ' Add to recent
                     AssemblyBrowser.AddToRecentAssemblies(pSettingsManager, lAssemblyPath)
@@ -826,10 +895,14 @@ Namespace Widgets
             Try
                 Dim lQuery As String = pNuGetSearchEntry.Text.Trim()
 
-                ' Cancel previous search if running
-                If pCurrentSearchTask IsNot Nothing AndAlso Not pCurrentSearchTask.IsCompleted Then
-                    ' TODO: Implement cancellation
-                End If
+                ' SimpleNuGetClient has no CancellationToken support to plug real
+                ' cancellation into, so a prior in-flight search is instead left to run to
+                ' completion but its results are discarded: bump a generation counter here
+                ' and have OnNuGetSearchComplete drop any completion that isn't the latest
+                ' generation, so rapid typing can never interleave/append stale results on
+                ' top of a newer query
+                pNuGetSearchGeneration += 1
+                Dim lGeneration As Integer = pNuGetSearchGeneration
 
                 ' Start search
                 pNuGetSpinner.Start()
@@ -842,7 +915,7 @@ Namespace Widgets
 
                 ' Start async search
                 pCurrentSearchTask = Task.Run(Async Function() Await pNuGetClient.SearchPackagesAsync(lQuery, 0, 50, vBypassCache))
-                pCurrentSearchTask.ContinueWith(Sub(t) GLib.Idle.Add(Function() OnNuGetSearchComplete(t)))
+                pCurrentSearchTask.ContinueWith(Sub(t) GLib.Idle.Add(Function() OnNuGetSearchComplete(t, lGeneration)))
 
             Catch ex As Exception
                 Console.WriteLine($"error searching NuGet: {ex.Message}")
@@ -851,8 +924,13 @@ Namespace Widgets
         End Sub
 
         ' NuGet search complete
-        Private Function OnNuGetSearchComplete(vTask As Task(Of NuGetClient.SearchResult)) As Boolean
+        Private Function OnNuGetSearchComplete(vTask As Task(Of NuGetClient.SearchResult), vGeneration As Integer) As Boolean
             Try
+                ' A newer search has started since this one was kicked off - its own
+                ' completion will update the UI instead, so bail out here without touching
+                ' the spinner/buttons/results (which the newer search already owns)
+                If vGeneration <> pNuGetSearchGeneration Then Return False
+
                 pNuGetSpinner.Stop()
                 pNuGetSearchButton.Sensitive = True
                 pNuGetRefreshButton.Sensitive = True

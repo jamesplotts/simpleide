@@ -371,12 +371,40 @@ Namespace Widgets
             End Try
         End Function
 
+        ''' <summary>
+        ''' Starts a fresh type-ahead search (Ctrl+F or the first letter/digit typed while
+        ''' the tree has focus) by clearing any previous buffer and moving focus to the
+        ''' toolbar's own search entry, whose existing Changed handler
+        ''' (OnSearchTextChangedEnhanced, CustomDrawObjectExplorer.Toolbar.vb) already drives
+        ''' the full search/auto-expand/navigate pipeline
+        ''' </summary>
         Public Sub StartTypeAheadSearch()
-            ' TODO: Implement StartTypeAheadSearch
+            Try
+                pTypeAheadBuffer = ""
+                pSearchEntry?.GrabFocus()
+
+            Catch ex As Exception
+                Console.WriteLine($"StartTypeAheadSearch error: {ex.Message}")
+            End Try
         End Sub
 
+        ''' <summary>
+        ''' Routes a type-ahead keystroke into the toolbar's search entry - appending the
+        ''' character there (which already triggers the full search pipeline) and moving
+        ''' focus to it so subsequent keystrokes are typed into it normally
+        ''' </summary>
         Public Sub AddToTypeAhead(vChar As Char)
-            ' TODO: Implement AddToTypeAhead
+            Try
+                pTypeAheadBuffer &= vChar
+                If pSearchEntry Is Nothing Then Return
+
+                pSearchEntry.Text &= vChar
+                pSearchEntry.GrabFocus()
+                pSearchEntry.InnerEntry.Position = pSearchEntry.Text.Length
+
+            Catch ex As Exception
+                Console.WriteLine($"AddToTypeAhead error: {ex.Message}")
+            End Try
         End Sub
         
         ' ===== Scrollbar Events =====

@@ -149,6 +149,32 @@ Namespace Utilities
             Return lAssemblies
         End Function
         
+        ''' <summary>
+        ''' Builds an AssemblyInfo for a single assembly file, for the "Browse..." picker
+        ''' rather than a whole-directory scan
+        ''' </summary>
+        ''' <param name="vFilePath">Full path to the .dll to inspect</param>
+        ''' <returns>The assembly's info, or Nothing if it's not a valid .NET assembly</returns>
+        Public Shared Function GetAssemblyInfo(vFilePath As String) As AssemblyInfo
+            Try
+                Dim lAssemblyName As AssemblyName = AssemblyName.GetAssemblyName(vFilePath)
+
+                Dim lInfo As New AssemblyInfo()
+                lInfo.Name = lAssemblyName.Name
+                lInfo.FullName = lAssemblyName.FullName
+                lInfo.Version = lAssemblyName.Version.ToString()
+                lInfo.Runtime = "Custom"
+                lInfo.Location = vFilePath
+                lInfo.IsGAC = False
+
+                Return lInfo
+
+            Catch ex As Exception
+                Console.WriteLine($"GetAssemblyInfo error: {ex.Message}")
+                Return Nothing
+            End Try
+        End Function
+
         ' Get recently used assemblies (from settings)
         Public Shared Function GetRecentAssemblies(vSettingsManager As SettingsManager) As List(Of String)
             Dim lRecent As New List(Of String)

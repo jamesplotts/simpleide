@@ -4,6 +4,7 @@ Imports System
 Imports System.IO
 Imports System.Reflection
 Imports SimpleIDE.Editors
+Imports SimpleIDE.Models
 Imports SimpleIDE.Utilities
 Imports SimpleIDE.Widgets
 
@@ -40,7 +41,8 @@ Partial Public Class MainWindow
         End Try
     End Sub
     
-    ' Open image resource in PNG editor
+    ' Open image resource - shown as a simple placeholder tab (CreateNewTab's IsPngFile
+    ' branch, MainWindow.Editor.vb), there's no image editor in this IDE
     Private Sub OpenImageResource(vFilePath As String)
         Try
             ' Check if already open
@@ -49,29 +51,50 @@ Partial Public Class MainWindow
                 SwitchToTab(vFilePath)
                 Return
             End If
-            
-            ' Create PNG editor
-            'Dim lEditor As New PngEditor(vFilePath, pSettingsManager)
-            
-            ' Create tab
-            CreateNewTab(System.IO.Path.GetFileName(vFilePath), pProjectManager.GetSourceInfo(vFilePath), True)
-            
+
+            ' Create tab - full path, matching every other CreateNewTab call site (the
+            ' bare-filename version previously here meant pOpenTabs got keyed by just the
+            ' filename, breaking the ContainsKey/SwitchToTab check above for every reopen)
+            CreateNewTab(vFilePath, pProjectManager.GetSourceInfo(vFilePath), True)
+
             ' Update status
             UpdateStatusBar($"Opened image resource: {System.IO.Path.GetFileName(vFilePath)}")
-            
+
         Catch ex As Exception
             Console.WriteLine($"OpenImageResource error: {ex.Message}")
             ShowError("Image Resource error", $"Failed to open image: {ex.Message}")
         End Try
     End Sub
     
-    ' Open RESX file
+    ''' <summary>
+    ''' Opens a .resx file in the grid-based ResxEditor widget, as a special tab (no
+    ''' IEditor - see ResxEditor's own remarks for why Ctrl+S/close-prompt integration is
+    ''' deliberately skipped in favor of the widget's own Save button)
+    ''' </summary>
     Private Sub OpenResxFile(vFilePath As String)
         Try
-            ' For now, open as XML text file
-            ' TODO: Create a proper RESX editor with grid view
-            OpenFile(vFilePath)
-            
+            If pOpenTabs.ContainsKey(vFilePath) Then
+                SwitchToTab(vFilePath)
+                Return
+            End If
+
+            Dim lResxEditor As New ResxEditor(vFilePath, pThemeManager)
+
+            Dim lTabInfo As New TabInfo() With {
+                .FilePath = vFilePath,
+                .Editor = Nothing,
+                .EditorContainer = lResxEditor,
+                .Modified = False,
+                .IsSpecialTab = True
+            }
+
+            Dim lPageIndex As Integer = pNotebook.AppendPage(lResxEditor, System.IO.Path.GetFileName(vFilePath))
+            pNotebook.ShowAll()
+            pNotebook.CurrentPage = lPageIndex
+
+            pOpenTabs(vFilePath) = lTabInfo
+            UpdateStatusBar($"Opened {System.IO.Path.GetFileName(vFilePath)}")
+
         Catch ex As Exception
             Console.WriteLine($"OpenResxFile error: {ex.Message}")
             ShowError("RESX error", $"Failed to open .resx file: {ex.Message}")
@@ -414,14 +437,14 @@ Partial Public Class MainWindow
     ' Add resource to project file
     Private Sub AddResourceToProjectFile(vResourcePath As String, vBuildAction As String)
         Try
-            ' TODO: Implement project file modification
-            ' This would involve:
-            ' 1. Loading the .vbproj XML
-            ' 2. Adding appropriate item group entry
-            ' 3. Saving the project file
-            
-            UpdateStatusBar($"Added resource to project: {System.IO.Path.GetFileName(vResourcePath)}")
-            
+            If pProjectManager Is Nothing Then Return
+
+            If pProjectManager.AddFileToProject(vResourcePath, vBuildAction) Then
+                UpdateStatusBar($"Added resource to project: {System.IO.Path.GetFileName(vResourcePath)}")
+            Else
+                UpdateStatusBar($"Resource already in project: {System.IO.Path.GetFileName(vResourcePath)}")
+            End If
+
         Catch ex As Exception
             Console.WriteLine($"AddResourceToProjectFile error: {ex.Message}")
         End Try

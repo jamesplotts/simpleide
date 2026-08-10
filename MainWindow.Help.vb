@@ -29,20 +29,18 @@ Partial Public Class MainWindow
     ' Show VB.NET reference
     Public Sub OnVBReference(vSender As Object, vArgs As EventArgs)
         Try
-            ShowHelpPanel()
-            ' TODO: Navigate to VB.NET reference in help panel
-            
+            OpenHelpTab(vTopic:="language-reference")
+
         Catch ex As Exception
             Console.WriteLine($"OnVBReference error: {ex.Message}")
         End Try
     End Sub
-    
+
     ' Show GTK# reference
     Public Sub OnGTKReference(vSender As Object, vArgs As EventArgs)
         Try
-            ShowHelpPanel()
-            ' TODO: Navigate to GTK# reference in help panel
-            
+            OpenHelpTab(vTopic:="gtk-sharp")
+
         Catch ex As Exception
             Console.WriteLine($"OnGTKReference error: {ex.Message}")
         End Try

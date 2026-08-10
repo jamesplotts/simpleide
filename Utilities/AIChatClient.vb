@@ -79,7 +79,7 @@ Namespace Utilities
         ''' as they do without streaming - only how the text is delivered while in flight
         ''' changes. Omit (or pass Nothing) for a plain non-streaming request.</param>
         ''' <returns>The provider's response, with any artifacts extracted</returns>
-        Public Async Function SendMessageWithArtifactsAsync(vPrompt As String, vHistory As List(Of ImprovedAIAssistantPanel.ChatMessage), Optional vOnChunk As Action(Of String) = Nothing) As Task(Of ClaudeResponse)
+        Public Async Function SendMessageWithArtifactsAsync(vPrompt As String, vHistory As List(Of ChatHistoryMessage), Optional vOnChunk As Action(Of String) = Nothing) As Task(Of ClaudeResponse)
             Try
                 If pProvider Is Nothing Then
                     Throw New InvalidOperationException("No AI provider is configured. Set one up in Preferences > AI.")
