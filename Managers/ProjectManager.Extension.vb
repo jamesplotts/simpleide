@@ -992,13 +992,17 @@ Namespace Managers
         ''' <param name="vEditor">The editor containing the file</param>
         Public Sub UpdateFileStructure(vFilePath As String, vEditor As IEditor)
             Try
-                If Not pSourceFiles.ContainsKey(vFilePath) Then
+                ' Normalized to match the key format GetSourceFileInfo/EnsureAllFilesLoaded/
+                ' AddFileToProject already use - see AddFileToProject's own comment on why an
+                ' unnormalized key here would silently desync from those other pSourceFiles entries
+                Dim lNormalizedPath As String = System.IO.Path.GetFullPath(vFilePath)
+                If Not pSourceFiles.ContainsKey(lNormalizedPath) Then
                     ' Create new SourceFileInfo if not exists
-                    Dim lFileInfo As New SourceFileInfo(vFilePath, "")
-                    pSourceFiles(vFilePath) = lFileInfo
+                    Dim lFileInfo As New SourceFileInfo(lNormalizedPath, "")
+                    pSourceFiles(lNormalizedPath) = lFileInfo
                 End If
-                
-                Dim lSourceFile As SourceFileInfo = pSourceFiles(vFilePath)
+
+                Dim lSourceFile As SourceFileInfo = pSourceFiles(lNormalizedPath)
                 
                 ' Use the centralized ParseFile method instead of ParseContent
                 Dim lParseSuccess As Boolean = ParseFile(lSourceFile)

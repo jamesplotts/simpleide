@@ -111,6 +111,19 @@ Namespace Managers
             pCurrentGroup.Clear()
             pGroupingActions = False
 
+            ' pGroupDepth wasn't being reset here - if Clear() ever ran while a BeginUserAction()/
+            ' EndUserAction() pair was still open, the depth counter would stay nonzero forever
+            ' after, permanently unbalancing grouping: the next BeginUserAction() would see a
+            ' nonzero depth and treat itself as a nested call, never starting a fresh group again
+            pGroupDepth = 0
+
+            ' pCleanMarkerAction wasn't being reset either - it would keep pointing at a now-
+            ' discarded UndoAction from before the clear, so IsAtCleanPoint would read False
+            ' instead of True immediately after a Clear() that followed a clean (saved) state.
+            ' An empty stack should itself represent the clean point (see this field's own doc
+            ' comment above), matching what a fresh UndoRedoManager starts with
+            pCleanMarkerAction = Nothing
+
             ' Raise the state changed event
             RaiseStateChanged()
         End Sub

@@ -287,14 +287,22 @@ Namespace Utilities
             Try
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "secret-tool"
-                lProcess.StartInfo.Arguments = $"store --label='{pApplicationName} - {vService}' service {vService} account {vAccount}"
+                ' ArgumentList passes each argument through exactly as given, with no splitting/
+                ' re-parsing - the previous single Arguments string had no quoting at all, so a
+                ' vService/vAccount containing a space would silently split into extra arguments
+                lProcess.StartInfo.ArgumentList.Add("store")
+                lProcess.StartInfo.ArgumentList.Add($"--label={pApplicationName} - {vService}")
+                lProcess.StartInfo.ArgumentList.Add("service")
+                lProcess.StartInfo.ArgumentList.Add(vService)
+                lProcess.StartInfo.ArgumentList.Add("account")
+                lProcess.StartInfo.ArgumentList.Add(vAccount)
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.RedirectStandardInput = True
                 lProcess.StartInfo.RedirectStandardOutput = True
                 lProcess.StartInfo.CreateNoWindow = True
-                
+
                 lProcess.Start()
-                
+
                 ' Write password to stdin
                 lProcess.StandardInput.WriteLine(vPassword)
                 lProcess.StandardInput.Close()
@@ -316,11 +324,15 @@ Namespace Utilities
             Try
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "secret-tool"
-                lProcess.StartInfo.Arguments = $"lookup service {vService} account {vAccount}"
+                lProcess.StartInfo.ArgumentList.Add("lookup")
+                lProcess.StartInfo.ArgumentList.Add("service")
+                lProcess.StartInfo.ArgumentList.Add(vService)
+                lProcess.StartInfo.ArgumentList.Add("account")
+                lProcess.StartInfo.ArgumentList.Add(vAccount)
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.RedirectStandardOutput = True
                 lProcess.StartInfo.CreateNoWindow = True
-                
+
                 lProcess.Start()
                 Dim lPassword As String = lProcess.StandardOutput.ReadToEnd().Trim()
                 lProcess.WaitForExit()
@@ -344,7 +356,11 @@ Namespace Utilities
             Try
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "secret-tool"
-                lProcess.StartInfo.Arguments = $"clear service {vService} account {vAccount}"
+                lProcess.StartInfo.ArgumentList.Add("clear")
+                lProcess.StartInfo.ArgumentList.Add("service")
+                lProcess.StartInfo.ArgumentList.Add(vService)
+                lProcess.StartInfo.ArgumentList.Add("account")
+                lProcess.StartInfo.ArgumentList.Add(vAccount)
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.CreateNoWindow = True
                 
@@ -388,11 +404,15 @@ Namespace Utilities
                 Dim lKey As String = $"{vService}_{vAccount}"
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "kwallet-query"
-                lProcess.StartInfo.Arguments = $"-w ""{lKey}"" -f ""{pApplicationName}"" kdewallet"
+                lProcess.StartInfo.ArgumentList.Add("-w")
+                lProcess.StartInfo.ArgumentList.Add(lKey)
+                lProcess.StartInfo.ArgumentList.Add("-f")
+                lProcess.StartInfo.ArgumentList.Add(pApplicationName)
+                lProcess.StartInfo.ArgumentList.Add("kdewallet")
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.RedirectStandardInput = True
                 lProcess.StartInfo.CreateNoWindow = True
-                
+
                 lProcess.Start()
                 lProcess.StandardInput.WriteLine(vPassword)
                 lProcess.StandardInput.Close()
@@ -411,11 +431,15 @@ Namespace Utilities
                 Dim lKey As String = $"{vService}_{vAccount}"
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "kwallet-query"
-                lProcess.StartInfo.Arguments = $"-r ""{lKey}"" -f ""{pApplicationName}"" kdewallet"
+                lProcess.StartInfo.ArgumentList.Add("-r")
+                lProcess.StartInfo.ArgumentList.Add(lKey)
+                lProcess.StartInfo.ArgumentList.Add("-f")
+                lProcess.StartInfo.ArgumentList.Add(pApplicationName)
+                lProcess.StartInfo.ArgumentList.Add("kdewallet")
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.RedirectStandardOutput = True
                 lProcess.StartInfo.CreateNoWindow = True
-                
+
                 lProcess.Start()
                 Dim lPassword As String = lProcess.StandardOutput.ReadToEnd().Trim()
                 lProcess.WaitForExit()
@@ -437,7 +461,11 @@ Namespace Utilities
                 Dim lKey As String = $"{vService}_{vAccount}"
                 Dim lProcess As New Process()
                 lProcess.StartInfo.FileName = "kwallet-query"
-                lProcess.StartInfo.Arguments = $"-e ""{lKey}"" -f ""{pApplicationName}"" kdewallet"
+                lProcess.StartInfo.ArgumentList.Add("-e")
+                lProcess.StartInfo.ArgumentList.Add(lKey)
+                lProcess.StartInfo.ArgumentList.Add("-f")
+                lProcess.StartInfo.ArgumentList.Add(pApplicationName)
+                lProcess.StartInfo.ArgumentList.Add("kdewallet")
                 lProcess.StartInfo.UseShellExecute = False
                 lProcess.StartInfo.CreateNoWindow = True
                 

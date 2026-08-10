@@ -525,15 +525,21 @@ End Sub
                 ' Update project info
                 If vItemType = "Compile" Then
                     pCurrentProjectInfo.CompileItems.Add(lRelativePath)
-                    
+
                     ' CRITICAL: Create SourceFileInfo for the newly added file
-                    If Not pSourceFiles.ContainsKey(vFilePath) Then
+                    ' Normalized via Path.GetFullPath to match the key format
+                    ' GetSourceFileInfo/EnsureAllFilesLoaded already use - without this, a file
+                    ' added here could end up tracked under a second, different pSourceFiles key
+                    ' than the one those methods use for the same physical file whenever vFilePath
+                    ' isn't already in canonical form, silently desyncing the two code paths
+                    Dim lNormalizedPath As String = System.IO.Path.GetFullPath(vFilePath)
+                    If Not pSourceFiles.ContainsKey(lNormalizedPath) Then
                         #If DEBUG Then
-                        Console.WriteLine($"Creating SourceFileInfo for newly added file: {vFilePath}")
+                        Console.WriteLine($"Creating SourceFileInfo for newly added file: {lNormalizedPath}")
                         #End If
-                        
+
                         ' Create new SourceFileInfo
-                        Dim lSourceInfo As New SourceFileInfo(vFilePath, "")
+                        Dim lSourceInfo As New SourceFileInfo(lNormalizedPath, "")
 
                         ' Set project context and wire events BEFORE loading - LoadContent
                         ' calls RequestAsyncParse internally, which needs ProjectManager
@@ -544,13 +550,13 @@ End Sub
                         WireSourceFileInfoEvents(lSourceInfo)
 
                         ' Load content if file exists
-                        If File.Exists(vFilePath) Then
+                        If File.Exists(lNormalizedPath) Then
                             lSourceInfo.LoadContent()
                         End If
 
                         ' Add to collection
-                        pSourceFiles(vFilePath) = lSourceInfo
-                        
+                        pSourceFiles(lNormalizedPath) = lSourceInfo
+
                         ' Parse the file if it has content
                         If lSourceInfo.IsLoaded Then
                             ParseFile(lSourceInfo)

@@ -548,8 +548,16 @@ Private Function LoadAllSourceFiles() As Boolean
         Dim lFailedFiles As New List(Of String)()
         
         ' Load each file
-        for each lFilePath in lSourceFilePaths
+        for each lRawFilePath in lSourceFilePaths
+            ' Declared outside the Try below so the Catch can still reference it in its error
+            ' message - a variable Dim'd inside Try isn't visible in the matching Catch/Finally
+            Dim lFilePath As String = lRawFilePath
             Try
+                ' Normalized to match the key format GetSourceFileInfo/EnsureAllFilesLoaded/
+                ' AddFileToProject already use - see AddFileToProject's own comment on why an
+                ' unnormalized key here would silently desync from those other pSourceFiles entries
+                lFilePath = System.IO.Path.GetFullPath(lRawFilePath)
+
                 ' Check if already loaded
                 Dim lSourceFile As SourceFileInfo = Nothing
 
@@ -563,10 +571,10 @@ Private Function LoadAllSourceFiles() As Boolean
                     ' Create new SourceFileInfo
                     lSourceFile = New SourceFileInfo(lFilePath, "")
                     lSourceFile.ProjectRootNamespace = pCurrentProjectInfo.GetEffectiveRootNamespace()
-                    
+
                     ' CRITICAL FIX: Wire up events for the new SourceFileInfo
                     WireSourceFileInfoEvents(lSourceFile)
-                    
+
                     pSourceFiles(lFilePath) = lSourceFile
                 End If
                 
