@@ -442,7 +442,7 @@ Namespace Widgets
                 If lStreaming Then
                     BeginStreamingAssistantMessage()
                     lResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory, AddressOf OnStreamingChunkReceived)
-                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
+                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Artifacts)
                     EndStreamingAssistantMessage(lResponse.Content, lActions)
 
                     If lActions.Count > 0 Then
@@ -450,7 +450,7 @@ Namespace Widgets
                     End If
                 Else
                     lResponse = Await pApiClient.SendMessageWithArtifactsAsync(lFullPrompt, pConversationHistory)
-                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Content)
+                    Dim lActions As List(Of AIAction) = ParseAIResponse(lResponse.Artifacts)
                     AddAssistantMessage(lResponse.Content, lActions)
 
                     If lActions.Count > 0 Then
@@ -575,23 +575,35 @@ Namespace Widgets
             Return lContext.ToString()
         End Function
         
-        Private Function ParseAIResponse(vResponse As String) As List(Of AIAction)
+        ''' <summary>
+        ''' Turns the artifacts AIChatClient already extracted from the response into file
+        ''' actions - only artifacts the model tagged with a FilePath (see AIChatClient.
+        ''' BuildEnhancedPrompt) are actionable; untagged artifacts are just code shown in
+        ''' the chat. Whether an artifact becomes a create or a modify is decided here, from
+        ''' whether the target file currently exists.
+        ''' </summary>
+        ''' <param name="vArtifacts">Artifacts parsed from the assistant's response</param>
+        Private Function ParseAIResponse(vArtifacts As List(Of AIChatClient.ClaudeArtifact)) As List(Of AIAction)
             Dim lActions As New List(Of AIAction)
-            
-            ' Parse for code blocks and action indicators
-            ' This is a simplified parser - you'd want more sophisticated parsing
-            
-            ' Look for file creation patterns
-            If vResponse.Contains("Create file:") OrElse vResponse.Contains("New file:") Then
-                ' Extract file creation instructions
-                ' Parse filename and content
-            End If
-            
-            ' Look for file modification patterns
-            If vResponse.Contains("Modify file:") OrElse vResponse.Contains("Update file:") Then
-                ' Extract modification instructions
-            End If
-            
+            If vArtifacts Is Nothing Then Return lActions
+
+            For Each lArtifact In vArtifacts
+                If String.IsNullOrWhiteSpace(lArtifact.FilePath) Then Continue For
+
+                If String.IsNullOrEmpty(pProjectRoot) Then
+                    AddErrorMessage($"Cannot write '{lArtifact.FilePath}': no project is open.")
+                    Continue For
+                End If
+
+                Dim lFullPath As String = System.IO.Path.Combine(pProjectRoot, lArtifact.FilePath)
+                lActions.Add(New AIAction With {
+                    .Type = If(File.Exists(lFullPath), "modify_file", "create_file"),
+                    .FilePath = lArtifact.FilePath,
+                    .Content = lArtifact.Content,
+                    .Description = lArtifact.Title
+                })
+            Next
+
             Return lActions
         End Function
         

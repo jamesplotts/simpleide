@@ -475,6 +475,8 @@ Partial Public Class MainWindow
             AddHandler pBottomPanelManager.RunRequested, AddressOf OnBuildOutputPanelRunRequested
             AddHandler pBottomPanelManager.StopRequested, AddressOf OnBuildOutputPanelStopRequested
             AddHandler pBottomPanelManager.FixErrorsRequested, Sub() OnFixBuildErrors(Nothing, EventArgs.Empty)
+            AddHandler pBottomPanelManager.AIFileCreated, AddressOf OnAIFileCreated
+            AddHandler pBottomPanelManager.AIFileModified, AddressOf OnAIFileModified
 
             ' Hook up notebook fix after window is realized
             AddHandler Me.Realized, AddressOf OnWindowRealizedForNotebooks            

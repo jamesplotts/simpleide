@@ -38,6 +38,10 @@ Namespace Managers
         Public Event SendErrorsToAI(vErrorsText As String)
         ''' <summary>Relayed from AIAssistantPanel.FixErrorsRequested (its own panel-local Fix Errors button)</summary>
         Public Event FixErrorsRequested()
+        ''' <summary>Relayed from AIAssistantPanel.FileCreated - a file the AI wrote to disk via an artifact action</summary>
+        Public Event AIFileCreated(vFilePath As String)
+        ''' <summary>Relayed from AIAssistantPanel.FileModified - a file the AI overwrote on disk via an artifact action</summary>
+        Public Event AIFileModified(vFilePath As String)
         Public Event ErrorDoubleClicked(vError As BuildError)
         ''' <summary>Relayed from BuildOutputPanel.BuildRequested (its own panel-local Build button)</summary>
         Public Event BuildRequested()
@@ -573,6 +577,16 @@ Namespace Managers
                 AddHandler pAIAssistantPanel.FixErrorsRequested,
                     Sub()
                         RaiseEvent FixErrorsRequested()
+                    End Sub
+
+                AddHandler pAIAssistantPanel.FileCreated,
+                    Sub(vFilePath As String)
+                        RaiseEvent AIFileCreated(vFilePath)
+                    End Sub
+
+                AddHandler pAIAssistantPanel.FileModified,
+                    Sub(vFilePath As String)
+                        RaiseEvent AIFileModified(vFilePath)
                     End Sub
 
                 ' Add to notebook with icon

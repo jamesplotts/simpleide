@@ -198,9 +198,15 @@ Namespace Utilities
             lBuilder.AppendLine("Type: code|documentation|html|react")
             lBuilder.AppendLine("Title: Descriptive Title")
             lBuilder.AppendLine("Language: vb|markdown|html|jsx")
+            lBuilder.AppendLine("FilePath: path/relative/to/project/root.vb")
             lBuilder.AppendLine("---")
             lBuilder.AppendLine("(artifact Content here)")
             lBuilder.AppendLine("```")
+            lBuilder.AppendLine("Only include the FilePath line when this code should actually be written to disk " &
+                                 "at that path (creating it if it doesn't exist, overwriting it if it does) - use the " &
+                                 "exact path shown under 'current file' in the context below when modifying it, or a " &
+                                 "new path relative to the project root when creating a file. Omit FilePath entirely " &
+                                 "for exploratory snippets or explanations that shouldn't touch disk.")
             lBuilder.AppendLine()
 
             ' Add project context if available

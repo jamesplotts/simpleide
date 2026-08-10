@@ -706,4 +706,39 @@ Partial Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Handles a file the AI assistant created on disk (via BottomPanelManager.AIFileCreated,
+    ''' relayed from AIAssistantPanel.FileCreated) - brings the new file into view the same way
+    ''' any other newly-created file would be
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI wrote</param>
+    Private Sub OnAIFileCreated(vFilePath As String)
+        Try
+            RefreshProjectExplorer()
+            OpenFile(vFilePath)
+        Catch ex As Exception
+            Console.WriteLine($"OnAIFileCreated error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Handles a file the AI assistant overwrote on disk (via BottomPanelManager.AIFileModified,
+    ''' relayed from AIAssistantPanel.FileModified) - if the file has an open tab, its buffer is
+    ''' now stale (the write went straight to disk, bypassing the editor), so it's reloaded from
+    ''' disk; otherwise the file is opened so the change is visible
+    ''' </summary>
+    ''' <param name="vFilePath">Full path to the file the AI overwrote</param>
+    Private Sub OnAIFileModified(vFilePath As String)
+        Try
+            If pOpenTabs.ContainsKey(vFilePath) Then
+                Dim lTabInfo As TabInfo = pOpenTabs(vFilePath)
+                lTabInfo.Editor.SourceFileInfo.LoadContent()
+            Else
+                OpenFile(vFilePath)
+            End If
+        Catch ex As Exception
+            Console.WriteLine($"OnAIFileModified error: {ex.Message}")
+        End Try
+    End Sub
+
 End Class
