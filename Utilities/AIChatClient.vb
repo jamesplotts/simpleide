@@ -287,6 +287,13 @@ Namespace Utilities
                                      "(declaration through its closing statement) rather than just its location. " &
                                      "Name is always the bare (unqualified) symbol name, e.g. 'JoinLines' not " &
                                      "'CustomDrawingEditor.JoinLines'.")
+                lBuilder.AppendLine("Use Query: ReadFile to read an entire file's exact current content instead of " &
+                                     "just one symbol - for ReadFile, Name is a file path (relative to the project " &
+                                     "root, or the exact path shown under 'current file' below) rather than a symbol " &
+                                     "name. Always prefer ReadFile/GetSource over relying on a file's content from " &
+                                     "earlier in the conversation or from training knowledge - the user may have " &
+                                     "edited it since, including unsaved changes not yet on disk, and these queries " &
+                                     "always return its true current state.")
                 lBuilder.AppendLine()
             End If
 

@@ -251,16 +251,34 @@ Namespace Utilities
         End Function
         
         ' Read file content
+        ''' <summary>
+        ''' Reads a project file's CURRENT content. If the file is open in an editor tab, that
+        ''' means the live in-memory buffer (unsaved edits included) - ProjectManager.
+        ''' GetSourceFileInfo returns the exact same SourceFileInfo instance the editor mutates
+        ''' on every keystroke, so this never returns stale disk content for a file being
+        ''' actively (and not yet saved) edited. Falls back to a plain disk read for files
+        ''' outside the project (or when no ProjectManager is wired)
+        ''' </summary>
+        ''' <param name="vRelativePath">Path relative to the project root, or an absolute path</param>
         Public Function ReadFile(vRelativePath As String) As String
             Try
+                If String.IsNullOrWhiteSpace(vRelativePath) Then Return "No file path was given."
+
                 Dim lFullPath As String = GetFullPath(vRelativePath)
-                
+
+                If pProjectManager IsNot Nothing Then
+                    Dim lTrackedFile As SourceFileInfo = pProjectManager.GetSourceFileInfo(lFullPath)
+                    If lTrackedFile IsNot Nothing AndAlso lTrackedFile.TextLines IsNot Nothing Then
+                        Return String.Join(Environment.NewLine, lTrackedFile.TextLines)
+                    End If
+                End If
+
                 If Not File.Exists(lFullPath) Then
                     Return $"error: File not found: {vRelativePath}"
                 End If
-                
+
                 Return File.ReadAllText(lFullPath)
-                
+
             Catch ex As Exception
                 Return $"error reading file: {ex.Message}"
             End Try

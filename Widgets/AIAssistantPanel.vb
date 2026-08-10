@@ -179,8 +179,10 @@ Namespace Widgets
                         Return pFileSystemBridge.FindSymbolLocations(vName)
                     Case "getsource"
                         Return pFileSystemBridge.GetSymbolSource(vName)
+                    Case "readfile"
+                        Return pFileSystemBridge.ReadFile(vName)
                     Case Else
-                        Return $"Unknown lookup Query type '{vQueryType}' - use FindLocation or GetSource."
+                        Return $"Unknown lookup Query type '{vQueryType}' - use FindLocation, GetSource, or ReadFile."
                 End Select
             Catch ex As Exception
                 Console.WriteLine($"AIAssistantPanel.HandleSymbolLookup error: {ex.Message}")
