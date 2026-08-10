@@ -992,24 +992,33 @@ Namespace Managers
                 ' Case 1: Names Match (Merging contents of two same-named nodes)
                 If vSourceNamespace.Name = vTargetNamespace.Name Then
                     For Each lChild In vSourceNamespace.Children
-                        ' Try to find matching child in Target
-                        ' We primarily check for Namespaces to merge them.
-                        ' For other types, duplicate names might be valid (overloads) or partials (which should be merged but complex here).
-                        Dim lMatchingChild As SimpleSyntaxNode = Nothing
-                        
-                        If lChild.NodeType = CodeNodeType.eNamespace Then
-                            lMatchingChild = vTargetNamespace.Children.FirstOrDefault(Function(c) _
-                                c.NodeType = CodeNodeType.eNamespace AndAlso
-                                String.Equals(c.Name, lChild.Name, StringComparison.OrdinalIgnoreCase))
-                        End If
-                        
-                        If lMatchingChild IsNot Nothing Then
-                            ' Merge recursively
-                            MergeNamespaceContents(lChild, lMatchingChild)
-                        Else
-                            ' Just add
-                            vTargetNamespace.AddChild(lChild)
-                        End If
+                        Select Case lChild.NodeType
+                            Case CodeNodeType.eNamespace
+                                ' Nested namespace - find/merge into a same-named namespace sibling
+                                Dim lMatchingChild As SimpleSyntaxNode = vTargetNamespace.Children.FirstOrDefault(Function(c) _
+                                    c.NodeType = CodeNodeType.eNamespace AndAlso
+                                    String.Equals(c.Name, lChild.Name, StringComparison.OrdinalIgnoreCase))
+
+                                If lMatchingChild IsNot Nothing Then
+                                    ' Merge recursively
+                                    MergeNamespaceContents(lChild, lMatchingChild)
+                                Else
+                                    ' Just add
+                                    vTargetNamespace.AddChild(lChild)
+                                End If
+
+                            Case CodeNodeType.eClass, CodeNodeType.eModule, CodeNodeType.eInterface,
+                                 CodeNodeType.eStructure, CodeNodeType.eEnum, CodeNodeType.eDelegate
+                                ' Partial types declared inside an explicit Namespace block (the
+                                ' common case for every folder other than the root namespace) need
+                                ' the same same-name/same-type merge MergeTypeIntoNamespace already
+                                ' does for root-namespace types - otherwise each file contributing
+                                ' to a partial class produces its own duplicate sibling node here
+                                MergeTypeIntoNamespace(lChild, vTargetNamespace)
+
+                            Case Else
+                                vTargetNamespace.AddChild(lChild)
+                        End Select
                     Next
                 Else
                     ' Case 2: Names Don't Match (vSourceNamespace is a child to be added to vTargetNamespace)
