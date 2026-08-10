@@ -225,6 +225,15 @@ Namespace Widgets
                     SetMenuItemSensitivity("Exclude From Project", False)
                 End If
 
+                ' OnContextMenuRename is file-only (File.Move-based, "Rename File" dialog) - a
+                ' plain folder isn't covered by the eProject/eSolution/eSpecial check above, so
+                ' without this "Rename..." stayed clickable for folders and silently did nothing
+                ' (the handler's own first guard just returns for a non-file node). Delete/
+                ' Exclude are unaffected - both already work for folders
+                If Not lIsFile AndAlso Not lIsProject AndAlso Not lIsSolution AndAlso Not lIsSpecial Then
+                    SetMenuItemSensitivity("Rename...", False)
+                End If
+
                 ' Add items only for folders
                 If lIsFile Then
                     SetMenuItemSensitivity("Add", False)
