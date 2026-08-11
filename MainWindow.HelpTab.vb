@@ -87,9 +87,14 @@ Partial Public Class MainWindow
 
             pNotebook.CurrentPage = pNotebook.NPages - 1
 
-            ' Store in dictionary
+            ' Store in dictionary - also register under pOpenTabs (like Scratchpad/Manifest
+            ' tabs) so OnCustomNotebookTabClosed's already-existing "help:" cleanup branch
+            ' (which otherwise never runs, since it only ever searches pOpenTabs) actually
+            ' fires when this tab is closed via its own close button, instead of leaving a
+            ' stale pHelpTabs entry and never disposing the HelpBrowser/its event handlers
             pHelpTabs(lHelpTabId) = lTabInfo
-            
+            pOpenTabs($"help:{lHelpTabId}") = lTabInfo
+
             ' Update UI
             UpdateStatusBar($"Opened help: {lTabTitle}")
             UpdateToolbarButtons()
@@ -145,23 +150,17 @@ Partial Public Class MainWindow
     Private Sub UpdateHelpTabTitle(vHelpTabId As String, vTitle As String)
         Try
             If Not pHelpTabs.ContainsKey(vHelpTabId) Then Return
-            
+
             Dim lTabInfo As TabInfo = pHelpTabs(vHelpTabId)
-            If TypeOf lTabInfo.TabLabel Is Box Then
-                Dim lBox As Box = CType(lTabInfo.TabLabel, Box)
-                
-                ' Find and update the label
-                For Each lChild As Widget In lBox.Children
-                    If TypeOf lChild Is Label AndAlso lChild.Name = $"help_tab_label_{vHelpTabId}" Then
-                        Dim lLabel As Label = CType(lChild, Label)
-                        ' Truncate title if too long
-                        Dim lDisplayTitle As String = If(vTitle.Length > 30, vTitle.Substring(0, 27) & "...", vTitle)
-                        lLabel.Text = $"Help: {lDisplayTitle}"
-                        Exit For
-                    End If
-                Next
-            End If
-            
+            If lTabInfo.EditorContainer Is Nothing Then Return
+
+            ' CreateHelpTabLabel's Box is never actually attached as this tab's label -
+            ' AppendPage was called with a plain string, so the notebook drew its own
+            ' default label/close button - the real tab label can only be renamed through
+            ' CustomDrawNotebook's own API, keyed by widget identity
+            Dim lDisplayTitle As String = If(vTitle.Length > 30, vTitle.Substring(0, 27) & "...", vTitle)
+            pNotebook.SetTabLabelText(lTabInfo.EditorContainer, $"Help: {lDisplayTitle}")
+
         Catch ex As Exception
             Console.WriteLine($"UpdateHelpTabTitle error: {ex.Message}")
         End Try
@@ -187,7 +186,8 @@ Partial Public Class MainWindow
             
             ' Remove from dictionary
             pHelpTabs.Remove(vHelpTabId)
-            
+            pOpenTabs.Remove($"help:{vHelpTabId}")
+
             ' Dispose
             lTabInfo.Dispose()
             

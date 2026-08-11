@@ -26,11 +26,17 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub OnEditPreferences(vSender As Object, vArgs As EventArgs)
         Try
-            ' Check if preferences tab is already open
-            If pPreferencesTab IsNot Nothing AndAlso pPreferencesTabIndex >= 0 Then
-                ' Preferences tab already exists, just switch to it
-                pNotebook.CurrentPage = pPreferencesTabIndex
-                Return
+            ' Check if preferences tab is already open - find its current page by widget
+            ' identity rather than trusting pPreferencesTabIndex, which is only ever set
+            ' once at creation time and goes stale the moment any other tab positioned
+            ' before it is opened/closed and shifts every later page's index
+            If pPreferencesTab IsNot Nothing Then
+                For i As Integer = 0 To pNotebook.NPages - 1
+                    If pNotebook.GetNthPage(i) Is pPreferencesTab Then
+                        pNotebook.CurrentPage = i
+                        Return
+                    End If
+                Next
             End If
             
             ' Create new preferences tab

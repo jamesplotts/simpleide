@@ -209,7 +209,10 @@ Partial Public Class MainWindow
         
         Dim lSeparator3 As New Separator(Orientation.Vertical)
         CssHelper.ApplyCssToWidget(lSeparator3, lSeparatorCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
-        
+
+        Dim lSeparator4 As New Separator(Orientation.Vertical)
+        CssHelper.ApplyCssToWidget(lSeparator4, lSeparatorCss, CssHelper.STYLE_PROVIDER_PRIORITY_USER)
+
         ' Pack right side panels
         lRightPanelsBox.PackStart(lSeparator1, False, False, 0)
         lRightPanelsBox.PackStart(lLineColumnBox, False, False, 0)
@@ -217,7 +220,7 @@ Partial Public Class MainWindow
         lRightPanelsBox.PackStart(pLanguageLabel, False, False, 0)
         lRightPanelsBox.PackStart(lSeparator3, False, False, 0)
         lRightPanelsBox.PackStart(lGitEventBox, False, False, 0)
-        lRightPanelsBox.PackStart(lSeparator3, False, False, 0)
+        lRightPanelsBox.PackStart(lSeparator4, False, False, 0)
         lRightPanelsBox.PackStart(pEncodingLabel, False, False, 0)
         
         ' Pack everything into main status container

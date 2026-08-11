@@ -377,21 +377,20 @@ Partial Public Class MainWindow
     Private Sub OutputToPanel(vText As String)
         Try
             If pBuildOutputPanel IsNot Nothing Then
-                pBuildOutputPanel.AppendOutput($"ERROR: {vText}" & Environment.NewLine, "error")
+                pBuildOutputPanel.AppendOutput(vText & Environment.NewLine)
             End If
         Catch ex As Exception
             Console.WriteLine($"OutputToPanel error: {ex.Message}")
         End Try
     End Sub
-    
+
     ''' <summary>
     ''' Output error text to the build output panel
     ''' </summary>
     Private Sub OutputErrorToPanel(vText As String)
         Try
             If pBuildOutputPanel IsNot Nothing Then
-                ' Could format as error (e.g., red text) if supported
-                pBuildOutputPanel.AppendOutput($"ERROR: {vText}" & Environment.NewLine)
+                pBuildOutputPanel.AppendOutput($"ERROR: {vText}" & Environment.NewLine, "error")
             End If
         Catch ex As Exception
             Console.WriteLine($"OutputErrorToPanel error: {ex.Message}")

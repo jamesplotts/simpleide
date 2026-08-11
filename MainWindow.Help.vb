@@ -240,8 +240,10 @@ Partial Public Class MainWindow
 
             pNotebook.CurrentPage = pNotebook.NPages - 1
 
-            ' Store in dictionary
+            ' Store in dictionary - also register under pOpenTabs (see OpenHelpTab's matching
+            ' comment in MainWindow.HelpTab.vb) so this tab's close-cleanup actually runs
             pHelpTabs(lHelpTabId) = lTabInfo
+            pOpenTabs($"help:{lHelpTabId}") = lTabInfo
 
             ' Update UI
             UpdateStatusBar($"Viewing: {vTitle}")
