@@ -31,6 +31,7 @@ Namespace Widgets
         Private pColorSwatches As New Dictionary(Of EditorTheme.Tags, DrawingArea)
         Private pThemeNameLabel As Label
         Private pOpenFolderButton As CustomDrawButton
+        Private pCopyButton As CustomDrawButton
         Private pImportButton As CustomDrawButton
         Private pSaveButton As CustomDrawButton
         Private pApplyButton As CustomDrawButton
@@ -108,6 +109,11 @@ Namespace Widgets
                 lNewButton.ThemeManager = pThemeManager
                 AddHandler lNewButton.Clicked, AddressOf OnNewTheme
                 lThemeButtonBox.PackStart(lNewButton, True, True, 0)
+
+                pCopyButton = New CustomDrawButton("Copy Theme")
+                pCopyButton.ThemeManager = pThemeManager
+                AddHandler pCopyButton.Clicked, AddressOf OnCopyTheme
+                lThemeButtonBox.PackStart(pCopyButton, True, True, 0)
 
                 pOpenFolderButton = New CustomDrawButton("Open Folder")
                 pOpenFolderButton.ThemeManager = pThemeManager
@@ -1003,7 +1009,7 @@ Namespace Widgets
                 
                 ' Copy theme item
                 Dim lCopyItem As New MenuItem("Copy Theme")
-                AddHandler lCopyItem.Activated, AddressOf OnContextMenuCopyTheme
+                AddHandler lCopyItem.Activated, AddressOf OnCopyTheme
                 pThemeContextMenu.Append(lCopyItem)
                 
                 ' Export theme item - ADD THIS
@@ -1097,13 +1103,17 @@ Namespace Widgets
         End Sub
         
         ''' <summary>
-        ''' Handles duplicate theme from context menu
+        ''' Handles copying (duplicating) a theme to a new theme, from either the "Copy
+        ''' Theme" button or the theme list's right-click context menu
         ''' </summary>
-        Private Sub OnContextMenuCopyTheme(vSender As Object, vArgs As EventArgs)
+        Private Sub OnCopyTheme(vSender As Object, vArgs As EventArgs)
             Try
                 Dim lSelectedItem As ListBoxItem = pThemeListBox.SelectedItem
-                If lSelectedItem Is Nothing Then Return
-                
+                If lSelectedItem Is Nothing Then
+                    ShowError("Copy Theme", "Select a theme in the list first.")
+                    Return
+                End If
+
                 Dim lThemeName As String = lSelectedItem.Text
                 If String.IsNullOrEmpty(lThemeName) Then Return
                 
