@@ -32,6 +32,7 @@ Namespace Widgets
         Private pThemeNameLabel As Label
         Private pOpenFolderButton As CustomDrawButton
         Private pCopyButton As CustomDrawButton
+        Private pRenameButton As CustomDrawButton
         Private pImportButton As CustomDrawButton
         Private pSaveButton As CustomDrawButton
         Private pApplyButton As CustomDrawButton
@@ -104,7 +105,7 @@ Namespace Widgets
                 
                 ' Theme control buttons
                 Dim lThemeButtonBox As New Box(Orientation.Horizontal, 5)
-                
+
                 Dim lNewButton As New CustomDrawButton("New Theme")
                 lNewButton.ThemeManager = pThemeManager
                 AddHandler lNewButton.Clicked, AddressOf OnNewTheme
@@ -115,12 +116,22 @@ Namespace Widgets
                 AddHandler pCopyButton.Clicked, AddressOf OnCopyTheme
                 lThemeButtonBox.PackStart(pCopyButton, True, True, 0)
 
+                lLeftBox.PackStart(lThemeButtonBox, False, False, 0)
+
+                ' Second row - rename (custom themes only) and the folder shortcut
+                Dim lThemeButtonBox2 As New Box(Orientation.Horizontal, 5)
+
+                pRenameButton = New CustomDrawButton("Rename Theme")
+                pRenameButton.ThemeManager = pThemeManager
+                AddHandler pRenameButton.Clicked, AddressOf OnRenameTheme
+                lThemeButtonBox2.PackStart(pRenameButton, True, True, 0)
+
                 pOpenFolderButton = New CustomDrawButton("Open Folder")
                 pOpenFolderButton.ThemeManager = pThemeManager
                 AddHandler pOpenFolderButton.Clicked, AddressOf OnOpenFolder
-                lThemeButtonBox.PackStart(pOpenFolderButton, True, True, 0)
+                lThemeButtonBox2.PackStart(pOpenFolderButton, True, True, 0)
 
-                lLeftBox.PackStart(lThemeButtonBox, False, False, 0)
+                lLeftBox.PackStart(lThemeButtonBox2, False, False, 0)
 
                 ' Import button
                 pImportButton = New CustomDrawButton("Import Theme...")
@@ -1011,7 +1022,12 @@ Namespace Widgets
                 Dim lCopyItem As New MenuItem("Copy Theme")
                 AddHandler lCopyItem.Activated, AddressOf OnCopyTheme
                 pThemeContextMenu.Append(lCopyItem)
-                
+
+                ' Rename theme item - custom themes only
+                Dim lRenameItem As New MenuItem("Rename Theme")
+                AddHandler lRenameItem.Activated, AddressOf OnRenameTheme
+                pThemeContextMenu.Append(lRenameItem)
+
                 ' Export theme item - ADD THIS
                 Dim lExportItem As New MenuItem("Export Theme...")
                 AddHandler lExportItem.Activated, AddressOf OnContextMenuExportTheme
@@ -1180,7 +1196,86 @@ Namespace Widgets
                 lDialog.Destroy()
                 
             Catch ex As Exception
-                Console.WriteLine($"ThemeEditor.OnContextMenuCopyTheme error: {ex.Message}")
+                Console.WriteLine($"ThemeEditor.OnCopyTheme error: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' Handles renaming a custom theme in place, from either the "Rename Theme" button
+        ''' or the theme list's right-click context menu. Built-in themes cannot be renamed.
+        ''' </summary>
+        Private Sub OnRenameTheme(vSender As Object, vArgs As EventArgs)
+            Try
+                Dim lSelectedItem As ListBoxItem = pThemeListBox.SelectedItem
+                If lSelectedItem Is Nothing Then
+                    ShowError("Rename Theme", "Select a theme in the list first.")
+                    Return
+                End If
+
+                Dim lThemeName As String = lSelectedItem.Text
+                If String.IsNullOrEmpty(lThemeName) Then Return
+
+                If Not IsCustomTheme(lThemeName) Then
+                    ShowError("Rename Theme", $"'{lThemeName}' is a built-in theme and cannot be renamed.")
+                    Return
+                End If
+
+                ' Create dialog for the new name
+                Dim lDialog As New Dialog("Rename Theme", Me.Toplevel,
+                    DialogFlags.Modal Or DialogFlags.DestroyWithParent)
+
+                lDialog.SetDefaultSize(350, 150)
+
+                Dim lContent As Box = CType(lDialog.ContentArea, Box)
+                lContent.BorderWidth = 10
+
+                Dim lBox As New Box(Orientation.Vertical, 5)
+                lBox.PackStart(New Label("New Name:"), False, False, 0)
+
+                Dim lEntry As New CustomDrawTextBox()
+                lEntry.Text = lThemeName
+                lEntry.ThemeManager = pThemeManager
+                lBox.PackStart(lEntry, False, False, 0)
+
+                lContent.PackStart(lBox, True, True, 0)
+
+                Dim lButtonBox As New Box(Orientation.Horizontal, 6)
+                lButtonBox.Halign = Align.End
+                Dim lCancelButton As New CustomDrawButton("Cancel")
+                lCancelButton.ThemeManager = pThemeManager
+                AddHandler lCancelButton.Clicked, Sub() lDialog.Respond(ResponseType.Cancel)
+                lButtonBox.PackStart(lCancelButton, False, False, 0)
+                Dim lRenameButton As New CustomDrawButton("Rename")
+                lRenameButton.ThemeManager = pThemeManager
+                AddHandler lRenameButton.Clicked, Sub() lDialog.Respond(ResponseType.Accept)
+                lButtonBox.PackStart(lRenameButton, False, False, 0)
+                lContent.PackStart(lButtonBox, False, False, 0)
+                AddHandler lEntry.Activated, Sub() lDialog.Respond(ResponseType.Accept)
+
+                lContent.ShowAll()
+                lEntry.GrabFocus()
+                lEntry.InnerEntry.SelectRegion(0, -1) ' Select all text
+
+                If lDialog.Run() = CInt(ResponseType.Accept) AndAlso Not String.IsNullOrWhiteSpace(lEntry.Text) Then
+                    Dim lNewThemeName As String = lEntry.Text.Trim()
+
+                    If lNewThemeName <> lThemeName Then
+                        If pThemeManager.GetAvailableThemes().Contains(lNewThemeName) Then
+                            ShowError("Rename Theme", $"A theme named '{lNewThemeName}' already exists.")
+                        ElseIf pThemeManager.RenameTheme(lThemeName, lNewThemeName) Then
+                            LoadThemes()
+                            SelectTheme(lNewThemeName)
+                            UpdateStatusMessage($"Theme renamed to '{lNewThemeName}'.")
+                        Else
+                            ShowError("Rename Failed", $"Failed to rename theme '{lThemeName}'.")
+                        End If
+                    End If
+                End If
+
+                lDialog.Destroy()
+
+            Catch ex As Exception
+                Console.WriteLine($"ThemeEditor.OnRenameTheme error: {ex.Message}")
             End Try
         End Sub
         
@@ -1446,6 +1541,8 @@ Namespace Widgets
                         Dim lMenuItem As MenuItem = DirectCast(lItem, MenuItem)
                         Select Case lMenuItem.Label
                             Case "Delete Theme"
+                                lMenuItem.Sensitive = lIsCustom
+                            Case "Rename Theme"
                                 lMenuItem.Sensitive = lIsCustom
                             Case "Copy Theme"
                                 lMenuItem.Sensitive = True
