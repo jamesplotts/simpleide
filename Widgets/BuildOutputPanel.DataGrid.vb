@@ -202,8 +202,14 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"ShowBuildResultDataGrid error: {ex.Message}")
-                ' Fallback to TreeView implementation
-                ShowBuildResult(vResult, vProjectRoot)
+                ' There is no separate TreeView implementation anymore (removed when this panel
+                ' was converted to CustomDrawDataGrid) - ShowBuildResult (BuildOutputPanel.vb)
+                ' does nothing but call straight back into this method with the same arguments,
+                ' so the "fallback" this comment used to describe was actually unconditional
+                ' mutual recursion: a deterministic exception here (malformed BuildError/Warning
+                ' data, a grid API rejecting a particular value, etc.) would call these two
+                ' methods back and forth until a StackOverflowException, which is unrecoverable
+                ' in .NET and crashes the entire IDE process instead of just losing this display
             End Try
         End Sub
         
