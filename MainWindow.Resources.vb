@@ -117,9 +117,9 @@ Partial Public Class MainWindow
             Select Case vResourceType.ToLower()
                 Case "image"
                     AddImageResource()
-                Case "IcOn"
+                Case "icon"
                     AddIconResource()
-                Case "Text"
+                Case "text"
                     AddTextResource()
                 Case "resx"
                     AddResxResource()

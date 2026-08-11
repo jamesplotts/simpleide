@@ -148,6 +148,11 @@ Partial Public Class MainWindow
                                 ' comment), leaving the "Loading projects..." placeholder up
                                 ' until AllFilesParseCompleted fires and the real multi-root
                                 ' solution tree replaces it wholesale
+                                ' RemoveHandler first: if a prior solution load's own AddHandler
+                                ' here was never matched by a RemoveHandler (e.g. that load's
+                                ' AllFilesParseCompleted never fired), this call would otherwise
+                                ' double-subscribe OnStartupProjectAllFilesParsed
+                                RemoveHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
                                 AddHandler pProjectManager.AllFilesParseCompleted, AddressOf OnStartupProjectAllFilesParsed
                                 pSolutionStartupLoadPending = True
                                 LoadProjectEnhanced(lStartupPath)
