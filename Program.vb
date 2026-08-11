@@ -22,15 +22,11 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(lCurrentDir)
             
             If lProjectFile Is Nothing Then
-                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
-                #End If
                 Return
             End If
             
-            #If DEBUG Then
             Console.WriteLine($"Exporting context for: {lProjectFile}")
-            #End If
             
             ' Create AIFileSystemBridge to gather project info
             Dim lBridge As New Utilities.AIFileSystemBridge()
@@ -71,13 +67,9 @@ Module Program
             
             If vOutputFile IsNot Nothing Then
                 File.WriteAllText(vOutputFile, lOutput)
-                #If DEBUG Then
                 Console.WriteLine($"Context exported to: {vOutputFile}")
-                #End If
             Else
-                #If DEBUG Then
                 Console.WriteLine(lOutput)
-                #End If
             End If
             
         Catch ex As Exception
@@ -91,9 +83,7 @@ Module Program
     Private Sub ImportArtifact(vArtifactFile As String, vUseJson As Boolean)
         Try
             If Not File.Exists(vArtifactFile) Then
-                #If DEBUG Then
                 Console.WriteLine($"Artifact file not found: {vArtifactFile}")
-                #End If
                 Return
             End If
             
@@ -101,9 +91,7 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(Environment.CurrentDirectory)
             
             If lProjectFile Is Nothing Then
-                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
-                #End If
                 Return
             End If
             
@@ -130,17 +118,13 @@ Module Program
             If File.Exists(lTargetPath) Then
                 Console.Write($"File {lFileName} already exists. Overwrite? (y/n): ")
                 If Console.ReadLine().ToLower() <> "y" Then
-                    #If DEBUG Then
                     Console.WriteLine("Import cancelled")
-                    #End If
                     Return
                 End If
             End If
             
             File.WriteAllText(lTargetPath, lCode)
-            #If DEBUG Then
             Console.WriteLine($"Imported artifact to: {lTargetPath}")
-            #End If
             
             ' TODO: Add file to project file if it's a .vb file
             ' - Parse the .vbproj XML
@@ -158,9 +142,7 @@ Module Program
     ''' </summary>
     Private Sub UpdateAIKnowledge(vUseJson As Boolean)
         Try
-            #If DEBUG Then
             Console.WriteLine("Updating AI knowledge base...")
-            #End If
             
             ' TODO: Implement actual AI knowledge base update
             ' - Connect to AI knowledge storage system
@@ -176,9 +158,7 @@ Module Program
             )
             
             ExportProjectContext(lKnowledgeFile, True)
-            #If DEBUG Then
             Console.WriteLine($"Knowledge base updated: {lKnowledgeFile}")
-            #End If
             
         Catch ex As Exception
             Console.WriteLine($"Error updating knowledge: {ex.Message}")
@@ -193,18 +173,12 @@ Module Program
             Dim lProjectFile As String = AutoDetectProject(Environment.CurrentDirectory)
             
             If lProjectFile Is Nothing Then
-                #If DEBUG Then
                 Console.WriteLine("No project found in current directory")
-                #End If
                 Return
             End If
             
-            #If DEBUG Then
             Console.WriteLine($"Analyzing project: {Path.GetFileName(lProjectFile)}")
-            #End If
-            #If DEBUG Then
             Console.WriteLine($"Analysis type: {vType}")
-            #End If
             
             Dim lResults As New Dictionary(Of String, Object)
             lResults("project") = lProjectFile
@@ -229,12 +203,8 @@ Module Program
                     lResults("security") = AnalyzeSecurity(lProjectFile)
                     
                 Case Else
-                    #If DEBUG Then
                     Console.WriteLine($"Unknown analysis type: {vType}")
-                    #End If
-                    #If DEBUG Then
                     Console.WriteLine("Valid types: errors, structure, quality, security, all")
-                    #End If
                     Return
             End Select
             
@@ -248,13 +218,9 @@ Module Program
             
             If vOutputFile IsNot Nothing Then
                 File.WriteAllText(vOutputFile, lOutput)
-                #If DEBUG Then
                 Console.WriteLine($"Analysis results saved to: {vOutputFile}")
-                #End If
             Else
-                #If DEBUG Then
                 Console.WriteLine(lOutput)
-                #End If
             End If
             
         Catch ex As Exception
@@ -267,12 +233,8 @@ Module Program
     ''' </summary>
     Private Sub GenerateCode(vType As String, vOutputFile As String, vUseJson As Boolean)
         Try
-            #If DEBUG Then
             Console.WriteLine($"Code generation type: {vType}")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("Note: This feature requires AI integration to be configured in the IDE")
-            #End If
             
             ' TODO: Implement actual code generation with AI
             ' - Connect to Claude API or other AI service
@@ -282,9 +244,7 @@ Module Program
             
             Select Case vType.ToLower()
                 Case "tests"
-                    #If DEBUG Then
                     Console.WriteLine("Generating unit test templates...")
-                    #End If
                     ' TODO: Implement test generation
                     ' - Analyze public methods and classes
                     ' - Generate NUnit/XUnit test fixtures
@@ -292,9 +252,7 @@ Module Program
                     ' - Add assertions based on method signatures
                     
                 Case "docs"
-                    #If DEBUG Then
                     Console.WriteLine("Generating documentation...")
-                    #End If
                     ' TODO: Implement documentation generation
                     ' - Parse all public APIs
                     ' - Generate XML documentation comments
@@ -302,9 +260,7 @@ Module Program
                     ' - Generate API documentation
                     
                 Case "interface"
-                    #If DEBUG Then
                     Console.WriteLine("Generating interface definitions...")
-                    #End If
                     ' TODO: Implement interface extraction
                     ' - Analyze all public classes
                     ' - Extract public methods and properties
@@ -312,9 +268,7 @@ Module Program
                     ' - Optionally refactor classes to implement interfaces
                     
                 Case "refactor"
-                    #If DEBUG Then
                     Console.WriteLine("Generating refactoring suggestions...")
-                    #End If
                     ' TODO: Implement refactoring analysis
                     ' - Identify code smells
                     ' - Suggest design pattern applications
@@ -322,12 +276,8 @@ Module Program
                     ' - Suggest method/class reorganization
                     
                 Case Else
-                    #If DEBUG Then
                     Console.WriteLine($"Unknown generation type: {vType}")
-                    #End If
-                    #If DEBUG Then
                     Console.WriteLine("Valid types: tests, docs, interface, refactor")
-                    #End If
             End Select
             
         Catch ex As Exception
@@ -340,12 +290,8 @@ Module Program
     ''' </summary>
     Private Sub FixCompilationErrors(vUseJson As Boolean)
         Try
-            #If DEBUG Then
             Console.WriteLine("Analyzing compilation errors...")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("Note: This feature requires AI integration to be configured")
-            #End If
             
             ' TODO: Implement actual error fixing with AI
             ' - Run dotnet build and capture all errors
@@ -355,21 +301,11 @@ Module Program
             ' - Re-run build to verify fixes
             ' - Report success/failure for each fix
             
-            #If DEBUG Then
             Console.WriteLine("Would attempt to fix:")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("  - Missing imports")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("  - Type mismatches")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("  - Syntax errors")
-            #End If
-            #If DEBUG Then
             Console.WriteLine("  - Missing references")
-            #End If
             
         Catch ex As Exception
             Console.WriteLine($"Error fixing compilation errors: {ex.Message}")
@@ -954,165 +890,59 @@ Module Program
     ''' Display help information
     ''' </summary>
     Private Sub ShowHelp()
-        #If DEBUG Then
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Usage: VbIDE [options] [project-file] [files...]")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Options:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -h, --help              Show this help message and exit")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -v, --version           Show version information and exit")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --license           Show license information and exit")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Project Options:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -p, --project FILE      Load specified project file")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -n, --new-project NAME  Create a new project with the given name")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -t, --project-type TYPE Set project type (Console|Library|GTK) [default: GTK]")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -o, --open FILE         Open specified file(s) in editor")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --list-projects     List recently opened projects and exit")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Window Options:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  -m, --maximize          Start with maximized window")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --minimize          Start with minimized window")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Maintenance Options:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --safe-mode         Start without loading extensions or custom settings")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --reset-settings    Reset all settings to defaults")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --clean             Clean all build artifacts in current directory")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --test-mode         Run in test mode and exit automatically")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --test-delay MS     Set test mode exit delay in milliseconds (default: 5000)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("AI Integration Options:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --export-context    Export project context for AI analysis")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --import-artifact FILE Import AI-generated artifact into project")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --update-knowledge  Update AI knowledge base with current project")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --analyze [TYPE]    Analyze project (errors|structure|quality|security)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --generate TYPE     Generate code (tests|docs|interface|refactor)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --fix-errors        Attempt to auto-fix compilation errors")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --headless          Run without GUI (for automation)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --json              Output in JSON format (for parsing)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("      --output FILE       Write output to file instead of console")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Examples:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE                           # Auto-detect project/solution in current directory")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE MyProject.vbproj          # Open specific project")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE MySolution.sln            # Open specific solution (all member projects)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE Program.vb Module1.vb     # Open files without project")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE -n MyApp -t Console       # Create new console application")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VbIDE -p ~/projects/App.vbproj  # Open project from specific path")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Environment Variables:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VBIDE_SETTINGS_PATH    Override default settings location")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VBIDE_THEME            Set color theme (Dark|Light|System)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  VBIDE_DEBUG            Enable debug logging (1|true)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("When launched without arguments in a directory containing a .sln or .vbproj")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("file, the IDE will automatically load it (a .sln takes priority).")
-        #End If
     End Sub
     
     ''' <summary>
@@ -1124,171 +954,65 @@ Module Program
         Dim v As String = assembly.FullName
        ' Console.WriteLine("Assembly Version: " & version.ToString())   
 
-        #If DEBUG Then
         Console.WriteLine($"{v}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"Build: {ApplicationVersion.BuildNumber}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"Date: {ApplicationVersion.BuildDate:yyyy-MM-dd}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Runtime Information:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"  .NET Version: {Environment.Version}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"  OS: {Environment.OSVersion}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"  Machine: {Environment.MachineName}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine($"  Processors: {Environment.ProcessorCount}")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Copyright (C) 2026 VbIDE Contributors")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Licensed under the MIT License - See --license for details")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("For more information, visit: https://github.com/jamesplotts/simpleide")
-        #End If
     End Sub
     
     ''' <summary>
     ''' Display license information
     ''' </summary>
     Private Sub ShowLicense()
-        #If DEBUG Then
         Console.WriteLine($"{APPLICATION_NAME} - Lightweight VB.NET IDE for Linux")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Copyright (c) 2025-2026 James Duane Plotts")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Repository: https://github.com/jamesplotts/simpleide")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("MIT License")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("Permission is hereby granted, free of charge, to any person obtaining a copy")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("of this software and associated documentation files (the ""Software""), to deal")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("in the Software without restriction, including without limitation the rights")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("to use, copy, modify, merge, publish, distribute, sublicense, and/or sell")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("copies of the Software, and to permit persons to whom the Software is")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("furnished to do so, subject to the following conditions:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("The above copyright notice and this permission notice shall be included in all")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("copies or substantial portions of the Software.")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("SOFTWARE.")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("================================================================================")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("This software includes the following third-party components:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("GTK# (LGPL v2.1)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  GTK# is a .NET binding for the GTK+ toolkit")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  https://github.com/GtkSharp/GtkSharp")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine(".NET Runtime (MIT License)")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("  https://github.com/dotnet/runtime")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("For the complete license text, see the LICENSE file in the repository:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("https://github.com/jamesplotts/simpleide/blob/main/LICENSE")
-        #End If
-        #If DEBUG Then
         Console.WriteLine()
-        #End If
-        #If DEBUG Then
         Console.WriteLine("To contribute to this project, visit:")
-        #End If
-        #If DEBUG Then
         Console.WriteLine("https://github.com/jamesplotts/simpleide")
-        #End If
     End Sub
     
     ''' <summary>
@@ -1376,28 +1100,20 @@ Module Program
     ''' </summary>
     Private Sub ListRecentProjects()
         Try
-            #If DEBUG Then
             Console.WriteLine("Recently opened projects:")
-            #End If
-            #If DEBUG Then
             Console.WriteLine()
-            #End If
             
             ' Create temporary settings manager to read recent projects
             Dim lSettingsManager As New SettingsManager()
             Dim lRecentProjects As List(Of String) = lSettingsManager.RecentProjects
             
             If lRecentProjects.Count = 0 Then
-                #If DEBUG Then
                 Console.WriteLine("  No recent projects")
-                #End If
             Else
                 for i As Integer = 0 To lRecentProjects.Count - 1
                     Dim lProject As String = lRecentProjects(i)
                     Dim lExists As String = If(File.Exists(lProject), "", " [NOT FOUND]")
-                    #If DEBUG Then
                     Console.WriteLine($"  {i + 1}. {lProject}{lExists}")
-                    #End If
                 Next
             End If
             
@@ -1412,9 +1128,7 @@ Module Program
     Private Sub CleanBuildArtifacts()
         Try
             Dim lCurrentDir As String = Environment.CurrentDirectory
-            #If DEBUG Then
             Console.WriteLine($"Cleaning build artifacts in: {lCurrentDir}")
-            #End If
             
             Dim lDirsToClean As String() = {"bin", "obj", ".vs"}
             Dim lCleaned As Integer = 0
@@ -1422,22 +1136,16 @@ Module Program
             for each lDirName in lDirsToClean
                 Dim lDirPath As String = Path.Combine(lCurrentDir, lDirName)
                 If Directory.Exists(lDirPath) Then
-                    #If DEBUG Then
                     Console.WriteLine($"  Removing: {lDirName}/")
-                    #End If
                     Directory.Delete(lDirPath, True)
                     lCleaned += 1
                 End If
             Next
             
             If lCleaned > 0 Then
-                #If DEBUG Then
                 Console.WriteLine($"Cleaned {lCleaned} directories")
-                #End If
             Else
-                #If DEBUG Then
                 Console.WriteLine("No build artifacts found to clean")
-                #End If
             End If
             
         Catch ex As Exception
