@@ -14,7 +14,12 @@ Partial Public Class MainWindow
     ' ===== Manifest Management =====
     
     Private pManifestEditor As ManifestEditor = Nothing
-    Private pManifestTabIndex As Integer = -1
+    ''' <summary>Special pOpenTabs key for the manifest editor tab - registering it there
+    ''' (like Scratchpad/Theme Editor do) is what makes CheckUnsavedChanges/CloseAllTabs
+    ''' prompt for it and OnCustomNotebookTabClosed clean it up when its own close button
+    ''' is used, instead of a raw notebook-page-index field that goes stale the moment any
+    ''' other tab is added/removed/reordered</summary>
+    Private Const MANIFEST_TAB_KEY As String = "manifest:app.manifest"
     
     ' Handle manifest selection from project explorer
     Private Sub OnManifestSelected()
@@ -48,29 +53,49 @@ Partial Public Class MainWindow
     ' Open manifest editor
     Private Sub OpenManifestEditor()
         Try
-            ' Check if already open
-            If pManifestTabIndex >= 0 AndAlso pManifestTabIndex < pNotebook.NPages Then
-                pNotebook.CurrentPage = pManifestTabIndex
-                Return
+            ' Check if already open - find its page by widget identity (the tab may have
+            ' been reordered, or other tabs added/removed, since it was opened)
+            If pOpenTabs.ContainsKey(MANIFEST_TAB_KEY) Then
+                Dim lExisting As TabInfo = pOpenTabs(MANIFEST_TAB_KEY)
+                For i As Integer = 0 To pNotebook.NPages - 1
+                    If pNotebook.GetNthPage(i) Is lExisting.EditorContainer Then
+                        pNotebook.CurrentPage = i
+                        Return
+                    End If
+                Next
+                ' Tab widget no longer in the notebook (closed through some other path) -
+                ' drop the stale entry and fall through to recreate it
+                pOpenTabs.Remove(MANIFEST_TAB_KEY)
             End If
-            
+
             ' Create new manifest editor - FIXED: Pass correct parameters
             pManifestEditor = New ManifestEditor(Me, pCurrentProject, pSettingsManager)
-            
+
             ' Handle events
             'AddHandler pManifestEditor.Modified, AddressOf OnManifestModified
             AddHandler pManifestEditor.SaveRequested, AddressOf OnManifestSaveRequested
-            
+
             ' Create tab
-            pManifestTabIndex = pNotebook.AppendPage(pManifestEditor, "app.manifest")
-            
+            pNotebook.AppendPage(pManifestEditor, "app.manifest")
+
             ' Show the tab
             pNotebook.ShowAll()
-            pNotebook.CurrentPage = pManifestTabIndex
-            
+            pNotebook.CurrentPage = pNotebook.NPages - 1
+
+            ' Register in pOpenTabs (like Scratchpad/Theme Editor tabs) so
+            ' CheckUnsavedChanges/CloseAllTabs prompt for unsaved manifest edits, and
+            ' OnCustomNotebookTabClosed cleans this up correctly when the tab's own close
+            ' button is used
+            Dim lTabInfo As New TabInfo()
+            lTabInfo.FilePath = MANIFEST_TAB_KEY
+            lTabInfo.Editor = Nothing  ' ManifestEditor doesn't implement IEditor
+            lTabInfo.EditorContainer = pManifestEditor
+            lTabInfo.Modified = False
+            pOpenTabs(MANIFEST_TAB_KEY) = lTabInfo
+
             ' Update status
             UpdateStatusBar("Opened application manifest")
-            
+
         Catch ex As Exception
             Console.WriteLine($"OpenManifestEditor error: {ex.Message}")
             ShowError("Open Manifest error", ex.Message)
@@ -138,11 +163,14 @@ Partial Public Class MainWindow
                 End If
                 
                 ' Remove from notebook
-                If pManifestTabIndex >= 0 Then
-                    pNotebook.RemovePage(pManifestTabIndex)
-                    pManifestTabIndex = -1
-                End If
-                
+                For i As Integer = 0 To pNotebook.NPages - 1
+                    If pNotebook.GetNthPage(i) Is pManifestEditor Then
+                        pNotebook.RemovePage(i)
+                        Exit For
+                    End If
+                Next
+                pOpenTabs.Remove(MANIFEST_TAB_KEY)
+
                 ' Clean up
                 pManifestEditor.Dispose()
                 pManifestEditor = Nothing

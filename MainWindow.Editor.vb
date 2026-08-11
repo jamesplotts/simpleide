@@ -508,6 +508,7 @@ Partial Public Class MainWindow
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
                 AddHandler lCustomEditor.NavigationUpdateRequested, AddressOf OnEditorNavigationUpdateRequested
                 AddHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
+                AddHandler lCustomEditor.IdentifierCaseChanged, AddressOf OnEditorIdentifierCaseChanged
             End If
 
             #If DEBUG Then

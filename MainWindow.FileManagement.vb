@@ -41,9 +41,12 @@ Partial Public Class MainWindow
 
             Select Case lResponse
                 Case ResponseType.Yes
-                    ' User wants to reload from disk
-                    lTabInfo.Editor.SourceFileInfo.LoadContent()
-                    'ReloadFileFromDisk(lTabInfo)
+                    ' User wants to reload from disk - go through IEditor.LoadContent (not
+                    ' SourceFileInfo.LoadContent directly), since the editor's version also
+                    ' clamps/resets the cursor, clears selection/undo history, and redraws;
+                    ' skipping that left the cursor able to point past the reloaded content's
+                    ' end and the view stale until an unrelated redraw happened to occur
+                    lTabInfo.Editor.LoadContent()
 
                 Case ResponseType.No
                     ' User wants to keep current version
