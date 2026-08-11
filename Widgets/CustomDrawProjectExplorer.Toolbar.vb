@@ -17,7 +17,6 @@ Namespace Widgets
         Private pRefreshButton As CustomDrawButton
         Private pCollapseAllButton As CustomDrawButton
         Private pExpandAllButton As CustomDrawButton
-        Private pCloseButton As CustomDrawButton
         Private pScaleLabel As Label
         Private pScaleCombo As CustomDrawComboBox
         
@@ -57,14 +56,6 @@ Namespace Widgets
                 CreateExpandCollapseButtons()
                 pToolbar.Add(New SeparatorToolItem())
                 CreateScaleControls()
-                
-                ' Add expanding separator to push close button to the right
-                Dim lExpandingSeparator As New SeparatorToolItem()
-                lExpandingSeparator.Draw = False
-                lExpandingSeparator.Expand = True
-                pToolbar.Add(lExpandingSeparator)
-                
-                CreateCloseButton()
 
                 ' Wrap in a Gtk.EventBox - a Gtk.ToolItem (the wrapper GTK creates around
                 ' each item added to a Toolbar, for its own drag-reorder support) realizes
@@ -213,19 +204,6 @@ Namespace Widgets
             End Try
         End Sub
         
-        ''' <summary>
-        ''' Creates the close button
-        ''' </summary>
-        Private Sub CreateCloseButton()
-            Try
-                pCloseButton = CreateToolbarButton("window-close", "Close Project Explorer")
-                AddHandler pCloseButton.Clicked, AddressOf OnCloseButtonClicked
-
-            Catch ex As Exception
-                Console.WriteLine($"CreateCloseButton error: {ex.Message}")
-            End Try
-        End Sub
-        
         ' ===== Toolbar Event Handlers =====
         
         ''' <summary>
@@ -281,18 +259,6 @@ Namespace Widgets
                 
             Catch ex As Exception
                 Console.WriteLine($"OnScaleComboChanged error: {ex.Message}")
-            End Try
-        End Sub
-        
-        ''' <summary>
-        ''' Handles close button click
-        ''' </summary>
-        Private Sub OnCloseButtonClicked(vSender As Object, vArgs As EventArgs)
-            Try
-                RaiseEvent CloseRequested()
-                
-            Catch ex As Exception
-                Console.WriteLine($"OnCloseButtonClicked error: {ex.Message}")
             End Try
         End Sub
         

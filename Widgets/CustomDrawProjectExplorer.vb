@@ -80,11 +80,6 @@ Namespace Widgets
         Public Event ProjectModified()
         
         ''' <summary>
-        ''' Raised when the close button is clicked
-        ''' </summary>
-        Public Event CloseRequested()
-
-        ''' <summary>
         ''' Raised when "Solution Settings..." is chosen from the solution root's context menu
         ''' </summary>
         Public Event SolutionSettingsRequested()

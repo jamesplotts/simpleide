@@ -419,11 +419,6 @@ Partial Public Class MainWindow
         UpdateObjectExplorerForActiveTab()
     End Sub
     
-    Private Sub OnProjectExplorerCloseRequested()
-        pLeftPanelVisible = False
-        UpdatePanelVisibility()
-    End Sub
-
     ' ===== Enhanced Project Loading =====
 
     ''' <summary>

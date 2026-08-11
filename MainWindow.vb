@@ -421,7 +421,6 @@ Partial Public Class MainWindow
             AddHandler pProjectExplorer.FileSelected, AddressOf OnProjectFileSelected
             AddHandler pProjectExplorer.ProjectFileSelected, AddressOf OnProjectFileDoubleClicked
             AddHandler pProjectExplorer.ProjectModified, AddressOf OnProjectModified
-            AddHandler pProjectExplorer.CloseRequested, AddressOf OnProjectExplorerCloseRequested
             AddHandler pProjectExplorer.ReferencesChanged, AddressOf OnReferencesChanged
             AddHandler pProjectExplorer.ManifestSelected, AddressOf OnManifestSelected
             AddHandler pProjectExplorer.SolutionSettingsRequested, AddressOf OnSolutionSettingsRequested

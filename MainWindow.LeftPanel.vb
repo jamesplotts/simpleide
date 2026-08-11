@@ -52,6 +52,7 @@ Partial Public Class MainWindow
             lCustomNotebook.ShowHidePanelButton = False
             lCustomNotebook.ShowDropdownButton = False ' Left panel needs this hidden
             lCustomNotebook.ShowScrollButtons = False
+            lCustomNotebook.ShowTabCloseButtons = False ' Project/Object Explorer tabs aren't individually closable
             
             ' Wire up events for the left notebook
             AddHandler lCustomNotebook.CurrentTabChanged, AddressOf OnLeftNotebookPageChanged
