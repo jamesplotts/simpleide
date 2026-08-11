@@ -79,8 +79,11 @@ Namespace Models
                         Dim lBetween As String = lContent.Substring(lLastPos, lWordStart - lLastPos)
                         lResult.Append(lBetween)
                         
-                        ' Check if we entered a string
-                        If lBetween.Contains("""") Then
+                        ' Check if we entered/exited a string - toggle once per quote
+                        ' character, not once whenever any are present, so a gap containing
+                        ' a complete literal (most commonly "") nets out to no change
+                        Dim lQuoteCount As Integer = lBetween.Length - lBetween.Replace("""", "").Length
+                        If lQuoteCount Mod 2 = 1 Then
                             lInString = Not lInString
                         End If
                     End If

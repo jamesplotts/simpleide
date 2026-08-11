@@ -222,7 +222,17 @@ Namespace Models
                 End If
     
                 If Not IsDemoMode AndAlso System.IO.Path.Exists(pFilePath) Then
-                    lContent = System.IO.File.ReadAllText(pFilePath)
+                    ' Read as bytes (not File.ReadAllText) and run the same BOM/encoding
+                    ' detection LoadContent() uses, so pEncoding matches what's actually on
+                    ' disk - IsLoaded is computed from pTextLines.Count, not the pIsLoaded
+                    ' field below, so a caller's "If Not IsLoaded Then LoadContent()" guard
+                    ' never runs after this branch populates pTextLines directly, meaning
+                    ' DetectEncoding must happen here too or pEncoding is left at its
+                    ' BOM-emitting Encoding.UTF8 field default and SaveContent() would
+                    ' silently inject/change a BOM the file never had
+                    Dim lBytes As Byte() = System.IO.File.ReadAllBytes(pFilePath)
+                    pEncoding = DetectEncoding(lBytes)
+                    lContent = pEncoding.GetString(lBytes)
                     pTextLines = New List(Of String)(
                         lContent.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
                     )
@@ -244,7 +254,7 @@ Namespace Models
                         ReDim pLineMetadata(lCount)
                         ReDim pCharacterTokens(lCount)
                     Else
-                        pTextLines.Add("" + Environment.Newline)
+                        pTextLines = New List(Of String)({"" + Environment.NewLine})
                         ReDim pLineMetadata(0)
                         pLineMetadata(0) = New LineMetadata()
                         ReDim pCharacterTokens(0)
