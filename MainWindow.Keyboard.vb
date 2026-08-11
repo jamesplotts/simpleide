@@ -328,7 +328,14 @@ Partial Public Class MainWindow
                         OnBuildProject(Nothing, Nothing)
                         vArgs.RetVal = True
                         Return
-                        
+
+                    Case "d"
+                        ' Ctrl+D - Duplicate Line (advertised in the Help tab and this
+                        ' file's own GetKeyboardShortcutsHelp, but never actually wired)
+                        DuplicateLine()
+                        vArgs.RetVal = True
+                        Return
+
                     Case "e"
                         ' Ctrl+E - Toggle Project Explorer
                         ToggleProjectExplorer()
@@ -666,6 +673,11 @@ Partial Public Class MainWindow
                 pSettingsManager.ShowProjectExplorer = pLeftPanelVisible
             End If
             UpdateMenuStates()
+
+            ' Called both by the View menu checkbox's own Toggled handler and directly by
+            ' Ctrl+E - the latter bypasses the checkbox, so it must be explicitly synced
+            ' here or it goes stale relative to the panel's real visibility
+            SyncViewMenuCheckbox(pProjectExplorerMenuItem, pLeftPanelVisible)
         Catch ex As Exception
             Console.WriteLine($"ToggleProjectExplorer error: {ex.Message}")
         End Try

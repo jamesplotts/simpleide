@@ -13,6 +13,36 @@ Partial Public Class MainWindow
     Private pThemeMenu As Menu
     Private pThemeRadioGroup As RadioMenuItem
     Private pProjectExplorerMenuItem As CheckMenuItem
+    Private pBottomPanelMenuItem As CheckMenuItem
+    Private pFullScreenMenuItem As CheckMenuItem
+    Private pDebugConfigMenuItem As RadioMenuItem
+    Private pReleaseConfigMenuItem As RadioMenuItem
+
+    ''' <summary>
+    ''' True while SyncViewMenuCheckbox is itself assigning a CheckMenuItem's Active
+    ''' property - guards the Toggled handlers below against re-entering their own toggle
+    ''' logic when that assignment raises Toggled again
+    ''' </summary>
+    Private pSyncingViewMenuCheckbox As Boolean = False
+
+    ''' <summary>
+    ''' Brings a View-menu CheckMenuItem's Active state back in line with reality after
+    ''' its underlying state changed through a path other than clicking the checkbox
+    ''' itself (a keyboard shortcut, Escape, etc.) - without this, the checkbox silently
+    ''' goes stale, and clicking a stale checkbox then toggles from the wrong assumed
+    ''' state, which can leave it showing the exact opposite of the truth
+    ''' </summary>
+    ''' <param name="vCheckItem">The checkbox to sync, or Nothing if not yet created</param>
+    ''' <param name="vDesiredState">The real, current state it should reflect</param>
+    Private Sub SyncViewMenuCheckbox(vCheckItem As CheckMenuItem, vDesiredState As Boolean)
+        If vCheckItem Is Nothing OrElse vCheckItem.Active = vDesiredState Then Return
+        Try
+            pSyncingViewMenuCheckbox = True
+            vCheckItem.Active = vDesiredState
+        Finally
+            pSyncingViewMenuCheckbox = False
+        End Try
+    End Sub
 
     ' Edit/File menu items whose Sensitive state UpdateMenuStates keeps in sync with the
     ' current editor/tab context - previously local Dim variables inside CreateFileMenu/
@@ -329,10 +359,11 @@ Partial Public Class MainWindow
             
             ' Project Explorer
             Dim lProjectExp As New CheckMenuItem("_Project Explorer")
-            lProjectExp.Active = True
+            lProjectExp.Active = pLeftPanelVisible
             AddHandler lProjectExp.Toggled, AddressOf OnToggleProjectExplorer
             lViewMenu.Append(lProjectExp)
-            
+            pProjectExplorerMenuItem = lProjectExp
+
             ' Bottom Panel - single toggle for the whole dock (Output/Errors/Warnings, TODO,
             ' AI Assistant, Git, Console, etc.) rather than one checkbox per tab. Which tab
             ' shows is picked via the panel's own tab strip once it's visible.
@@ -340,6 +371,7 @@ Partial Public Class MainWindow
             lBottomPanel.Active = pBottomPanelVisible
             AddHandler lBottomPanel.Toggled, AddressOf OnToggleBottomPanel
             lViewMenu.Append(lBottomPanel)
+            pBottomPanelMenuItem = lBottomPanel
 
             AddScratchpadMenuItem(lViewMenu)
     
@@ -388,8 +420,10 @@ Partial Public Class MainWindow
             
             ' Full Screen
             Dim lFullScreen As New CheckMenuItem("_Full Screen")
+            lFullScreen.Active = pIsFullScreen
             AddHandler lFullScreen.Toggled, AddressOf OnToggleFullScreen
             lViewMenu.Append(lFullScreen)
+            pFullScreenMenuItem = lFullScreen
             
             lViewMenu.Append(New SeparatorMenuItem())
             
@@ -524,22 +558,32 @@ Partial Public Class MainWindow
             lConfig.Submenu = lConfigMenu
             
             Dim lDebugConfig As New RadioMenuItem("_Debug")
-            lDebugConfig.Active = True
-            AddHandler lDebugConfig.Toggled, Sub() 
-                If lDebugConfig.Active Then 
+            AddHandler lDebugConfig.Toggled, Sub()
+                If lDebugConfig.Active Then
                     OnConfigurationChanged("Debug")
                 End If
             End Sub
             lConfigMenu.Append(lDebugConfig)
-            
+            pDebugConfigMenuItem = lDebugConfig
+
             Dim lReleaseConfig As New RadioMenuItem(lDebugConfig.Group, "_Release")
-            AddHandler lReleaseConfig.Toggled, Sub() 
-                If lReleaseConfig.Active Then 
+            AddHandler lReleaseConfig.Toggled, Sub()
+                If lReleaseConfig.Active Then
                     OnConfigurationChanged("Release")
                 End If
             End Sub
             lConfigMenu.Append(lReleaseConfig)
-            
+            pReleaseConfigMenuItem = lReleaseConfig
+
+            ' Reflect whatever configuration was already loaded (InitializeBuildSystem runs
+            ' well before CreateMenuBar) rather than always defaulting to Debug - otherwise
+            ' a project persisted with Release configuration shows "Debug" checked here, and
+            ' clicking it does nothing (a RadioMenuItem doesn't fire Toggled for the item
+            ' it believes is already active)
+            lReleaseConfig.Active = pBuildConfiguration IsNot Nothing AndAlso
+                String.Equals(pBuildConfiguration.Configuration, "Release", StringComparison.OrdinalIgnoreCase)
+            lDebugConfig.Active = Not lReleaseConfig.Active
+
             lBuildMenu.Append(lConfig)
             
             ' Build Configuration Dialog

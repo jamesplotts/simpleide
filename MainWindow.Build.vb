@@ -704,6 +704,21 @@ Partial Public Class MainWindow
                     If pBuildManager IsNot Nothing Then
                         pBuildManager.Configuration = pBuildConfiguration
                     End If
+
+                    ' Keep the Build > Configuration Debug/Release radio buttons in sync -
+                    ' they're a separate, narrower control (Debug/Release only, vs. this
+                    ' dialog's full Debug/Release/Test) that would otherwise silently show
+                    ' the pre-dialog selection after this changes it. Leave them alone (not
+                    ' forced to Debug) if the dialog picked "Test" - neither radio represents
+                    ' that configuration, and re-firing OnConfigurationChanged("Debug") here
+                    ' would overwrite the Test selection this dialog just saved
+                    If pReleaseConfigMenuItem IsNot Nothing AndAlso pDebugConfigMenuItem IsNot Nothing Then
+                        If String.Equals(pBuildConfiguration.Configuration, "Release", StringComparison.OrdinalIgnoreCase) Then
+                            pReleaseConfigMenuItem.Active = True
+                        ElseIf String.Equals(pBuildConfiguration.Configuration, "Debug", StringComparison.OrdinalIgnoreCase) Then
+                            pDebugConfigMenuItem.Active = True
+                        End If
+                    End If
                 End If
                 lDialog.Destroy()
             End Using

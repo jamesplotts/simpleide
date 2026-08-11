@@ -89,6 +89,11 @@ Partial Public Class MainWindow
             pBottomPanelVisible = False
             pApplyDefaultBottomPanelPositionOnNextAllocate = False
 
+            ' Escape (MainWindow.Keyboard.vb) calls this Sub directly, bypassing the View
+            ' menu's Bottom Panel checkbox - without this it goes stale relative to the
+            ' panel's real visibility
+            SyncViewMenuCheckbox(pBottomPanelMenuItem, pBottomPanelVisible)
+
             ' Return focus to editor if available
             Dim lEditor As IEditor = GetCurrentEditor()
             If lEditor IsNot Nothing Then

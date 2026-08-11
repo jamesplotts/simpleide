@@ -212,6 +212,9 @@ Partial Public Class MainWindow
     ''' </summary>
     Public Sub OnToggleProjectExplorer(vSender As Object, vArgs As EventArgs)
         Try
+            ' Re-entrancy guard - see SyncViewMenuCheckbox's doc comment (MainWindow.Menu.vb)
+            If pSyncingViewMenuCheckbox Then Return
+
             ToggleProjectExplorer()
         Catch ex As Exception
             Console.WriteLine($"OnToggleProjectExplorer error: {ex.Message}")
@@ -221,6 +224,9 @@ Partial Public Class MainWindow
 
     Public Sub OnToggleBottomPanel(vSender As Object, vArgs As EventArgs)
         Try
+            ' Re-entrancy guard - see SyncViewMenuCheckbox's doc comment (MainWindow.Menu.vb)
+            If pSyncingViewMenuCheckbox Then Return
+
             pBottomPanelVisible = Not pBottomPanelVisible
             pSettingsManager.ShowBottomPanel = pBottomPanelVisible
             UpdatePanelVisibility()
@@ -575,6 +581,9 @@ Partial Public Class MainWindow
 
     Private Sub OnToggleFullScreen(vSender As Object, vArgs As EventArgs)
         Try
+            ' Re-entrancy guard - see SyncViewMenuCheckbox's doc comment (MainWindow.Menu.vb)
+            If pSyncingViewMenuCheckbox Then Return
+
             If pIsFullScreen Then
                 Unfullscreen()
                 pIsFullScreen = False
@@ -582,6 +591,12 @@ Partial Public Class MainWindow
                 Fullscreen()
                 pIsFullScreen = True
             End If
+
+            ' F11 (MainWindow.Keyboard.vb) calls this Sub directly, bypassing the
+            ' checkbox's own click - without this, the checkbox goes stale, and clicking
+            ' it while stale toggles from the wrong assumed state, leaving it showing the
+            ' exact opposite of whether the window is actually full-screen
+            SyncViewMenuCheckbox(pFullScreenMenuItem, pIsFullScreen)
         Catch ex As Exception
             Console.WriteLine($"OnToggleFullScreen error: {ex.Message}")
             ShowError("Toggle Full Screen failed", ex.Message)
