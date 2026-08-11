@@ -117,7 +117,7 @@ Partial Public Class MainWindow
         Try
             ' VB.NET block start keywords
             Dim lBlockStarters As String() = {
-                "if ", "then", "else", "elseif ",
+                "if ", "else", "elseif ",
                 "for ", "for each ", "while ", "do ",
                 "select case ", "case ",
                 "try", "catch ", "finally",
@@ -137,8 +137,13 @@ Partial Public Class MainWindow
                 End If
             Next
             
-            ' Check for multiline statements
-            If vTrimmedLine.EndsWith(" then") OrElse 
+            ' Check for multiline statements (also covers "Then" ending a block-opening
+            ' If - deliberately not in lBlockStarters above, since every complete
+            ' single-line "If x Then y" statement contains " then" too, and the loop's
+            ' Contains(" " & lStarter) check would match that occurrence anywhere in the
+            ' line, not just at the end, incorrectly indenting the line that follows any
+            ' single-line If)
+            If vTrimmedLine.EndsWith(" then") OrElse
                vTrimmedLine.EndsWith(" _") Then
                 Return True
             End If
