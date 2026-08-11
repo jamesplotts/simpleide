@@ -579,6 +579,7 @@ Partial Public Class MainWindow
                 Dim lCustomEditor As CustomDrawingEditor = DirectCast(vEditor, CustomDrawingEditor)
                 RemoveHandler lCustomEditor.NavigationUpdateRequested, AddressOf OnEditorNavigationUpdateRequested
                 RemoveHandler lCustomEditor.GoToLineRequested, AddressOf OnEditorGoToLineRequested
+                RemoveHandler lCustomEditor.IdentifierCaseChanged, AddressOf OnEditorIdentifierCaseChanged
             End If
             
             #If DEBUG Then
@@ -1108,6 +1109,16 @@ End Function
     ''' <param name="vTabInfo">The TabInfo for the tab to update</param>
     Private Sub UpdateTabLabel(vTabInfo As TabInfo)
         Try
+            Dim lDisplayFileName As String = System.IO.Path.GetFileName(vTabInfo.FilePath)
+            If vTabInfo.Modified Then lDisplayFileName = $"*{lDisplayFileName}"
+
+            ' CustomDrawNotebook.AppendPage only ever accepts a plain string, not a widget -
+            ' vTabInfo.TabLabel (built by CreateTabLabel) is never actually attached as the
+            ' visible tab, so the Box/Label mutation below has no on-screen effect by itself.
+            ' This is what actually renders (e.g. so Save As shows the new filename, and the
+            ' "*" unsaved-changes prefix appears at all)
+            pNotebook.SetTabLabelText(vTabInfo.EditorContainer, lDisplayFileName)
+
             ' Update the label text (asterisk before filename)
             If vTabInfo.TabLabel.GetType() Is GetType(Box) Then
                 Dim lBox As Box = CType(vTabInfo.TabLabel, Box)
@@ -1743,11 +1754,24 @@ End Function
                         #End If
                     End If
                 End If
-                
+
+                ' Check if it's a comparison tab
+                If lKeyToRemove.StartsWith("comparison:") Then
+                    Dim lComparisonId As String = lKeyToRemove.Replace("comparison:", "")
+
+                    If pComparisonTabs IsNot Nothing AndAlso pComparisonTabs.ContainsKey(lComparisonId) Then
+                        pComparisonTabs.Remove(lComparisonId)
+                        #If DEBUG Then
+                        Console.WriteLine($"  Removed comparison tab: {lComparisonId}")
+                        #End If
+                    End If
+                End If
+
                 ' Remove from pOpenTabs dictionary
                 pOpenTabs.Remove(lKeyToRemove)
                 If Not lKeyToRemove.StartsWith("scratchpad:") AndAlso Not lKeyToRemove.StartsWith("help:") AndAlso
-                   Not lKeyToRemove.StartsWith("ai-artifact:") Then
+                   Not lKeyToRemove.StartsWith("ai-artifact:") AndAlso Not lKeyToRemove.StartsWith("comparison:") AndAlso
+                   Not lKeyToRemove.StartsWith("manifest:") Then
                     pFileSystemWatcher?.UnwatchFile(lKeyToRemove)
                 End If
                 #If DEBUG Then

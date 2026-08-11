@@ -194,6 +194,14 @@ Partial Public Class MainWindow
                             lPrompt.AppendLine("```")
                         End If
                     End If
+                ElseIf lWholeProject.Active Then
+                    ' Not embedded inline (a whole project's worth of source could be huge) -
+                    ' the AI Assistant already has project-wide file search/read tools, so
+                    ' just tell it the request spans the whole project instead of silently
+                    ' sending no context at all, which is what selecting this option
+                    ' previously did (this branch didn't exist)
+                    lPrompt.AppendLine()
+                    lPrompt.AppendLine("This request applies to the whole project, not a single file - please search/read whichever project files are relevant using your available tools.")
                 End If
                 
                 ' Add task type
@@ -312,9 +320,13 @@ Partial Public Class MainWindow
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             
-            ' Store in dictionary
+            ' Store in dictionary - also register under pOpenTabs (matching the "ai-artifact:"
+            ' prefix OnCustomNotebookTabClosed already expects) so closing this tab via its
+            ' own close button actually gets cleaned up, instead of leaving a stale
+            ' pAIArtifactTabs entry that can never be disposed or reopened
             pAIArtifactTabs(vArtifactId) = lTabInfo
-            
+            pOpenTabs($"ai-artifact:{vArtifactId}") = lTabInfo
+
             ' Update status
             UpdateStatusBar($"AI Artifact: {vArtifactName}")
             
@@ -373,9 +385,12 @@ Partial Public Class MainWindow
             pNotebook.ShowAll()
             pNotebook.CurrentPage = lPageIndex
             
-            ' Store in dictionary
+            ' Store in dictionary - also register under pOpenTabs (see ShowAIArtifact's
+            ' matching comment) under a "comparison:" prefix so OnCustomNotebookTabClosed
+            ' can clean this up when the tab's own close button is used
             pComparisonTabs(vComparisonId) = lTabInfo
-            
+            pOpenTabs($"comparison:{vComparisonId}") = lTabInfo
+
             ' Update status
             UpdateStatusBar($"Comparing: {System.IO.Path.GetFileName(vLeftPath)} ⟷ {System.IO.Path.GetFileName(vRightPath)}")
             
@@ -489,7 +504,8 @@ Partial Public Class MainWindow
             
             ' Remove from dictionary
             pAIArtifactTabs.Remove(vArtifactId)
-            
+            pOpenTabs.Remove($"ai-artifact:{vArtifactId}")
+
             ' Dispose
             lTabInfo.Dispose()
             

@@ -1275,11 +1275,16 @@ Partial Public Class MainWindow
             For Each lOldKey In lMatches
                 Dim lTab As TabInfo = pOpenTabs(lOldKey)
                 lTab.FilePath = vNewPath
-                Dim lNewFileName as String = System.IO.Path.GetFileName(vNewPath)
 
-                ' Update tab label
-                Dim lLabel As Label = lTab.TabLabel
-                If lLabel IsNot Nothing Then lLabel.Text = lNewFileName
+                ' Update tab label - TabInfo.TabLabel is Widget-typed and, for a real file
+                ' tab, actually a Box (built by CreateTabLabel), not a Label; casting it
+                ' directly to Label here threw InvalidCastException on every rename of an
+                ' open file (Option Strict is off, so this compiled but failed at runtime),
+                ' aborting the rest of this iteration before the SourceFileInfo path update
+                ' and pOpenTabs re-key below ever ran. UpdateTabLabel already handles the
+                ' Box/Label distinction correctly and also updates the actual visible
+                ' CustomDrawNotebook tab title (see its own fix).
+                UpdateTabLabel(lTab)
 
                 ' Update the SourceFileInfo in the editor
                 If lTab.Editor IsNot Nothing AndAlso lTab.Editor.SourceFileInfo IsNot Nothing Then
